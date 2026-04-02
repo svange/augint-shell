@@ -47,6 +47,11 @@ DEFAULT_WEBUI_PORT = 3000
 OLLAMA_CONTAINER = "augint-shell-ollama"
 WEBUI_CONTAINER = "augint-shell-webui"
 
+# =============================================================================
+# Docker network
+# =============================================================================
+LLM_NETWORK = "augint-shell-llm"
+
 
 def sanitize_project_name(path: Path) -> str:
     """Derive a safe container name suffix from a directory path.

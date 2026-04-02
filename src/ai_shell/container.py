@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+import time
 from typing import TYPE_CHECKING, NoReturn
 
 from docker.errors import APIError, ImageNotFound, NotFound
@@ -16,6 +17,7 @@ from docker.types import DeviceRequest, Mount
 
 import docker
 from ai_shell.defaults import (
+    LLM_NETWORK,
     OLLAMA_CONTAINER,
     OLLAMA_DATA_VOLUME,
     OLLAMA_IMAGE,
@@ -53,6 +55,20 @@ def _exec_docker(args: list[str]) -> NoReturn:
     sys.stderr.flush()
     result = subprocess.run(args)
     sys.exit(result.returncode)
+
+
+def _run_docker(args: list[str]) -> tuple[int, float]:
+    """Run a docker CLI command and return (exit_code, elapsed_seconds).
+
+    Unlike _exec_docker, this does NOT call sys.exit().
+    """
+    logger.debug("run: %s", " ".join(args))
+    sys.stdout.flush()
+    sys.stderr.flush()
+    start = time.monotonic()
+    result = subprocess.run(args)
+    elapsed = time.monotonic() - start
+    return result.returncode, elapsed
 
 
 class ContainerManager:
@@ -160,9 +176,43 @@ class ContainerManager:
 
         _exec_docker(args)
 
+    def run_interactive(
+        self,
+        container_name: str,
+        command: list[str],
+        extra_env: dict[str, str] | None = None,
+    ) -> tuple[int, float]:
+        """Execute an interactive command, returning (exit_code, elapsed_seconds).
+
+        Same as exec_interactive but does not call sys.exit().
+        Used for retry logic (e.g., claude -c fallback).
+        """
+        args = ["docker", "exec"]
+
+        if sys.stdin.isatty():
+            args.append("-it")
+
+        if extra_env:
+            for key, value in extra_env.items():
+                args.extend(["-e", f"{key}={value}"])
+
+        args.append(container_name)
+        args.extend(command)
+
+        return _run_docker(args)
+
     # =========================================================================
     # LLM stack (host-level singletons)
     # =========================================================================
+
+    def _ensure_llm_network(self) -> str:
+        """Get or create the shared Docker network for the LLM stack."""
+        try:
+            self.client.networks.get(LLM_NETWORK)
+        except NotFound:
+            logger.info("Creating LLM network: %s", LLM_NETWORK)
+            self.client.networks.create(LLM_NETWORK, driver="bridge")
+        return LLM_NETWORK
 
     def ensure_ollama(self) -> str:
         """Get or create the Ollama container with GPU auto-detection.
@@ -179,6 +229,7 @@ class ContainerManager:
 
         logger.info("Creating Ollama container")
         self._pull_image_if_needed(OLLAMA_IMAGE)
+        network_name = self._ensure_llm_network()
 
         # GPU auto-detection
         gpu_available = detect_gpu()
@@ -202,6 +253,7 @@ class ContainerManager:
             ],
             "restart_policy": {"Name": "unless-stopped"},
             "detach": True,
+            "network": network_name,
         }
 
         if device_requests:
@@ -226,6 +278,7 @@ class ContainerManager:
 
         logger.info("Creating Open WebUI container")
         self._pull_image_if_needed(WEBUI_IMAGE)
+        network_name = self._ensure_llm_network()
 
         self.client.containers.run(
             image=WEBUI_IMAGE,
@@ -244,8 +297,7 @@ class ContainerManager:
             ],
             restart_policy={"Name": "unless-stopped"},
             detach=True,
-            # Link to ollama via Docker network
-            network_mode=f"container:{OLLAMA_CONTAINER}",
+            network=network_name,
         )
 
         logger.info("Open WebUI container created on port %d", self.config.webui_port)

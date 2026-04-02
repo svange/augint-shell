@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ai_shell.config import AiShellConfig
-from ai_shell.defaults import SHM_SIZE
+from ai_shell.defaults import LLM_NETWORK, SHM_SIZE
 from ai_shell.exceptions import ContainerNotFoundError, DockerNotAvailableError, ImagePullError
 
 
@@ -142,6 +142,67 @@ class TestExecInteractive:
             assert exc_info.value.code == 130
 
 
+class TestRunInteractive:
+    def test_returns_exit_code_and_elapsed(self, mock_container_manager):
+        with (
+            patch("ai_shell.container.subprocess.run") as mock_run,
+            patch("ai_shell.container.sys.stdin") as mock_stdin,
+        ):
+            mock_run.return_value = MagicMock(returncode=0)
+            mock_stdin.isatty.return_value = True
+
+            exit_code, elapsed = mock_container_manager.run_interactive(
+                "augint-shell-test-dev",
+                ["claude", "--dangerously-skip-permissions", "-c"],
+            )
+
+            assert exit_code == 0
+            assert elapsed >= 0
+            mock_run.assert_called_once_with(
+                [
+                    "docker",
+                    "exec",
+                    "-it",
+                    "augint-shell-test-dev",
+                    "claude",
+                    "--dangerously-skip-permissions",
+                    "-c",
+                ],
+            )
+
+    def test_returns_nonzero_exit_code(self, mock_container_manager):
+        with (
+            patch("ai_shell.container.subprocess.run") as mock_run,
+            patch("ai_shell.container.sys.stdin") as mock_stdin,
+        ):
+            mock_run.return_value = MagicMock(returncode=1)
+            mock_stdin.isatty.return_value = True
+
+            exit_code, elapsed = mock_container_manager.run_interactive(
+                "augint-shell-test-dev",
+                ["claude", "-c"],
+            )
+
+            assert exit_code == 1
+
+
+class TestEnsureLlmNetwork:
+    def test_creates_network_when_missing(self, mock_container_manager, mock_docker_client):
+        # mock_docker_client.networks.get already raises NotFound via conftest
+        mock_container_manager._ensure_llm_network()
+
+        mock_docker_client.networks.create.assert_called_once_with(LLM_NETWORK, driver="bridge")
+
+    def test_reuses_existing_network(self, mock_container_manager, mock_docker_client):
+        # Override: network exists
+        mock_docker_client.networks.get.side_effect = None
+        mock_docker_client.networks.get.return_value = MagicMock()
+
+        mock_container_manager._ensure_llm_network()
+
+        mock_docker_client.networks.create.assert_not_called()
+
+
 class TestEnsureOllama:
     def test_creates_with_gpu_when_available(self, mock_container_manager, mock_docker_client):
         mock_container_manager._get_container = MagicMock(return_value=None)
@@ -153,6 +214,7 @@ class TestEnsureOllama:
         call_kwargs = mock_docker_client.containers.run.call_args[1]
         assert "device_requests" in call_kwargs
         assert len(call_kwargs["device_requests"]) == 1
+        assert call_kwargs["network"] == LLM_NETWORK
 
     def test_creates_without_gpu_when_unavailable(self, mock_container_manager, mock_docker_client):
         mock_container_manager._get_container = MagicMock(return_value=None)
@@ -163,6 +225,7 @@ class TestEnsureOllama:
 
         call_kwargs = mock_docker_client.containers.run.call_args[1]
         assert "device_requests" not in call_kwargs
+        assert call_kwargs["network"] == LLM_NETWORK
 
 
 class TestContainerLifecycle:
@@ -209,6 +272,8 @@ class TestEnsureWebui:
         mock_docker_client.containers.run.assert_called_once()
         call_kwargs = mock_docker_client.containers.run.call_args[1]
         assert "OLLAMA_BASE_URL" in call_kwargs["environment"]
+        assert call_kwargs["network"] == LLM_NETWORK
+        assert "network_mode" not in call_kwargs
 
     def test_starts_stopped_webui(self, mock_container_manager):
         stopped = MagicMock()
@@ -282,6 +347,7 @@ class TestExtraVolumes:
     def test_extra_volumes_from_config(self, mock_docker_client):
         with patch("ai_shell.container.docker") as mock_docker:
             mock_docker.from_env.return_value = mock_docker_client
+            mock_docker.errors = MagicMock()
             mock_docker.errors.DockerException = Exception
 
             from ai_shell.container import ContainerManager

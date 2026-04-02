@@ -28,10 +28,15 @@ def config(tmp_project: Path) -> AiShellConfig:
 @pytest.fixture
 def mock_docker_client():
     """Create a mocked Docker client."""
+    from docker.errors import NotFound
+
     client = MagicMock()
     client.ping.return_value = True
     client.containers = MagicMock()
     client.images = MagicMock()
+    # Default: LLM network doesn't exist yet (triggers creation)
+    client.networks = MagicMock()
+    client.networks.get.side_effect = NotFound("network not found")
     return client
 
 

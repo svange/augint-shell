@@ -7,7 +7,7 @@ import click
 from ai_shell import __version__
 from ai_shell.cli.commands.llm import llm_group
 from ai_shell.cli.commands.manage import manage_group
-from ai_shell.cli.commands.tools import aider, claude, claude_x, codex, opencode, shell
+from ai_shell.cli.commands.tools import aider, claude, codex, opencode, shell
 
 
 @click.group()
@@ -22,7 +22,6 @@ def cli(ctx, project):
 
 # Tool subcommands
 cli.add_command(claude)
-cli.add_command(claude_x, "claude-x")
 cli.add_command(codex)
 cli.add_command(opencode)
 cli.add_command(aider)
