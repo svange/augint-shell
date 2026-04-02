@@ -23,6 +23,7 @@ dev = [
     "pip-audit>=2.7.0",
     "pip-licenses>=5.0.0",
     "pytest-html>=4.0.0",
+    "pdoc>=15.0.0",
 ]
 
 [project.scripts]

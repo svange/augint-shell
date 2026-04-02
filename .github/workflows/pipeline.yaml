@@ -86,6 +86,54 @@ jobs:
             -r prod-requirements.txt --no-deps
         continue-on-error: false
 
+      - name: Generate security HTML report
+        if: always()
+        run: |
+          cat > security-reports.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Security Scan Results</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; background: #0d1117; color: #c9d1d9; }
+                  .report { margin: 20px 0; padding: 15px; border: 1px solid #30363d; border-radius: 8px; background: #161b22; }
+                  .report h2 { color: #58a6ff; margin-top: 0; }
+                  pre { background: #0d1117; padding: 10px; border-radius: 4px; overflow-x: auto; border: 1px solid #30363d; font-size: 12px; }
+                  .error { color: #ff7b72; }
+                  .warning { color: #ffa657; }
+                  .info { color: #79c0ff; }
+              </style>
+          </head>
+          <body>
+              <h1>Security Scan Results</h1>
+              <div class="report">
+                  <h2>Bandit Security Scan</h2>
+                  <pre id="bandit-content"></pre>
+              </div>
+              <div class="report">
+                  <h2>Pip-Audit Results</h2>
+                  <pre id="audit-content"></pre>
+              </div>
+              <script>
+                  const reports = [
+                      {id: 'bandit-content', file: 'bandit-report.json'},
+                      {id: 'audit-content', file: 'pip-audit-report.json'}
+                  ];
+                  reports.forEach(report => {
+                      fetch(report.file)
+                          .then(response => response.json())
+                          .then(data => {
+                              document.getElementById(report.id).textContent = JSON.stringify(data, null, 2);
+                          })
+                          .catch(error => {
+                              document.getElementById(report.id).textContent = 'Report not available';
+                          });
+                  });
+              </script>
+          </body>
+          </html>
+          EOF
+
       - name: Upload security scan results
         if: always()
         uses: actions/upload-artifact@v4
@@ -94,6 +142,7 @@ jobs:
           path: |
             bandit-report.json
             pip-audit-report.json
+            security-reports.html
 
   compliance-reports:
     name: License compliance
@@ -124,6 +173,7 @@ jobs:
         run: |
           uv export --no-hashes --no-dev > runtime-requirements.txt
           uv run pip-licenses --from=mixed --format=json --output-file=license-report.json
+          uv run pip-licenses --from=mixed --format=html --output-file=license-report.html
           uv run pip-licenses --from=mixed --summary
 
       - name: Check license compatibility
@@ -145,6 +195,15 @@ jobs:
           else:
               print('All licenses compatible')
           "
+
+      - name: Upload compliance reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-reports
+          path: |
+            license-report.json
+            license-report.html
 
   unit-tests:
     name: Unit tests
@@ -178,6 +237,8 @@ jobs:
         run: |
           uv run pytest \
             --cov=src --cov-report=html --cov-report=xml --cov-fail-under=80 \
+            --html=test-report.html --self-contained-html \
+            --css=ci-resources/pytest-html.css \
             -v
 
       - name: Upload coverage reports
@@ -188,6 +249,13 @@ jobs:
           path: |
             htmlcov/
             coverage.xml
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: test-report.html
 
   release:
     name: Semantic release
@@ -320,3 +388,74 @@ jobs:
             svange/augint-shell:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  docs:
+    name: Deploy documentation
+    needs: release
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Generate documentation
+        run: |
+          mkdir -p docs
+          uv run pdoc --output-dir docs \
+            --template-directory ci-resources/pdoc-templates \
+            src/ai_shell || true
+
+      - name: Download coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-reports
+          path: docs/coverage
+        continue-on-error: true
+
+      - name: Download security scan results
+        uses: actions/download-artifact@v4
+        with:
+          name: security-scan-results
+          path: docs/security
+        continue-on-error: true
+
+      - name: Download compliance reports
+        uses: actions/download-artifact@v4
+        with:
+          name: compliance-reports
+          path: docs/compliance
+        continue-on-error: true
+
+      - name: Download unit test report
+        uses: actions/download-artifact@v4
+        with:
+          name: unit-test-reports
+          path: docs/tests
+        continue-on-error: true
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GH_TOKEN }}
+          publish_dir: ./docs
+          publish_branch: gh-pages

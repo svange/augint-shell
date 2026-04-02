@@ -1,6 +1,22 @@
 # augint-shell
 
+[![PyPI version](https://badge.fury.io/py/augint-shell.svg)](https://badge.fury.io/py/augint-shell)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://github.com/svange/augint-shell/actions/workflows/pipeline.yaml/badge.svg)](https://github.com/svange/augint-shell/actions)
+[![License](https://img.shields.io/badge/license-proprietary-red.svg)](LICENSE)
+
 Launch AI coding tools and local LLMs in Docker containers.
+
+## Documentation & Reports
+
+| Resource | Description |
+|----------|-------------|
+| [API Documentation](https://svange.github.io/augint-shell/ai_shell.html) | pdoc-generated API reference |
+| [Test Coverage](https://svange.github.io/augint-shell/coverage/htmlcov/) | HTML coverage report |
+| [Test Results](https://svange.github.io/augint-shell/tests/test-report.html) | Unit test results |
+| [Security Scans](https://svange.github.io/augint-shell/security/security-reports.html) | Bandit, pip-audit results |
+| [License Compliance](https://svange.github.io/augint-shell/compliance/license-report.html) | Dependency license report |
+| [PyPI Package](https://pypi.org/project/augint-shell/) | Published package |
 
 ## Installation
 
