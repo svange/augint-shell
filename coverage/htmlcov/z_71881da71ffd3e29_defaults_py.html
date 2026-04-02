@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_71881da71ffd3e29_exceptions_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-02 22:52 +0000
+            created at 2026-04-02 23:30 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -249,20 +249,18 @@
     <p class="run"><span class="n"><a id="t167" href="#t167">167</a></span><span class="t">        <span class="key">return</span> <span class="nam">os</span><span class="op">.</span><span class="nam">environ</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="nam">key</span><span class="op">,</span> <span class="nam">default</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t168" href="#t168">168</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t169" href="#t169">169</a></span><span class="t">    <span class="nam">env</span><span class="op">:</span> <span class="nam">dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">str</span><span class="op">]</span> <span class="op">=</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t170" href="#t170">170</a></span><span class="t">        <span class="str">"AWS_ACCESS_KEY_ID"</span><span class="op">:</span> <span class="nam">_resolve</span><span class="op">(</span><span class="str">"AWS_ACCESS_KEY_ID"</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">        <span class="str">"AWS_SECRET_ACCESS_KEY"</span><span class="op">:</span> <span class="nam">_resolve</span><span class="op">(</span><span class="str">"AWS_SECRET_ACCESS_KEY"</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t172" href="#t172">172</a></span><span class="t">        <span class="str">"AWS_SESSION_TOKEN"</span><span class="op">:</span> <span class="nam">_resolve</span><span class="op">(</span><span class="str">"AWS_SESSION_TOKEN"</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">        <span class="str">"AWS_REGION"</span><span class="op">:</span> <span class="nam">_resolve</span><span class="op">(</span><span class="str">"AWS_REGION"</span><span class="op">,</span> <span class="str">"us-east-1"</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t174" href="#t174">174</a></span><span class="t">        <span class="str">"AWS_PAGER"</span><span class="op">:</span> <span class="str">""</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t175" href="#t175">175</a></span><span class="t">        <span class="str">"GH_TOKEN"</span><span class="op">:</span> <span class="nam">_resolve</span><span class="op">(</span><span class="str">"GH_TOKEN"</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t176" href="#t176">176</a></span><span class="t">        <span class="str">"GITHUB_TOKEN"</span><span class="op">:</span> <span class="nam">_resolve</span><span class="op">(</span><span class="str">"GH_TOKEN"</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t177" href="#t177">177</a></span><span class="t">        <span class="str">"IS_SANDBOX"</span><span class="op">:</span> <span class="str">"1"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t178" href="#t178">178</a></span><span class="t">    <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t179" href="#t179">179</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t180" href="#t180">180</a></span><span class="t">    <span class="key">if</span> <span class="nam">extra_env</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t181" href="#t181">181</a></span><span class="t">        <span class="nam">env</span><span class="op">.</span><span class="nam">update</span><span class="op">(</span><span class="nam">extra_env</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t182" href="#t182">182</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t183" href="#t183">183</a></span><span class="t">    <span class="key">return</span> <span class="nam">env</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t170" href="#t170">170</a></span><span class="t">        <span class="str">"AWS_PROFILE"</span><span class="op">:</span> <span class="nam">_resolve</span><span class="op">(</span><span class="str">"AWS_PROFILE"</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">        <span class="str">"AWS_REGION"</span><span class="op">:</span> <span class="nam">_resolve</span><span class="op">(</span><span class="str">"AWS_REGION"</span><span class="op">,</span> <span class="str">"us-east-1"</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t172" href="#t172">172</a></span><span class="t">        <span class="str">"AWS_PAGER"</span><span class="op">:</span> <span class="str">""</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">        <span class="str">"GH_TOKEN"</span><span class="op">:</span> <span class="nam">_resolve</span><span class="op">(</span><span class="str">"GH_TOKEN"</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t174" href="#t174">174</a></span><span class="t">        <span class="str">"GITHUB_TOKEN"</span><span class="op">:</span> <span class="nam">_resolve</span><span class="op">(</span><span class="str">"GH_TOKEN"</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t175" href="#t175">175</a></span><span class="t">        <span class="str">"IS_SANDBOX"</span><span class="op">:</span> <span class="str">"1"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t176" href="#t176">176</a></span><span class="t">    <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t177" href="#t177">177</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t178" href="#t178">178</a></span><span class="t">    <span class="key">if</span> <span class="nam">extra_env</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t179" href="#t179">179</a></span><span class="t">        <span class="nam">env</span><span class="op">.</span><span class="nam">update</span><span class="op">(</span><span class="nam">extra_env</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t180" href="#t180">180</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t181" href="#t181">181</a></span><span class="t">    <span class="key">return</span> <span class="nam">env</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -272,7 +270,7 @@
             <a class="nav" href="z_71881da71ffd3e29_exceptions_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-02 22:52 +0000
+            created at 2026-04-02 23:30 +0000
         </p>
     </div>
 </footer>
