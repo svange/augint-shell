@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-04-02T18:12:03Z",
+  "generated_at": "2026-04-02T18:44:13Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 11,
+      "CONFIDENCE.HIGH": 10,
       "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 3,
+      "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 14,
+      "SEVERITY.LOW": 10,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 905,
+      "loc": 907,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -68,15 +68,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/cli/commands/llm.py": {
-      "CONFIDENCE.HIGH": 2,
+      "CONFIDENCE.HIGH": 1,
       "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 3,
+      "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 158,
+      "loc": 151,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -122,13 +122,13 @@
     "src/ai_shell/container.py": {
       "CONFIDENCE.HIGH": 2,
       "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 2,
+      "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 4,
+      "SEVERITY.LOW": 2,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 255,
+      "loc": 264,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -195,74 +195,28 @@
       "test_name": "try_except_pass"
     },
     {
-      "code": "181         sys.stderr.flush()\n182         os.execvp(\n183             \"docker\",\n184             [\"docker\", \"logs\", \"-f\", OLLAMA_CONTAINER],\n185         )\n186     else:\n",
-      "col_offset": 8,
-      "end_col_offset": 9,
-      "filename": "src/ai_shell/cli/commands/llm.py",
-      "issue_confidence": "MEDIUM",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Starting a process without a shell.",
-      "line_number": 182,
-      "line_range": [
-        182,
-        183,
-        184,
-        185
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b606_start_process_with_no_shell.html",
-      "test_id": "B606",
-      "test_name": "start_process_with_no_shell"
-    },
-    {
-      "code": "181         sys.stderr.flush()\n182         os.execvp(\n183             \"docker\",\n184             [\"docker\", \"logs\", \"-f\", OLLAMA_CONTAINER],\n185         )\n186     else:\n",
-      "col_offset": 8,
-      "end_col_offset": 9,
-      "filename": "src/ai_shell/cli/commands/llm.py",
+      "code": "9 import logging\n10 import subprocess\n11 import sys\n",
+      "col_offset": 0,
+      "end_col_offset": 17,
+      "filename": "src/ai_shell/container.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
         "id": 78,
         "link": "https://cwe.mitre.org/data/definitions/78.html"
       },
       "issue_severity": "LOW",
-      "issue_text": "Starting a process with a partial executable path",
-      "line_number": 182,
+      "issue_text": "Consider possible security implications associated with the subprocess module.",
+      "line_number": 10,
       "line_range": [
-        182,
-        183,
-        184,
-        185
+        10
       ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
-      "test_id": "B607",
-      "test_name": "start_process_with_partial_path"
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess",
+      "test_id": "B404",
+      "test_name": "blacklist"
     },
     {
-      "code": "150 \n151         os.execvp(\"docker\", args)\n152 \n",
-      "col_offset": 8,
-      "end_col_offset": 33,
-      "filename": "src/ai_shell/container.py",
-      "issue_confidence": "MEDIUM",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Starting a process without a shell.",
-      "line_number": 151,
-      "line_range": [
-        151
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b606_start_process_with_no_shell.html",
-      "test_id": "B606",
-      "test_name": "start_process_with_no_shell"
-    },
-    {
-      "code": "150 \n151         os.execvp(\"docker\", args)\n152 \n",
-      "col_offset": 8,
+      "code": "53     sys.stderr.flush()\n54     result = subprocess.run(args)\n55     sys.exit(result.returncode)\n",
+      "col_offset": 13,
       "end_col_offset": 33,
       "filename": "src/ai_shell/container.py",
       "issue_confidence": "HIGH",
@@ -271,54 +225,14 @@
         "link": "https://cwe.mitre.org/data/definitions/78.html"
       },
       "issue_severity": "LOW",
-      "issue_text": "Starting a process with a partial executable path",
-      "line_number": 151,
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 54,
       "line_range": [
-        151
+        54
       ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
-      "test_id": "B607",
-      "test_name": "start_process_with_partial_path"
-    },
-    {
-      "code": "295             args = [\"docker\", \"logs\", \"-f\", name]\n296             os.execvp(\"docker\", args)\n297         else:\n",
-      "col_offset": 12,
-      "end_col_offset": 37,
-      "filename": "src/ai_shell/container.py",
-      "issue_confidence": "MEDIUM",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Starting a process without a shell.",
-      "line_number": 296,
-      "line_range": [
-        296
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b606_start_process_with_no_shell.html",
-      "test_id": "B606",
-      "test_name": "start_process_with_no_shell"
-    },
-    {
-      "code": "295             args = [\"docker\", \"logs\", \"-f\", name]\n296             os.execvp(\"docker\", args)\n297         else:\n",
-      "col_offset": 12,
-      "end_col_offset": 37,
-      "filename": "src/ai_shell/container.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Starting a process with a partial executable path",
-      "line_number": 296,
-      "line_range": [
-        296
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
-      "test_id": "B607",
-      "test_name": "start_process_with_partial_path"
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
     },
     {
       "code": "4 import shutil\n5 import subprocess\n6 \n",
