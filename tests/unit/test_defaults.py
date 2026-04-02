@@ -125,19 +125,20 @@ class TestBuildDevEnvironment:
         assert env["GH_TOKEN"] == "test-token"
         assert env["GITHUB_TOKEN"] == "test-token"
 
-    def test_passes_through_aws_credentials(self):
+    def test_passes_through_aws_profile(self):
+        with patch.dict("os.environ", {"AWS_PROFILE": "my-sso-profile"}):
+            env = build_dev_environment()
+        assert env["AWS_PROFILE"] == "my-sso-profile"
+
+    def test_aws_iam_keys_not_passed(self):
         with patch.dict(
             "os.environ",
-            {
-                "AWS_ACCESS_KEY_ID": "AKIA-test",
-                "AWS_SECRET_ACCESS_KEY": "secret-test",
-                "AWS_SESSION_TOKEN": "token-test",
-            },
+            {"AWS_ACCESS_KEY_ID": "AKIA-test", "AWS_SECRET_ACCESS_KEY": "secret"},
         ):
             env = build_dev_environment()
-        assert env["AWS_ACCESS_KEY_ID"] == "AKIA-test"
-        assert env["AWS_SECRET_ACCESS_KEY"] == "secret-test"
-        assert env["AWS_SESSION_TOKEN"] == "token-test"
+        assert "AWS_ACCESS_KEY_ID" not in env
+        assert "AWS_SECRET_ACCESS_KEY" not in env
+        assert "AWS_SESSION_TOKEN" not in env
 
     def test_extra_env_merged(self):
         env = build_dev_environment(extra_env={"CUSTOM_VAR": "custom_value"})

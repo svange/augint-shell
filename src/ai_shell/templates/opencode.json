@@ -16,6 +16,12 @@
           "name": "Qwen3 Coder Next 80B MoE (Local)"
         }
       }
+    },
+    "amazon-bedrock": {
+      "options": {
+        "region": "{env:AWS_REGION}",
+        "profile": "{env:AWS_PROFILE}"
+      }
     }
   }
 }

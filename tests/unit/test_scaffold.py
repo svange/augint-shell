@@ -121,3 +121,10 @@ class TestScaffoldProject:
         models = data["provider"]["ollama"]["models"]
         assert "qwen3.5:27b" in models
         assert "qwen3-coder-next" in models
+
+    def test_opencode_json_has_bedrock_provider(self, tmp_path):
+        scaffold_project(tmp_path)
+        data = json.loads((tmp_path / "opencode.json").read_text())
+        bedrock = data["provider"]["amazon-bedrock"]
+        assert bedrock["options"]["region"] == "{env:AWS_REGION}"
+        assert bedrock["options"]["profile"] == "{env:AWS_PROFILE}"
