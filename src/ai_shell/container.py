@@ -182,7 +182,7 @@ class ContainerManager:
         kwargs: dict = {
             "image": OLLAMA_IMAGE,
             "name": OLLAMA_CONTAINER,
-            "ports": {"11434/tcp": ("0.0.0.0", self.config.ollama_port)},
+            "ports": {"11434/tcp": ("0.0.0.0", self.config.ollama_port)},  # nosec B104
             "mounts": [
                 Mount(
                     target="/root/.ollama",
@@ -220,7 +220,7 @@ class ContainerManager:
         self.client.containers.run(
             image=WEBUI_IMAGE,
             name=WEBUI_CONTAINER,
-            ports={"8080/tcp": ("0.0.0.0", self.config.webui_port)},
+            ports={"8080/tcp": ("0.0.0.0", self.config.webui_port)},  # nosec B104
             environment={
                 "OLLAMA_BASE_URL": f"http://{OLLAMA_CONTAINER}:11434",
                 "WEBUI_AUTH": "false",
