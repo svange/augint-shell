@@ -1,0 +1,494 @@
+{
+  "errors": [],
+  "generated_at": "2026-04-02T18:12:03Z",
+  "metrics": {
+    "_totals": {
+      "CONFIDENCE.HIGH": 11,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 3,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 14,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 905,
+      "nosec": 0,
+      "skipped_tests": 2
+    },
+    "src/ai_shell/__init__.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 5,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/cli/__init__.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 0,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/cli/__main__.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 32,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/cli/commands/__init__.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 0,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/cli/commands/llm.py": {
+      "CONFIDENCE.HIGH": 2,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 3,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 158,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/cli/commands/manage.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 76,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/cli/commands/tools.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 76,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/config.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 111,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/container.py": {
+      "CONFIDENCE.HIGH": 2,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 2,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 4,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 255,
+      "nosec": 0,
+      "skipped_tests": 2
+    },
+    "src/ai_shell/defaults.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 109,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/exceptions.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 18,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/gpu.py": {
+      "CONFIDENCE.HIGH": 7,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 7,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 65,
+      "nosec": 0,
+      "skipped_tests": 0
+    }
+  },
+  "results": [
+    {
+      "code": "104                 break\n105         except Exception:\n106             pass\n107         console.print(f\"  Waiting... ({i + 1}/10)\")\n",
+      "col_offset": 8,
+      "end_col_offset": 16,
+      "filename": "src/ai_shell/cli/commands/llm.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 105,
+      "line_range": [
+        105,
+        106
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "181         sys.stderr.flush()\n182         os.execvp(\n183             \"docker\",\n184             [\"docker\", \"logs\", \"-f\", OLLAMA_CONTAINER],\n185         )\n186     else:\n",
+      "col_offset": 8,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/cli/commands/llm.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process without a shell.",
+      "line_number": 182,
+      "line_range": [
+        182,
+        183,
+        184,
+        185
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b606_start_process_with_no_shell.html",
+      "test_id": "B606",
+      "test_name": "start_process_with_no_shell"
+    },
+    {
+      "code": "181         sys.stderr.flush()\n182         os.execvp(\n183             \"docker\",\n184             [\"docker\", \"logs\", \"-f\", OLLAMA_CONTAINER],\n185         )\n186     else:\n",
+      "col_offset": 8,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/cli/commands/llm.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 182,
+      "line_range": [
+        182,
+        183,
+        184,
+        185
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "150 \n151         os.execvp(\"docker\", args)\n152 \n",
+      "col_offset": 8,
+      "end_col_offset": 33,
+      "filename": "src/ai_shell/container.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process without a shell.",
+      "line_number": 151,
+      "line_range": [
+        151
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b606_start_process_with_no_shell.html",
+      "test_id": "B606",
+      "test_name": "start_process_with_no_shell"
+    },
+    {
+      "code": "150 \n151         os.execvp(\"docker\", args)\n152 \n",
+      "col_offset": 8,
+      "end_col_offset": 33,
+      "filename": "src/ai_shell/container.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 151,
+      "line_range": [
+        151
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "295             args = [\"docker\", \"logs\", \"-f\", name]\n296             os.execvp(\"docker\", args)\n297         else:\n",
+      "col_offset": 12,
+      "end_col_offset": 37,
+      "filename": "src/ai_shell/container.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process without a shell.",
+      "line_number": 296,
+      "line_range": [
+        296
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b606_start_process_with_no_shell.html",
+      "test_id": "B606",
+      "test_name": "start_process_with_no_shell"
+    },
+    {
+      "code": "295             args = [\"docker\", \"logs\", \"-f\", name]\n296             os.execvp(\"docker\", args)\n297         else:\n",
+      "col_offset": 12,
+      "end_col_offset": 37,
+      "filename": "src/ai_shell/container.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 296,
+      "line_range": [
+        296
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "4 import shutil\n5 import subprocess\n6 \n",
+      "col_offset": 0,
+      "end_col_offset": 17,
+      "filename": "src/ai_shell/gpu.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Consider possible security implications associated with the subprocess module.",
+      "line_number": 5,
+      "line_range": [
+        5
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess",
+      "test_id": "B404",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "28     try:\n29         result = subprocess.run(\n30             [\"nvidia-smi\", \"--query-gpu=name\", \"--format=csv,noheader\"],\n31             capture_output=True,\n32             text=True,\n33             timeout=10,\n34         )\n35         if result.returncode == 0 and result.stdout.strip():\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/gpu.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 29,
+      "line_range": [
+        29,
+        30,
+        31,
+        32,
+        33,
+        34
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "28     try:\n29         result = subprocess.run(\n30             [\"nvidia-smi\", \"--query-gpu=name\", \"--format=csv,noheader\"],\n31             capture_output=True,\n32             text=True,\n33             timeout=10,\n34         )\n35         if result.returncode == 0 and result.stdout.strip():\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/gpu.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 29,
+      "line_range": [
+        29,
+        30,
+        31,
+        32,
+        33,
+        34
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "51     try:\n52         result = subprocess.run(\n53             [\"docker\", \"info\", \"--format\", \"{{.Runtimes}}\"],\n54             capture_output=True,\n55             text=True,\n56             timeout=10,\n57         )\n58         if result.returncode == 0 and \"nvidia\" in result.stdout.lower():\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/gpu.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 52,
+      "line_range": [
+        52,
+        53,
+        54,
+        55,
+        56,
+        57
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "51     try:\n52         result = subprocess.run(\n53             [\"docker\", \"info\", \"--format\", \"{{.Runtimes}}\"],\n54             capture_output=True,\n55             text=True,\n56             timeout=10,\n57         )\n58         if result.returncode == 0 and \"nvidia\" in result.stdout.lower():\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/gpu.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 52,
+      "line_range": [
+        52,
+        53,
+        54,
+        55,
+        56,
+        57
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "61         # Also check for default GPU support (newer Docker versions)\n62         result2 = subprocess.run(\n63             [\"docker\", \"info\", \"--format\", \"{{json .}}\"],\n64             capture_output=True,\n65             text=True,\n66             timeout=10,\n67         )\n68         if result2.returncode == 0 and \"nvidia\" in result2.stdout.lower():\n",
+      "col_offset": 18,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/gpu.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 62,
+      "line_range": [
+        62,
+        63,
+        64,
+        65,
+        66,
+        67
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "61         # Also check for default GPU support (newer Docker versions)\n62         result2 = subprocess.run(\n63             [\"docker\", \"info\", \"--format\", \"{{json .}}\"],\n64             capture_output=True,\n65             text=True,\n66             timeout=10,\n67         )\n68         if result2.returncode == 0 and \"nvidia\" in result2.stdout.lower():\n",
+      "col_offset": 18,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/gpu.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 62,
+      "line_range": [
+        62,
+        63,
+        64,
+        65,
+        66,
+        67
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    }
+  ]
+}
