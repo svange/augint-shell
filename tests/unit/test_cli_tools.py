@@ -122,6 +122,7 @@ class TestToolCommands:
     def test_aider_passes_model_and_env(self, mock_config, mock_manager_cls):
         config = MagicMock()
         config.aider_model = "ollama_chat/qwen3.5:27b"
+        config.ollama_port = 11434
         mock_config.return_value = config
 
         mock_manager = MagicMock()

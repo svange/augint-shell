@@ -40,6 +40,11 @@ def manage_status(ctx):
         )
     elif status == "running":
         console.print(f"[green]{name}: running[/green]")
+        ports = manager.container_ports(name)
+        if ports:
+            console.print("  [bold]Ports:[/bold]")
+            for container_port, host_addr in ports.items():
+                console.print(f"    {container_port} -> {host_addr}")
     else:
         console.print(f"[yellow]{name}: {status}[/yellow]")
 

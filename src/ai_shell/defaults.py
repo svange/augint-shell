@@ -40,6 +40,7 @@ DEFAULT_FALLBACK_MODEL = "qwen3-coder-next"
 DEFAULT_CONTEXT_SIZE = 32768
 DEFAULT_OLLAMA_PORT = 11434
 DEFAULT_WEBUI_PORT = 3000
+DEFAULT_DEV_PORTS = [3000, 4200, 5000, 5173, 5678, 8000, 8080, 8888]
 
 # =============================================================================
 # Container names

@@ -90,7 +90,7 @@ def aider(ctx, safe, extra_args):
     if not safe:
         cmd.append("--yes-always")
     cmd.extend(["--restore-chat-history", *extra_args])
-    extra_env = {"OLLAMA_API_BASE": "http://host.docker.internal:11434"}
+    extra_env = {"OLLAMA_API_BASE": f"http://host.docker.internal:{config.ollama_port}"}
     mode_label = " (safe mode)" if safe else ""
     console.print(f"[bold]Launching aider{mode_label} ({config.aider_model}) in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=extra_env)

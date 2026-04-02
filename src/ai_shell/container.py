@@ -145,7 +145,7 @@ class ContainerManager:
             shm_size=SHM_SIZE,
             init=True,
             extra_hosts={"host.docker.internal": "host-gateway"},
-            ports={"5678/tcp": None, "8000/tcp": None},
+            ports={f"{port}/tcp": None for port in self.config.dev_ports},
             detach=True,
         )
         logger.info("Container created: %s", name)
@@ -342,6 +342,24 @@ class ContainerManager:
             raise ContainerNotFoundError(name)
         container.remove(force=force)
         logger.info("Removed container: %s", name)
+
+    def container_ports(self, name: str) -> dict[str, str] | None:
+        """Get the port mappings for a container.
+
+        Returns a dict mapping container ports (e.g. '3000/tcp') to host
+        addresses (e.g. '0.0.0.0:49152'), or None if the container doesn't exist.
+        """
+        container = self._get_container(name)
+        if container is None:
+            return None
+        container.reload()
+        ports_data = container.attrs.get("NetworkSettings", {}).get("Ports") or {}
+        result: dict[str, str] = {}
+        for container_port, bindings in sorted(ports_data.items()):
+            if bindings:
+                binding = bindings[0]
+                result[container_port] = f"{binding['HostIp']}:{binding['HostPort']}"
+        return result
 
     def container_status(self, name: str) -> str | None:
         """Get the status of a container, or None if it doesn't exist."""

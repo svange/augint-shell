@@ -14,6 +14,7 @@ from pathlib import Path
 from ai_shell import __version__
 from ai_shell.defaults import (
     DEFAULT_CONTEXT_SIZE,
+    DEFAULT_DEV_PORTS,
     DEFAULT_FALLBACK_MODEL,
     DEFAULT_IMAGE,
     DEFAULT_OLLAMA_PORT,
@@ -47,11 +48,17 @@ class AiShellConfig:
     # Extra configuration
     extra_env: dict[str, str] = field(default_factory=dict)
     extra_volumes: list[str] = field(default_factory=list)
+    extra_ports: list[int] = field(default_factory=list)
 
     @property
     def full_image(self) -> str:
         """Return the full image reference with tag."""
         return f"{self.image}:{self.image_tag}"
+
+    @property
+    def dev_ports(self) -> list[int]:
+        """Return deduplicated, sorted list of dev container ports to expose."""
+        return sorted(set(DEFAULT_DEV_PORTS + self.extra_ports))
 
 
 def load_config(
@@ -114,6 +121,8 @@ def _apply_toml(config: AiShellConfig, path: Path) -> None:
         config.extra_env.update(container["extra_env"])
     if "extra_volumes" in container:
         config.extra_volumes.extend(container["extra_volumes"])
+    if "ports" in container:
+        config.extra_ports.extend(int(p) for p in container["ports"])
 
     # [llm] section
     llm = data.get("llm", {})
@@ -153,3 +162,8 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         if value is not None:
             setattr(config, attr, type_fn(value))
             logger.debug("Config override from env: %s=%s", env_key, value)
+
+    # AI_SHELL_PORTS is comma-separated, extends extra_ports
+    ports_value = os.environ.get("AI_SHELL_PORTS")
+    if ports_value:
+        config.extra_ports.extend(int(p.strip()) for p in ports_value.split(",") if p.strip())

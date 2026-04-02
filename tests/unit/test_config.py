@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 from ai_shell.config import AiShellConfig, load_config
+from ai_shell.defaults import DEFAULT_DEV_PORTS
 
 
 class TestAiShellConfig:
@@ -125,6 +126,42 @@ extra_env = { FOO = "bar", BAZ = "qux" }
         )
         config = load_config(project_dir=tmp_path)
         assert config.extra_env == {"FOO": "bar", "BAZ": "qux"}
+
+    def test_dev_ports_defaults(self):
+        config = AiShellConfig()
+        assert config.dev_ports == sorted(DEFAULT_DEV_PORTS)
+
+    def test_dev_ports_with_extras(self):
+        config = AiShellConfig(extra_ports=[9000, 9229])
+        assert 9000 in config.dev_ports
+        assert 9229 in config.dev_ports
+        # Defaults still present
+        assert 3000 in config.dev_ports
+
+    def test_dev_ports_deduplicates(self):
+        config = AiShellConfig(extra_ports=[3000, 8000, 9000])
+        assert config.dev_ports == sorted(set(DEFAULT_DEV_PORTS + [9000]))
+
+    def test_dev_ports_sorted(self):
+        config = AiShellConfig(extra_ports=[100, 50000])
+        ports = config.dev_ports
+        assert ports == sorted(ports)
+
+    def test_extra_ports_from_toml(self, tmp_path):
+        toml_content = b"""
+[container]
+ports = [9000, 9229]
+"""
+        (tmp_path / "ai-shell.toml").write_bytes(toml_content)
+        config = load_config(project_dir=tmp_path)
+        assert 9000 in config.dev_ports
+        assert 9229 in config.dev_ports
+
+    def test_extra_ports_from_env_var(self, tmp_path):
+        with patch.dict("os.environ", {"AI_SHELL_PORTS": "9000,9229"}):
+            config = load_config(project_dir=tmp_path)
+        assert 9000 in config.dev_ports
+        assert 9229 in config.dev_ports
 
     def test_invalid_toml_gracefully_ignored(self, tmp_path):
         (tmp_path / "ai-shell.toml").write_text("this is not valid toml {{{")

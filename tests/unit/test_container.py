@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ai_shell.config import AiShellConfig
-from ai_shell.defaults import LLM_NETWORK, SHM_SIZE
+from ai_shell.defaults import DEFAULT_DEV_PORTS, LLM_NETWORK, SHM_SIZE
 from ai_shell.exceptions import ContainerNotFoundError, DockerNotAvailableError, ImagePullError
 
 
@@ -46,6 +46,35 @@ class TestEnsureDevContainer:
         assert call_kwargs["command"] == "tail -f /dev/null"
         assert call_kwargs["extra_hosts"] == {"host.docker.internal": "host-gateway"}
         assert call_kwargs["detach"] is True
+
+        # Verify all default dev ports are exposed with ephemeral host mapping
+        expected_ports = {f"{port}/tcp": None for port in sorted(DEFAULT_DEV_PORTS)}
+        assert call_kwargs["ports"] == expected_ports
+
+    def test_creates_container_with_extra_ports(self, mock_docker_client):
+        with patch("ai_shell.container.docker") as mock_docker:
+            mock_docker.from_env.return_value = mock_docker_client
+            mock_docker.errors = MagicMock()
+            mock_docker.errors.DockerException = Exception
+
+            from ai_shell.container import ContainerManager
+
+            config = AiShellConfig(
+                project_name="test-project",
+                extra_ports=[9000, 9229],
+            )
+            manager = ContainerManager(config)
+            manager._get_container = MagicMock(return_value=None)
+            manager._pull_image_if_needed = MagicMock()
+
+            manager.ensure_dev_container()
+
+            call_kwargs = mock_docker_client.containers.run.call_args[1]
+            assert "9000/tcp" in call_kwargs["ports"]
+            assert "9229/tcp" in call_kwargs["ports"]
+            # Default ports still present
+            assert "3000/tcp" in call_kwargs["ports"]
+            assert "8000/tcp" in call_kwargs["ports"]
 
     def test_starts_existing_stopped_container(self, mock_container_manager):
         stopped_container = MagicMock()
@@ -300,6 +329,32 @@ class TestExecInOllama:
 
         with pytest.raises(ContainerNotFoundError):
             mock_container_manager.exec_in_ollama(["ollama", "list"])
+
+
+class TestContainerPorts:
+    def test_returns_port_mappings(self, mock_container_manager):
+        container = MagicMock()
+        container.attrs = {
+            "NetworkSettings": {
+                "Ports": {
+                    "3000/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49152"}],
+                    "8000/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49153"}],
+                    "5678/tcp": None,
+                }
+            }
+        }
+        mock_container_manager._get_container = MagicMock(return_value=container)
+
+        result = mock_container_manager.container_ports("test")
+        assert result == {
+            "3000/tcp": "0.0.0.0:49152",
+            "8000/tcp": "0.0.0.0:49153",
+        }
+        container.reload.assert_called_once()
+
+    def test_returns_none_for_missing_container(self, mock_container_manager):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        assert mock_container_manager.container_ports("missing") is None
 
 
 class TestContainerLogs:
