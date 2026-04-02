@@ -129,3 +129,49 @@ class TestBuildDevEnvironment:
         env = build_dev_environment(extra_env={"CUSTOM_VAR": "custom_value"})
         assert env["CUSTOM_VAR"] == "custom_value"
         assert env["IS_SANDBOX"] == "1"  # originals still present
+
+
+class TestBuildDevEnvironmentDotenv:
+    def test_loads_gh_token_from_dotenv(self, tmp_path):
+        (tmp_path / ".env").write_text("GH_TOKEN=from-dotenv\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(project_dir=tmp_path)
+        assert env["GH_TOKEN"] == "from-dotenv"
+        assert env["GITHUB_TOKEN"] == "from-dotenv"
+
+    def test_dotenv_overrides_os_environ(self, tmp_path):
+        (tmp_path / ".env").write_text("GH_TOKEN=from-dotenv\n")
+        with patch.dict("os.environ", {"GH_TOKEN": "from-os"}):
+            env = build_dev_environment(project_dir=tmp_path)
+        assert env["GH_TOKEN"] == "from-dotenv"
+
+    def test_extra_env_overrides_dotenv(self, tmp_path):
+        (tmp_path / ".env").write_text("GH_TOKEN=from-dotenv\n")
+        env = build_dev_environment(
+            extra_env={"GH_TOKEN": "from-config"},
+            project_dir=tmp_path,
+        )
+        assert env["GH_TOKEN"] == "from-config"
+
+    def test_falls_back_to_os_environ_when_not_in_dotenv(self, tmp_path):
+        (tmp_path / ".env").write_text("OTHER_VAR=other\n")
+        with patch.dict("os.environ", {"GH_TOKEN": "from-os"}):
+            env = build_dev_environment(project_dir=tmp_path)
+        assert env["GH_TOKEN"] == "from-os"
+
+    def test_no_project_dir_uses_old_behavior(self):
+        with patch.dict("os.environ", {"GH_TOKEN": "from-os"}):
+            env = build_dev_environment()
+        assert env["GH_TOKEN"] == "from-os"
+
+    def test_missing_dotenv_uses_defaults(self, tmp_path):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(project_dir=tmp_path)
+        assert env["GH_TOKEN"] == ""
+        assert env["AWS_REGION"] == "us-east-1"
+
+    def test_dotenv_aws_region(self, tmp_path):
+        (tmp_path / ".env").write_text("AWS_REGION=eu-west-1\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(project_dir=tmp_path)
+        assert env["AWS_REGION"] == "eu-west-1"

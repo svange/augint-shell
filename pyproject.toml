@@ -9,6 +9,7 @@ dependencies = [
     "docker>=7.0.0",
     "click>=8.1.0",
     "rich>=14.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]

@@ -140,19 +140,36 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
     return mounts
 
 
-def build_dev_environment(extra_env: dict[str, str] | None = None) -> dict[str, str]:
+def build_dev_environment(
+    extra_env: dict[str, str] | None = None,
+    project_dir: Path | None = None,
+) -> dict[str, str]:
     """Build environment variables matching docker-compose.yml dev service.
 
-    Passes through AWS credentials, GitHub token, and sandbox flag from the host.
+    Loads .env from the project directory (if present), then layers on
+    host environment variables and hardcoded defaults.
+
+    Priority (highest wins): extra_env > .env file > os.environ > defaults.
     """
+    from dotenv import dotenv_values
+
+    # Load .env from project directory (returns empty dict if missing)
+    dotenv: dict[str, str | None] = {}
+    if project_dir is not None:
+        dotenv = dotenv_values(project_dir / ".env")
+
+    def _resolve(key: str, default: str = "") -> str:
+        """Resolve a value: .env > os.environ > default."""
+        dotenv_val = dotenv.get(key)
+        if dotenv_val is not None and dotenv_val != "":
+            return dotenv_val
+        return os.environ.get(key, default)
+
     env: dict[str, str] = {
-        # AWS region (auth via SSO/OIDC, not static credentials)
-        "AWS_REGION": os.environ.get("AWS_REGION", "us-east-1"),
+        "AWS_REGION": _resolve("AWS_REGION", "us-east-1"),
         "AWS_PAGER": "",
-        # GitHub token
-        "GH_TOKEN": os.environ.get("GH_TOKEN", ""),
-        "GITHUB_TOKEN": os.environ.get("GH_TOKEN", ""),
-        # Sandbox mode for claude --dangerously-skip-permissions
+        "GH_TOKEN": _resolve("GH_TOKEN"),
+        "GITHUB_TOKEN": _resolve("GH_TOKEN"),
         "IS_SANDBOX": "1",
     }
 

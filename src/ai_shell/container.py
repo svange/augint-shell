@@ -116,7 +116,7 @@ class ContainerManager:
     def _create_dev_container(self, name: str) -> Container:
         """Create the dev container with all docker-compose config."""
         mounts = build_dev_mounts(self.config.project_dir, self.config.project_name)
-        environment = build_dev_environment(self.config.extra_env)
+        environment = build_dev_environment(self.config.extra_env, self.config.project_dir)
 
         # Add any extra volumes from config
         for vol_spec in self.config.extra_volumes:
