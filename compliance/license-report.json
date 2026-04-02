@@ -62,7 +62,7 @@
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.3.0"
+    "Version": "0.4.0"
   },
   {
     "License": "Apache-2.0",
@@ -352,7 +352,7 @@
   {
     "License": "MIT",
     "Name": "ruff",
-    "Version": "0.15.8"
+    "Version": "0.15.9"
   },
   {
     "License": "ISC License (ISCL)",
