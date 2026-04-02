@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-04-02T18:44:13Z",
+  "generated_at": "2026-04-02T19:32:44Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 10,
+      "CONFIDENCE.HIGH": 11,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 10,
+      "SEVERITY.LOW": 11,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 907,
+      "loc": 958,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -50,7 +50,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 32,
+      "loc": 31,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -102,7 +102,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 76,
+      "loc": 84,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -120,15 +120,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/container.py": {
-      "CONFIDENCE.HIGH": 2,
+      "CONFIDENCE.HIGH": 3,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 2,
+      "SEVERITY.LOW": 3,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 264,
+      "loc": 307,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -141,7 +141,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 109,
+      "loc": 110,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -215,7 +215,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "53     sys.stderr.flush()\n54     result = subprocess.run(args)\n55     sys.exit(result.returncode)\n",
+      "code": "55     sys.stderr.flush()\n56     result = subprocess.run(args)\n57     sys.exit(result.returncode)\n",
       "col_offset": 13,
       "end_col_offset": 33,
       "filename": "src/ai_shell/container.py",
@@ -226,9 +226,29 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 54,
+      "line_number": 56,
       "line_range": [
-        54
+        56
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "68     start = time.monotonic()\n69     result = subprocess.run(args)\n70     elapsed = time.monotonic() - start\n",
+      "col_offset": 13,
+      "end_col_offset": 33,
+      "filename": "src/ai_shell/container.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 69,
+      "line_range": [
+        69
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
