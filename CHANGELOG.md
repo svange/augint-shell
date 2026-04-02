@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.6.0 (2026-04-02)
+
+### Features
+
+- Add `init` command for project scaffolding, improve Claude configuration, and integrate templates
+  with scaffold logic
+  ([`863c61c`](https://github.com/svange/augint-shell/commit/863c61cb06688cd622cfe3fe6520df01ddd441a3))
+
+- Replace `commands` with `skills`, migrate templates to skill-based structure, and add
+  `ai-create-cmd` and `ai-monitor-pipeline` skills
+  ([`2504ea1`](https://github.com/svange/augint-shell/commit/2504ea1c70b3b09eb09cde434b67958dab272d22))
+
+
 ## v0.5.0 (2026-04-02)
 
 ### Bug Fixes
