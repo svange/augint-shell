@@ -24,11 +24,31 @@ def _get_manager(ctx) -> tuple[ContainerManager, str]:
 
 
 @click.command()
+@click.option(
+    "--init",
+    "do_init",
+    is_flag=True,
+    default=False,
+    help="Create .claude/ project config in current directory and exit.",
+)
+@click.option(
+    "--update",
+    "do_update",
+    is_flag=True,
+    default=False,
+    help="Create/overwrite .claude/ project config in current directory and exit.",
+)
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def claude(ctx, safe, extra_args):
+def claude(ctx, do_init, do_update, safe, extra_args):
     """Launch Claude Code in the dev container."""
+    if do_init or do_update:
+        from ai_shell.scaffold import scaffold_claude as _scaffold_claude
+
+        _scaffold_claude(Path.cwd(), overwrite=do_update)
+        return
+
     manager, name = _get_manager(ctx)
 
     if safe:
@@ -103,3 +123,22 @@ def shell(ctx):
     manager, name = _get_manager(ctx)
     console.print(f"[bold]Opening shell in {name}...[/bold]")
     manager.exec_interactive(name, ["/bin/bash"])
+
+
+@click.command()
+@click.option("--update", is_flag=True, default=False, help="Overwrite existing config files.")
+@click.option(
+    "--all",
+    "scaffold_all",
+    is_flag=True,
+    default=False,
+    help="Also scaffold tool configs (claude, etc).",
+)
+def init(update, scaffold_all):
+    """Initialize ai-shell config files in the current directory."""
+    from ai_shell.scaffold import scaffold_claude as _scaffold_claude
+    from ai_shell.scaffold import scaffold_project
+
+    scaffold_project(Path.cwd(), overwrite=update)
+    if scaffold_all:
+        _scaffold_claude(Path.cwd(), overwrite=update)
