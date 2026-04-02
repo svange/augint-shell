@@ -45,18 +45,21 @@ def _write_file(path: Path, content: str, *, overwrite: bool) -> bool:
 
 # ── Public API ──────────────────────────────────────────────────────
 
-CLAUDE_COMMAND_FILES = [
-    "ai-create-cmd.md",
-    "ai-fresh-branch.md",
-    "ai-pick-issue.md",
-    "ai-repo-health.md",
+CLAUDE_SKILL_DIRS = [
+    "ai-pick-issue",
+    "ai-prepare-branch",
+    "ai-submit-work",
+    "ai-monitor-pipeline",
+    "ai-promote",
+    "ai-create-cmd",
+    "ai-repo-health",
 ]
 
 
 def scaffold_claude(target_dir: Path, *, overwrite: bool = False) -> None:
-    """Create ``.claude/`` directory with settings and commands."""
+    """Create ``.claude/`` directory with settings and skills."""
     claude_dir = target_dir / ".claude"
-    commands_dir = claude_dir / "commands"
+    skills_dir = claude_dir / "skills"
 
     # settings.json
     _write_file(
@@ -65,11 +68,11 @@ def scaffold_claude(target_dir: Path, *, overwrite: bool = False) -> None:
         overwrite=overwrite,
     )
 
-    # command files
-    for filename in CLAUDE_COMMAND_FILES:
+    # skill files
+    for skill_name in CLAUDE_SKILL_DIRS:
         _write_file(
-            commands_dir / filename,
-            _read_template("claude", "commands", filename),
+            skills_dir / skill_name / "SKILL.md",
+            _read_template("claude", "skills", skill_name, "SKILL.md"),
             overwrite=overwrite,
         )
 

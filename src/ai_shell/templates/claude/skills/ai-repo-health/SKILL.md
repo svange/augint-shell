@@ -1,6 +1,33 @@
+---
+name: ai-repo-health
+description: Comprehensive repository health check with remote-first git hygiene, branch cleanup, and code quality analysis. Use for repo maintenance and cleanup.
+disable-model-invocation: true
+argument-hint: "[--remote-only] [--local-only] [--dry-run]"
+---
+
 Comprehensive repository health check with remote-first git hygiene: $ARGUMENTS
 
 Deep repository analysis and cleanup that prioritizes remote repository hygiene, prevents lost work, and maintains code quality. Remote branches are cleaned first to ensure a truly clean repository state.
+
+## Usage Options
+
+```bash
+# Full health check with remote cleanup
+/ai-repo-health
+
+# Focus modes
+/ai-repo-health --remote-only    # Just remote cleanup
+/ai-repo-health --local-only     # Just local cleanup
+/ai-repo-health --issues-only    # Just GitHub issues
+/ai-repo-health --code-only      # Just code quality
+
+# Safety options
+/ai-repo-health --dry-run        # Preview only
+/ai-repo-health --backup-first   # Force backup before any changes
+
+# Automation
+/ai-repo-health --auto --max-age=90  # Auto-delete branches older than 90 days
+```
 
 ## Phase 1: Remote Repository Hygiene (Priority)
 
@@ -33,14 +60,14 @@ Deep repository analysis and cleanup that prioritizes remote repository hygiene,
    ```
 
 3. **Check GitHub PR status for each branch**:
-   ```python
+   ```bash
    # For each remote branch, check:
-   - Is there an open PR?
-   - Was the PR merged?
-   - Is the branch protected?
-   - Who is the last committer?
+   # - Is there an open PR?
+   # - Was the PR merged?
+   # - Is the branch protected?
+   # - Who is the last committer?
+   gh pr list --state all --head <branch-name> --json number,state,mergedAt
    ```
-   Use `mcp__github__list_pull_requests` and `mcp__github__get_pull_request`
 
 4. **Interactive remote cleanup**:
    For each deletable remote branch:
@@ -60,7 +87,6 @@ Deep repository analysis and cleanup that prioritizes remote repository hygiene,
 
 5. **Verify remote cleanup**:
    ```bash
-   # Confirm branches were deleted
    git fetch --prune
    git branch -r | wc -l  # Should show reduced count
    ```
@@ -70,20 +96,19 @@ Deep repository analysis and cleanup that prioritizes remote repository hygiene,
 6. **Scan for orphaned commits**:
    ```bash
    # Find dangling commits not on any branch
-   git fsck --lost-found --no-reflogs | grep commit | cut -d' ' -f3 > orphaned-commits.txt
+   git fsck --lost-found --no-reflogs | grep commit | cut -d' ' -f3 > /tmp/orphaned-commits.txt
 
    # Analyze each orphan
    while read commit; do
      echo "=== Orphaned commit: $commit ==="
      git show --stat --format="%h %ae %ad %s" --date=relative $commit
 
-     # Check if this commit exists on remote
      if git branch -r --contains $commit | grep -q .; then
        echo "Exists on remote branch"
      else
        echo "WARNING: Not on any remote branch - AT RISK"
      fi
-   done < orphaned-commits.txt
+   done < /tmp/orphaned-commits.txt
    ```
 
 7. **Interactive recovery**:
@@ -94,7 +119,6 @@ Deep repository analysis and cleanup that prioritizes remote repository hygiene,
 
 8. **Stash management**:
    ```bash
-   # List all stashes with age
    git stash list --format="%gd: %gs - %ar" | while read stash; do
      age=$(echo $stash | grep -oE "[0-9]+ (weeks?|months?|years?) ago")
      if [[ $age =~ (month|year) ]]; then
@@ -142,7 +166,6 @@ Deep repository analysis and cleanup that prioritizes remote repository hygiene,
 
 12. **Config cleanup**:
     ```bash
-    # Remove configs for deleted branches
     for branch in $(git config --get-regexp '^branch\.' | cut -d. -f2 | sort -u); do
       if ! git show-ref --verify --quiet refs/heads/$branch; then
         echo "Removing config for deleted branch: $branch"
@@ -154,11 +177,14 @@ Deep repository analysis and cleanup that prioritizes remote repository hygiene,
 ## Phase 5: Code & Project Health
 
 13. **GitHub issue management**:
-    Use `mcp__github__list_issues` to find:
-    - Stale issues (>90 days inactive)
-    - Issues referencing deleted branches
-    - Issues already implemented
-    - Duplicate issues
+    ```bash
+    # Find stale issues (>90 days inactive)
+    gh issue list --state open --json number,title,updatedAt --limit 100
+
+    # Issues referencing deleted branches
+    # Issues already implemented
+    # Duplicate issues
+    ```
 
 14. **Code quality scan**:
     ```bash
@@ -176,8 +202,7 @@ Deep repository analysis and cleanup that prioritizes remote repository hygiene,
     ```bash
     # Python
     if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
-      pip-audit
-      safety check
+      pip-audit 2>/dev/null || uv run pip-audit 2>/dev/null
     fi
 
     # JavaScript
@@ -189,7 +214,7 @@ Deep repository analysis and cleanup that prioritizes remote repository hygiene,
 
 16. **Documentation check**:
     ```bash
-    # Find broken internal links
+    # Find broken internal links in markdown
     rg '\[([^\]]+)\]\(([^)]+)\)' -o -r '$2' *.md | while read link; do
       if [[ $link =~ ^[^:]+$ ]] && [ ! -e "$link" ]; then
         echo "Broken link: $link"
@@ -209,43 +234,35 @@ Deep repository analysis and cleanup that prioritizes remote repository hygiene,
     - Orphaned commits recovered: Z
     - Repository size: X MB -> Y MB (Z% reduction)
 
-    ## Remote Cleanup (COMPLETED)
+    ## Remote Cleanup
     ### Deleted Remote Branches
     - origin/feature-old (PR #123 merged 3 months ago)
-    - origin/bugfix-done (PR #456 merged 2 months ago)
 
     ### Kept Remote Branches
     - origin/feature-active (recent activity)
-    - origin/experiment-wip (has open PR #789)
 
-    ## Local Cleanup (COMPLETED)
+    ## Local Cleanup
     ### Deleted Local Branches
     - feature-old (tracking deleted remote)
-    - bugfix-merged (fully merged to main)
 
     ### Branches Needing Attention
     - feature-local-only (uncommitted changes)
-    - experiment-unpushed (5 commits ahead)
 
     ## Recovered Work
     ### Created Recovery Branches
     - recovery/orphan-abc123 (Fix critical bug)
-    - recovery/orphan-def456 (Add new feature)
 
     ## Code Health Issues
     ### High Priority
     - 3 security vulnerabilities in dependencies
-    - 15 TODO comments over 6 months old
 
     ### Medium Priority
     - 8 stale issues can be closed
-    - 2 large files (>10MB) in repository
 
     ## Recommendations
     1. Review recovery branches within 7 days
     2. Update dependencies to fix vulnerabilities
     3. Enable branch protection rules
-    4. Set up automated cleanup workflow
     ```
 
 ## Safety Features
@@ -255,25 +272,3 @@ Deep repository analysis and cleanup that prioritizes remote repository hygiene,
 - **Never delete** protected branches or branches with open PRs
 - **Recovery period**: All deleted branches recoverable via reflog for 30 days
 - **Dry run mode**: `--dry-run` flag to preview without changes
-
-## Usage Options
-
-```bash
-# Full health check with remote cleanup
-/ai-repo-health
-
-# Focus modes
-/ai-repo-health --remote-only    # Just remote cleanup
-/ai-repo-health --local-only     # Just local cleanup
-/ai-repo-health --issues-only    # Just GitHub issues
-/ai-repo-health --code-only      # Just code quality
-
-# Safety options
-/ai-repo-health --dry-run        # Preview only
-/ai-repo-health --backup-first   # Force backup before any changes
-
-# Automation
-/ai-repo-health --auto --max-age=90  # Auto-delete branches older than 90 days
-```
-
-This remote-first approach ensures your repository is truly clean, both locally and on the remote, with no surprises in your GitHub repository.

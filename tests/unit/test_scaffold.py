@@ -2,7 +2,7 @@
 
 import json
 
-from ai_shell.scaffold import scaffold_claude, scaffold_project
+from ai_shell.scaffold import CLAUDE_SKILL_DIRS, scaffold_claude, scaffold_project
 
 
 class TestScaffoldClaude:
@@ -10,13 +10,31 @@ class TestScaffoldClaude:
         scaffold_claude(tmp_path)
         assert (tmp_path / ".claude" / "settings.json").is_file()
 
-    def test_creates_all_command_files(self, tmp_path):
+    def test_creates_all_skill_dirs(self, tmp_path):
         scaffold_claude(tmp_path)
-        commands_dir = tmp_path / ".claude" / "commands"
-        assert (commands_dir / "ai-create-cmd.md").is_file()
-        assert (commands_dir / "ai-fresh-branch.md").is_file()
-        assert (commands_dir / "ai-pick-issue.md").is_file()
-        assert (commands_dir / "ai-repo-health.md").is_file()
+        skills_dir = tmp_path / ".claude" / "skills"
+        for skill_name in CLAUDE_SKILL_DIRS:
+            assert (skills_dir / skill_name / "SKILL.md").is_file(), f"Missing skill: {skill_name}"
+
+    def test_skill_count_matches(self, tmp_path):
+        scaffold_claude(tmp_path)
+        skills_dir = tmp_path / ".claude" / "skills"
+        actual = sorted(d.name for d in skills_dir.iterdir() if d.is_dir())
+        assert actual == sorted(CLAUDE_SKILL_DIRS)
+
+    def test_skill_files_have_frontmatter(self, tmp_path):
+        scaffold_claude(tmp_path)
+        skills_dir = tmp_path / ".claude" / "skills"
+        for skill_name in CLAUDE_SKILL_DIRS:
+            content = (skills_dir / skill_name / "SKILL.md").read_text()
+            assert content.startswith("---"), f"{skill_name}/SKILL.md missing YAML frontmatter"
+            # Verify frontmatter closes
+            second_marker = content.index("---", 3)
+            frontmatter = content[3:second_marker]
+            assert "name:" in frontmatter, f"{skill_name}/SKILL.md missing 'name' in frontmatter"
+            assert "description:" in frontmatter, (
+                f"{skill_name}/SKILL.md missing 'description' in frontmatter"
+            )
 
     def test_settings_json_is_valid(self, tmp_path):
         scaffold_claude(tmp_path)
@@ -53,6 +71,18 @@ class TestScaffoldClaude:
         assert "statusLine" not in data
         assert "feedbackSurveyState" not in data
         assert "effortLevel" not in data
+
+    def test_settings_has_workflow_permissions(self, tmp_path):
+        scaffold_claude(tmp_path)
+        data = json.loads((tmp_path / ".claude" / "settings.json").read_text())
+        allow = data["permissions"]["allow"]
+        # Verify new permissions needed by workflow skills
+        assert "Bash(gh pr create:*)" in allow
+        assert "Bash(gh pr merge:*)" in allow
+        assert "Bash(gh run list:*)" in allow
+        assert "Bash(gh run view:*)" in allow
+        assert "Bash(gh run watch:*)" in allow
+        assert "Bash(uv run pre-commit:*)" in allow
 
 
 class TestScaffoldProject:

@@ -1,3 +1,9 @@
+---
+name: ai-pick-issue
+description: Find, analyze, and recommend GitHub issues to work on. Use when looking for issues, searching by keyword, or wanting recommendations on what to work on next.
+argument-hint: "[issue-number or search-terms]"
+---
+
 Intelligently find or select GitHub issues: $ARGUMENTS
 
 Smart issue finder that understands numbers, keywords, and natural language.
@@ -58,19 +64,6 @@ For natural language queries:
 - Remove filler words ("the", "about", "that")
 - Search in title and body
 
-Display results:
-```
-=== Open Issues Matching "$ARGUMENTS" ===
-
-1. #123 [bug] Pre-commit hooks not working on Windows
-   Last updated: 2 days ago
-   Labels: bug, windows, tooling
-
-2. #456 [enhancement] Add pre-commit configuration
-   Last updated: 1 week ago
-   Labels: enhancement, developer-experience
-```
-
 ## 4. Recommendation Mode (Empty Arguments)
 
 When no arguments provided, intelligently recommend OPEN issues only:
@@ -118,26 +111,23 @@ if "help-wanted" in labels: score += 3
 if body_length > 500: score += 2  # Well-documented
 
 # CRITICAL: Never recommend closed issues
-if state == "CLOSED": score = -1000  # Ensure closed issues never appear
+if state == "CLOSED": score = -1000
 ```
 
 ### Present Recommendations
+
+Display results as a ranked table:
+
 ```
 === Recommended Open Issues ===
 
-1. #123 [Score: 18] Fix authentication timeout
-   - High priority bug affecting multiple users
-   - Clear reproduction steps provided
-   - Unassigned and ready to work on
+| Rank | Issue | Score | Title                      | Labels            | Age     |
+|------|-------|-------|----------------------------|-------------------|---------|
+| 1    | #123  | 18    | Fix authentication timeout | bug, high-priority| 5 days  |
+| 2    | #456  | 15    | Add metrics dashboard      | enhancement       | 2 weeks |
+| 3    | #789  | 12    | Update API documentation   | docs, good-first  | 1 month |
 
-2. #456 [Score: 15] Add metrics dashboard
-   - High impact feature request
-   - Good first issue for monitoring
-   - Well-documented requirements
-
-3. #789 [Score: 12] Update API documentation
-   - Quick win, improves developer experience
-   - No dependencies on other work
+Recommendation: Start with #123 - high priority bug with clear reproduction steps.
 ```
 
 ## 5. Implementation Details
@@ -160,7 +150,6 @@ gh issue view NUMBER --json number,title,state,labels,body,comments,assignees,cr
 ### JSON Processing
 Use `--json` flag with `jq` for structured data:
 ```bash
-# Example: Get all open high-priority issues
 gh issue list --state open --label high-priority --json number,title,labels | jq '.[] | select(.labels[].name == "bug")'
 ```
 
@@ -179,10 +168,9 @@ gh issue list --state open --label high-priority --json number,title,labels | jq
 
 To start working on an issue, use:
 ```
-/ai-start-work <issue-number-or-description>
+/ai-prepare-branch <issue-number>
 ```
 
 Examples:
-- `/ai-start-work 1` - Start work on the first recommended issue
-- `/ai-start-work the auth bug` - Start work on the authentication issue
-- `/ai-start-work 1 and 3` - Work on multiple issues together
+- `/ai-prepare-branch 123` - Create a branch for issue #123
+- `/ai-prepare-branch fix the auth bug` - Create a branch with description
