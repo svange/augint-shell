@@ -1,6 +1,6 @@
 """augint-shell (ai-shell) - Launch AI coding tools and local LLMs in Docker containers."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "__version__",
