@@ -173,16 +173,7 @@ def llm_logs(ctx, follow):
     """Tail logs from the LLM stack."""
     manager = _get_manager(ctx)
     if follow:
-        # Use docker CLI for multi-container following
-        import os
-        import sys
-
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os.execvp(
-            "docker",
-            ["docker", "logs", "-f", OLLAMA_CONTAINER],
-        )
+        manager.container_logs(OLLAMA_CONTAINER, follow=True)
     else:
         for name in [OLLAMA_CONTAINER, WEBUI_CONTAINER]:
             status = manager.container_status(name)

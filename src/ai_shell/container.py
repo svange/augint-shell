@@ -7,7 +7,7 @@ with the exact same configuration.
 from __future__ import annotations
 
 import logging
-import os
+import subprocess
 import sys
 from typing import TYPE_CHECKING, NoReturn
 
@@ -40,6 +40,19 @@ if TYPE_CHECKING:
     from ai_shell.config import AiShellConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _exec_docker(args: list[str]) -> NoReturn:
+    """Execute a docker CLI command with cross-platform TTY support.
+
+    Uses subprocess.run instead of os.execvp for Windows compatibility.
+    On Windows, os.execvp doesn't truly replace the process, causing TTY issues.
+    """
+    logger.debug("exec: %s", " ".join(args))
+    sys.stdout.flush()
+    sys.stderr.flush()
+    result = subprocess.run(args)
+    sys.exit(result.returncode)
 
 
 class ContainerManager:
@@ -128,12 +141,15 @@ class ContainerManager:
         command: list[str],
         extra_env: dict[str, str] | None = None,
     ) -> NoReturn:
-        """Replace the current process with docker exec -it.
+        """Execute an interactive command in a container.
 
-        This uses os.execvp to hand off to docker CLI for proper TTY support.
-        The Python process is replaced and never returns.
+        Uses subprocess.run for cross-platform TTY compatibility.
+        Detects whether stdin is a TTY to decide on -i/-t flags.
         """
-        args = ["docker", "exec", "-it"]
+        args = ["docker", "exec"]
+
+        if sys.stdin.isatty():
+            args.append("-it")
 
         if extra_env:
             for key, value in extra_env.items():
@@ -142,13 +158,7 @@ class ContainerManager:
         args.append(container_name)
         args.extend(command)
 
-        logger.debug("exec: %s", " ".join(args))
-
-        # Flush output before replacing process
-        sys.stdout.flush()
-        sys.stderr.flush()
-
-        os.execvp("docker", args)
+        _exec_docker(args)
 
     # =========================================================================
     # LLM stack (host-level singletons)
@@ -293,7 +303,7 @@ class ContainerManager:
         if follow:
             # Use docker CLI for streaming
             args = ["docker", "logs", "-f", name]
-            os.execvp("docker", args)
+            _exec_docker(args)
         else:
             container = self._get_container(name)
             if container is None:

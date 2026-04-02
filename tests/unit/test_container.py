@@ -70,29 +70,76 @@ class TestEnsureDevContainer:
 
 class TestExecInteractive:
     def test_builds_correct_docker_args(self, mock_container_manager):
-        with patch("ai_shell.container.os.execvp") as mock_execvp:
-            mock_container_manager.exec_interactive(
-                "augint-shell-test-dev",
-                ["claude", "--debug"],
-            )
+        with (
+            patch("ai_shell.container.subprocess.run") as mock_run,
+            patch("ai_shell.container.sys.stdin") as mock_stdin,
+        ):
+            mock_run.return_value = MagicMock(returncode=0)
+            mock_stdin.isatty.return_value = True
 
-            mock_execvp.assert_called_once_with(
-                "docker",
+            with pytest.raises(SystemExit) as exc_info:
+                mock_container_manager.exec_interactive(
+                    "augint-shell-test-dev",
+                    ["claude", "--debug"],
+                )
+
+            mock_run.assert_called_once_with(
                 ["docker", "exec", "-it", "augint-shell-test-dev", "claude", "--debug"],
             )
+            assert exc_info.value.code == 0
 
     def test_passes_extra_env(self, mock_container_manager):
-        with patch("ai_shell.container.os.execvp") as mock_execvp:
-            mock_container_manager.exec_interactive(
-                "augint-shell-test-dev",
-                ["aider"],
-                extra_env={"OLLAMA_API_BASE": "http://host.docker.internal:11434"},
-            )
+        with (
+            patch("ai_shell.container.subprocess.run") as mock_run,
+            patch("ai_shell.container.sys.stdin") as mock_stdin,
+        ):
+            mock_run.return_value = MagicMock(returncode=0)
+            mock_stdin.isatty.return_value = True
 
-            args = mock_execvp.call_args[0][1]
+            with pytest.raises(SystemExit):
+                mock_container_manager.exec_interactive(
+                    "augint-shell-test-dev",
+                    ["aider"],
+                    extra_env={"OLLAMA_API_BASE": "http://host.docker.internal:11434"},
+                )
+
+            args = mock_run.call_args[0][0]
             assert "-e" in args
             env_idx = args.index("-e")
             assert args[env_idx + 1] == "OLLAMA_API_BASE=http://host.docker.internal:11434"
+
+    def test_no_tty_flags_when_not_a_tty(self, mock_container_manager):
+        with (
+            patch("ai_shell.container.subprocess.run") as mock_run,
+            patch("ai_shell.container.sys.stdin") as mock_stdin,
+        ):
+            mock_run.return_value = MagicMock(returncode=0)
+            mock_stdin.isatty.return_value = False
+
+            with pytest.raises(SystemExit):
+                mock_container_manager.exec_interactive(
+                    "augint-shell-test-dev",
+                    ["claude"],
+                )
+
+            args = mock_run.call_args[0][0]
+            assert "-it" not in args
+
+    def test_propagates_nonzero_exit_code(self, mock_container_manager):
+        with (
+            patch("ai_shell.container.subprocess.run") as mock_run,
+            patch("ai_shell.container.sys.stdin") as mock_stdin,
+        ):
+            mock_run.return_value = MagicMock(returncode=130)
+            mock_stdin.isatty.return_value = True
+
+            with pytest.raises(SystemExit) as exc_info:
+                mock_container_manager.exec_interactive(
+                    "augint-shell-test-dev",
+                    ["claude"],
+                )
+
+            assert exc_info.value.code == 130
 
 
 class TestEnsureOllama:
@@ -198,6 +245,17 @@ class TestContainerLogs:
 
         mock_container_manager.container_logs("test", follow=False)
         container.logs.assert_called_once_with(tail=100)
+
+    def test_follow_mode_uses_docker_cli(self, mock_container_manager):
+        with patch("ai_shell.container.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+
+            with pytest.raises(SystemExit):
+                mock_container_manager.container_logs("test", follow=True)
+
+            mock_run.assert_called_once_with(
+                ["docker", "logs", "-f", "test"],
+            )
 
     def test_raises_for_missing_container(self, mock_container_manager):
         mock_container_manager._get_container = MagicMock(return_value=None)
