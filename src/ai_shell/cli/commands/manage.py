@@ -1,0 +1,98 @@
+"""Container management commands: status, stop, clean, logs, pull."""
+
+from pathlib import Path
+
+import click
+from rich.console import Console
+
+from ai_shell.config import load_config
+from ai_shell.container import ContainerManager
+from ai_shell.defaults import dev_container_name
+from ai_shell.exceptions import ContainerNotFoundError
+
+console = Console(stderr=True)
+
+
+def _get_manager(ctx) -> ContainerManager:
+    """Create ContainerManager from Click context."""
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    return ContainerManager(config)
+
+
+@click.group("manage")
+@click.pass_context
+def manage_group(ctx):
+    """Manage dev containers."""
+
+
+@manage_group.command("status")
+@click.pass_context
+def manage_status(ctx):
+    """Show dev container status for current project."""
+    manager = _get_manager(ctx)
+    name = dev_container_name(manager.config.project_name)
+    status = manager.container_status(name)
+
+    if status is None:
+        console.print(
+            f"[yellow]No container found for project: {manager.config.project_name}[/yellow]"
+        )
+    elif status == "running":
+        console.print(f"[green]{name}: running[/green]")
+    else:
+        console.print(f"[yellow]{name}: {status}[/yellow]")
+
+
+@manage_group.command("stop")
+@click.pass_context
+def manage_stop(ctx):
+    """Stop the dev container for current project."""
+    manager = _get_manager(ctx)
+    name = dev_container_name(manager.config.project_name)
+
+    try:
+        manager.stop_container(name)
+        console.print(f"[green]Stopped: {name}[/green]")
+    except ContainerNotFoundError:
+        console.print(f"[yellow]No container found: {name}[/yellow]")
+
+
+@manage_group.command("clean")
+@click.option("--force", "-f", is_flag=True, help="Force remove even if running.")
+@click.pass_context
+def manage_clean(ctx, force):
+    """Remove the dev container for current project."""
+    manager = _get_manager(ctx)
+    name = dev_container_name(manager.config.project_name)
+
+    try:
+        manager.remove_container(name, force=force)
+        console.print(f"[green]Removed: {name}[/green]")
+    except ContainerNotFoundError:
+        console.print(f"[yellow]No container found: {name}[/yellow]")
+
+
+@manage_group.command("logs")
+@click.option("--follow", "-f", is_flag=True, help="Follow log output.")
+@click.pass_context
+def manage_logs(ctx, follow):
+    """Tail dev container logs."""
+    manager = _get_manager(ctx)
+    name = dev_container_name(manager.config.project_name)
+
+    try:
+        manager.container_logs(name, follow=follow)
+    except ContainerNotFoundError:
+        console.print(f"[yellow]No container found: {name}[/yellow]")
+
+
+@manage_group.command("pull")
+@click.pass_context
+def manage_pull(ctx):
+    """Pull the latest Docker image."""
+    manager = _get_manager(ctx)
+    image = manager.config.full_image
+    console.print(f"[bold]Pulling {image}...[/bold]")
+    manager._pull_image_if_needed(image)
+    console.print(f"[green]Image ready: {image}[/green]")
