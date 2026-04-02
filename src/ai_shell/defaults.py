@@ -167,6 +167,9 @@ def build_dev_environment(
         return os.environ.get(key, default)
 
     env: dict[str, str] = {
+        "AWS_ACCESS_KEY_ID": _resolve("AWS_ACCESS_KEY_ID"),
+        "AWS_SECRET_ACCESS_KEY": _resolve("AWS_SECRET_ACCESS_KEY"),
+        "AWS_SESSION_TOKEN": _resolve("AWS_SESSION_TOKEN"),
         "AWS_REGION": _resolve("AWS_REGION", "us-east-1"),
         "AWS_PAGER": "",
         "GH_TOKEN": _resolve("GH_TOKEN"),

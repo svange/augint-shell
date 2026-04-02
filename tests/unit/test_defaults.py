@@ -125,6 +125,20 @@ class TestBuildDevEnvironment:
         assert env["GH_TOKEN"] == "test-token"
         assert env["GITHUB_TOKEN"] == "test-token"
 
+    def test_passes_through_aws_credentials(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "AWS_ACCESS_KEY_ID": "AKIA-test",
+                "AWS_SECRET_ACCESS_KEY": "secret-test",
+                "AWS_SESSION_TOKEN": "token-test",
+            },
+        ):
+            env = build_dev_environment()
+        assert env["AWS_ACCESS_KEY_ID"] == "AKIA-test"
+        assert env["AWS_SECRET_ACCESS_KEY"] == "secret-test"
+        assert env["AWS_SESSION_TOKEN"] == "token-test"
+
     def test_extra_env_merged(self):
         env = build_dev_environment(extra_env={"CUSTOM_VAR": "custom_value"})
         assert env["CUSTOM_VAR"] == "custom_value"
