@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.8.0 (2026-04-02)
+
+### Features
+
+- Add Amazon Bedrock provider support, update AWS environment handling, and refactor related tests
+  ([`5ddd9c2`](https://github.com/svange/augint-shell/commit/5ddd9c20670ccdd9055fde0062c04356fdc5d271))
+
+
 ## v0.7.0 (2026-04-02)
 
 
