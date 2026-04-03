@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.16.5 (2026-04-03)
+
+### Chores
+
+- **deps**: Pin dependencies ([#4](https://github.com/svange/augint-shell/pull/4),
+  [`23f39b9`](https://github.com/svange/augint-shell/commit/23f39b9d555d42b39e69438a7413f5deeccbbb7c))
+
+
 ## v0.16.4 (2026-04-03)
 
 ### Chores
