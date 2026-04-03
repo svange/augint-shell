@@ -180,11 +180,11 @@ class TestScaffoldOpencode:
     def test_opencode_json_has_instructions(self, tmp_path):
         scaffold_opencode(tmp_path)
         data = json.loads((tmp_path / "opencode.json").read_text())
-        assert "AGENTS.md" in data["instructions"]
+        assert "NOTES.md" in data["instructions"]
 
-    def test_creates_agents_md(self, tmp_path):
+    def test_creates_notes_md(self, tmp_path):
         scaffold_opencode(tmp_path)
-        assert (tmp_path / "AGENTS.md").is_file()
+        assert (tmp_path / "NOTES.md").is_file()
 
     def test_creates_agents_skills(self, tmp_path):
         scaffold_opencode(tmp_path)
@@ -209,7 +209,7 @@ class TestScaffoldOpencode:
         (tmp_path / ".agents" / "unmanaged.txt").write_text("stale")
         scaffold_opencode(tmp_path, clean=True)
         assert (tmp_path / "opencode.json").is_file()
-        assert (tmp_path / "AGENTS.md").is_file()
+        assert (tmp_path / "NOTES.md").is_file()
         assert not (tmp_path / ".agents" / "unmanaged.txt").exists()
 
     def test_clean_works_on_empty_dir(self, tmp_path):
@@ -234,9 +234,9 @@ class TestScaffoldCodex:
                     f"Expected all-comments template, found active line: {stripped}"
                 )
 
-    def test_creates_agents_md(self, tmp_path):
+    def test_creates_notes_md(self, tmp_path):
         scaffold_codex(tmp_path)
-        assert (tmp_path / "AGENTS.md").is_file()
+        assert (tmp_path / "NOTES.md").is_file()
 
     def test_creates_agents_skills(self, tmp_path):
         scaffold_codex(tmp_path)
@@ -302,17 +302,17 @@ class TestScaffoldAider:
         data = yaml.safe_load(content)
         assert data["model"] == "ollama_chat/qwen3.5:27b"
 
-    def test_aider_conf_has_conventions_read(self, tmp_path):
+    def test_aider_conf_has_notes_read(self, tmp_path):
         scaffold_aider(tmp_path)
         content = (tmp_path / ".aider.conf.yml").read_text()
         data = yaml.safe_load(content)
-        assert "CONVENTIONS.md" in data["read"]
+        assert "NOTES.md" in data["read"]
 
-    def test_creates_conventions(self, tmp_path):
+    def test_creates_notes_md(self, tmp_path):
         scaffold_aider(tmp_path)
-        assert (tmp_path / "CONVENTIONS.md").is_file()
-        content = (tmp_path / "CONVENTIONS.md").read_text()
-        assert "Conventions" in content
+        assert (tmp_path / "NOTES.md").is_file()
+        content = (tmp_path / "NOTES.md").read_text()
+        assert "Critical Rules" in content
 
     def test_creates_aiderignore(self, tmp_path):
         scaffold_aider(tmp_path)
@@ -337,9 +337,41 @@ class TestScaffoldAider:
         scaffold_aider(tmp_path)
         scaffold_aider(tmp_path, clean=True)
         assert (tmp_path / ".aider.conf.yml").is_file()
-        assert (tmp_path / "CONVENTIONS.md").is_file()
+        assert (tmp_path / "NOTES.md").is_file()
         assert (tmp_path / ".aiderignore").is_file()
 
     def test_clean_works_on_empty_dir(self, tmp_path):
         scaffold_aider(tmp_path, clean=True)
         assert (tmp_path / ".aider.conf.yml").is_file()
+
+
+class TestNotesFile:
+    def test_notes_never_overwritten_by_update(self, tmp_path):
+        scaffold_codex(tmp_path)
+        notes = tmp_path / "NOTES.md"
+        notes.write_text("My custom notes")
+        scaffold_codex(tmp_path, overwrite=True)
+        assert notes.read_text() == "My custom notes"
+
+    def test_notes_never_deleted_by_clean(self, tmp_path):
+        scaffold_codex(tmp_path)
+        notes = tmp_path / "NOTES.md"
+        notes.write_text("My custom notes")
+        scaffold_codex(tmp_path, clean=True)
+        assert notes.read_text() == "My custom notes"
+
+    def test_notes_created_if_missing_on_clean(self, tmp_path):
+        scaffold_codex(tmp_path, clean=True)
+        assert (tmp_path / "NOTES.md").is_file()
+
+    def test_notes_has_project_overview_section(self, tmp_path):
+        scaffold_codex(tmp_path)
+        content = (tmp_path / "NOTES.md").read_text()
+        assert "## Project Overview" in content
+
+    def test_notes_shared_across_tools(self, tmp_path):
+        scaffold_codex(tmp_path)
+        notes = tmp_path / "NOTES.md"
+        notes.write_text("Custom notes")
+        scaffold_opencode(tmp_path)
+        assert notes.read_text() == "Custom notes"

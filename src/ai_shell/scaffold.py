@@ -47,16 +47,28 @@ _CLAUDE_DIRS = [".claude"]
 _CLAUDE_FILES: list[str] = []
 
 _OPENCODE_DIRS = [".agents"]
-_OPENCODE_FILES = ["opencode.json", "AGENTS.md"]
+_OPENCODE_FILES = ["opencode.json"]
 
 _CODEX_DIRS = [".codex", ".agents"]
-_CODEX_FILES = ["AGENTS.md"]
+_CODEX_FILES: list[str] = []
 
 _AIDER_DIRS: list[str] = []
-_AIDER_FILES = [".aider.conf.yml", "CONVENTIONS.md", ".aiderignore"]
+_AIDER_FILES = [".aider.conf.yml", ".aiderignore"]
 
 _PROJECT_DIRS: list[str] = []
 _PROJECT_FILES = ["ai-shell.toml"]
+
+_NOTES_FILE = "NOTES.md"
+
+
+def _write_notes(target_dir: Path) -> None:
+    """Create NOTES.md if it does not exist. Never overwrite or delete."""
+    path = target_dir / _NOTES_FILE
+    if path.exists():
+        console.print(f"[yellow]Skipped (protected): {path}[/yellow]")
+        return
+    path.write_text(_read_template("notes.md"), encoding="utf-8")
+    console.print(f"[green]Created: {path}[/green]")
 
 
 def _write_file(path: Path, content: str, *, overwrite: bool) -> bool:
@@ -112,6 +124,7 @@ def scaffold_claude(target_dir: Path, *, overwrite: bool = False, clean: bool = 
             overwrite=overwrite,
         )
 
+    _write_notes(target_dir)
     console.print("[bold green]Claude configuration ready.[/bold green]")
 
 
@@ -129,11 +142,12 @@ def scaffold_project(target_dir: Path, *, overwrite: bool = False, clean: bool =
         overwrite=overwrite,
     )
 
+    _write_notes(target_dir)
     console.print("[bold green]Project configuration ready.[/bold green]")
 
 
 def scaffold_opencode(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
-    """Create opencode configuration, AGENTS.md, and ``.agents/skills/``."""
+    """Create opencode configuration, NOTES.md, and ``.agents/skills/``."""
     if clean:
         _clean_paths(target_dir, _OPENCODE_DIRS, _OPENCODE_FILES)
         overwrite = True
@@ -142,11 +156,6 @@ def scaffold_opencode(target_dir: Path, *, overwrite: bool = False, clean: bool 
         _read_template("opencode", "opencode.json"),
         overwrite=overwrite,
     )
-    _write_file(
-        target_dir / "AGENTS.md",
-        _read_template("agents", "agents.md"),
-        overwrite=overwrite,
-    )
     for skill_name in AGENTS_SKILL_DIRS:
         _write_file(
             target_dir / ".agents" / "skills" / skill_name / "SKILL.md",
@@ -154,11 +163,12 @@ def scaffold_opencode(target_dir: Path, *, overwrite: bool = False, clean: bool 
             overwrite=overwrite,
         )
 
+    _write_notes(target_dir)
     console.print("[bold green]opencode configuration ready.[/bold green]")
 
 
 def scaffold_codex(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
-    """Create ``.codex/`` config, AGENTS.md, and ``.agents/skills/``."""
+    """Create ``.codex/`` config, NOTES.md, and ``.agents/skills/``."""
     if clean:
         _clean_paths(target_dir, _CODEX_DIRS, _CODEX_FILES)
         overwrite = True
@@ -167,11 +177,6 @@ def scaffold_codex(target_dir: Path, *, overwrite: bool = False, clean: bool = F
         _read_template("codex", "config.toml"),
         overwrite=overwrite,
     )
-    _write_file(
-        target_dir / "AGENTS.md",
-        _read_template("agents", "agents.md"),
-        overwrite=overwrite,
-    )
     for skill_name in AGENTS_SKILL_DIRS:
         _write_file(
             target_dir / ".agents" / "skills" / skill_name / "SKILL.md",
@@ -179,11 +184,12 @@ def scaffold_codex(target_dir: Path, *, overwrite: bool = False, clean: bool = F
             overwrite=overwrite,
         )
 
+    _write_notes(target_dir)
     console.print("[bold green]Codex configuration ready.[/bold green]")
 
 
 def scaffold_aider(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
-    """Create ``.aider.conf.yml``, ``CONVENTIONS.md``, and ``.aiderignore``."""
+    """Create ``.aider.conf.yml``, ``NOTES.md``, and ``.aiderignore``."""
     if clean:
         _clean_paths(target_dir, _AIDER_DIRS, _AIDER_FILES)
         overwrite = True
@@ -193,14 +199,10 @@ def scaffold_aider(target_dir: Path, *, overwrite: bool = False, clean: bool = F
         overwrite=overwrite,
     )
     _write_file(
-        target_dir / "CONVENTIONS.md",
-        _read_template("aider", "conventions.md"),
-        overwrite=overwrite,
-    )
-    _write_file(
         target_dir / ".aiderignore",
         _read_template("aider", "aiderignore"),
         overwrite=overwrite,
     )
 
+    _write_notes(target_dir)
     console.print("[bold green]Aider configuration ready.[/bold green]")

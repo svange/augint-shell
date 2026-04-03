@@ -1,4 +1,10 @@
-# AGENTS.md
+# Project Notes
+
+<!-- Project-specific notes for AI coding agents. This file is created
+     once by ai-shell and NEVER overwritten or deleted by scaffold
+     operations (--update, --clean). Each agent's /init reads this file
+     and integrates it into the appropriate config (CLAUDE.md, AGENTS.md,
+     CONVENTIONS.md). -->
 
 ## Project Overview
 
@@ -55,3 +61,19 @@ gh run list                   # List workflow runs
 gh run view <id>              # View run details
 gh run watch <id>             # Watch run in real-time
 ```
+
+## Architecture
+
+<!-- Key architectural decisions, dependency flow, module structure -->
+
+## Domain Concepts
+
+<!-- Important domain terms, business rules, or constraints -->
+
+## Project-Specific Commands
+
+<!-- Any project-specific commands beyond the defaults above -->
+
+## Notes
+
+<!-- Anything else an AI agent should know about this project -->

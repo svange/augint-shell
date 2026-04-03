@@ -24,7 +24,7 @@
       }
     }
   },
-  "instructions": ["AGENTS.md"],
+  "instructions": ["NOTES.md"],
   "permission": {
     "read": "allow",
     "edit": "allow",
