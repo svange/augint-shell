@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.16.6 (2026-04-03)
+
+### Chores
+
+- **deps**: Update dependency uv_build to >=0.11,<0.12
+  ([#5](https://github.com/svange/augint-shell/pull/5),
+  [`12ad81d`](https://github.com/svange/augint-shell/commit/12ad81d866b479db8101aa8004af52c277c7adcb))
+
+
 ## v0.16.5 (2026-04-03)
 
 ### Chores
