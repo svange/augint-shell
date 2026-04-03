@@ -21,7 +21,7 @@ sandbox = "workspace-write"
 [permissions.default.network]
 enabled = true
 mode = "limited"
-allowed_domains = ["api.github.com", "github.com"]
+allowed_domains = ["api.github.com", "github.com", "pypi.org", "files.pythonhosted.org", "registry.npmjs.org"]
 
 # Uncomment to add MCP servers
 # [mcp_servers.example]

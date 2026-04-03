@@ -1,7 +1,6 @@
 ---
 name: ai-promote
 description: Promote staging (dev) to production (main) by creating an automerge PR. Use when dev/staging is ready for release.
-disable-model-invocation: true
 ---
 
 Promote staging to production by creating an automerge PR from dev to main: $ARGUMENTS

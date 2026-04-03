@@ -1,7 +1,6 @@
 ---
 name: ai-submit-work
 description: Run all status checks locally, fix issues, commit, push, and create an automerge PR. Use when work is ready to submit.
-disable-model-invocation: true
 argument-hint: "[--no-tests] [--no-security]"
 ---
 

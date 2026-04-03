@@ -36,7 +36,6 @@ Follow these steps to create a well-structured skill:
    ---
    name: {skill-name}
    description: {One-line description of what it does and when to use it. Max 250 chars.}
-   disable-model-invocation: {true if skill has side effects, false otherwise}
    argument-hint: "[expected arguments]"
    ---
 
@@ -73,8 +72,6 @@ Follow these steps to create a well-structured skill:
    ```
 
 5. **Choose appropriate frontmatter options**:
-   - `disable-model-invocation: true` for skills with side effects (deploy, commit, push, delete)
-   - `disable-model-invocation: false` (default) for read-only or analysis skills
    - `argument-hint` to show expected arguments in the skill menu
    - Keep description under 250 characters, front-load key use case
 
