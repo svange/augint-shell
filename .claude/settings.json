@@ -157,7 +157,11 @@
       "Bash(prettier:*)",
       "Bash(tsc:*)",
       "Bash(jest:*)",
-      "Bash(vitest:*)"
+      "Bash(vitest:*)",
+      "Bash(agent-browser:*)",
+      "Bash(playwright-cli:*)",
+      "Bash(npx agent-browser:*)",
+      "Bash(npx playwright:*)"
     ],
     "deny": [
       "Write(poetry.lock)",

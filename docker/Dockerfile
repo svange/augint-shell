@@ -101,7 +101,6 @@ ENV PATH="/root/.opencode/bin:${PATH}"
 
 # Install aider (alternative local coding assistant)
 RUN curl -LsSf https://aider.chat/install.sh | sh
-ENV PATH="/root/.local/bin:${PATH}"
 
 # Install Playwright with Chrome and ALL dependencies
 # The --with-deps flag is CRUCIAL - it installs ~100+ system libraries Chrome needs
@@ -110,6 +109,13 @@ RUN npx playwright install chrome --with-deps
 # IMPORTANT: Set environment to tell Chrome it's OK to run as root in a container
 ENV CHROME_NO_SANDBOX=1
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
+
+# Install agent-browser (lightweight browser automation CLI)
+RUN npm install -g agent-browser && \
+    agent-browser install
+
+# Install Playwright CLI (advanced browser automation)
+RUN npm install -g @playwright/cli
 
 # Build argument for flexible project directory
 ARG PROJECT_DIR=current-project
@@ -149,14 +155,6 @@ RUN echo '# Useful aliases' >> /root/.bashrc && \
     echo '    git branch 2> /dev/null | sed -e "/^[^*]/d" -e "s/* \(.*\)/ (\1)/"' >> /root/.bashrc && \
     echo '}' >> /root/.bashrc && \
     echo 'export PS1="\[\033[01;31m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[33m\]\$(parse_git_branch)\[\033[00m\]\$ "' >> /root/.bashrc && \
-    echo '' >> /root/.bashrc && \
-    echo '# Auto-sync uv dependencies if pyproject.toml exists' >> /root/.bashrc && \
-    echo 'if command -v uv &> /dev/null && [ -f "pyproject.toml" ]; then' >> /root/.bashrc && \
-    echo '    # Note: uv handles virtualenvs automatically, no activation needed' >> /root/.bashrc && \
-    echo '    # Dependencies are synced on container startup via entrypoint' >> /root/.bashrc && \
-    echo '    # To manually sync: uv sync' >> /root/.bashrc && \
-    echo '    :' >> /root/.bashrc && \
-    echo 'fi' >> /root/.bashrc && \
     echo '' >> /root/.bashrc && \
     echo '# Useful functions' >> /root/.bashrc && \
     echo 'mkcd() { mkdir -p "$1" && cd "$1"; }' >> /root/.bashrc && \
@@ -207,13 +205,9 @@ RUN git config --global --add safe.directory '*' && \
     git config --global color.ui auto && \
     git config --global core.editor vim && \
     git config --global init.defaultBranch main && \
+    # Disable git hooks in container - AI tools commit frequently; pre-commit is run explicitly
     git config --global core.hooksPath /dev/null && \
     git config --global --unset-all http.sslbackend || true
-
-# Configure system-wide git safe directories using build arg
-ARG PROJECT_DIR=current-project
-RUN echo "[safe]" >> /etc/gitconfig && \
-    echo "    directory = /root/projects/${PROJECT_DIR}" >> /etc/gitconfig
 
 # Set up vim with basic config
 RUN echo 'set number' >> /root/.vimrc && \
@@ -238,44 +232,8 @@ RUN echo '#!/bin/bash' > /usr/local/bin/git && \
 
 # Note: Project dependencies are installed on container startup via entrypoint
 # This is because the project files aren't available during build time
-
-# Add startup script to configure Git authentication
-RUN echo '#!/bin/bash\n\
-set -e\n\
-# Copy Windows gitconfig if it exists and create Linux-compatible version\n\
-if [ -f /root/.gitconfig.windows ]; then\n\
-    # Copy all settings except SSL backend\n\
-    grep -v "sslbackend" /root/.gitconfig.windows > /root/.gitconfig || true\n\
-fi\n\
-# Configure Git to use GitHub CLI for authentication if token is present\n\
-if [ -n "$GH_TOKEN" ]; then\n\
-    git config --global credential.https://github.com.helper "!gh auth git-credential"\n\
-    git config --global credential.https://gist.github.com.helper "!gh auth git-credential"\n\
-fi\n\
-# Force gnutls SSL backend globally only\n\
-git config --global http.sslBackend gnutls\n\
-# Install/sync project dependencies FIRST, before anything else starts\n\
-# This ensures Claude Code has access to all tools\n\
-if [ -f "pyproject.toml" ]; then\n\
-    echo "===================================="\n\
-    echo "Syncing project dependencies with uv..."\n\
-    echo "===================================="\n\
-    uv sync\n\
-    echo "===================================="\n\
-    echo "Dependencies synced successfully!"\n\
-    echo "===================================="\n\
-    # Note: uv automatically manages virtualenvs, no manual activation needed\n\
-    # Commands should be run with "uv run" prefix or use the activated venv\n\
-fi\n\
-# Note: No cd command - Docker Compose working_dir handles the directory\n\
-# Start Playwright MCP server in standalone mode if requested\n\
-if [ "$START_PLAYWRIGHT_MCP" = "1" ]; then\n\
-    echo "Starting Playwright MCP server on port 8931..."\n\
-    npx @playwright/mcp@latest --port 8931 --headless --no-sandbox --isolated &\n\
-    echo "Playwright MCP server started on port 8931"\n\
-fi\n\
-exec "$@"' > /docker-entrypoint.sh && \
-    chmod +x /docker-entrypoint.sh
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

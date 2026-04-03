@@ -53,6 +53,7 @@ CLAUDE_SKILL_DIRS = [
     "ai-promote",
     "ai-create-cmd",
     "ai-repo-health",
+    "ai-web-dev",
 ]
 
 
