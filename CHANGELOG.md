@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.16.1 (2026-04-03)
+
+### Bug Fixes
+
+- Update project title in README to reflect CLI focus
+  ([`401ef13`](https://github.com/svange/augint-shell/commit/401ef13e19a8532e7def6890fcf069439bed30bb))
+
+
 ## v0.16.0 (2026-04-03)
 
 ### Features
