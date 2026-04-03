@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.14.0 (2026-04-03)
+
+### Features
+
+- Bring agent configs to parity with Claude and fix broken skills
+  ([#1](https://github.com/svange/augint-shell/pull/1),
+  [`e32077f`](https://github.com/svange/augint-shell/commit/e32077f076b53f6614fde3bd85261940025f1f7d))
+
+
 ## v0.13.0 (2026-04-03)
 
 ### Features
