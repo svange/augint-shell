@@ -230,7 +230,9 @@ class TestScaffoldCodex:
         for line in content.splitlines():
             stripped = line.strip()
             if stripped and not stripped.startswith("#"):
-                raise AssertionError(f"Expected all-comments template, found active line: {stripped}")
+                raise AssertionError(
+                    f"Expected all-comments template, found active line: {stripped}"
+                )
 
     def test_creates_agents_md(self, tmp_path):
         scaffold_codex(tmp_path)
