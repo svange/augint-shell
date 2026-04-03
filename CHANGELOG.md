@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.16.9 (2026-04-03)
+
+### Bug Fixes
+
+- Bump `augint-github` to version 1.3.3 in `uv.lock`
+  ([`ca58e0a`](https://github.com/svange/augint-shell/commit/ca58e0a49d02988b81d76cee2c83334d407c85b9))
+
+- Pass dynamically generated environment variables to CLI commands for consistency
+  ([`87af2ab`](https://github.com/svange/augint-shell/commit/87af2ab25049a47efec09a0aedc821e089dde139))
+
+### Chores
+
+- Bump `augint-github` to version 1.3.2 in `uv.lock`
+  ([`7427358`](https://github.com/svange/augint-shell/commit/742735867a69f912f9249f17db05f372b9238150))
+
+
 ## v0.16.8 (2026-04-03)
 
 ### Bug Fixes

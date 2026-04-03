@@ -1,6 +1,6 @@
 [project]
 name = "augint-shell"
-version = "0.16.8"
+version = "0.16.9"
 description = "Launch AI coding tools and local LLMs in Docker containers"
 authors = [{name = "svange"}]
 readme = "README.md"
