@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.16.0 (2026-04-03)
+
+### Features
+
+- Enhance Codex tools with new skills and configs
+  ([`071547a`](https://github.com/svange/augint-shell/commit/071547a4d8531b60f5dba86fcaed0a9693d21a3d))
+
+
 ## v0.15.0 (2026-04-03)
 
 ### Bug Fixes
