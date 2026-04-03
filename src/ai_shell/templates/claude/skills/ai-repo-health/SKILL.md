@@ -1,7 +1,6 @@
 ---
 name: ai-repo-health
 description: Comprehensive repository health check with remote-first git hygiene, branch cleanup, and code quality analysis. Use for repo maintenance and cleanup.
-disable-model-invocation: true
 argument-hint: "[--remote-only] [--local-only] [--dry-run]"
 ---
 

@@ -1,7 +1,6 @@
 ---
 name: ai-monitor-pipeline
 description: Monitor CI pipeline after push, diagnose failures, auto-fix and re-push. Use after submitting work or to check pipeline status.
-disable-model-invocation: true
 argument-hint: "[run-id or branch-name]"
 ---
 
