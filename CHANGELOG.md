@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.16.10 (2026-04-03)
+
+### Chores
+
+- Add standardized templates for configs, workflows, and dotfiles
+  ([`299442c`](https://github.com/svange/augint-shell/commit/299442c64c43a22abaf3bde2e86a3e4605557a78))
+
+
 ## v0.16.9 (2026-04-03)
 
 ### Bug Fixes
