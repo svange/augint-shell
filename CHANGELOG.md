@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.15.0 (2026-04-03)
+
+### Bug Fixes
+
+- Resolve Codex skills/list TUI crash and validate tool configs
+  ([#2](https://github.com/svange/augint-shell/pull/2),
+  [`5d068db`](https://github.com/svange/augint-shell/commit/5d068db3a5974f4c3a597c78ce3ab272d693ab8d))
+
+### Features
+
+- Bring agent configs to parity with Claude and fix broken skills
+  ([#2](https://github.com/svange/augint-shell/pull/2),
+  [`5d068db`](https://github.com/svange/augint-shell/commit/5d068db3a5974f4c3a597c78ce3ab272d693ab8d))
+
+
 ## v0.14.0 (2026-04-03)
 
 ### Features
