@@ -1,0 +1,30 @@
+# Codex CLI configuration
+# See: https://developers.openai.com/codex/config-reference
+
+model = "o4-mini"
+
+# Approval policy controls when Codex asks for confirmation.
+# Options: "untrusted" | "on-request" | "never"
+approval_policy = "on-request"
+
+# Sandbox mode controls technical boundaries.
+# Options: "read-only" | "workspace-write" | "danger-full-access"
+sandbox = "workspace-write"
+
+# Named permissions profile
+[permissions.default]
+
+[permissions.default.filesystem]
+":project_roots" = "write"
+"/tmp" = "write"
+
+[permissions.default.network]
+enabled = true
+mode = "limited"
+allowed_domains = ["api.github.com", "github.com"]
+
+# Uncomment to add MCP servers
+# [mcp_servers.example]
+# type = "stdio"
+# command = "npx"
+# args = ["-y", "@example/mcp-server"]
