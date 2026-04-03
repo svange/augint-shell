@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.16.3 (2026-04-03)
+
+### Chores
+
+- Update semantic release config to adjust commit parser options and simplify changelog exclusions
+  ([`28fc84b`](https://github.com/svange/augint-shell/commit/28fc84b673f0bb1dd8b228b58e6717d355772580))
+
+
 ## v0.16.2 (2026-04-03)
 
 ### Bug Fixes
