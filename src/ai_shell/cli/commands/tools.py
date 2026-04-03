@@ -71,11 +71,31 @@ def claude(ctx, do_init, do_update, safe, extra_args):
 
 
 @click.command()
+@click.option(
+    "--init",
+    "do_init",
+    is_flag=True,
+    default=False,
+    help="Create .codex/ and .agents/ project config in current directory and exit.",
+)
+@click.option(
+    "--update",
+    "do_update",
+    is_flag=True,
+    default=False,
+    help="Create/overwrite .codex/ and .agents/ project config in current directory and exit.",
+)
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def codex(ctx, safe, extra_args):
+def codex(ctx, do_init, do_update, safe, extra_args):
     """Launch Codex in the dev container."""
+    if do_init or do_update:
+        from ai_shell.scaffold import scaffold_codex as _scaffold_codex
+
+        _scaffold_codex(Path.cwd(), overwrite=do_update)
+        return
+
     manager, name = _get_manager(ctx)
     cmd = ["codex"]
     if not safe:
@@ -86,10 +106,30 @@ def codex(ctx, safe, extra_args):
 
 
 @click.command()
+@click.option(
+    "--init",
+    "do_init",
+    is_flag=True,
+    default=False,
+    help="Create opencode project config in current directory and exit.",
+)
+@click.option(
+    "--update",
+    "do_update",
+    is_flag=True,
+    default=False,
+    help="Create/overwrite opencode project config in current directory and exit.",
+)
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.pass_context
-def opencode(ctx, safe):
+def opencode(ctx, do_init, do_update, safe):
     """Launch opencode in the dev container."""
+    if do_init or do_update:
+        from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
+
+        _scaffold_opencode(Path.cwd(), overwrite=do_update)
+        return
+
     manager, name = _get_manager(ctx)
     cmd = ["/root/.opencode/bin/opencode"]
     console.print(f"[bold]Launching opencode in {name}...[/bold]")
@@ -97,11 +137,31 @@ def opencode(ctx, safe):
 
 
 @click.command()
+@click.option(
+    "--init",
+    "do_init",
+    is_flag=True,
+    default=False,
+    help="Create aider project config in current directory and exit.",
+)
+@click.option(
+    "--update",
+    "do_update",
+    is_flag=True,
+    default=False,
+    help="Create/overwrite aider project config in current directory and exit.",
+)
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def aider(ctx, safe, extra_args):
+def aider(ctx, do_init, do_update, safe, extra_args):
     """Launch aider with local LLM in the dev container."""
+    if do_init or do_update:
+        from ai_shell.scaffold import scaffold_aider as _scaffold_aider
+
+        _scaffold_aider(Path.cwd(), overwrite=do_update)
+        return
+
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
     manager = ContainerManager(config)
@@ -132,13 +192,19 @@ def shell(ctx):
     "scaffold_all",
     is_flag=True,
     default=False,
-    help="Also scaffold tool configs (claude, etc).",
+    help="Also scaffold all tool configs (claude, codex, opencode, aider).",
 )
 def init(update, scaffold_all):
     """Initialize ai-shell config files in the current directory."""
+    from ai_shell.scaffold import scaffold_aider as _scaffold_aider
     from ai_shell.scaffold import scaffold_claude as _scaffold_claude
+    from ai_shell.scaffold import scaffold_codex as _scaffold_codex
+    from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
     from ai_shell.scaffold import scaffold_project
 
     scaffold_project(Path.cwd(), overwrite=update)
     if scaffold_all:
         _scaffold_claude(Path.cwd(), overwrite=update)
+        _scaffold_opencode(Path.cwd(), overwrite=update)
+        _scaffold_codex(Path.cwd(), overwrite=update)
+        _scaffold_aider(Path.cwd(), overwrite=update)

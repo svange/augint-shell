@@ -160,6 +160,63 @@ class TestToolCommands:
         assert "--model" in cmd
         assert "--restore-chat-history" in cmd
 
+    def test_opencode_init_calls_scaffold(self, mock_config, mock_manager_cls):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
+                result = self.runner.invoke(cli, ["opencode", "--init"])
+
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False)
+        mock_manager_cls.assert_not_called()
+        assert result.exit_code == 0
+
+    def test_opencode_update_calls_scaffold_with_overwrite(self, mock_config, mock_manager_cls):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
+                result = self.runner.invoke(cli, ["opencode", "--update"])
+
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True)
+        assert result.exit_code == 0
+
+    def test_codex_init_calls_scaffold(self, mock_config, mock_manager_cls):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
+                result = self.runner.invoke(cli, ["codex", "--init"])
+
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False)
+        mock_manager_cls.assert_not_called()
+        assert result.exit_code == 0
+
+    def test_codex_update_calls_scaffold_with_overwrite(self, mock_config, mock_manager_cls):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
+                result = self.runner.invoke(cli, ["codex", "--update"])
+
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True)
+        assert result.exit_code == 0
+
+    def test_aider_init_calls_scaffold(self, mock_config, mock_manager_cls):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
+                result = self.runner.invoke(cli, ["aider", "--init"])
+
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False)
+        mock_manager_cls.assert_not_called()
+        assert result.exit_code == 0
+
+    def test_aider_update_calls_scaffold_with_overwrite(self, mock_config, mock_manager_cls):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
+                result = self.runner.invoke(cli, ["aider", "--update"])
+
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True)
+        assert result.exit_code == 0
+
     def test_version_flag(self, mock_config, mock_manager_cls):
         result = self.runner.invoke(cli, ["--version"])
         assert result.exit_code == 0

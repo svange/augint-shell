@@ -79,17 +79,80 @@ def scaffold_claude(target_dir: Path, *, overwrite: bool = False) -> None:
     console.print("[bold green]Claude configuration ready.[/bold green]")
 
 
+AGENTS_SKILL_DIRS = list(CLAUDE_SKILL_DIRS)  # Same 7 workflow skills
+
+
 def scaffold_project(target_dir: Path, *, overwrite: bool = False) -> None:
-    """Create ``ai-shell.toml`` and ``opencode.json`` in *target_dir*."""
+    """Create ``ai-shell.toml`` in *target_dir*."""
     _write_file(
         target_dir / "ai-shell.toml",
         _read_template("ai-shell.toml"),
         overwrite=overwrite,
     )
+
+    console.print("[bold green]Project configuration ready.[/bold green]")
+
+
+def scaffold_opencode(target_dir: Path, *, overwrite: bool = False) -> None:
+    """Create opencode configuration, AGENTS.md, and ``.agents/skills/``."""
     _write_file(
         target_dir / "opencode.json",
-        _read_template("opencode.json"),
+        _read_template("opencode", "opencode.json"),
+        overwrite=overwrite,
+    )
+    _write_file(
+        target_dir / "AGENTS.md",
+        _read_template("agents", "agents.md"),
+        overwrite=overwrite,
+    )
+    for skill_name in AGENTS_SKILL_DIRS:
+        _write_file(
+            target_dir / ".agents" / "skills" / skill_name / "SKILL.md",
+            _read_template("agents", "skills", skill_name, "SKILL.md"),
+            overwrite=overwrite,
+        )
+
+    console.print("[bold green]opencode configuration ready.[/bold green]")
+
+
+def scaffold_codex(target_dir: Path, *, overwrite: bool = False) -> None:
+    """Create ``.codex/`` config, AGENTS.md, and ``.agents/skills/``."""
+    _write_file(
+        target_dir / ".codex" / "config.toml",
+        _read_template("codex", "config.toml"),
+        overwrite=overwrite,
+    )
+    _write_file(
+        target_dir / "AGENTS.md",
+        _read_template("agents", "agents.md"),
+        overwrite=overwrite,
+    )
+    for skill_name in AGENTS_SKILL_DIRS:
+        _write_file(
+            target_dir / ".agents" / "skills" / skill_name / "SKILL.md",
+            _read_template("agents", "skills", skill_name, "SKILL.md"),
+            overwrite=overwrite,
+        )
+
+    console.print("[bold green]Codex configuration ready.[/bold green]")
+
+
+def scaffold_aider(target_dir: Path, *, overwrite: bool = False) -> None:
+    """Create ``.aider.conf.yml``, ``CONVENTIONS.md``, and ``.aiderignore``."""
+    _write_file(
+        target_dir / ".aider.conf.yml",
+        _read_template("aider", "aider.conf.yml"),
+        overwrite=overwrite,
+    )
+    _write_file(
+        target_dir / "CONVENTIONS.md",
+        _read_template("aider", "conventions.md"),
+        overwrite=overwrite,
+    )
+    _write_file(
+        target_dir / ".aiderignore",
+        _read_template("aider", "aiderignore"),
         overwrite=overwrite,
     )
 
-    console.print("[bold green]Project configuration ready.[/bold green]")
+    console.print("[bold green]Aider configuration ready.[/bold green]")

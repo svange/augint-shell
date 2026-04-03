@@ -2,7 +2,17 @@
 
 import json
 
-from ai_shell.scaffold import CLAUDE_SKILL_DIRS, scaffold_claude, scaffold_project
+import yaml
+
+from ai_shell.scaffold import (
+    AGENTS_SKILL_DIRS,
+    CLAUDE_SKILL_DIRS,
+    scaffold_aider,
+    scaffold_claude,
+    scaffold_codex,
+    scaffold_opencode,
+    scaffold_project,
+)
 
 
 class TestScaffoldClaude:
@@ -86,17 +96,11 @@ class TestScaffoldClaude:
 
 
 class TestScaffoldProject:
-    def test_creates_toml_and_opencode(self, tmp_path):
+    def test_creates_toml_only(self, tmp_path):
         scaffold_project(tmp_path)
         assert (tmp_path / "ai-shell.toml").is_file()
-        assert (tmp_path / "opencode.json").is_file()
-
-    def test_opencode_json_is_valid(self, tmp_path):
-        scaffold_project(tmp_path)
-        data = json.loads((tmp_path / "opencode.json").read_text())
-        assert data["$schema"] == "https://opencode.ai/config.json"
-        assert data["model"] == "ollama/qwen3.5:27b"
-        assert "host.docker.internal:11434" in data["provider"]["ollama"]["options"]["baseURL"]
+        # opencode.json is no longer created by scaffold_project
+        assert not (tmp_path / "opencode.json").exists()
 
     def test_toml_has_commented_sections(self, tmp_path):
         scaffold_project(tmp_path)
@@ -115,16 +119,170 @@ class TestScaffoldProject:
         scaffold_project(tmp_path, overwrite=True)
         assert (tmp_path / "ai-shell.toml").read_text() != "original"
 
+
+class TestScaffoldOpencode:
+    def test_creates_opencode_json(self, tmp_path):
+        scaffold_opencode(tmp_path)
+        assert (tmp_path / "opencode.json").is_file()
+
+    def test_opencode_json_is_valid(self, tmp_path):
+        scaffold_opencode(tmp_path)
+        data = json.loads((tmp_path / "opencode.json").read_text())
+        assert data["$schema"] == "https://opencode.ai/config.json"
+        assert data["model"] == "ollama/qwen3.5:27b"
+        assert "host.docker.internal:11434" in data["provider"]["ollama"]["options"]["baseURL"]
+
+    def test_opencode_json_has_permissions(self, tmp_path):
+        scaffold_opencode(tmp_path)
+        data = json.loads((tmp_path / "opencode.json").read_text())
+        perm = data["permission"]
+        assert perm["bash"] == "allow"
+        assert perm["read"] == "allow"
+        assert perm["external_directory"] == "ask"
+        assert perm["doom_loop"] == "ask"
+
     def test_opencode_json_has_both_models(self, tmp_path):
-        scaffold_project(tmp_path)
+        scaffold_opencode(tmp_path)
         data = json.loads((tmp_path / "opencode.json").read_text())
         models = data["provider"]["ollama"]["models"]
         assert "qwen3.5:27b" in models
         assert "qwen3-coder-next" in models
 
     def test_opencode_json_has_bedrock_provider(self, tmp_path):
-        scaffold_project(tmp_path)
+        scaffold_opencode(tmp_path)
         data = json.loads((tmp_path / "opencode.json").read_text())
         bedrock = data["provider"]["amazon-bedrock"]
         assert bedrock["options"]["region"] == "{env:AWS_REGION}"
         assert bedrock["options"]["profile"] == "{env:AWS_PROFILE}"
+
+    def test_opencode_json_has_instructions(self, tmp_path):
+        scaffold_opencode(tmp_path)
+        data = json.loads((tmp_path / "opencode.json").read_text())
+        assert "AGENTS.md" in data["instructions"]
+
+    def test_creates_agents_md(self, tmp_path):
+        scaffold_opencode(tmp_path)
+        assert (tmp_path / "AGENTS.md").is_file()
+
+    def test_creates_agents_skills(self, tmp_path):
+        scaffold_opencode(tmp_path)
+        skills_dir = tmp_path / ".agents" / "skills"
+        for skill_name in AGENTS_SKILL_DIRS:
+            assert (skills_dir / skill_name / "SKILL.md").is_file(), (
+                f"Missing agent skill: {skill_name}"
+            )
+
+    def test_init_skips_existing(self, tmp_path):
+        (tmp_path / "opencode.json").write_text("original")
+        scaffold_opencode(tmp_path, overwrite=False)
+        assert (tmp_path / "opencode.json").read_text() == "original"
+
+    def test_update_overwrites_existing(self, tmp_path):
+        (tmp_path / "opencode.json").write_text("original")
+        scaffold_opencode(tmp_path, overwrite=True)
+        assert (tmp_path / "opencode.json").read_text() != "original"
+
+
+class TestScaffoldCodex:
+    def test_creates_config_toml(self, tmp_path):
+        scaffold_codex(tmp_path)
+        assert (tmp_path / ".codex" / "config.toml").is_file()
+
+    def test_config_toml_has_permissions(self, tmp_path):
+        scaffold_codex(tmp_path)
+        content = (tmp_path / ".codex" / "config.toml").read_text()
+        assert "[permissions.default]" in content
+        assert "[permissions.default.filesystem]" in content
+
+    def test_config_toml_has_model(self, tmp_path):
+        scaffold_codex(tmp_path)
+        content = (tmp_path / ".codex" / "config.toml").read_text()
+        assert 'model = "o4-mini"' in content
+
+    def test_creates_agents_md(self, tmp_path):
+        scaffold_codex(tmp_path)
+        assert (tmp_path / "AGENTS.md").is_file()
+
+    def test_creates_agents_skills(self, tmp_path):
+        scaffold_codex(tmp_path)
+        skills_dir = tmp_path / ".agents" / "skills"
+        for skill_name in AGENTS_SKILL_DIRS:
+            assert (skills_dir / skill_name / "SKILL.md").is_file(), (
+                f"Missing agent skill: {skill_name}"
+            )
+
+    def test_skill_files_have_frontmatter(self, tmp_path):
+        scaffold_codex(tmp_path)
+        skills_dir = tmp_path / ".agents" / "skills"
+        for skill_name in AGENTS_SKILL_DIRS:
+            content = (skills_dir / skill_name / "SKILL.md").read_text()
+            assert content.startswith("---"), f"{skill_name}/SKILL.md missing YAML frontmatter"
+            second_marker = content.index("---", 3)
+            frontmatter = content[3:second_marker]
+            assert "name:" in frontmatter, f"{skill_name}/SKILL.md missing 'name'"
+            assert "description:" in frontmatter, f"{skill_name}/SKILL.md missing 'description'"
+
+    def test_init_skips_existing(self, tmp_path):
+        codex_dir = tmp_path / ".codex"
+        codex_dir.mkdir()
+        config = codex_dir / "config.toml"
+        config.write_text("original")
+        scaffold_codex(tmp_path, overwrite=False)
+        assert config.read_text() == "original"
+
+    def test_update_overwrites_existing(self, tmp_path):
+        codex_dir = tmp_path / ".codex"
+        codex_dir.mkdir()
+        config = codex_dir / "config.toml"
+        config.write_text("original")
+        scaffold_codex(tmp_path, overwrite=True)
+        assert config.read_text() != "original"
+
+
+class TestScaffoldAider:
+    def test_creates_aider_conf(self, tmp_path):
+        scaffold_aider(tmp_path)
+        assert (tmp_path / ".aider.conf.yml").is_file()
+
+    def test_aider_conf_is_valid_yaml(self, tmp_path):
+        scaffold_aider(tmp_path)
+        content = (tmp_path / ".aider.conf.yml").read_text()
+        data = yaml.safe_load(content)
+        assert isinstance(data, dict)
+
+    def test_aider_conf_has_model(self, tmp_path):
+        scaffold_aider(tmp_path)
+        content = (tmp_path / ".aider.conf.yml").read_text()
+        data = yaml.safe_load(content)
+        assert data["model"] == "ollama_chat/qwen3.5:27b"
+
+    def test_aider_conf_has_conventions_read(self, tmp_path):
+        scaffold_aider(tmp_path)
+        content = (tmp_path / ".aider.conf.yml").read_text()
+        data = yaml.safe_load(content)
+        assert "CONVENTIONS.md" in data["read"]
+
+    def test_creates_conventions(self, tmp_path):
+        scaffold_aider(tmp_path)
+        assert (tmp_path / "CONVENTIONS.md").is_file()
+        content = (tmp_path / "CONVENTIONS.md").read_text()
+        assert "Conventions" in content
+
+    def test_creates_aiderignore(self, tmp_path):
+        scaffold_aider(tmp_path)
+        assert (tmp_path / ".aiderignore").is_file()
+
+    def test_aiderignore_has_env(self, tmp_path):
+        scaffold_aider(tmp_path)
+        content = (tmp_path / ".aiderignore").read_text()
+        assert ".env" in content
+
+    def test_init_skips_existing(self, tmp_path):
+        (tmp_path / ".aider.conf.yml").write_text("original")
+        scaffold_aider(tmp_path, overwrite=False)
+        assert (tmp_path / ".aider.conf.yml").read_text() == "original"
+
+    def test_update_overwrites_existing(self, tmp_path):
+        (tmp_path / ".aider.conf.yml").write_text("original")
+        scaffold_aider(tmp_path, overwrite=True)
+        assert (tmp_path / ".aider.conf.yml").read_text() != "original"
