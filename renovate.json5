@@ -53,7 +53,7 @@
 
     // Prod patches: automerge with chore prefix (no release)
     {
-      "matchDepTypes": ["dependencies"],
+      "matchDepTypes": ["project.dependencies"],
       "matchManagers": ["pep621"],
       "matchUpdateTypes": ["patch"],
       "commitMessagePrefix": "chore(deps):",
@@ -62,7 +62,7 @@
 
     // Prod minors: manual review, no release
     {
-      "matchDepTypes": ["dependencies"],
+      "matchDepTypes": ["project.dependencies"],
       "matchManagers": ["pep621"],
       "matchUpdateTypes": ["minor"],
       "commitMessagePrefix": "chore(deps):",
@@ -71,7 +71,7 @@
 
     // Prod majors: require dashboard approval, no release
     {
-      "matchDepTypes": ["dependencies"],
+      "matchDepTypes": ["project.dependencies"],
       "matchManagers": ["pep621"],
       "matchUpdateTypes": ["major"],
       "commitMessagePrefix": "chore(deps):",
@@ -85,7 +85,7 @@
 
     // Dev patches + minors: automerge, grouped
     {
-      "matchDepTypes": ["devDependencies", "dependency-groups"],
+      "matchDepTypes": ["project.optional-dependencies", "dependency-groups"],
       "matchManagers": ["pep621"],
       "matchUpdateTypes": ["patch", "minor"],
       "commitMessagePrefix": "chore(deps-dev):",
@@ -96,7 +96,7 @@
 
     // Dev majors: manual review
     {
-      "matchDepTypes": ["devDependencies", "dependency-groups"],
+      "matchDepTypes": ["project.optional-dependencies", "dependency-groups"],
       "matchManagers": ["pep621"],
       "matchUpdateTypes": ["major"],
       "commitMessagePrefix": "chore(deps-dev):",
@@ -113,14 +113,23 @@
     },
 
     // ---------------------------------------------------------------
-    // GitHub Actions (grouped, automerge)
+    // GitHub Actions (minor/patch: automerge; major: manual review)
     // ---------------------------------------------------------------
     {
       "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "commitMessagePrefix": "ci(deps):",
       "automerge": true,
       "groupName": "GitHub Actions",
       "groupSlug": "gh-actions"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major"],
+      "commitMessagePrefix": "ci(deps):",
+      "automerge": false,
+      "groupName": "GitHub Actions (major)",
+      "groupSlug": "gh-actions-major"
     },
 
     // ---------------------------------------------------------------
