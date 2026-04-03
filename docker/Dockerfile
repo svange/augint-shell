@@ -33,6 +33,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     # AWS CLI dependencies
     unzip \
+    # Sandbox for Codex CLI
+    bubblewrap \
     # Docker CLI only (no daemon)
     docker.io \
     && rm -rf /var/lib/apt/lists/*
