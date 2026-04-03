@@ -18,7 +18,7 @@ git config --global http.sslBackend gnutls
 
 # Install/sync project dependencies FIRST, before anything else starts
 # This ensures Claude Code has access to all tools
-if [ -f "pyproject.toml" ]; then
+if [ -f "uv.lock" ]; then
     echo "===================================="
     echo "Syncing project dependencies with uv..."
     echo "===================================="
