@@ -92,7 +92,3 @@ temp/
 # === License Reports (generated) ===
 license-report.json
 runtime-requirements.txt
-
-/Makefile
-/docker-compose.yml
-/Dockerfile
