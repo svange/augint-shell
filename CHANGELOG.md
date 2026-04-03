@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.16.2 (2026-04-03)
+
+### Bug Fixes
+
+- Consolidate agent templates into `NOTES.md` and update scaffolding logic
+  ([`be914d4`](https://github.com/svange/augint-shell/commit/be914d4d8c23244bb2a63a070b8f185e5a33e0b6))
+
+
 ## v0.16.1 (2026-04-03)
 
 ### Bug Fixes
