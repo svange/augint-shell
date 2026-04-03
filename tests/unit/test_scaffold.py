@@ -222,16 +222,15 @@ class TestScaffoldCodex:
         scaffold_codex(tmp_path)
         assert (tmp_path / ".codex" / "config.toml").is_file()
 
-    def test_config_toml_has_permissions(self, tmp_path):
+    def test_config_toml_is_commented_reference(self, tmp_path):
         scaffold_codex(tmp_path)
         content = (tmp_path / ".codex" / "config.toml").read_text()
-        assert "[permissions.default]" in content
-        assert "[permissions.default.filesystem]" in content
-
-    def test_config_toml_has_model(self, tmp_path):
-        scaffold_codex(tmp_path)
-        content = (tmp_path / ".codex" / "config.toml").read_text()
-        assert 'model = "o4-mini"' in content
+        assert "config-reference" in content
+        # All settings should be commented out (no active values)
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                raise AssertionError(f"Expected all-comments template, found active line: {stripped}")
 
     def test_creates_agents_md(self, tmp_path):
         scaffold_codex(tmp_path)
