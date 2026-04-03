@@ -12,6 +12,40 @@ from ai_shell.defaults import OLLAMA_CONTAINER, WEBUI_CONTAINER
 
 console = Console(stderr=True)
 
+_LOW_MEMORY_THRESHOLD_GIB = 30  # 27B+ models need ~30 GiB
+
+
+def _warn_if_low_memory() -> None:
+    """Check system memory and warn if it may be insufficient for large models."""
+    try:
+        meminfo = Path("/proc/meminfo").read_text()
+    except OSError:
+        return  # Not on Linux, skip silently
+
+    mem_total_gib = 0.0
+    swap_total_gib = 0.0
+    for line in meminfo.splitlines():
+        if line.startswith("MemTotal:"):
+            mem_total_gib = int(line.split()[1]) / (1024 * 1024)
+        elif line.startswith("SwapTotal:"):
+            swap_total_gib = int(line.split()[1]) / (1024 * 1024)
+
+    total_gib = mem_total_gib + swap_total_gib
+    if total_gib < _LOW_MEMORY_THRESHOLD_GIB:
+        console.print(
+            f"\n[yellow bold]Warning:[/yellow bold] System has "
+            f"{mem_total_gib:.1f} GiB RAM + {swap_total_gib:.1f} GiB swap "
+            f"= {total_gib:.1f} GiB total."
+        )
+        console.print(
+            "[yellow]Large models (27B+) need ~30 GiB. "
+            "To increase, edit [bold]%UserProfile%\\.wslconfig[/bold] on Windows:[/yellow]"
+        )
+        console.print("[yellow]  [wsl2][/yellow]")
+        console.print("[yellow]  memory=32GB[/yellow]")
+        console.print("[yellow]  swap=32GB[/yellow]")
+        console.print("[yellow]Then run: [bold]wsl --shutdown[/bold]\n[/yellow]")
+
 
 def _get_manager(ctx) -> ContainerManager:
     """Create ContainerManager from Click context."""
@@ -32,6 +66,7 @@ def llm_up(ctx):
     """Start the LLM stack (Ollama + Open WebUI)."""
     manager = _get_manager(ctx)
     console.print("[bold]Starting LLM stack...[/bold]")
+    _warn_if_low_memory()
 
     manager.ensure_ollama()
     console.print(f"  Ollama API:  http://localhost:{manager.config.ollama_port}")
@@ -92,6 +127,7 @@ def llm_setup(ctx):
 
     # Start the stack
     console.print("[bold]Starting LLM stack...[/bold]")
+    _warn_if_low_memory()
     manager.ensure_ollama()
     manager.ensure_webui()
 

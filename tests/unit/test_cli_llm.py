@@ -5,7 +5,54 @@ from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
 
 from ai_shell.cli.__main__ import cli
+from ai_shell.cli.commands.llm import _warn_if_low_memory
 from ai_shell.defaults import OLLAMA_CONTAINER, WEBUI_CONTAINER
+
+
+def _fake_meminfo(mem_total_kb: int, swap_total_kb: int) -> str:
+    return (
+        f"MemTotal:       {mem_total_kb} kB\n"
+        f"MemFree:        {mem_total_kb // 2} kB\n"
+        f"SwapTotal:      {swap_total_kb} kB\n"
+        f"SwapFree:       {swap_total_kb} kB\n"
+    )
+
+
+class TestWarnIfLowMemory:
+    def test_warns_when_memory_low(self):
+        meminfo = _fake_meminfo(22 * 1024 * 1024, 4 * 1024 * 1024)
+        output_lines = []
+        with (
+            patch("ai_shell.cli.commands.llm.Path") as mock_path_cls,
+            patch("ai_shell.cli.commands.llm.console") as mock_console,
+        ):
+            mock_path_cls.return_value.read_text.return_value = meminfo
+            _warn_if_low_memory()
+            output_lines = [str(c) for c in mock_console.print.call_args_list]
+
+        assert any("Warning" in line for line in output_lines)
+        assert any("wslconfig" in line for line in output_lines)
+
+    def test_no_warning_when_memory_sufficient(self):
+        meminfo = _fake_meminfo(32 * 1024 * 1024, 8 * 1024 * 1024)
+        with (
+            patch("ai_shell.cli.commands.llm.Path") as mock_path_cls,
+            patch("ai_shell.cli.commands.llm.console") as mock_console,
+        ):
+            mock_path_cls.return_value.read_text.return_value = meminfo
+            _warn_if_low_memory()
+
+        mock_console.print.assert_not_called()
+
+    def test_skips_gracefully_on_non_linux(self):
+        with (
+            patch("ai_shell.cli.commands.llm.Path") as mock_path_cls,
+            patch("ai_shell.cli.commands.llm.console") as mock_console,
+        ):
+            mock_path_cls.return_value.read_text.side_effect = OSError("No such file")
+            _warn_if_low_memory()
+
+        mock_console.print.assert_not_called()
 
 
 @patch("ai_shell.cli.commands.llm.ContainerManager")
