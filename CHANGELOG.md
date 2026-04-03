@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.10.0 (2026-04-03)
+
+### Features
+
+- Add scaffolding for aider, codex, and opencode configurations; refactor tests and CLI commands to
+  support new init/update options
+  ([`6eb0077`](https://github.com/svange/augint-shell/commit/6eb00772856c954dec9ddf5b195ca1fa5b81a708))
+
+
 ## v0.9.0 (2026-04-03)
 
 ### Features
