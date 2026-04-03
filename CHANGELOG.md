@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.11.0 (2026-04-03)
+
+### Features
+
+- Add low memory warning for large model support and corresponding unit tests
+  ([`66f38bd`](https://github.com/svange/augint-shell/commit/66f38bd3bcdd18ea7558657d6881962fd9fd1af6))
+
+
 ## v0.10.0 (2026-04-03)
 
 ### Features
