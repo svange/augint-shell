@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.16.7 (2026-04-03)
+
+### Chores
+
+- Update Renovate config to use `ci` prefix for dependency updates
+  ([`d09df67`](https://github.com/svange/augint-shell/commit/d09df67f26d743ae65a6e5f062f1b8a9ff9cb1ad))
+
+
 ## v0.16.6 (2026-04-03)
 
 ### Chores
