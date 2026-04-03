@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-04-03T00:09:16Z",
+  "generated_at": "2026-04-03T00:29:28Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 11,
@@ -11,7 +11,7 @@
       "SEVERITY.LOW": 11,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1220,
+      "loc": 1251,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -76,7 +76,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 151,
+      "loc": 182,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -278,7 +278,7 @@
   },
   "results": [
     {
-      "code": "104                 break\n105         except Exception:\n106             pass\n107         console.print(f\"  Waiting... ({i + 1}/10)\")\n",
+      "code": "140                 break\n141         except Exception:\n142             pass\n143         console.print(f\"  Waiting... ({i + 1}/10)\")\n",
       "col_offset": 8,
       "end_col_offset": 16,
       "filename": "src/ai_shell/cli/commands/llm.py",
@@ -289,10 +289,10 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Try, Except, Pass detected.",
-      "line_number": 105,
+      "line_number": 141,
       "line_range": [
-        105,
-        106
+        141,
+        142
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
       "test_id": "B110",
