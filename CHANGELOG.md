@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.16.4 (2026-04-03)
+
+### Chores
+
+- Adjust renovate config for refined dependency grouping and GitHub Actions update policies
+  ([`815907c`](https://github.com/svange/augint-shell/commit/815907c71e492dc5b1769cd23487d8979b6bca1b))
+
+
 ## v0.16.3 (2026-04-03)
 
 ### Chores
