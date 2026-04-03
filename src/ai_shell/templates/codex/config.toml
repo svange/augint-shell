@@ -2,6 +2,7 @@
 # See: https://developers.openai.com/codex/config-reference
 
 model = "o4-mini"
+web_search = "live"
 
 # Approval policy controls when Codex asks for confirmation.
 # Options: "untrusted" | "on-request" | "never"

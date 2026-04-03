@@ -114,7 +114,7 @@ def codex(ctx, do_init, do_update, do_clean, safe, extra_args):
     cmd = ["codex"]
     if not safe:
         cmd.extend(["--dangerously-bypass-approvals-and-sandbox"])
-    cmd.extend(["--search", *extra_args])
+    cmd.extend(extra_args)
     console.print(f"[bold]Launching Codex{' (safe mode)' if safe else ''} in {name}...[/bold]")
     manager.exec_interactive(name, cmd)
 
