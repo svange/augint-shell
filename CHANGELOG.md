@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.13.0 (2026-04-03)
+
+### Features
+
+- Add `--clean` option to CLI scaffold commands for resetting configurations and templates
+  ([`a4489e7`](https://github.com/svange/augint-shell/commit/a4489e7f15243e63c2f291314a776cb66d186c3c))
+
+
 ## v0.12.0 (2026-04-03)
 
 ### Features
