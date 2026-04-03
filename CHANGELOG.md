@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.16.8 (2026-04-03)
+
+### Bug Fixes
+
+- **docker**: Update dependency sync condition to check for `uv.lock` instead of `pyproject.toml`
+  ([`00863dc`](https://github.com/svange/augint-shell/commit/00863dc3496b34b19ccb3e1613a630994f0757aa))
+
+
 ## v0.16.7 (2026-04-03)
 
 ### Chores
