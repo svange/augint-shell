@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.12.0 (2026-04-03)
+
+### Features
+
+- Add `ai-web-dev` skill, browser automation tools, and improve Git/CLI configurations in Docker
+  setup
+  ([`cff028f`](https://github.com/svange/augint-shell/commit/cff028ff5d60ab51a3aff4fa6a09525179fae371))
+
+
 ## v0.11.0 (2026-04-03)
 
 ### Features
