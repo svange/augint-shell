@@ -94,6 +94,19 @@ class TestScaffoldClaude:
         assert "Bash(gh run watch:*)" in allow
         assert "Bash(uv run pre-commit:*)" in allow
 
+    def test_clean_removes_and_recreates(self, tmp_path):
+        scaffold_claude(tmp_path)
+        (tmp_path / ".claude" / "settings.local.json").write_text("{}")
+        scaffold_claude(tmp_path, clean=True)
+        assert (tmp_path / ".claude" / "settings.json").is_file()
+        assert not (tmp_path / ".claude" / "settings.local.json").exists()
+
+    def test_clean_works_on_empty_dir(self, tmp_path):
+        scaffold_claude(tmp_path, clean=True)
+        assert (tmp_path / ".claude" / "settings.json").is_file()
+        for skill_name in CLAUDE_SKILL_DIRS:
+            assert (tmp_path / ".claude" / "skills" / skill_name / "SKILL.md").is_file()
+
 
 class TestScaffoldProject:
     def test_creates_toml_only(self, tmp_path):
@@ -118,6 +131,15 @@ class TestScaffoldProject:
         (tmp_path / "ai-shell.toml").write_text("original")
         scaffold_project(tmp_path, overwrite=True)
         assert (tmp_path / "ai-shell.toml").read_text() != "original"
+
+    def test_clean_removes_and_recreates(self, tmp_path):
+        scaffold_project(tmp_path)
+        scaffold_project(tmp_path, clean=True)
+        assert (tmp_path / "ai-shell.toml").is_file()
+
+    def test_clean_works_on_empty_dir(self, tmp_path):
+        scaffold_project(tmp_path, clean=True)
+        assert (tmp_path / "ai-shell.toml").is_file()
 
 
 class TestScaffoldOpencode:
@@ -182,6 +204,18 @@ class TestScaffoldOpencode:
         scaffold_opencode(tmp_path, overwrite=True)
         assert (tmp_path / "opencode.json").read_text() != "original"
 
+    def test_clean_removes_and_recreates(self, tmp_path):
+        scaffold_opencode(tmp_path)
+        (tmp_path / ".agents" / "unmanaged.txt").write_text("stale")
+        scaffold_opencode(tmp_path, clean=True)
+        assert (tmp_path / "opencode.json").is_file()
+        assert (tmp_path / "AGENTS.md").is_file()
+        assert not (tmp_path / ".agents" / "unmanaged.txt").exists()
+
+    def test_clean_works_on_empty_dir(self, tmp_path):
+        scaffold_opencode(tmp_path, clean=True)
+        assert (tmp_path / "opencode.json").is_file()
+
 
 class TestScaffoldCodex:
     def test_creates_config_toml(self, tmp_path):
@@ -238,6 +272,17 @@ class TestScaffoldCodex:
         scaffold_codex(tmp_path, overwrite=True)
         assert config.read_text() != "original"
 
+    def test_clean_removes_and_recreates(self, tmp_path):
+        scaffold_codex(tmp_path)
+        (tmp_path / ".codex" / "unmanaged.txt").write_text("stale")
+        scaffold_codex(tmp_path, clean=True)
+        assert (tmp_path / ".codex" / "config.toml").is_file()
+        assert not (tmp_path / ".codex" / "unmanaged.txt").exists()
+
+    def test_clean_works_on_empty_dir(self, tmp_path):
+        scaffold_codex(tmp_path, clean=True)
+        assert (tmp_path / ".codex" / "config.toml").is_file()
+
 
 class TestScaffoldAider:
     def test_creates_aider_conf(self, tmp_path):
@@ -286,3 +331,14 @@ class TestScaffoldAider:
         (tmp_path / ".aider.conf.yml").write_text("original")
         scaffold_aider(tmp_path, overwrite=True)
         assert (tmp_path / ".aider.conf.yml").read_text() != "original"
+
+    def test_clean_removes_and_recreates(self, tmp_path):
+        scaffold_aider(tmp_path)
+        scaffold_aider(tmp_path, clean=True)
+        assert (tmp_path / ".aider.conf.yml").is_file()
+        assert (tmp_path / "CONVENTIONS.md").is_file()
+        assert (tmp_path / ".aiderignore").is_file()
+
+    def test_clean_works_on_empty_dir(self, tmp_path):
+        scaffold_aider(tmp_path, clean=True)
+        assert (tmp_path / ".aider.conf.yml").is_file()

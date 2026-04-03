@@ -7,6 +7,7 @@ Template content lives in ``ai_shell/templates/`` as plain files
 from __future__ import annotations
 
 import logging
+import shutil
 from importlib import resources
 from pathlib import Path
 
@@ -25,6 +26,37 @@ def _read_template(*parts: str) -> str:
     """Read a template file from the ``ai_shell.templates`` package."""
     ref = _TEMPLATES.joinpath(*parts)
     return ref.read_text(encoding="utf-8")
+
+
+def _clean_paths(target_dir: Path, dirs: list[str], files: list[str]) -> None:
+    """Remove directories and files managed by scaffolding."""
+    for d in dirs:
+        path = target_dir / d
+        if path.exists():
+            shutil.rmtree(path)
+            console.print(f"[red]Removed: {path}[/red]")
+    for f in files:
+        path = target_dir / f
+        if path.exists():
+            path.unlink()
+            console.print(f"[red]Removed: {path}[/red]")
+
+
+# Managed paths per tool (directories and loose files)
+_CLAUDE_DIRS = [".claude"]
+_CLAUDE_FILES: list[str] = []
+
+_OPENCODE_DIRS = [".agents"]
+_OPENCODE_FILES = ["opencode.json", "AGENTS.md"]
+
+_CODEX_DIRS = [".codex", ".agents"]
+_CODEX_FILES = ["AGENTS.md"]
+
+_AIDER_DIRS: list[str] = []
+_AIDER_FILES = [".aider.conf.yml", "CONVENTIONS.md", ".aiderignore"]
+
+_PROJECT_DIRS: list[str] = []
+_PROJECT_FILES = ["ai-shell.toml"]
 
 
 def _write_file(path: Path, content: str, *, overwrite: bool) -> bool:
@@ -57,8 +89,11 @@ CLAUDE_SKILL_DIRS = [
 ]
 
 
-def scaffold_claude(target_dir: Path, *, overwrite: bool = False) -> None:
+def scaffold_claude(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
     """Create ``.claude/`` directory with settings and skills."""
+    if clean:
+        _clean_paths(target_dir, _CLAUDE_DIRS, _CLAUDE_FILES)
+        overwrite = True
     claude_dir = target_dir / ".claude"
     skills_dir = claude_dir / "skills"
 
@@ -83,8 +118,11 @@ def scaffold_claude(target_dir: Path, *, overwrite: bool = False) -> None:
 AGENTS_SKILL_DIRS = list(CLAUDE_SKILL_DIRS)  # Same 7 workflow skills
 
 
-def scaffold_project(target_dir: Path, *, overwrite: bool = False) -> None:
+def scaffold_project(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
     """Create ``ai-shell.toml`` in *target_dir*."""
+    if clean:
+        _clean_paths(target_dir, _PROJECT_DIRS, _PROJECT_FILES)
+        overwrite = True
     _write_file(
         target_dir / "ai-shell.toml",
         _read_template("ai-shell.toml"),
@@ -94,8 +132,11 @@ def scaffold_project(target_dir: Path, *, overwrite: bool = False) -> None:
     console.print("[bold green]Project configuration ready.[/bold green]")
 
 
-def scaffold_opencode(target_dir: Path, *, overwrite: bool = False) -> None:
+def scaffold_opencode(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
     """Create opencode configuration, AGENTS.md, and ``.agents/skills/``."""
+    if clean:
+        _clean_paths(target_dir, _OPENCODE_DIRS, _OPENCODE_FILES)
+        overwrite = True
     _write_file(
         target_dir / "opencode.json",
         _read_template("opencode", "opencode.json"),
@@ -116,8 +157,11 @@ def scaffold_opencode(target_dir: Path, *, overwrite: bool = False) -> None:
     console.print("[bold green]opencode configuration ready.[/bold green]")
 
 
-def scaffold_codex(target_dir: Path, *, overwrite: bool = False) -> None:
+def scaffold_codex(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
     """Create ``.codex/`` config, AGENTS.md, and ``.agents/skills/``."""
+    if clean:
+        _clean_paths(target_dir, _CODEX_DIRS, _CODEX_FILES)
+        overwrite = True
     _write_file(
         target_dir / ".codex" / "config.toml",
         _read_template("codex", "config.toml"),
@@ -138,8 +182,11 @@ def scaffold_codex(target_dir: Path, *, overwrite: bool = False) -> None:
     console.print("[bold green]Codex configuration ready.[/bold green]")
 
 
-def scaffold_aider(target_dir: Path, *, overwrite: bool = False) -> None:
+def scaffold_aider(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
     """Create ``.aider.conf.yml``, ``CONVENTIONS.md``, and ``.aiderignore``."""
+    if clean:
+        _clean_paths(target_dir, _AIDER_DIRS, _AIDER_FILES)
+        overwrite = True
     _write_file(
         target_dir / ".aider.conf.yml",
         _read_template("aider", "aider.conf.yml"),

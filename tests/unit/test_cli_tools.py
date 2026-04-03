@@ -166,7 +166,7 @@ class TestToolCommands:
             with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
                 result = self.runner.invoke(cli, ["opencode", "--init"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False)
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False, clean=False)
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
@@ -176,7 +176,17 @@ class TestToolCommands:
             with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
                 result = self.runner.invoke(cli, ["opencode", "--update"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True)
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=False)
+        assert result.exit_code == 0
+
+    def test_opencode_clean_calls_scaffold_with_clean(self, mock_config, mock_manager_cls):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
+                result = self.runner.invoke(cli, ["opencode", "--clean"])
+
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=True)
+        mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
     def test_codex_init_calls_scaffold(self, mock_config, mock_manager_cls):
@@ -185,7 +195,7 @@ class TestToolCommands:
             with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
                 result = self.runner.invoke(cli, ["codex", "--init"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False)
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False, clean=False)
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
@@ -195,7 +205,17 @@ class TestToolCommands:
             with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
                 result = self.runner.invoke(cli, ["codex", "--update"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True)
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=False)
+        assert result.exit_code == 0
+
+    def test_codex_clean_calls_scaffold_with_clean(self, mock_config, mock_manager_cls):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
+                result = self.runner.invoke(cli, ["codex", "--clean"])
+
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=True)
+        mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
     def test_aider_init_calls_scaffold(self, mock_config, mock_manager_cls):
@@ -204,7 +224,7 @@ class TestToolCommands:
             with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
                 result = self.runner.invoke(cli, ["aider", "--init"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False)
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False, clean=False)
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
@@ -214,7 +234,17 @@ class TestToolCommands:
             with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
                 result = self.runner.invoke(cli, ["aider", "--update"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True)
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=False)
+        assert result.exit_code == 0
+
+    def test_aider_clean_calls_scaffold_with_clean(self, mock_config, mock_manager_cls):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
+                result = self.runner.invoke(cli, ["aider", "--clean"])
+
+        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=True)
+        mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
     def test_version_flag(self, mock_config, mock_manager_cls):
