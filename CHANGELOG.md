@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.9.0 (2026-04-03)
+
+### Features
+
+- Add new skill templates and configurations for Claude and codex integration
+  ([`b6453f4`](https://github.com/svange/augint-shell/commit/b6453f490c20c659730cc68b5dc73587da859e8a))
+
+
 ## v0.8.0 (2026-04-02)
 
 ### Features
