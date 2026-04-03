@@ -62,9 +62,7 @@ class TestToolCommands:
         assert cmd_fresh == ["claude", "--dangerously-skip-permissions"]
         assert mock_manager.exec_interactive.call_args[1]["extra_env"] == TEST_EXEC_ENV
 
-    def test_claude_no_retry_on_slow_failure(
-        self, mock_config, mock_manager_cls, mock_build_env
-    ):
+    def test_claude_no_retry_on_slow_failure(self, mock_config, mock_manager_cls, mock_build_env):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
