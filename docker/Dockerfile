@@ -137,7 +137,6 @@ RUN echo '# Useful aliases' >> /root/.bashrc && \
     echo 'alias gd="git diff"' >> /root/.bashrc && \
     echo 'alias gl="git log --oneline -10"' >> /root/.bashrc && \
     echo 'alias dc="docker compose"' >> /root/.bashrc && \
-    echo 'alias tree="find . -print | sed -e \"s;[^/]*/;|____;g;s;____|; |;g\""' >> /root/.bashrc && \
     echo '' >> /root/.bashrc && \
     echo '# Environment settings' >> /root/.bashrc && \
     echo 'export EDITOR=vim' >> /root/.bashrc && \
@@ -179,10 +178,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ripgrep \
     fd-find \
     bat \
+    tree \
     # Network tools
     httpie \
-    # JSON tools
+    # JSON/YAML tools
     jo \
+    # Database tools
+    sqlite3 \
+    # Terminal multiplexer and fuzzy finder
+    tmux \
+    fzf \
     # Process monitoring
     glances \
     # DNS tools
@@ -192,11 +197,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ln -s /usr/bin/fdfind /usr/local/bin/fd && \
     ln -s /usr/bin/batcat /usr/local/bin/bat
 
+# Install yq (YAML processor) - not available in Debian repos
+RUN curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+    -o /usr/local/bin/yq && \
+    chmod +x /usr/local/bin/yq
+
 # Configure git globally as root
 RUN git config --global --add safe.directory '*' && \
     git config --global color.ui auto && \
     git config --global core.editor vim && \
-    git config --global credential.helper store && \
     git config --global init.defaultBranch main && \
     git config --global core.hooksPath /dev/null && \
     git config --global --unset-all http.sslbackend || true

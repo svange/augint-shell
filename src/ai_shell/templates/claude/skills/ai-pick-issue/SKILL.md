@@ -159,7 +159,47 @@ gh issue list --state open --label high-priority --json number,title,labels | jq
 - **Authentication errors**: Remind user to run `gh auth login`
 - **Closed issue accessed**: Prominently warn that issue is closed
 
-## 6. Final Output
+## 6. Collaborative Design Conversation
+
+After presenting the issue details, do NOT immediately suggest `/ai-prepare-branch`. Instead, engage the user in a focused design dialogue to establish shared understanding before implementation begins.
+
+### Initiate the Conversation
+
+Present a brief initial analysis of the issue, then ask targeted questions:
+
+1. **Summarize your understanding** of the issue in 2-3 sentences
+2. **Propose an implementation approach** - identify the key files, components, or architecture involved
+3. **Surface trade-offs and open questions** - flag ambiguities, alternative approaches, or constraints you see
+4. **Ask 2-4 specific clarifying questions**, such as:
+   - Requirements: "The issue mentions X -- should that also handle Y?"
+   - Scope: "Should this include Z, or is that a separate issue?"
+   - Architecture: "I see two approaches here: A vs B. Which fits your codebase better?"
+   - Constraints: "Are there performance/compatibility concerns I should know about?"
+
+### Continue the Dialogue
+
+- Listen to the user's answers and refine your understanding
+- Propose a more detailed plan when you have enough context
+- Ask follow-up questions if answers reveal new ambiguities
+- Challenge assumptions respectfully -- raise risks the user may not have considered
+
+### Confirm Alignment
+
+When you believe alignment is reached, present a concise implementation summary:
+
+```
+=== Proposed Approach ===
+Goal: [one sentence]
+Approach: [2-3 key decisions]
+Files likely affected: [list]
+Out of scope: [what we're NOT doing]
+```
+
+Then ask: **"Does this match your intent? Ready to proceed?"**
+
+Only after the user explicitly confirms should you suggest `/ai-prepare-branch`.
+
+## 7. Final Output
 
 **IMPORTANT**:
 - Only recommend or list OPEN issues
