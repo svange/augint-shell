@@ -98,6 +98,12 @@ CLAUDE_SKILL_DIRS = [
     "ai-create-cmd",
     "ai-repo-health",
     "ai-web-dev",
+    "ai-standardize-renovate",
+    "ai-standardize-release",
+    "ai-standardize-pipeline",
+    "ai-standardize-precommit",
+    "ai-standardize-dotfiles",
+    "ai-standardize-repo",
 ]
 
 
@@ -128,7 +134,7 @@ def scaffold_claude(target_dir: Path, *, overwrite: bool = False, clean: bool = 
     console.print("[bold green]Claude configuration ready.[/bold green]")
 
 
-AGENTS_SKILL_DIRS = list(CLAUDE_SKILL_DIRS)  # Same 7 workflow skills
+AGENTS_SKILL_DIRS = list(CLAUDE_SKILL_DIRS)  # Mirrored to .agents/skills/
 
 
 def scaffold_project(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
