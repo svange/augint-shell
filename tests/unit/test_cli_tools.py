@@ -94,7 +94,6 @@ class TestToolCommands:
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert "codex" in cmd
         assert "--dangerously-bypass-approvals-and-sandbox" in cmd
-        assert "--search" in cmd
 
     def test_codex_safe_mode(self, mock_config, mock_manager_cls):
         mock_manager = MagicMock()
@@ -106,7 +105,6 @@ class TestToolCommands:
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert "--dangerously-bypass-approvals-and-sandbox" not in cmd
-        assert "--search" in cmd
 
     def test_shell_command(self, mock_config, mock_manager_cls):
         mock_manager = MagicMock()

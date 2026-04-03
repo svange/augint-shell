@@ -11,6 +11,7 @@ approval_policy = "on-request"
 # Sandbox mode controls technical boundaries.
 # Options: "read-only" | "workspace-write" | "danger-full-access"
 sandbox = "workspace-write"
+default_permissions = "default"
 
 # Named permissions profile
 [permissions.default]
