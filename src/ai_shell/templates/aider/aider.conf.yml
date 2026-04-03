@@ -1,5 +1,5 @@
 # Aider configuration
-# See: https://aider.chat/docs/config/adr_conf.html
+# See: https://aider.chat/docs/config/aider_conf.html
 # Every CLI flag maps to a YAML key (use dashes, not underscores).
 
 # Model selection

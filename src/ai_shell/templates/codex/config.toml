@@ -2,6 +2,7 @@
 # See: https://developers.openai.com/codex/config-reference
 
 model = "o4-mini"
+web_search = "live"
 
 # Approval policy controls when Codex asks for confirmation.
 # Options: "untrusted" | "on-request" | "never"
@@ -10,6 +11,7 @@ approval_policy = "on-request"
 # Sandbox mode controls technical boundaries.
 # Options: "read-only" | "workspace-write" | "danger-full-access"
 sandbox = "workspace-write"
+default_permissions = "default"
 
 # Named permissions profile
 [permissions.default]
