@@ -24,17 +24,46 @@ uv run pre-commit run --all-files          # All pre-commit hooks
 
 Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `.env` file blocker, ruff format + lint (with auto-fix), mypy, and uv.lock freshness check.
 
-## CRITICAL: No Rebase on Main
+## Critical Rules
 
-**NEVER use `git pull --rebase` or `git rebase` on `main`.** Use merge commits only.
+- **No rebase on main**: NEVER use `git pull --rebase` or `git rebase` on `main`. Use merge commits only.
+- **No manual versioning**: NEVER manually edit version numbers. Python Semantic Release owns versioning via conventional commits. Version in `pyproject.toml` and `src/ai_shell/__init__.py`. Tag format: `augint-shell-v{version}`.
+- **No lock file edits**: NEVER manually edit lock files (uv.lock, package-lock.json, poetry.lock, yarn.lock). They are auto-generated.
+- **No .env commits**: NEVER commit .env files. Use .env.example for templates.
+- **No force push to main**: NEVER use `git push --force` on main or the default branch.
 
-## CRITICAL: Version Management
+## Conventions
 
-**NEVER manually edit version numbers.** Python Semantic Release owns versioning.
+- **Commits**: Conventional commits required. `fix:` = patch, `feat:` = minor, `feat!:` / `BREAKING CHANGE` = major.
+- **Branches**: `{type}/issue-N-description` where type is one of: feat, fix, docs, refactor, test, chore, ci, build, style, revert, perf.
+- **PRs**: Target the default development branch. Enable automerge.
+- **Pre-commit**: Run `uv run pre-commit run --all-files` explicitly before committing (no automatic git hooks -- they break across Windows/WSL). If checks fail, fix the issue and create a NEW commit (do not amend).
+- **Tests**: Write tests for all new functionality. Bug fixes require regression tests.
 
-- Version in `pyproject.toml` and `src/ai_shell/__init__.py`
-- Bumped automatically via conventional commits: `fix:` (patch), `feat:` (minor), `feat!:` (major)
-- Tag format: `augint-shell-v{version}`
+## Development Workflow
+
+1. **Pick an issue**: Find or get assigned an issue to work on
+2. **Create a branch**: `git checkout -b feat/issue-N-description`
+3. **Develop**: Write code with tests, following project conventions
+4. **Check**: Run `uv run pre-commit run --all-files` and `uv run pytest`
+5. **Submit**: Commit with conventional messages, create PR
+6. **Monitor**: Watch CI pipeline, fix any failures
+
+## Key Commands
+
+```bash
+# Git
+git status                    # Check working tree
+git log --oneline -10         # Recent commits
+
+# GitHub CLI
+gh issue list --state open    # View open issues
+gh pr create                  # Create pull request
+gh pr merge --auto --squash   # Enable automerge
+gh run list                   # List workflow runs
+gh run view <id>              # View run details
+gh run watch <id>             # Watch run in real-time
+```
 
 ## Architecture
 
