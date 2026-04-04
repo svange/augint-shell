@@ -13,7 +13,7 @@ wheels = [
 
 [[package]]
 name = "augint-github"
-version = "1.3.3"
+version = "1.3.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -22,9 +22,9 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e5/f2/e3fa28831b6283a644a6d9cbb128dff53e026a21e23d3644f5ef58dbe526/augint_github-1.3.3.tar.gz", hash = "sha256:27db295911c1301ac7e10e8a339041706de5199b2edfacbe1c39ef8d75dd1650", size = 4762, upload-time = "2026-04-03T16:14:30.61Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5b/3a/1f1c2f7e60a3f63774152f03d91e0db298728aed1569341a3b3f56338c3b/augint_github-1.3.4.tar.gz", hash = "sha256:1f325ae8f2735ee5c1d453edd4404d099743f50d759ea47a445049f2544bb8e0", size = 4730, upload-time = "2026-04-03T16:52:55.266Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c5/1c/418ee413ffcfc2265f1791e9ceb7f8c81231e86b5fbfbecfe59639f93c65/augint_github-1.3.3-py3-none-any.whl", hash = "sha256:48253ca6373c89c6a12a8aee004b2c24315ca748dc7fe484ee2a1d37a65e9cf9", size = 4723, upload-time = "2026-04-03T16:14:28.981Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/5c/853f0de3219c23115a5dc08f842bb0fac867be7bf410b59f28140bce2fcf/augint_github-1.3.4-py3-none-any.whl", hash = "sha256:f95a8b8677fc0aee8bdb6c7fa092b02ef3ecc0b948d4eaf71fd54097fb7949da", size = 4715, upload-time = "2026-04-03T16:52:53.917Z" },
 ]
 
 [[package]]

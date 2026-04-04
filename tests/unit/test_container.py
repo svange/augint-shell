@@ -272,12 +272,29 @@ class TestContainerLifecycle:
         with pytest.raises(ContainerNotFoundError):
             mock_container_manager.stop_container("nonexistent")
 
-    def test_remove_container(self, mock_container_manager):
+    def test_remove_stopped_container(self, mock_container_manager):
         container = MagicMock()
+        container.status = "exited"
         mock_container_manager._get_container = MagicMock(return_value=container)
 
-        mock_container_manager.remove_container("test", force=True)
-        container.remove.assert_called_once_with(force=True)
+        mock_container_manager.remove_container("test")
+        container.stop.assert_not_called()
+        container.remove.assert_called_once_with()
+
+    def test_remove_running_container_stops_first(self, mock_container_manager):
+        container = MagicMock()
+        container.status = "running"
+        mock_container_manager._get_container = MagicMock(return_value=container)
+
+        mock_container_manager.remove_container("test")
+        container.stop.assert_called_once()
+        container.remove.assert_called_once_with()
+
+    def test_remove_nonexistent_raises(self, mock_container_manager):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+
+        with pytest.raises(ContainerNotFoundError):
+            mock_container_manager.remove_container("nonexistent")
 
     def test_container_status_returns_none_for_missing(self, mock_container_manager):
         mock_container_manager._get_container = MagicMock(return_value=None)

@@ -64,15 +64,14 @@ def manage_stop(ctx):
 
 
 @manage_group.command("clean")
-@click.option("--force", "-f", is_flag=True, help="Force remove even if running.")
 @click.pass_context
-def manage_clean(ctx, force):
+def manage_clean(ctx):
     """Remove the dev container for current project."""
     manager = _get_manager(ctx)
     name = dev_container_name(manager.config.project_name)
 
     try:
-        manager.remove_container(name, force=force)
+        manager.remove_container(name)
         console.print(f"[green]Removed: {name}[/green]")
     except ContainerNotFoundError:
         console.print(f"[yellow]No container found: {name}[/yellow]")

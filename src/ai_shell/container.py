@@ -335,12 +335,15 @@ class ContainerManager:
             container.stop()
             logger.info("Stopped container: %s", name)
 
-    def remove_container(self, name: str, force: bool = False) -> None:
-        """Remove a container by name."""
+    def remove_container(self, name: str) -> None:
+        """Remove a container by name, stopping it first if running."""
         container = self._get_container(name)
         if container is None:
             raise ContainerNotFoundError(name)
-        container.remove(force=force)
+        if container.status == "running":
+            container.stop()
+            logger.info("Stopped container: %s", name)
+        container.remove()
         logger.info("Removed container: %s", name)
 
     def container_ports(self, name: str) -> dict[str, str] | None:
