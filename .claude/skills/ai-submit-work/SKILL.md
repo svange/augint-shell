@@ -24,6 +24,31 @@ CURRENT_BRANCH=$(git branch --show-current)
 - If on `main`, `master`, `dev`, `develop`, or `staging`: **ABORT** with error "You're on $CURRENT_BRANCH. Create a work branch first with `/ai-prepare-branch`."
 - Must be on a feature/fix/etc. branch.
 
+**Verify branch is current with target:**
+```bash
+# Detect target branch
+TARGET=""
+for candidate in dev develop staging; do
+    if git show-ref --verify --quiet refs/remotes/origin/$candidate; then
+        TARGET=$candidate
+        break
+    fi
+done
+TARGET=${TARGET:-$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@' 2>/dev/null || echo "main")}
+
+git fetch origin $TARGET
+BEHIND=$(git rev-list --count HEAD..origin/$TARGET)
+if [ "$BEHIND" -gt 0 ]; then
+    echo "WARNING: Your branch is $BEHIND commits behind $TARGET."
+    echo "This usually means /ai-prepare-branch was not run before starting work."
+fi
+```
+
+If the branch is behind, ask the user:
+- **Rebase now** - `git rebase origin/$TARGET` (recommended)
+- **Continue anyway** - proceed, step 5 will rebase before push
+- **Abort** - stop so user can run `/ai-prepare-branch` properly
+
 **Verify there are changes:**
 ```bash
 # Check for any changes (staged, unstaged, untracked)

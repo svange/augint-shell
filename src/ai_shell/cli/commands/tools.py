@@ -53,18 +53,25 @@ def _get_manager(ctx) -> tuple[ContainerManager, str, dict[str, str]]:
     help="Delete and recreate .claude/ config from templates.",
 )
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
+@click.option(
+    "--no-merge",
+    "skip_merge",
+    is_flag=True,
+    default=False,
+    help="Skip merging notes into context file on --update.",
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def claude(ctx, do_init, do_update, do_clean, safe, extra_args):
+def claude(ctx, do_init, do_update, do_clean, safe, skip_merge, extra_args):
     """Launch Claude Code in the dev container."""
     if do_init or do_update or do_clean:
         from ai_shell.scaffold import scaffold_claude as _scaffold_claude
 
         _scaffold_claude(Path.cwd(), overwrite=do_update or do_clean, clean=do_clean)
-        if do_update:
+        if do_update and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(Path.cwd(), "claude")
+            merge_notes_into_context(Path.cwd(), "claude", background=True)
         return
 
     manager, name, exec_env = _get_manager(ctx)
@@ -111,18 +118,25 @@ def claude(ctx, do_init, do_update, do_clean, safe, extra_args):
     help="Delete and recreate .codex/ and .agents/ config from templates.",
 )
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
+@click.option(
+    "--no-merge",
+    "skip_merge",
+    is_flag=True,
+    default=False,
+    help="Skip merging notes into context file on --update.",
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def codex(ctx, do_init, do_update, do_clean, safe, extra_args):
+def codex(ctx, do_init, do_update, do_clean, safe, skip_merge, extra_args):
     """Launch Codex in the dev container."""
     if do_init or do_update or do_clean:
         from ai_shell.scaffold import scaffold_codex as _scaffold_codex
 
         _scaffold_codex(Path.cwd(), overwrite=do_update or do_clean, clean=do_clean)
-        if do_update:
+        if do_update and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(Path.cwd(), "codex")
+            merge_notes_into_context(Path.cwd(), "codex", background=True)
         return
 
     manager, name, exec_env = _get_manager(ctx)
@@ -157,17 +171,24 @@ def codex(ctx, do_init, do_update, do_clean, safe, extra_args):
     help="Delete and recreate opencode and .agents/ config from templates.",
 )
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
+@click.option(
+    "--no-merge",
+    "skip_merge",
+    is_flag=True,
+    default=False,
+    help="Skip merging notes into context file on --update.",
+)
 @click.pass_context
-def opencode(ctx, do_init, do_update, do_clean, safe):
+def opencode(ctx, do_init, do_update, do_clean, safe, skip_merge):
     """Launch opencode in the dev container."""
     if do_init or do_update or do_clean:
         from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
 
         _scaffold_opencode(Path.cwd(), overwrite=do_update or do_clean, clean=do_clean)
-        if do_update:
+        if do_update and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(Path.cwd(), "opencode")
+            merge_notes_into_context(Path.cwd(), "opencode", background=True)
         return
 
     manager, name, exec_env = _get_manager(ctx)
@@ -245,7 +266,14 @@ def shell(ctx):
     default=False,
     help="Also scaffold all tool configs (claude, codex, opencode, aider).",
 )
-def init(update, clean, scaffold_all):
+@click.option(
+    "--no-merge",
+    "skip_merge",
+    is_flag=True,
+    default=False,
+    help="Skip merging notes into context files on --update --all.",
+)
+def init(update, clean, scaffold_all, skip_merge):
     """Initialize ai-shell config files in the current directory."""
     from ai_shell.scaffold import scaffold_aider as _scaffold_aider
     from ai_shell.scaffold import scaffold_claude as _scaffold_claude
@@ -260,8 +288,8 @@ def init(update, clean, scaffold_all):
         _scaffold_opencode(Path.cwd(), overwrite=overwrite, clean=clean)
         _scaffold_codex(Path.cwd(), overwrite=overwrite, clean=clean)
         _scaffold_aider(Path.cwd(), overwrite=overwrite, clean=clean)
-        if update:
+        if update and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(Path.cwd(), "claude")
-            merge_notes_into_context(Path.cwd(), "codex")
+            merge_notes_into_context(Path.cwd(), "claude", background=True)
+            merge_notes_into_context(Path.cwd(), "codex", background=True)
