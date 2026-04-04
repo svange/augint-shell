@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.17.0 (2026-04-04)
+
+### Chores
+
+- Simplify console print statement for missing binary warning
+  ([`d3c0eae`](https://github.com/svange/augint-shell/commit/d3c0eaea82cf0e40dc43dd4f723c2be077495aea))
+
+### Features
+
+- Add `merge_notes_into_context` function for intelligent merging of `NOTES.md`
+  ([`55ee3e6`](https://github.com/svange/augint-shell/commit/55ee3e6d6ffe238284124155712e4f9f06dc71de))
+
+
 ## v0.16.11 (2026-04-04)
 
 ### Chores
