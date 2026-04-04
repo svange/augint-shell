@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.18.0 (2026-04-04)
+
+### Bug Fixes
+
+- **cli**: Auto-stop running container in manage clean
+  ([#11](https://github.com/svange/augint-shell/pull/11),
+  [`aa06556`](https://github.com/svange/augint-shell/commit/aa065567112d7ae34312eec862d05bbbd7a59cf1))
+
+### Features
+
+- Add AI-assisted standardization skills for repository consistency
+  ([#11](https://github.com/svange/augint-shell/pull/11),
+  [`aa06556`](https://github.com/svange/augint-shell/commit/aa065567112d7ae34312eec862d05bbbd7a59cf1))
+
+
 ## v0.17.0 (2026-04-04)
 
 ### Chores
