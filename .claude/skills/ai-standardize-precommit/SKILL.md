@@ -10,10 +10,10 @@ Validates that pre-commit hooks (Python) or equivalent tooling (Node) are config
 
 ## Usage Examples
 
-- `/ai-standardize-precommit` — Full audit with recommendations
-- `/ai-standardize-precommit --validate` — Report issues only
-- `/ai-standardize-precommit --generate` — Generate config from template
-- `/ai-standardize-precommit --fix` — Auto-fix detected issues
+- `/ai-standardize-precommit` â€” Full audit with recommendations
+- `/ai-standardize-precommit --validate` â€” Report issues only
+- `/ai-standardize-precommit --generate` â€” Generate config from template
+- `/ai-standardize-precommit --fix` â€” Auto-fix detected issues
 
 ## 1. Detect Ecosystem
 

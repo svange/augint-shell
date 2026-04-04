@@ -10,10 +10,10 @@ Detects whether this is a library (main-only) or IaC repo (dev/main), identifies
 
 ## Usage Examples
 
-- `/ai-standardize-renovate` — Full run: detect, generate if missing, validate if present
-- `/ai-standardize-renovate --validate` — Only check existing config for issues
-- `/ai-standardize-renovate --generate` — Generate config (overwrites existing)
-- `/ai-standardize-renovate --fix` — Auto-fix detected issues
+- `/ai-standardize-renovate` â€” Full run: detect, generate if missing, validate if present
+- `/ai-standardize-renovate --validate` â€” Only check existing config for issues
+- `/ai-standardize-renovate --generate` â€” Generate config (overwrites existing)
+- `/ai-standardize-renovate --fix` â€” Auto-fix detected issues
 
 ## 1. Detect Repo Type
 

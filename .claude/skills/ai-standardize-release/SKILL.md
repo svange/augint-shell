@@ -10,10 +10,10 @@ Ensures semantic-release is configured correctly and aligned with the Renovate c
 
 ## Usage Examples
 
-- `/ai-standardize-release` — Full run: detect, generate if missing, validate if present
-- `/ai-standardize-release --validate` — Only check existing config for issues
-- `/ai-standardize-release --generate` — Generate config (overwrites existing)
-- `/ai-standardize-release --fix` — Auto-fix detected issues
+- `/ai-standardize-release` â€” Full run: detect, generate if missing, validate if present
+- `/ai-standardize-release --validate` â€” Only check existing config for issues
+- `/ai-standardize-release --generate` â€” Generate config (overwrites existing)
+- `/ai-standardize-release --fix` â€” Auto-fix detected issues
 
 ## 1. Detect Ecosystem and Repo Type
 
@@ -46,7 +46,7 @@ Read the appropriate template from this skill directory:
 
 1. **exclude_commit_patterns complete**: must exclude `chore`, `ci`, `refactor`, `style`, `test`, `build` (except `build(deps):`)
 2. **Commit message has `[skip ci]`**: prevents infinite CI loops on version bump commits
-3. **Branch config**: libraries and IaC should only have `branches.main` (no `branches.dev` with `prerelease = false` — that causes full releases on dev pushes)
+3. **Branch config**: libraries and IaC should only have `branches.main` (no `branches.dev` with `prerelease = false` â€” that causes full releases on dev pushes)
 4. **Tag format**: should use project-name prefix (`{name}-v{version}`) for multi-repo compatibility
 5. **Build command**: `uv lock && uv build` for libraries, `""` for IaC
 6. **Publish config**: `dist_glob_patterns = ["dist/*"]` for libraries, `[]` for IaC
