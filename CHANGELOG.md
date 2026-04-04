@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.22.0 (2026-04-04)
+
+### Features
+
+- Add AI-assisted standardization skills for repository consistency
+  ([#16](https://github.com/svange/augint-shell/pull/16),
+  [`1059aa7`](https://github.com/svange/augint-shell/commit/1059aa72f3475aa81d17c28a0371ac5787da2b4f))
+
+- **skills**: Automate workflow transitions and reduce approval gates
+  ([#16](https://github.com/svange/augint-shell/pull/16),
+  [`1059aa7`](https://github.com/svange/augint-shell/commit/1059aa72f3475aa81d17c28a0371ac5787da2b4f))
+
+
 ## v0.21.0 (2026-04-04)
 
 ### Features
