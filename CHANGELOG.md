@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.16.11 (2026-04-04)
+
+### Chores
+
+- Update permissions and environment defaults for npm and Husky
+  ([`ae871b1`](https://github.com/svange/augint-shell/commit/ae871b16d99602fe63425c6caba1e0a7430f00d4))
+
+
 ## v0.16.10 (2026-04-03)
 
 ### Chores
