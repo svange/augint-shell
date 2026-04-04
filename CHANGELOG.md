@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.22.2 (2026-04-04)
+
+### Chores
+
+- Update `NOTES.md` and standardization skills for enhanced clarity and validation
+  ([`6068109`](https://github.com/svange/augint-shell/commit/60681097355bedbb8e681222a80a77d0d29b465c))
+
+
 ## v0.22.1 (2026-04-04)
 
 ### Bug Fixes
