@@ -42,12 +42,13 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 
 ## Development Workflow
 
-1. **Pick an issue**: Find or get assigned an issue to work on
-2. **Create a branch**: `git checkout -b feat/issue-N-description`
+**IMPORTANT**: Always follow this sequence. Do NOT skip to step 3 without completing step 2 first.
+
+1. **Pick an issue**: `/ai-pick-issue` -- find or get assigned work
+2. **Prepare branch**: `/ai-prepare-branch` -- REQUIRED before any code changes. Creates a fresh branch from the latest base (main or dev), syncs upstream, sets up remote tracking. Never start coding on an existing branch from a previous task.
 3. **Develop**: Write code with tests, following project conventions
-4. **Check**: Run `uv run pre-commit run --all-files` and `uv run pytest`
-5. **Submit**: Commit with conventional messages, create PR
-6. **Monitor**: Watch CI pipeline, fix any failures
+4. **Submit**: `/ai-submit-work` -- runs all checks locally, commits, pushes, creates automerge PR
+5. **Monitor**: `/ai-monitor-pipeline` -- watches CI, diagnoses failures, auto-fixes and re-pushes
 
 ## Key Commands
 
