@@ -193,9 +193,12 @@
       "Bash(docker rmi:*)",
       "Bash(docker system prune:*)",
       "Bash(npm run dev:*)",
-      "Bash(cat .env:*)",
+      "Bash(cat .env)",
+      "Bash(cat .env :*)",
+      "Bash(cat .env.local:*)",
       "Read(.env)",
-      "Read(.env.*)",
+      "Read(.env.local)",
+      "Read(.env.*.local)",
       "Bash(sed -i:*)"
     ]
   },
