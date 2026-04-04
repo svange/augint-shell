@@ -43,7 +43,14 @@ def _get_manager(ctx) -> tuple[ContainerManager, str, dict[str, str]]:
     "do_update",
     is_flag=True,
     default=False,
-    help="Create/overwrite .claude/ project config in current directory and exit.",
+    help="Update managed files, merging settings to preserve user customizations.",
+)
+@click.option(
+    "--reset",
+    "do_reset",
+    is_flag=True,
+    default=False,
+    help="Force-overwrite all managed config files from templates.",
 )
 @click.option(
     "--clean",
@@ -58,17 +65,22 @@ def _get_manager(ctx) -> tuple[ContainerManager, str, dict[str, str]]:
     "skip_merge",
     is_flag=True,
     default=False,
-    help="Skip merging notes into context file on --update.",
+    help="Skip merging notes into context file on --update/--reset.",
 )
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def claude(ctx, do_init, do_update, do_clean, safe, skip_merge, extra_args):
+def claude(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, extra_args):
     """Launch Claude Code in the dev container."""
-    if do_init or do_update or do_clean:
+    if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_claude as _scaffold_claude
 
-        _scaffold_claude(Path.cwd(), overwrite=do_update or do_clean, clean=do_clean)
-        if do_update and not skip_merge:
+        _scaffold_claude(
+            Path.cwd(),
+            overwrite=do_reset or do_clean,
+            clean=do_clean,
+            merge=do_update,
+        )
+        if (do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
             merge_notes_into_context(Path.cwd(), "claude", background=True)
@@ -108,7 +120,14 @@ def claude(ctx, do_init, do_update, do_clean, safe, skip_merge, extra_args):
     "do_update",
     is_flag=True,
     default=False,
-    help="Create/overwrite .codex/ and .agents/ project config in current directory and exit.",
+    help="Update managed files, merging settings to preserve user customizations.",
+)
+@click.option(
+    "--reset",
+    "do_reset",
+    is_flag=True,
+    default=False,
+    help="Force-overwrite all managed config files from templates.",
 )
 @click.option(
     "--clean",
@@ -123,17 +142,22 @@ def claude(ctx, do_init, do_update, do_clean, safe, skip_merge, extra_args):
     "skip_merge",
     is_flag=True,
     default=False,
-    help="Skip merging notes into context file on --update.",
+    help="Skip merging notes into context file on --update/--reset.",
 )
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def codex(ctx, do_init, do_update, do_clean, safe, skip_merge, extra_args):
+def codex(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, extra_args):
     """Launch Codex in the dev container."""
-    if do_init or do_update or do_clean:
+    if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_codex as _scaffold_codex
 
-        _scaffold_codex(Path.cwd(), overwrite=do_update or do_clean, clean=do_clean)
-        if do_update and not skip_merge:
+        _scaffold_codex(
+            Path.cwd(),
+            overwrite=do_reset or do_clean,
+            clean=do_clean,
+            merge=do_update,
+        )
+        if (do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
             merge_notes_into_context(Path.cwd(), "codex", background=True)
@@ -161,7 +185,14 @@ def codex(ctx, do_init, do_update, do_clean, safe, skip_merge, extra_args):
     "do_update",
     is_flag=True,
     default=False,
-    help="Create/overwrite opencode project config in current directory and exit.",
+    help="Update managed files, merging settings to preserve user customizations.",
+)
+@click.option(
+    "--reset",
+    "do_reset",
+    is_flag=True,
+    default=False,
+    help="Force-overwrite all managed config files from templates.",
 )
 @click.option(
     "--clean",
@@ -176,16 +207,21 @@ def codex(ctx, do_init, do_update, do_clean, safe, skip_merge, extra_args):
     "skip_merge",
     is_flag=True,
     default=False,
-    help="Skip merging notes into context file on --update.",
+    help="Skip merging notes into context file on --update/--reset.",
 )
 @click.pass_context
-def opencode(ctx, do_init, do_update, do_clean, safe, skip_merge):
+def opencode(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge):
     """Launch opencode in the dev container."""
-    if do_init or do_update or do_clean:
+    if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
 
-        _scaffold_opencode(Path.cwd(), overwrite=do_update or do_clean, clean=do_clean)
-        if do_update and not skip_merge:
+        _scaffold_opencode(
+            Path.cwd(),
+            overwrite=do_reset or do_clean,
+            clean=do_clean,
+            merge=do_update,
+        )
+        if (do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
             merge_notes_into_context(Path.cwd(), "opencode", background=True)
@@ -210,7 +246,14 @@ def opencode(ctx, do_init, do_update, do_clean, safe, skip_merge):
     "do_update",
     is_flag=True,
     default=False,
-    help="Create/overwrite aider project config in current directory and exit.",
+    help="Update managed files, merging settings to preserve user customizations.",
+)
+@click.option(
+    "--reset",
+    "do_reset",
+    is_flag=True,
+    default=False,
+    help="Force-overwrite all managed config files from templates.",
 )
 @click.option(
     "--clean",
@@ -222,12 +265,17 @@ def opencode(ctx, do_init, do_update, do_clean, safe, skip_merge):
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def aider(ctx, do_init, do_update, do_clean, safe, extra_args):
+def aider(ctx, do_init, do_update, do_reset, do_clean, safe, extra_args):
     """Launch aider with local LLM in the dev container."""
-    if do_init or do_update or do_clean:
+    if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_aider as _scaffold_aider
 
-        _scaffold_aider(Path.cwd(), overwrite=do_update or do_clean, clean=do_clean)
+        _scaffold_aider(
+            Path.cwd(),
+            overwrite=do_reset or do_clean,
+            clean=do_clean,
+            merge=do_update,
+        )
         return
 
     manager, name, exec_env = _get_manager(ctx)
@@ -252,7 +300,18 @@ def shell(ctx):
 
 
 @click.command()
-@click.option("--update", is_flag=True, default=False, help="Overwrite existing config files.")
+@click.option(
+    "--update",
+    is_flag=True,
+    default=False,
+    help="Update managed files, merging settings to preserve user customizations.",
+)
+@click.option(
+    "--reset",
+    is_flag=True,
+    default=False,
+    help="Force-overwrite all managed config files from templates.",
+)
 @click.option(
     "--clean",
     is_flag=True,
@@ -271,9 +330,9 @@ def shell(ctx):
     "skip_merge",
     is_flag=True,
     default=False,
-    help="Skip merging notes into context files on --update --all.",
+    help="Skip merging notes into context files on --update/--reset --all.",
 )
-def init(update, clean, scaffold_all, skip_merge):
+def init(update, reset, clean, scaffold_all, skip_merge):
     """Initialize ai-shell config files in the current directory."""
     from ai_shell.scaffold import scaffold_aider as _scaffold_aider
     from ai_shell.scaffold import scaffold_claude as _scaffold_claude
@@ -281,14 +340,15 @@ def init(update, clean, scaffold_all, skip_merge):
     from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
     from ai_shell.scaffold import scaffold_project
 
-    overwrite = update or clean
-    scaffold_project(Path.cwd(), overwrite=overwrite, clean=clean)
+    overwrite = reset or clean
+    merge = update
+    scaffold_project(Path.cwd(), overwrite=overwrite, clean=clean, merge=merge)
     if scaffold_all:
-        _scaffold_claude(Path.cwd(), overwrite=overwrite, clean=clean)
-        _scaffold_opencode(Path.cwd(), overwrite=overwrite, clean=clean)
-        _scaffold_codex(Path.cwd(), overwrite=overwrite, clean=clean)
-        _scaffold_aider(Path.cwd(), overwrite=overwrite, clean=clean)
-        if update and not skip_merge:
+        _scaffold_claude(Path.cwd(), overwrite=overwrite, clean=clean, merge=merge)
+        _scaffold_opencode(Path.cwd(), overwrite=overwrite, clean=clean, merge=merge)
+        _scaffold_codex(Path.cwd(), overwrite=overwrite, clean=clean, merge=merge)
+        _scaffold_aider(Path.cwd(), overwrite=overwrite, clean=clean, merge=merge)
+        if (update or reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
             merge_notes_into_context(Path.cwd(), "claude", background=True)

@@ -6,6 +6,7 @@ Template content lives in ``ai_shell/templates/`` as plain files
 
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 from importlib import resources
@@ -72,6 +73,49 @@ def _write_notes(target_dir: Path) -> None:
     console.print(f"[green]Created: {path}[/green]")
 
 
+def _deep_merge_settings(existing: dict, template: dict) -> dict:
+    """Deep-merge *template* into *existing*, preserving user customizations.
+
+    - Dict values: recurse
+    - List values: append entries from *template* not already present
+    - Scalars: keep *existing* value
+    - Keys only in *template*: add them
+    """
+    result = dict(existing)
+    for key, template_value in template.items():
+        if key not in result:
+            result[key] = template_value
+        elif isinstance(result[key], dict) and isinstance(template_value, dict):
+            result[key] = _deep_merge_settings(result[key], template_value)
+        elif isinstance(result[key], list) and isinstance(template_value, list):
+            existing_set = set(result[key])
+            new_entries = [e for e in template_value if e not in existing_set]
+            result[key] = result[key] + new_entries
+        # else: keep existing scalar value
+    return result
+
+
+def _merge_json_file(path: Path, template_content: str) -> bool:
+    """Merge template JSON into an existing file, preserving user customizations.
+
+    If the file does not exist, writes the template as-is.
+    Returns ``True`` if the file was written/merged, ``False`` if skipped.
+    """
+    template = json.loads(template_content)
+
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(template_content, encoding="utf-8", newline="\n")
+        console.print(f"[green]Created: {path}[/green]")
+        return True
+
+    existing = json.loads(path.read_text(encoding="utf-8"))
+    merged = _deep_merge_settings(existing, template)
+    path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8", newline="\n")
+    console.print(f"[green]Merged: {path}[/green]")
+    return True
+
+
 def _write_file(path: Path, content: str, *, overwrite: bool) -> bool:
     """Write *content* to *path*, creating parent dirs as needed.
 
@@ -111,27 +155,38 @@ CLAUDE_SKILL_DIRS = [
 ]
 
 
-def scaffold_claude(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
+def scaffold_claude(
+    target_dir: Path,
+    *,
+    overwrite: bool = False,
+    clean: bool = False,
+    merge: bool = False,
+) -> None:
     """Create ``.claude/`` directory with settings and skills."""
     if clean:
         _clean_paths(target_dir, _CLAUDE_DIRS, _CLAUDE_FILES)
         overwrite = True
+    effective_overwrite = overwrite or merge
     claude_dir = target_dir / ".claude"
     skills_dir = claude_dir / "skills"
 
     # settings.json
-    _write_file(
-        claude_dir / "settings.json",
-        _read_template("claude", "settings.json"),
-        overwrite=overwrite,
-    )
+    settings_template = _read_template("claude", "settings.json")
+    if merge:
+        _merge_json_file(claude_dir / "settings.json", settings_template)
+    else:
+        _write_file(
+            claude_dir / "settings.json",
+            settings_template,
+            overwrite=overwrite,
+        )
 
     # skill files
     for skill_name in CLAUDE_SKILL_DIRS:
         _write_file(
             skills_dir / skill_name / "SKILL.md",
             _read_template("claude", "skills", skill_name, "SKILL.md"),
-            overwrite=overwrite,
+            overwrite=effective_overwrite,
         )
 
     console.print("[bold green]Claude configuration ready.[/bold green]")
@@ -140,77 +195,109 @@ def scaffold_claude(target_dir: Path, *, overwrite: bool = False, clean: bool = 
 AGENTS_SKILL_DIRS = list(CLAUDE_SKILL_DIRS)  # Mirrored to .agents/skills/
 
 
-def scaffold_project(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
+def scaffold_project(
+    target_dir: Path,
+    *,
+    overwrite: bool = False,
+    clean: bool = False,
+    merge: bool = False,
+) -> None:
     """Create ``ai-shell.toml`` in *target_dir*."""
     if clean:
         _clean_paths(target_dir, _PROJECT_DIRS, _PROJECT_FILES)
         overwrite = True
+    effective_overwrite = overwrite or merge
     _write_file(
         target_dir / "ai-shell.toml",
         _read_template("ai-shell.toml"),
-        overwrite=overwrite,
+        overwrite=effective_overwrite,
     )
 
     _write_notes(target_dir)
     console.print("[bold green]Project configuration ready.[/bold green]")
 
 
-def scaffold_opencode(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
+def scaffold_opencode(
+    target_dir: Path,
+    *,
+    overwrite: bool = False,
+    clean: bool = False,
+    merge: bool = False,
+) -> None:
     """Create opencode configuration, NOTES.md, and ``.agents/skills/``."""
     if clean:
         _clean_paths(target_dir, _OPENCODE_DIRS, _OPENCODE_FILES)
         overwrite = True
-    _write_file(
-        target_dir / "opencode.json",
-        _read_template("opencode", "opencode.json"),
-        overwrite=overwrite,
-    )
+    effective_overwrite = overwrite or merge
+    opencode_template = _read_template("opencode", "opencode.json")
+    if merge:
+        _merge_json_file(target_dir / "opencode.json", opencode_template)
+    else:
+        _write_file(
+            target_dir / "opencode.json",
+            opencode_template,
+            overwrite=overwrite,
+        )
     for skill_name in AGENTS_SKILL_DIRS:
         _write_file(
             target_dir / ".agents" / "skills" / skill_name / "SKILL.md",
             _read_template("agents", "skills", skill_name, "SKILL.md"),
-            overwrite=overwrite,
+            overwrite=effective_overwrite,
         )
 
     _write_notes(target_dir)
     console.print("[bold green]opencode configuration ready.[/bold green]")
 
 
-def scaffold_codex(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
+def scaffold_codex(
+    target_dir: Path,
+    *,
+    overwrite: bool = False,
+    clean: bool = False,
+    merge: bool = False,
+) -> None:
     """Create ``.codex/`` config, NOTES.md, and ``.agents/skills/``."""
     if clean:
         _clean_paths(target_dir, _CODEX_DIRS, _CODEX_FILES)
         overwrite = True
+    effective_overwrite = overwrite or merge
     _write_file(
         target_dir / ".codex" / "config.toml",
         _read_template("codex", "config.toml"),
-        overwrite=overwrite,
+        overwrite=effective_overwrite,
     )
     for skill_name in AGENTS_SKILL_DIRS:
         _write_file(
             target_dir / ".agents" / "skills" / skill_name / "SKILL.md",
             _read_template("agents", "skills", skill_name, "SKILL.md"),
-            overwrite=overwrite,
+            overwrite=effective_overwrite,
         )
 
     _write_notes(target_dir)
     console.print("[bold green]Codex configuration ready.[/bold green]")
 
 
-def scaffold_aider(target_dir: Path, *, overwrite: bool = False, clean: bool = False) -> None:
+def scaffold_aider(
+    target_dir: Path,
+    *,
+    overwrite: bool = False,
+    clean: bool = False,
+    merge: bool = False,
+) -> None:
     """Create ``.aider.conf.yml``, ``NOTES.md``, and ``.aiderignore``."""
     if clean:
         _clean_paths(target_dir, _AIDER_DIRS, _AIDER_FILES)
         overwrite = True
+    effective_overwrite = overwrite or merge
     _write_file(
         target_dir / ".aider.conf.yml",
         _read_template("aider", "aider.conf.yml"),
-        overwrite=overwrite,
+        overwrite=effective_overwrite,
     )
     _write_file(
         target_dir / ".aiderignore",
         _read_template("aider", "aiderignore"),
-        overwrite=overwrite,
+        overwrite=effective_overwrite,
     )
 
     _write_notes(target_dir)

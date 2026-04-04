@@ -47,8 +47,23 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 1. **Pick an issue**: `/ai-pick-issue` -- find or get assigned work
 2. **Prepare branch**: `/ai-prepare-branch` -- REQUIRED before any code changes. Creates a fresh branch from the latest base (main or dev), syncs upstream, sets up remote tracking. Never start coding on an existing branch from a previous task.
 3. **Develop**: Write code with tests, following project conventions
-4. **Submit**: `/ai-submit-work` -- runs all checks locally, commits, pushes, creates automerge PR
-5. **Monitor**: `/ai-monitor-pipeline` -- watches CI, diagnoses failures, auto-fixes and re-pushes
+4. **Present next steps**: After completing development, show the user what changed (brief summary) and present a context-aware menu:
+
+   **On a feature branch** (`feat/*`, `fix/*`, etc.):
+   1. **Commit only** -- stage, run pre-commit, commit with conventional message
+   2. **Commit + push** -- same as 1, then push to remote
+   3. **Submit PR** -- `/ai-submit-work`: full checks, commit, push, automerge PR, then monitor pipeline
+   4. **Show diff first** -- review changes before deciding
+
+   **On dev/staging/main** (shouldn't normally be here):
+   1. **Move to feature branch** -- create branch, move uncommitted changes there
+   2. **Commit directly** -- with explicit warning:
+      - `main`: triggers semantic-release, PyPI publish, Docker publish, docs deploy
+      - `dev`/`staging`: may trigger staging deployment
+
+   Always present the menu. Never auto-commit or auto-submit without the user choosing.
+
+5. **Monitor** (after PR): `/ai-monitor-pipeline` -- watches CI, diagnoses failures, auto-fixes and re-pushes
 
 ## Key Commands
 
@@ -110,7 +125,7 @@ Default: runs with `-c` (continue previous conversation). If it fails fast (< 5 
 
 ### Scaffold System
 
-`ai-shell init` and per-tool `--init`/`--update`/`--clean` flags write tool config files (`.claude/`, `.codex/`, `.agents/`, etc.) into the project. `--clean` removes all managed paths then recreates them fresh.
+`ai-shell init` and per-tool `--init`/`--update`/`--reset`/`--clean` flags write tool config files (`.claude/`, `.codex/`, `.agents/`, etc.) into the project. `--update` merges settings (preserves user customizations) and overwrites managed skills. `--reset` force-overwrites all managed files. `--clean` removes all managed paths then recreates them fresh.
 
 ### Branch Detection Algorithm (Shared Across Skills)
 
