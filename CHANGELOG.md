@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v0.21.0 (2026-04-04)
+
+### Features
+
+- Add --no-merge flag, background merge, and workflow enforcement in skills
+  ([#15](https://github.com/svange/augint-shell/pull/15),
+  [`e5d3641`](https://github.com/svange/augint-shell/commit/e5d36412a6369aaf63fa5d3fd62091c258c62321))
+
+- Add ai-setup-oidc skill for AWS OIDC trust policy management
+  ([#15](https://github.com/svange/augint-shell/pull/15),
+  [`e5d3641`](https://github.com/svange/augint-shell/commit/e5d36412a6369aaf63fa5d3fd62091c258c62321))
+
+- **skills**: Automate workflow transitions and reduce approval gates
+  ([#15](https://github.com/svange/augint-shell/pull/15),
+  [`e5d3641`](https://github.com/svange/augint-shell/commit/e5d36412a6369aaf63fa5d3fd62091c258c62321))
+
+
 ## v0.20.0 (2026-04-04)
 
 ### Features
