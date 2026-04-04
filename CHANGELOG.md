@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v0.22.4 (2026-04-04)
+
+### Bug Fixes
+
+- Narrow .env deny rules to allow reading .env.example
+  ([`8ca3d93`](https://github.com/svange/augint-shell/commit/8ca3d939bbc6f0270cceddd785c5f544b80ae24e))
+
+- Standards
+  ([`bb12a50`](https://github.com/svange/augint-shell/commit/bb12a5085ebed14633ab0d4a76f47bf6f6d044fd))
+
+
 ## v0.22.3 (2026-04-04)
 
 ### Bug Fixes
