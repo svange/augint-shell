@@ -2,6 +2,60 @@
 
 <!-- version list -->
 
+## v0.21.0 (2026-04-04)
+
+### Features
+
+- Add --no-merge flag, background merge, and workflow enforcement in skills
+  ([#15](https://github.com/svange/augint-shell/pull/15),
+  [`e5d3641`](https://github.com/svange/augint-shell/commit/e5d36412a6369aaf63fa5d3fd62091c258c62321))
+
+- Add ai-setup-oidc skill for AWS OIDC trust policy management
+  ([#15](https://github.com/svange/augint-shell/pull/15),
+  [`e5d3641`](https://github.com/svange/augint-shell/commit/e5d36412a6369aaf63fa5d3fd62091c258c62321))
+
+- **skills**: Automate workflow transitions and reduce approval gates
+  ([#15](https://github.com/svange/augint-shell/pull/15),
+  [`e5d3641`](https://github.com/svange/augint-shell/commit/e5d36412a6369aaf63fa5d3fd62091c258c62321))
+
+
+## v0.20.0 (2026-04-04)
+
+### Features
+
+- Add --no-merge flag, background merge, and workflow enforcement in skills
+  ([#14](https://github.com/svange/augint-shell/pull/14),
+  [`cee0b0f`](https://github.com/svange/augint-shell/commit/cee0b0f06bcc32ed17b311d67f31d820b49cce43))
+
+- Add ai-setup-oidc skill for AWS OIDC trust policy management
+  ([#14](https://github.com/svange/augint-shell/pull/14),
+  [`cee0b0f`](https://github.com/svange/augint-shell/commit/cee0b0f06bcc32ed17b311d67f31d820b49cce43))
+
+
+## v0.19.0 (2026-04-04)
+
+### Features
+
+- Add ai-setup-oidc skill for AWS OIDC trust policy management
+  ([#13](https://github.com/svange/augint-shell/pull/13),
+  [`2806432`](https://github.com/svange/augint-shell/commit/280643219f6815616bdf13330b140b2f3c666891))
+
+
+## v0.18.0 (2026-04-04)
+
+### Bug Fixes
+
+- **cli**: Auto-stop running container in manage clean
+  ([#11](https://github.com/svange/augint-shell/pull/11),
+  [`aa06556`](https://github.com/svange/augint-shell/commit/aa065567112d7ae34312eec862d05bbbd7a59cf1))
+
+### Features
+
+- Add AI-assisted standardization skills for repository consistency
+  ([#11](https://github.com/svange/augint-shell/pull/11),
+  [`aa06556`](https://github.com/svange/augint-shell/commit/aa065567112d7ae34312eec862d05bbbd7a59cf1))
+
+
 ## v0.17.0 (2026-04-04)
 
 ### Chores

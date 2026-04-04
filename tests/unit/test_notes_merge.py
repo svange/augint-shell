@@ -119,3 +119,41 @@ class TestMergeNotesIntoContext:
         # For codex exec, prompt is the last positional arg
         prompt = cmd[-1]
         assert "Update AGENTS.md" in prompt
+
+    def test_background_uses_popen(self, tmp_path):
+        """background=True should use Popen, not run."""
+        (tmp_path / "CLAUDE.md").write_text("# Project")
+        with (
+            patch("ai_shell.notes_merge.shutil.which", return_value="/usr/bin/claude"),
+            patch("ai_shell.notes_merge.subprocess.Popen") as mock_popen,
+            patch("ai_shell.notes_merge.subprocess.run") as mock_run,
+        ):
+            result = merge_notes_into_context(tmp_path, "claude", background=True)
+
+        assert result is True
+        mock_popen.assert_called_once()
+        mock_run.assert_not_called()
+        call_kwargs = mock_popen.call_args[1]
+        from subprocess import DEVNULL
+
+        assert call_kwargs["stdout"] is DEVNULL
+        assert call_kwargs["stderr"] is DEVNULL
+        assert call_kwargs["cwd"] == tmp_path
+
+    def test_background_skips_when_context_file_missing(self, tmp_path):
+        """background=True still returns False if context file is missing."""
+        with patch("ai_shell.notes_merge.subprocess.Popen") as mock_popen:
+            result = merge_notes_into_context(tmp_path, "claude", background=True)
+        assert result is False
+        mock_popen.assert_not_called()
+
+    def test_background_skips_when_binary_missing(self, tmp_path):
+        """background=True still returns False if binary not on PATH."""
+        (tmp_path / "CLAUDE.md").write_text("# Project")
+        with (
+            patch("ai_shell.notes_merge.shutil.which", return_value=None),
+            patch("ai_shell.notes_merge.subprocess.Popen") as mock_popen,
+        ):
+            result = merge_notes_into_context(tmp_path, "claude", background=True)
+        assert result is False
+        mock_popen.assert_not_called()

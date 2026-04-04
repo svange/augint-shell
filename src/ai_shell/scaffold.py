@@ -104,6 +104,7 @@ CLAUDE_SKILL_DIRS = [
     "ai-standardize-precommit",
     "ai-standardize-dotfiles",
     "ai-standardize-repo",
+    "ai-setup-oidc",
 ]
 
 

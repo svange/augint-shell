@@ -11,6 +11,7 @@ import shutil
 import subprocess
 from importlib import resources
 from pathlib import Path
+from subprocess import DEVNULL
 
 from rich.console import Console
 
@@ -50,10 +51,13 @@ def _build_command(binary: str, prompt: str) -> list[str]:
     return []
 
 
-def merge_notes_into_context(target_dir: Path, tool: str) -> bool:
+def merge_notes_into_context(target_dir: Path, tool: str, *, background: bool = False) -> bool:
     """Merge notes template into the tool's context file using the AI tool.
 
-    Returns ``True`` if merge was attempted, ``False`` if skipped.
+    When *background* is ``True`` the subprocess is launched via ``Popen``
+    and the function returns immediately so the caller is not blocked.
+
+    Returns ``True`` if merge was attempted/started, ``False`` if skipped.
     """
     config = _TOOL_CONFIG.get(tool)
     if config is None:
@@ -74,6 +78,13 @@ def merge_notes_into_context(target_dir: Path, tool: str) -> bool:
     notes_content = _read_notes_template()
     prompt = _build_prompt(context_file, notes_content)
     cmd = _build_command(binary, prompt)
+
+    if background:
+        console.print(
+            f"[bold]{context_file} merge started in background, file should update shortly.[/bold]"
+        )
+        subprocess.Popen(cmd, cwd=target_dir, stdout=DEVNULL, stderr=DEVNULL)  # noqa: S603
+        return True
 
     console.print(f"[bold]Merging notes into {context_file} via {binary}...[/bold]")
     try:
