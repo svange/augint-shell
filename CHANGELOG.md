@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.23.0 (2026-04-04)
+
+### Features
+
+- **scaffold**: Add --reset flag, make --update safe with JSON merge
+  ([`6f94151`](https://github.com/svange/augint-shell/commit/6f94151fbe596c863cc60c78b36c69c21f62ea3c))
+
+
 ## v0.22.5 (2026-04-04)
 
 ### Bug Fixes
