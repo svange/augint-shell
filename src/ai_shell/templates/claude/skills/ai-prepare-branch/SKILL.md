@@ -1,6 +1,6 @@
 ---
 name: ai-prepare-branch
-description: Create a feature branch from the correct base (dev or main), sync release bumps, and set up remote tracking. Use when starting work on an issue or new feature.
+description: Create a feature branch from the correct base (dev or main), sync release bumps, and set up remote tracking. Use when starting work on an issue or saying 'start working on'.
 argument-hint: "[issue-number, description, or branch-name]"
 ---
 
@@ -33,7 +33,7 @@ git fetch --all --prune
 3. First match = dev branch. No match = main-only repo.
 
 ```bash
-# Auto-detect
+# Canonical algorithm -- see CLAUDE.md (Architecture > Branch Detection Algorithm)
 DEV_BRANCH=""
 for candidate in dev develop staging; do
     if git show-ref --verify --quiet refs/remotes/origin/$candidate; then
@@ -43,7 +43,7 @@ for candidate in dev develop staging; do
 done
 
 # Determine default branch
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@' 2>/dev/null || echo "main")
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
 ```
 
 If both `dev` and `develop` exist, use `dev` and warn: "Both origin/dev and origin/develop exist. Using origin/dev. Set `[workflow] dev_branch = 'develop'` in ai-shell.toml to override."
@@ -186,6 +186,7 @@ Branch created: feat/issue-42-fix-auth-timeout
 Base: dev
 PR target: dev
 Remote tracking: origin/feat/issue-42-fix-auth-timeout
+Behind target: 0 commits (up to date)
 
 Next steps:
   - Make your changes
@@ -194,6 +195,8 @@ Next steps:
 
 Tip: Your commit messages will automatically reference issue #42.
 ```
+
+If "behind target" count is >0, add: "This is normal if the target branch has been active. It will be handled automatically when you submit."
 
 ## Error Handling
 - **Rebase/merge in progress**: Warn and suggest completing or aborting first

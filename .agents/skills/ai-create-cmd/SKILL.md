@@ -1,10 +1,10 @@
 ---
 name: ai-create-cmd
-description: Create a new agent skill using the AGENTS.md open standard. Use when building new automation commands or skills.
+description: Create a new Claude skill for augint-shell repositories. Use when building new automation commands or skills.
 argument-hint: "[skill-name and description]"
 ---
 
-Create a new agent skill for the repository: $ARGUMENTS
+Create a new Claude skill for trinity repositories: $ARGUMENTS
 
 Follow these steps to create a well-structured skill:
 
@@ -14,16 +14,24 @@ Follow these steps to create a well-structured skill:
    - Skill name (kebab-case)
    - Skill purpose
    - Key functionality needed
+   - Target repos (default: all trinity)
    ```
 
-2. **Create the skill directory and file**:
+2. **Determine skill scope**:
+   - **Trinity skill**: For augint-library, augint-api, augint-web
+   - **Meta skill**: Only if it makes sense for augint-project management
+
+   Ask: "Should this skill also have a meta version for the augint-project repo?"
+   (Only if the skill relates to project management, vision docs, or cross-repo operations)
+
+3. **Create the skill directory and file**:
    ```bash
-   # Create in .agents/skills/ (cross-platform standard)
-   mkdir -p .agents/skills/{skill-name}
-   touch .agents/skills/{skill-name}/SKILL.md
+   # Create in templates first
+   mkdir -p src/ai_shell/templates/claude/skills/{skill-name}
+   touch src/ai_shell/templates/claude/skills/{skill-name}/SKILL.md
    ```
 
-3. **Generate SKILL.md** with this structure:
+4. **Generate SKILL.md** with this structure:
    ```markdown
    ---
    name: {skill-name}
@@ -63,20 +71,29 @@ Follow these steps to create a well-structured skill:
    - {Error condition}: {Recovery action}
    ```
 
-4. **Choose appropriate frontmatter options**:
+5. **Choose appropriate frontmatter options**:
    - `argument-hint` to show expected arguments in the skill menu
    - Keep description under 250 characters, front-load key use case
 
-5. **Validate the skill**:
+6. **Validate the skill**:
    ```bash
    # Check SKILL.md exists and has frontmatter
-   head -10 .agents/skills/{skill-name}/SKILL.md
+   head -10 src/ai_shell/templates/claude/skills/{skill-name}/SKILL.md
 
    # Verify frontmatter has required fields
-   grep -E "^(name|description):" .agents/skills/{skill-name}/SKILL.md
+   grep -E "^(name|description):" src/ai_shell/templates/claude/skills/{skill-name}/SKILL.md
    ```
 
-6. **Best practices**:
+7. **Register in scaffold.py**:
+   Add the skill name to `CLAUDE_SKILL_DIRS` in `src/ai_shell/scaffold.py`:
+   ```python
+   CLAUDE_SKILL_DIRS = [
+       # ... existing skills ...
+       "{skill-name}",
+   ]
+   ```
+
+8. **Best practices**:
    - Keep skills focused on one primary task
    - Use active voice ("Create PR" not "PR should be created")
    - Include usage examples
@@ -86,12 +103,23 @@ Follow these steps to create a well-structured skill:
    - Keep SKILL.md under 500 lines
    - Be directive, not conversational
 
-7. **Cross-platform compatibility**:
-   The `.agents/skills/` directory follows the AGENTS.md open standard.
-   Skills placed here are discovered by:
-   - **Codex CLI**: reads `.agents/skills/` natively
-   - **opencode**: reads `.agents/skills/` as a fallback
-   - **Claude Code**: reads `.claude/skills/` (copy there for Claude support)
+9. **Copy to trinity repositories**:
+   ```bash
+   # Deploy via scaffold
+   for repo in augint-library augint-api augint-web; do
+     python -c "
+   from ai_shell.scaffold import scaffold_claude
+   from pathlib import Path
+   scaffold_claude(Path('../$repo'), overwrite=True)
+   "
+   done
+   ```
+
+10. **Verify deployment**:
+    ```bash
+    # Check all trinity repos have the skill
+    ls -la ../augint-*/.claude/skills/{skill-name}/SKILL.md
+    ```
 
 ## Skill Patterns
 
@@ -124,3 +152,6 @@ Automate {task} across {scope}: $ARGUMENTS
 ## 3. Handle errors
 ## 4. Confirm completion
 ```
+
+## Why This Matters
+Consistent skill creation ensures all repositories have access to the same automation capabilities with predictable behavior and quality.

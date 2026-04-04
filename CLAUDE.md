@@ -28,7 +28,7 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 
 - **No rebase on main**: NEVER use `git pull --rebase` or `git rebase` on `main`. Use merge commits only.
 - **No manual versioning**: NEVER manually edit version numbers. Python Semantic Release owns versioning via conventional commits. Version in `pyproject.toml` and `src/ai_shell/__init__.py`. Tag format: `augint-shell-v{version}`.
-- **No lock file edits**: NEVER manually edit lock files (uv.lock, package-lock.json, poetry.lock, yarn.lock). They are auto-generated.
+- **No lock file edits**: NEVER directly write text into lock files (uv.lock, package-lock.json, poetry.lock, yarn.lock). Always use package manager commands (`uv lock`, `uv add`, `npm install`) to regenerate them.
 - **No .env commits**: NEVER commit .env files. Use .env.example for templates.
 - **No force push to main**: NEVER use `git push --force` on main or the default branch.
 
@@ -110,6 +110,29 @@ Default: runs with `-c` (continue previous conversation). If it fails fast (< 5 
 ### Scaffold System
 
 `ai-shell init` and per-tool `--init`/`--update`/`--clean` flags write tool config files (`.claude/`, `.codex/`, `.agents/`, etc.) into the project. `--clean` removes all managed paths then recreates them fresh.
+
+### Branch Detection Algorithm (Shared Across Skills)
+
+All workflow skills (ai-prepare-branch, ai-submit-work, ai-monitor-pipeline, ai-promote, ai-status, ai-rollback) use this same logic. Update here and propagate to skills when changed.
+
+1. Check `ai-shell.toml` for `[workflow] dev_branch` override (wins if set)
+2. Check remote branches (priority order): `origin/dev` > `origin/develop` > `origin/staging`
+3. First match = dev branch. Repo is "dev-based" (IaC/web/backend pattern).
+4. No match = "main-only" repo (library pattern).
+5. Default branch = `git symbolic-ref refs/remotes/origin/HEAD` or fallback `main`
+6. Base branch for new work = dev branch if found, else default branch
+
+```bash
+DEV_BRANCH=""
+for candidate in dev develop staging; do
+    if git show-ref --verify --quiet refs/remotes/origin/$candidate; then
+        DEV_BRANCH=$candidate
+        break
+    fi
+done
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
+BASE=${DEV_BRANCH:-$DEFAULT_BRANCH}
+```
 
 ## CI/CD Pipeline
 
