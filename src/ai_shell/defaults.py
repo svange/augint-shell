@@ -172,6 +172,7 @@ def build_dev_environment(
         "AWS_PAGER": "",
         "GH_TOKEN": _resolve("GH_TOKEN"),
         "GITHUB_TOKEN": _resolve("GH_TOKEN"),
+        "HUSKY": "0",
         "IS_SANDBOX": "1",
     }
 
