@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v0.22.5 (2026-04-04)
+
+### Bug Fixes
+
+- Pre-commit errors
+  ([`b98be52`](https://github.com/svange/augint-shell/commit/b98be52182d2966db4c4303904ef14501031a24c))
+
+- **templates**: Close lock file handling gaps across scaffolded repos
+  ([`5161c82`](https://github.com/svange/augint-shell/commit/5161c82ffbc38cd57731ba24ef494233f218f2f5))
+
+
 ## v0.22.4 (2026-04-04)
 
 ### Bug Fixes
