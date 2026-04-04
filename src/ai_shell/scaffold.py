@@ -92,6 +92,7 @@ def _write_file(path: Path, content: str, *, overwrite: bool) -> bool:
 CLAUDE_SKILL_DIRS = [
     "ai-pick-issue",
     "ai-prepare-branch",
+    "ai-start-work",
     "ai-submit-work",
     "ai-monitor-pipeline",
     "ai-promote",

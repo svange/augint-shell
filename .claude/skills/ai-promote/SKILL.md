@@ -166,7 +166,88 @@ gh pr merge --auto --merge $PR_NUMBER
 
 **Why --merge (not --squash):** Semantic-release parses individual commit messages to generate changelogs and determine version bumps. Squashing would lose this information.
 
-## 6. Final Output
+## 6. Post-Merge Sync-Back
+
+After creating the PR and setting automerge, ask:
+
+**"Would you like me to wait for the merge and release pipeline, then sync dev from main? (recommended to prevent branch drift)"**
+
+If the user declines, skip to Final Output.
+
+If the user accepts:
+
+### Wait for PR to merge
+```bash
+# Poll until the promotion PR is merged (check every 30 seconds, timeout 10 minutes)
+PR_STATE=""
+ATTEMPTS=0
+MAX_ATTEMPTS=20
+while [ "$PR_STATE" != "MERGED" ] && [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+    PR_STATE=$(gh pr view $PR_NUMBER --json state -q .state)
+    if [ "$PR_STATE" = "MERGED" ]; then
+        echo "Promotion PR #$PR_NUMBER merged."
+        break
+    elif [ "$PR_STATE" = "CLOSED" ]; then
+        echo "ERROR: PR #$PR_NUMBER was closed without merging. Aborting sync-back."
+        # Skip to final output
+    fi
+    ATTEMPTS=$((ATTEMPTS + 1))
+    echo "Waiting for PR to merge... ($ATTEMPTS/$MAX_ATTEMPTS)"
+    sleep 30
+done
+
+if [ "$PR_STATE" != "MERGED" ]; then
+    echo "Timed out waiting for PR to merge. Run sync-back manually later:"
+    echo "  git fetch --all && git checkout $DEV_BRANCH && git merge origin/$DEFAULT_BRANCH && git push"
+fi
+```
+
+### Wait for release pipeline on main
+```bash
+if [ "$PR_STATE" = "MERGED" ]; then
+    echo "Waiting for release pipeline on $DEFAULT_BRANCH..."
+    git fetch --all --prune
+
+    # Wait briefly for the merge-triggered CI run to appear
+    sleep 10
+    RELEASE_RUN_ID=$(gh run list --branch $DEFAULT_BRANCH --limit 1 --json databaseId -q '.[0].databaseId')
+
+    if [ -n "$RELEASE_RUN_ID" ]; then
+        gh run watch $RELEASE_RUN_ID --exit-status || true
+        RELEASE_CONCLUSION=$(gh run view $RELEASE_RUN_ID --json conclusion -q .conclusion)
+        echo "Release pipeline: $RELEASE_CONCLUSION"
+    else
+        echo "WARNING: No CI run found on $DEFAULT_BRANCH. Proceeding with sync anyway."
+    fi
+fi
+```
+
+### Sync dev from main
+```bash
+if [ "$PR_STATE" = "MERGED" ]; then
+    git fetch --all --prune
+    git checkout $DEV_BRANCH
+    git pull origin $DEV_BRANCH
+
+    if ! git merge-base --is-ancestor origin/$DEFAULT_BRANCH $DEV_BRANCH; then
+        echo "Syncing $DEV_BRANCH with $DEFAULT_BRANCH..."
+        git merge origin/$DEFAULT_BRANCH --no-edit
+        if [ $? -eq 0 ]; then
+            git push origin $DEV_BRANCH
+            echo "Sync complete: $DEV_BRANCH is now up to date with $DEFAULT_BRANCH."
+        else
+            echo "ERROR: Merge conflict during sync-back. Resolve manually:"
+            echo "  git merge --abort"
+            echo "  Create a chore/sync-dev-with-main branch to resolve via PR."
+            git merge --abort
+        fi
+    else
+        echo "$DEV_BRANCH is already up to date with $DEFAULT_BRANCH."
+    fi
+fi
+```
+
+## 7. Final Output
 
 ```
 Promotion PR created!
@@ -176,10 +257,19 @@ From: dev -> main
 Commits: 5
 Type: feat (minor version bump expected)
 Automerge: enabled (merge strategy)
+```
 
-Status checks will run on the PR. Once they pass, the PR will auto-merge.
+If sync-back was performed:
+```
+Post-merge sync: dev synced with main (release bump commits picked up).
+Ready for new work: /ai-start-work
+```
 
-Monitor: /ai-monitor-pipeline 100
+If sync-back was skipped or timed out:
+```
+REMINDER: Sync dev from main before starting new work.
+Use /ai-start-work (it will sync automatically) or manually:
+  git fetch --all && git checkout dev && git merge origin/main && git push
 ```
 
 ## Error Handling
@@ -190,3 +280,5 @@ Monitor: /ai-monitor-pipeline 100
 - **No commits to promote**: Exit cleanly
 - **PR creation fails**: Show error (common: PR already exists for this branch pair)
 - **Automerge not available**: Warn that repo may need automerge enabled in settings
+- **Sync-back conflict**: Abort merge, suggest resolving via a dedicated branch/PR
+- **Sync-back timeout**: Provide manual sync command

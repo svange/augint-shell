@@ -31,6 +31,7 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 - **No lock file edits**: NEVER manually edit lock files (uv.lock, package-lock.json, poetry.lock, yarn.lock). They are auto-generated.
 - **No .env commits**: NEVER commit .env files. Use .env.example for templates.
 - **No force push to main**: NEVER use `git push --force` on main or the default branch.
+- **No direct skill edits**: NEVER modify `.claude/skills/` or `.agents/skills/` directly. These are scaffolded from templates in `src/ai_shell/templates/claude/skills/` and `src/ai_shell/templates/agents/skills/`. Edit the templates only.
 
 ## Conventions
 
