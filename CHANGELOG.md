@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.19.0 (2026-04-04)
+
+### Features
+
+- Add ai-setup-oidc skill for AWS OIDC trust policy management
+  ([#13](https://github.com/svange/augint-shell/pull/13),
+  [`2806432`](https://github.com/svange/augint-shell/commit/280643219f6815616bdf13330b140b2f3c666891))
+
+
 ## v0.18.0 (2026-04-04)
 
 ### Bug Fixes
