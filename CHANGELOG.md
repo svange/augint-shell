@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.22.1 (2026-04-04)
+
+### Bug Fixes
+
+- Remove `NOTES.md` and enhance repository standardization scripts
+  ([`43c9701`](https://github.com/svange/augint-shell/commit/43c97010fb86cbc8e0a6517f0cfa1509a5f1e965))
+
+
 ## v0.22.0 (2026-04-04)
 
 ### Features
