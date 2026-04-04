@@ -172,6 +172,8 @@
       "Edit(poetry.lock)",
       "Write(package-lock.json)",
       "Edit(package-lock.json)",
+      "Write(uv.lock)",
+      "Edit(uv.lock)",
       "Write(yarn.lock)",
       "Edit(yarn.lock)",
       "Bash(pip install:*)",

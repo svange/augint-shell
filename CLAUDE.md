@@ -28,7 +28,7 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 
 - **No rebase on main**: NEVER use `git pull --rebase` or `git rebase` on `main`. Use merge commits only.
 - **No manual versioning**: NEVER manually edit version numbers. Python Semantic Release owns versioning via conventional commits. Version in `pyproject.toml` and `src/ai_shell/__init__.py`. Tag format: `augint-shell-v{version}`.
-- **No lock file edits**: NEVER directly write text into lock files (uv.lock, package-lock.json, poetry.lock, yarn.lock). Always use package manager commands (`uv lock`, `uv add`, `npm install`) to regenerate them.
+- **No lock file edits**: NEVER directly write text into lock files (uv.lock, package-lock.json, poetry.lock, yarn.lock). Always use package manager commands (`uv lock`, `uv add`, `npm install`) to regenerate them. When a package manager command updates a lock file, ALWAYS stage and include it in the commit -- lock file changes must never be left uncommitted.
 - **No .env commits**: NEVER commit .env files. Use .env.example for templates.
 - **No force push to main**: NEVER use `git push --force` on main or the default branch.
 
