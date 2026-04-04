@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-04-04T02:13:30Z",
+  "generated_at": "2026-04-04T03:00:52Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 13,
+      "CONFIDENCE.HIGH": 15,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 13,
+      "SEVERITY.LOW": 15,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1421,
+      "loc": 1458,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -102,7 +102,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 230,
+      "loc": 258,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -172,15 +172,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/notes_merge.py": {
-      "CONFIDENCE.HIGH": 2,
+      "CONFIDENCE.HIGH": 4,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 2,
+      "SEVERITY.LOW": 4,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 70,
+      "loc": 79,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -562,7 +562,47 @@
       "test_name": "blacklist"
     },
     {
-      "code": "79     try:\n80         result = subprocess.run(cmd, cwd=target_dir, timeout=_MERGE_TIMEOUT)  # noqa: S603\n81         if result.returncode != 0:\n",
+      "code": "13 from pathlib import Path\n14 from subprocess import DEVNULL\n15 \n",
+      "col_offset": 0,
+      "end_col_offset": 30,
+      "filename": "src/ai_shell/notes_merge.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Consider possible security implications associated with the subprocess module.",
+      "line_number": 14,
+      "line_range": [
+        14
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess",
+      "test_id": "B404",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "85         )\n86         subprocess.Popen(cmd, cwd=target_dir, stdout=DEVNULL, stderr=DEVNULL)  # noqa: S603\n87         return True\n",
+      "col_offset": 8,
+      "end_col_offset": 77,
+      "filename": "src/ai_shell/notes_merge.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 86,
+      "line_range": [
+        86
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "90     try:\n91         result = subprocess.run(cmd, cwd=target_dir, timeout=_MERGE_TIMEOUT)  # noqa: S603\n92         if result.returncode != 0:\n",
       "col_offset": 17,
       "end_col_offset": 76,
       "filename": "src/ai_shell/notes_merge.py",
@@ -573,9 +613,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 80,
+      "line_number": 91,
       "line_range": [
-        80
+        91
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
