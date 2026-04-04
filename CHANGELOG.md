@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.22.3 (2026-04-04)
+
+### Bug Fixes
+
+- Refine prompt logic and remove unused code
+  ([`869592d`](https://github.com/svange/augint-shell/commit/869592d2dd99c416adfea65f5ee9d268e6e370d5))
+
+### Refactoring
+
+- Reorganize Docker imports in `container.py`
+  ([`1c933d2`](https://github.com/svange/augint-shell/commit/1c933d23a2866cf04852d7ddf384f5250b7c18f7))
+
+
 ## v0.22.2 (2026-04-04)
 
 ### Chores
