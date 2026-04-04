@@ -68,9 +68,7 @@ def merge_notes_into_context(target_dir: Path, tool: str) -> bool:
         return False
 
     if not shutil.which(binary):
-        console.print(
-            f"[yellow]{binary} not found on PATH, skipping {context_file} merge[/yellow]"
-        )
+        console.print(f"[yellow]{binary} not found on PATH, skipping {context_file} merge[/yellow]")
         return False
 
     notes_content = _read_notes_template()
