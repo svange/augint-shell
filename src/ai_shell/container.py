@@ -12,9 +12,6 @@ import sys
 import time
 from typing import TYPE_CHECKING, NoReturn
 
-from docker.errors import APIError, ImageNotFound, NotFound
-from docker.types import DeviceRequest, Mount
-
 import docker
 from ai_shell.defaults import (
     LLM_NETWORK,
@@ -35,11 +32,12 @@ from ai_shell.exceptions import (
     ImagePullError,
 )
 from ai_shell.gpu import detect_gpu
+from docker.errors import APIError, ImageNotFound, NotFound
+from docker.types import DeviceRequest, Mount
 
 if TYPE_CHECKING:
-    from docker.models.containers import Container
-
     from ai_shell.config import AiShellConfig
+    from docker.models.containers import Container
 
 logger = logging.getLogger(__name__)
 

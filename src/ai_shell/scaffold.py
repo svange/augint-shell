@@ -134,7 +134,6 @@ def scaffold_claude(target_dir: Path, *, overwrite: bool = False, clean: bool = 
             overwrite=overwrite,
         )
 
-    _write_notes(target_dir)
     console.print("[bold green]Claude configuration ready.[/bold green]")
 
 

@@ -102,7 +102,7 @@ class TestMergeNotesIntoContext:
 
         cmd = mock_run.call_args[0][0]
         prompt = cmd[cmd.index("-p") + 1]
-        assert "Update CLAUDE.md" in prompt
+        assert "into CLAUDE.md" in prompt
         assert "Critical Rules" in prompt
         assert "No rebase on main" in prompt
 
@@ -118,7 +118,7 @@ class TestMergeNotesIntoContext:
         cmd = mock_run.call_args[0][0]
         # For codex exec, prompt is the last positional arg
         prompt = cmd[-1]
-        assert "Update AGENTS.md" in prompt
+        assert "into AGENTS.md" in prompt
 
     def test_background_uses_popen(self, tmp_path):
         """background=True should use Popen, not run."""

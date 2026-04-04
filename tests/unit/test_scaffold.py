@@ -107,6 +107,10 @@ class TestScaffoldClaude:
         for skill_name in CLAUDE_SKILL_DIRS:
             assert (tmp_path / ".claude" / "skills" / skill_name / "SKILL.md").is_file()
 
+    def test_does_not_create_notes_md(self, tmp_path):
+        scaffold_claude(tmp_path)
+        assert not (tmp_path / "NOTES.md").exists()
+
 
 class TestScaffoldProject:
     def test_creates_toml_only(self, tmp_path):

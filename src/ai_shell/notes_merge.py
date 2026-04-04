@@ -37,9 +37,9 @@ def _read_notes_template() -> str:
 
 def _build_prompt(context_file: str, notes_content: str) -> str:
     return (
-        f"Update {context_file} with the following information. "
-        f"If all of this information is already in {context_file}, "
-        f"do not make changes to {context_file}:\n\n{notes_content}"
+        f"Add only NEW information from the notes below into {context_file}. "
+        f"Do not duplicate, reword, or re-emphasize anything already present. "
+        f"If nothing is new, make no changes.\n\n{notes_content}"
     )
 
 
