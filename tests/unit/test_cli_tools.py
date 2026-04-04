@@ -201,7 +201,10 @@ class TestToolCommands:
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
+            with (
+                patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold,
+                patch("ai_shell.notes_merge.merge_notes_into_context"),
+            ):
                 result = self.runner.invoke(cli, ["opencode", "--update"])
 
         mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=False)
@@ -234,7 +237,10 @@ class TestToolCommands:
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
+            with (
+                patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold,
+                patch("ai_shell.notes_merge.merge_notes_into_context"),
+            ):
                 result = self.runner.invoke(cli, ["codex", "--update"])
 
         mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=False)
@@ -283,6 +289,65 @@ class TestToolCommands:
 
         mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=True)
         mock_manager_cls.assert_not_called()
+        assert result.exit_code == 0
+
+    def test_claude_update_calls_merge(self, mock_config, mock_manager_cls, mock_build_env):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with (
+                patch("ai_shell.scaffold.scaffold_claude") as mock_scaffold,
+                patch("ai_shell.notes_merge.merge_notes_into_context") as mock_merge,
+            ):
+                result = self.runner.invoke(cli, ["claude", "--update"])
+
+        mock_scaffold.assert_called_once()
+        mock_merge.assert_called_once_with("/tmp/test", "claude")
+        assert result.exit_code == 0
+
+    def test_claude_init_does_not_call_merge(self, mock_config, mock_manager_cls, mock_build_env):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with (
+                patch("ai_shell.scaffold.scaffold_claude"),
+                patch("ai_shell.notes_merge.merge_notes_into_context") as mock_merge,
+            ):
+                self.runner.invoke(cli, ["claude", "--init"])
+
+        mock_merge.assert_not_called()
+
+    def test_claude_clean_does_not_call_merge(self, mock_config, mock_manager_cls, mock_build_env):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with (
+                patch("ai_shell.scaffold.scaffold_claude"),
+                patch("ai_shell.notes_merge.merge_notes_into_context") as mock_merge,
+            ):
+                self.runner.invoke(cli, ["claude", "--clean"])
+
+        mock_merge.assert_not_called()
+
+    def test_codex_update_calls_merge(self, mock_config, mock_manager_cls, mock_build_env):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with (
+                patch("ai_shell.scaffold.scaffold_codex"),
+                patch("ai_shell.notes_merge.merge_notes_into_context") as mock_merge,
+            ):
+                result = self.runner.invoke(cli, ["codex", "--update"])
+
+        mock_merge.assert_called_once_with("/tmp/test", "codex")
+        assert result.exit_code == 0
+
+    def test_opencode_update_calls_merge(self, mock_config, mock_manager_cls, mock_build_env):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with (
+                patch("ai_shell.scaffold.scaffold_opencode"),
+                patch("ai_shell.notes_merge.merge_notes_into_context") as mock_merge,
+            ):
+                result = self.runner.invoke(cli, ["opencode", "--update"])
+
+        mock_merge.assert_called_once_with("/tmp/test", "opencode")
         assert result.exit_code == 0
 
     def test_version_flag(self, mock_config, mock_manager_cls, mock_build_env):

@@ -61,6 +61,10 @@ def claude(ctx, do_init, do_update, do_clean, safe, extra_args):
         from ai_shell.scaffold import scaffold_claude as _scaffold_claude
 
         _scaffold_claude(Path.cwd(), overwrite=do_update or do_clean, clean=do_clean)
+        if do_update:
+            from ai_shell.notes_merge import merge_notes_into_context
+
+            merge_notes_into_context(Path.cwd(), "claude")
         return
 
     manager, name, exec_env = _get_manager(ctx)
@@ -115,6 +119,10 @@ def codex(ctx, do_init, do_update, do_clean, safe, extra_args):
         from ai_shell.scaffold import scaffold_codex as _scaffold_codex
 
         _scaffold_codex(Path.cwd(), overwrite=do_update or do_clean, clean=do_clean)
+        if do_update:
+            from ai_shell.notes_merge import merge_notes_into_context
+
+            merge_notes_into_context(Path.cwd(), "codex")
         return
 
     manager, name, exec_env = _get_manager(ctx)
@@ -156,6 +164,10 @@ def opencode(ctx, do_init, do_update, do_clean, safe):
         from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
 
         _scaffold_opencode(Path.cwd(), overwrite=do_update or do_clean, clean=do_clean)
+        if do_update:
+            from ai_shell.notes_merge import merge_notes_into_context
+
+            merge_notes_into_context(Path.cwd(), "opencode")
         return
 
     manager, name, exec_env = _get_manager(ctx)
@@ -248,3 +260,8 @@ def init(update, clean, scaffold_all):
         _scaffold_opencode(Path.cwd(), overwrite=overwrite, clean=clean)
         _scaffold_codex(Path.cwd(), overwrite=overwrite, clean=clean)
         _scaffold_aider(Path.cwd(), overwrite=overwrite, clean=clean)
+        if update:
+            from ai_shell.notes_merge import merge_notes_into_context
+
+            merge_notes_into_context(Path.cwd(), "claude")
+            merge_notes_into_context(Path.cwd(), "codex")
