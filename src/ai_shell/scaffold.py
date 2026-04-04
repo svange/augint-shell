@@ -25,7 +25,8 @@ _TEMPLATES = resources.files("ai_shell.templates")
 def _read_template(*parts: str) -> str:
     """Read a template file from the ``ai_shell.templates`` package."""
     ref = _TEMPLATES.joinpath(*parts)
-    return ref.read_text(encoding="utf-8")
+    content = ref.read_text(encoding="utf-8")
+    return content.replace("\r\n", "\n")
 
 
 def _clean_paths(target_dir: Path, dirs: list[str], files: list[str]) -> None:
@@ -67,7 +68,7 @@ def _write_notes(target_dir: Path) -> None:
     if path.exists():
         console.print(f"[yellow]Skipped (protected): {path}[/yellow]")
         return
-    path.write_text(_read_template("notes.md"), encoding="utf-8")
+    path.write_text(_read_template("notes.md"), encoding="utf-8", newline="\n")
     console.print(f"[green]Created: {path}[/green]")
 
 
@@ -82,7 +83,7 @@ def _write_file(path: Path, content: str, *, overwrite: bool) -> bool:
 
     label = "Updated" if path.exists() else "Created"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content)
+    path.write_text(content, encoding="utf-8", newline="\n")
     console.print(f"[green]{label}: {path}[/green]")
     return True
 
@@ -97,6 +98,8 @@ CLAUDE_SKILL_DIRS = [
     "ai-promote",
     "ai-create-cmd",
     "ai-repo-health",
+    "ai-rollback",
+    "ai-status",
     "ai-web-dev",
     "ai-standardize-renovate",
     "ai-standardize-release",

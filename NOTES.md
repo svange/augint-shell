@@ -14,7 +14,7 @@
 
 - **No rebase on main**: NEVER use `git pull --rebase` or `git rebase` on the default branch. Use merge commits only.
 - **No manual versioning**: NEVER manually edit version numbers. Semantic Release manages versions via conventional commits.
-- **No lock file edits**: NEVER manually edit lock files (uv.lock, package-lock.json, poetry.lock, yarn.lock). They are auto-generated.
+- **No lock file edits**: NEVER directly write text into lock files (uv.lock, package-lock.json, poetry.lock, yarn.lock). Always use package manager commands (`uv lock`, `uv add`, `npm install`) to regenerate them.
 - **No .env commits**: NEVER commit .env files. Use .env.example for templates.
 - **No force push to main**: NEVER use `git push --force` on main or the default branch.
 
