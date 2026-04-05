@@ -68,8 +68,10 @@ def merge_notes_into_context(target_dir: Path, tool: str, *, background: bool = 
     context_path = target_dir / context_file
 
     if not context_path.exists():
-        logger.debug("%s not found, skipping merge", context_file)
-        return False
+        context_path.write_text(f"# {context_file}\n", encoding="utf-8", newline="\n")
+        console.print(
+            f"[bold]Created {context_file}; merging project notes in background...[/bold]"
+        )
 
     if not shutil.which(binary):
         console.print(f"[yellow]{binary} not found on PATH, skipping {context_file} merge[/yellow]")

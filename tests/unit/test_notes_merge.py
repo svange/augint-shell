@@ -9,12 +9,18 @@ class TestMergeNotesIntoContext:
     def test_unsupported_tool_returns_false(self, tmp_path):
         assert merge_notes_into_context(tmp_path, "aider") is False
 
-    def test_skipped_when_context_file_missing(self, tmp_path):
-        """No CLAUDE.md -> skip merge, return False."""
-        with patch("ai_shell.notes_merge.subprocess") as mock_sub:
+    def test_bootstraps_context_file_when_missing(self, tmp_path):
+        """No CLAUDE.md -> create stub and proceed with merge."""
+        with (
+            patch("ai_shell.notes_merge.shutil.which", return_value="/usr/bin/claude"),
+            patch("ai_shell.notes_merge.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value.returncode = 0
             result = merge_notes_into_context(tmp_path, "claude")
-        assert result is False
-        mock_sub.run.assert_not_called()
+        assert result is True
+        assert (tmp_path / "CLAUDE.md").exists()
+        assert (tmp_path / "CLAUDE.md").read_text().startswith("# CLAUDE.md")
+        mock_run.assert_called_once()
 
     def test_skipped_when_binary_not_found(self, tmp_path):
         """CLAUDE.md exists but claude not on PATH."""
@@ -140,12 +146,16 @@ class TestMergeNotesIntoContext:
         assert call_kwargs["stderr"] is DEVNULL
         assert call_kwargs["cwd"] == tmp_path
 
-    def test_background_skips_when_context_file_missing(self, tmp_path):
-        """background=True still returns False if context file is missing."""
-        with patch("ai_shell.notes_merge.subprocess.Popen") as mock_popen:
+    def test_background_bootstraps_context_file_when_missing(self, tmp_path):
+        """background=True creates stub and proceeds with merge."""
+        with (
+            patch("ai_shell.notes_merge.shutil.which", return_value="/usr/bin/claude"),
+            patch("ai_shell.notes_merge.subprocess.Popen") as mock_popen,
+        ):
             result = merge_notes_into_context(tmp_path, "claude", background=True)
-        assert result is False
-        mock_popen.assert_not_called()
+        assert result is True
+        assert (tmp_path / "CLAUDE.md").exists()
+        mock_popen.assert_called_once()
 
     def test_background_skips_when_binary_missing(self, tmp_path):
         """background=True still returns False if binary not on PATH."""
