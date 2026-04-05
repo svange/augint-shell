@@ -182,8 +182,6 @@
       "Bash(git push origin main:*)",
       "Bash(git push --force origin:*)",
       "Bash(git push --force -:*)",
-      "Bash(git rebase main:*)",
-      "Bash(git rebase origin/main:*)",
       "Bash(git pull --rebase:*)",
       "Bash(rm -rf /*)",
       "Bash(rm -rf /)",

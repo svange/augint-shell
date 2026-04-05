@@ -57,7 +57,7 @@ git log --oneline -10         # Recent commits
 # GitHub CLI
 gh issue list --state open    # View open issues
 gh pr create                  # Create pull request
-gh pr merge --auto --squash   # Enable automerge
+gh pr merge --auto --merge   # Enable automerge
 gh run list                   # List workflow runs
 gh run view <id>              # View run details
 gh run watch <id>             # Watch run in real-time
