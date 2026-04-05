@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+from enum import StrEnum
 from importlib import resources
 from pathlib import Path
 
@@ -63,14 +64,25 @@ _PROJECT_FILES = ["ai-shell.toml"]
 _NOTES_FILE = "NOTES.md"
 
 
-def _write_notes(target_dir: Path) -> None:
+def _write_notes(target_dir: Path, repo_type: RepoType | None = None) -> None:
     """Create NOTES.md if it does not exist. Never overwrite or delete."""
     path = target_dir / _NOTES_FILE
     if path.exists():
         console.print(f"[yellow]Skipped (protected): {path}[/yellow]")
         return
-    path.write_text(_read_template("notes.md"), encoding="utf-8", newline="\n")
+    template_name = _NOTES_TEMPLATE.get(repo_type, "notes.md")
+    path.write_text(_read_template(template_name), encoding="utf-8", newline="\n")
     console.print(f"[green]Created: {path}[/green]")
+
+
+def _remove_stale_skills(skills_dir: Path, active_skills: list[str]) -> None:
+    """Remove skill directories that are no longer applicable for the repo type."""
+    for skill_name in ALL_KNOWN_SKILLS:
+        if skill_name not in active_skills:
+            path = skills_dir / skill_name
+            if path.exists():
+                shutil.rmtree(path)
+                console.print(f"[red]Removed (not applicable): {path}[/red]")
 
 
 def _deep_merge_settings(existing: dict, template: dict) -> dict:
@@ -132,6 +144,86 @@ def _write_file(path: Path, content: str, *, overwrite: bool) -> bool:
     return True
 
 
+# ── Repo type / branch strategy enums ─────────────────────────────
+
+
+class RepoType(StrEnum):
+    LIBRARY = "library"
+    IAC = "iac"
+    MONOREPO = "monorepo"
+
+
+class BranchStrategy(StrEnum):
+    MAIN = "main"
+    DEV = "dev"
+
+
+# ── Skill sets ────────────────────────────────────────────────────
+
+_UNIVERSAL_SKILLS = [
+    "ai-pick-issue",
+    "ai-prepare-branch",
+    "ai-submit-work",
+    "ai-monitor-pipeline",
+    "ai-status",
+    "ai-rollback",
+    "ai-repo-health",
+    "ai-create-cmd",
+    "ai-web-dev",
+    "ai-standardize-pipeline",
+    "ai-standardize-precommit",
+    "ai-standardize-dotfiles",
+    "ai-standardize-repo",
+]
+
+_RELEASE_SKILLS = ["ai-standardize-renovate", "ai-standardize-release"]
+_PROMOTE_SKILLS = ["ai-promote"]
+_IAC_SKILLS = ["ai-setup-oidc"]
+_MONO_SKILLS = [
+    "ai-mono-status",
+    "ai-mono-sync",
+    "ai-mono-init",
+    "ai-mono-health",
+    "ai-mono-foreach",
+]
+
+
+def skills_for_config(
+    repo_type: RepoType | None,
+    branch_strategy: BranchStrategy | None,
+) -> list[str]:
+    """Return the skill list for a given repo type and branch strategy."""
+    if repo_type is None:
+        return list(CLAUDE_SKILL_DIRS)
+
+    skills = list(_UNIVERSAL_SKILLS)
+
+    if repo_type != RepoType.MONOREPO:
+        skills.extend(_RELEASE_SKILLS)
+    if repo_type == RepoType.IAC:
+        skills.extend(_IAC_SKILLS)
+    if repo_type == RepoType.MONOREPO:
+        skills.extend(_MONO_SKILLS)
+    if branch_strategy == BranchStrategy.DEV:
+        skills.extend(_PROMOTE_SKILLS)
+
+    return skills
+
+
+# All known skill names (superset for stale-skill cleanup).
+ALL_KNOWN_SKILLS = sorted(
+    set(_UNIVERSAL_SKILLS + _RELEASE_SKILLS + _PROMOTE_SKILLS + _IAC_SKILLS + _MONO_SKILLS)
+)
+
+# NOTES.md template mapping by repo type.
+_NOTES_TEMPLATE: dict[RepoType | None, str] = {
+    None: "notes.md",
+    RepoType.LIBRARY: "notes-library.md",
+    RepoType.IAC: "notes-iac.md",
+    RepoType.MONOREPO: "notes-monorepo.md",
+}
+
+
 # ── Public API ──────────────────────────────────────────────────────
 
 CLAUDE_SKILL_DIRS = [
@@ -161,6 +253,8 @@ def scaffold_claude(
     overwrite: bool = False,
     clean: bool = False,
     merge: bool = False,
+    repo_type: RepoType | None = None,
+    branch_strategy: BranchStrategy | None = None,
 ) -> None:
     """Create ``.claude/`` directory with settings and skills."""
     if clean:
@@ -182,17 +276,42 @@ def scaffold_claude(
         )
 
     # skill files
-    for skill_name in CLAUDE_SKILL_DIRS:
+    active_skills = skills_for_config(repo_type, branch_strategy)
+    for skill_name in active_skills:
         _write_file(
             skills_dir / skill_name / "SKILL.md",
             _read_template("claude", "skills", skill_name, "SKILL.md"),
             overwrite=effective_overwrite,
         )
 
+    # Remove skills that no longer apply (e.g. after repo type change)
+    if repo_type is not None:
+        _remove_stale_skills(skills_dir, active_skills)
+
     console.print("[bold green]Claude configuration ready.[/bold green]")
 
 
 AGENTS_SKILL_DIRS = list(CLAUDE_SKILL_DIRS)  # Mirrored to .agents/skills/
+
+
+def _build_toml_content(
+    repo_type: RepoType | None,
+    branch_strategy: BranchStrategy | None,
+    dev_branch: str = "dev",
+) -> str:
+    """Build ai-shell.toml content, prepending [project] section if configured."""
+    base = _read_template("ai-shell.toml")
+    if repo_type is None:
+        return base
+
+    lines = ["[project]", f'repo_type = "{repo_type.value}"']
+    if branch_strategy is not None:
+        lines.append(f'branch_strategy = "{branch_strategy.value}"')
+    if branch_strategy == BranchStrategy.DEV:
+        lines.append(f'dev_branch = "{dev_branch}"')
+    lines.append("")  # blank separator
+
+    return "\n".join(lines) + "\n" + base
 
 
 def scaffold_project(
@@ -201,6 +320,9 @@ def scaffold_project(
     overwrite: bool = False,
     clean: bool = False,
     merge: bool = False,
+    repo_type: RepoType | None = None,
+    branch_strategy: BranchStrategy | None = None,
+    dev_branch: str = "dev",
 ) -> None:
     """Create ``ai-shell.toml`` in *target_dir*."""
     if clean:
@@ -209,11 +331,11 @@ def scaffold_project(
     effective_overwrite = overwrite or merge
     _write_file(
         target_dir / "ai-shell.toml",
-        _read_template("ai-shell.toml"),
+        _build_toml_content(repo_type, branch_strategy, dev_branch),
         overwrite=effective_overwrite,
     )
 
-    _write_notes(target_dir)
+    _write_notes(target_dir, repo_type=repo_type)
     console.print("[bold green]Project configuration ready.[/bold green]")
 
 
@@ -223,6 +345,8 @@ def scaffold_opencode(
     overwrite: bool = False,
     clean: bool = False,
     merge: bool = False,
+    repo_type: RepoType | None = None,
+    branch_strategy: BranchStrategy | None = None,
 ) -> None:
     """Create opencode configuration, NOTES.md, and ``.agents/skills/``."""
     if clean:
@@ -238,14 +362,19 @@ def scaffold_opencode(
             opencode_template,
             overwrite=overwrite,
         )
-    for skill_name in AGENTS_SKILL_DIRS:
+    active_skills = skills_for_config(repo_type, branch_strategy)
+    skills_dir = target_dir / ".agents" / "skills"
+    for skill_name in active_skills:
         _write_file(
-            target_dir / ".agents" / "skills" / skill_name / "SKILL.md",
+            skills_dir / skill_name / "SKILL.md",
             _read_template("agents", "skills", skill_name, "SKILL.md"),
             overwrite=effective_overwrite,
         )
 
-    _write_notes(target_dir)
+    if repo_type is not None:
+        _remove_stale_skills(skills_dir, active_skills)
+
+    _write_notes(target_dir, repo_type=repo_type)
     console.print("[bold green]opencode configuration ready.[/bold green]")
 
 
@@ -255,6 +384,8 @@ def scaffold_codex(
     overwrite: bool = False,
     clean: bool = False,
     merge: bool = False,
+    repo_type: RepoType | None = None,
+    branch_strategy: BranchStrategy | None = None,
 ) -> None:
     """Create ``.codex/`` config, NOTES.md, and ``.agents/skills/``."""
     if clean:
@@ -266,14 +397,19 @@ def scaffold_codex(
         _read_template("codex", "config.toml"),
         overwrite=effective_overwrite,
     )
-    for skill_name in AGENTS_SKILL_DIRS:
+    active_skills = skills_for_config(repo_type, branch_strategy)
+    skills_dir = target_dir / ".agents" / "skills"
+    for skill_name in active_skills:
         _write_file(
-            target_dir / ".agents" / "skills" / skill_name / "SKILL.md",
+            skills_dir / skill_name / "SKILL.md",
             _read_template("agents", "skills", skill_name, "SKILL.md"),
             overwrite=effective_overwrite,
         )
 
-    _write_notes(target_dir)
+    if repo_type is not None:
+        _remove_stale_skills(skills_dir, active_skills)
+
+    _write_notes(target_dir, repo_type=repo_type)
     console.print("[bold green]Codex configuration ready.[/bold green]")
 
 
@@ -283,6 +419,7 @@ def scaffold_aider(
     overwrite: bool = False,
     clean: bool = False,
     merge: bool = False,
+    repo_type: RepoType | None = None,
 ) -> None:
     """Create ``.aider.conf.yml``, ``NOTES.md``, and ``.aiderignore``."""
     if clean:
@@ -300,5 +437,5 @@ def scaffold_aider(
         overwrite=effective_overwrite,
     )
 
-    _write_notes(target_dir)
+    _write_notes(target_dir, repo_type=repo_type)
     console.print("[bold green]Aider configuration ready.[/bold green]")

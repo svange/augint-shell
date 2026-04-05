@@ -168,3 +168,44 @@ ports = [9000, 9229]
         config = load_config(project_dir=tmp_path)
         # Should load defaults without error
         assert config.image == "svange/augint-shell"
+
+    def test_project_section_repo_type(self, tmp_path):
+        toml_content = b"""
+[project]
+repo_type = "library"
+branch_strategy = "main"
+"""
+        (tmp_path / "ai-shell.toml").write_bytes(toml_content)
+        config = load_config(project_dir=tmp_path)
+        assert config.repo_type == "library"
+        assert config.branch_strategy == "main"
+
+    def test_project_section_iac_dev(self, tmp_path):
+        toml_content = b"""
+[project]
+repo_type = "iac"
+branch_strategy = "dev"
+dev_branch = "staging"
+"""
+        (tmp_path / "ai-shell.toml").write_bytes(toml_content)
+        config = load_config(project_dir=tmp_path)
+        assert config.repo_type == "iac"
+        assert config.branch_strategy == "dev"
+        assert config.dev_branch == "staging"
+
+    def test_project_section_defaults(self, tmp_path):
+        config = load_config(project_dir=tmp_path)
+        assert config.repo_type is None
+        assert config.branch_strategy is None
+        assert config.dev_branch == "dev"
+
+    def test_project_section_monorepo(self, tmp_path):
+        toml_content = b"""
+[project]
+repo_type = "monorepo"
+branch_strategy = "main"
+"""
+        (tmp_path / "ai-shell.toml").write_bytes(toml_content)
+        config = load_config(project_dir=tmp_path)
+        assert config.repo_type == "monorepo"
+        assert config.branch_strategy == "main"

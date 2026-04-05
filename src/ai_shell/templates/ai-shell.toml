@@ -2,6 +2,11 @@
 # Uncomment and modify the settings you want to override.
 # See: https://github.com/svange/augint-shell
 
+# [project]
+# repo_type = "library"           # "library" | "iac" | "monorepo"
+# branch_strategy = "main"        # "main" | "dev"
+# dev_branch = "dev"              # only when branch_strategy = "dev"
+
 # [container]
 # image = "svange/augint-shell"
 # image_tag = "latest"

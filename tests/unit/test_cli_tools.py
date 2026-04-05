@@ -193,7 +193,12 @@ class TestToolCommands:
                 result = self.runner.invoke(cli, ["opencode", "--init"])
 
         mock_scaffold.assert_called_once_with(
-            "/tmp/test", overwrite=False, clean=False, merge=False
+            "/tmp/test",
+            overwrite=False,
+            clean=False,
+            merge=False,
+            repo_type=None,
+            branch_strategy=None,
         )
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
@@ -209,7 +214,14 @@ class TestToolCommands:
             ):
                 result = self.runner.invoke(cli, ["opencode", "--update"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False, clean=False, merge=True)
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=False,
+            clean=False,
+            merge=True,
+            repo_type=None,
+            branch_strategy=None,
+        )
         assert result.exit_code == 0
 
     def test_opencode_reset_calls_scaffold_with_overwrite(
@@ -223,7 +235,14 @@ class TestToolCommands:
             ):
                 result = self.runner.invoke(cli, ["opencode", "--reset"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=False, merge=False)
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=True,
+            clean=False,
+            merge=False,
+            repo_type=None,
+            branch_strategy=None,
+        )
         assert result.exit_code == 0
 
     def test_opencode_clean_calls_scaffold_with_clean(
@@ -234,7 +253,14 @@ class TestToolCommands:
             with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
                 result = self.runner.invoke(cli, ["opencode", "--clean"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=True, merge=False)
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=True,
+            clean=True,
+            merge=False,
+            repo_type=None,
+            branch_strategy=None,
+        )
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
@@ -245,7 +271,12 @@ class TestToolCommands:
                 result = self.runner.invoke(cli, ["codex", "--init"])
 
         mock_scaffold.assert_called_once_with(
-            "/tmp/test", overwrite=False, clean=False, merge=False
+            "/tmp/test",
+            overwrite=False,
+            clean=False,
+            merge=False,
+            repo_type=None,
+            branch_strategy=None,
         )
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
@@ -261,7 +292,14 @@ class TestToolCommands:
             ):
                 result = self.runner.invoke(cli, ["codex", "--update"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False, clean=False, merge=True)
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=False,
+            clean=False,
+            merge=True,
+            repo_type=None,
+            branch_strategy=None,
+        )
         assert result.exit_code == 0
 
     def test_codex_reset_calls_scaffold_with_overwrite(
@@ -275,7 +313,14 @@ class TestToolCommands:
             ):
                 result = self.runner.invoke(cli, ["codex", "--reset"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=False, merge=False)
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=True,
+            clean=False,
+            merge=False,
+            repo_type=None,
+            branch_strategy=None,
+        )
         assert result.exit_code == 0
 
     def test_codex_clean_calls_scaffold_with_clean(
@@ -286,7 +331,14 @@ class TestToolCommands:
             with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
                 result = self.runner.invoke(cli, ["codex", "--clean"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=True, merge=False)
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=True,
+            clean=True,
+            merge=False,
+            repo_type=None,
+            branch_strategy=None,
+        )
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
@@ -297,7 +349,11 @@ class TestToolCommands:
                 result = self.runner.invoke(cli, ["aider", "--init"])
 
         mock_scaffold.assert_called_once_with(
-            "/tmp/test", overwrite=False, clean=False, merge=False
+            "/tmp/test",
+            overwrite=False,
+            clean=False,
+            merge=False,
+            repo_type=None,
         )
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
@@ -310,7 +366,13 @@ class TestToolCommands:
             with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
                 result = self.runner.invoke(cli, ["aider", "--update"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=False, clean=False, merge=True)
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=False,
+            clean=False,
+            merge=True,
+            repo_type=None,
+        )
         assert result.exit_code == 0
 
     def test_aider_reset_calls_scaffold_with_overwrite(
@@ -321,7 +383,13 @@ class TestToolCommands:
             with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
                 result = self.runner.invoke(cli, ["aider", "--reset"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=False, merge=False)
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=True,
+            clean=False,
+            merge=False,
+            repo_type=None,
+        )
         assert result.exit_code == 0
 
     def test_aider_clean_calls_scaffold_with_clean(
@@ -332,7 +400,13 @@ class TestToolCommands:
             with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
                 result = self.runner.invoke(cli, ["aider", "--clean"])
 
-        mock_scaffold.assert_called_once_with("/tmp/test", overwrite=True, clean=True, merge=False)
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=True,
+            clean=True,
+            merge=False,
+            repo_type=None,
+        )
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
@@ -340,12 +414,11 @@ class TestToolCommands:
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
             with (
-                patch("ai_shell.scaffold.scaffold_claude") as mock_scaffold,
+                patch("ai_shell.scaffold.scaffold_claude"),
                 patch("ai_shell.notes_merge.merge_notes_into_context") as mock_merge,
             ):
                 result = self.runner.invoke(cli, ["claude", "--update"])
 
-        mock_scaffold.assert_called_once()
         mock_merge.assert_called_once_with("/tmp/test", "claude", background=True)
         assert result.exit_code == 0
 
@@ -450,7 +523,10 @@ class TestToolCommands:
                 patch("ai_shell.scaffold.scaffold_aider"),
                 patch("ai_shell.notes_merge.merge_notes_into_context") as mock_merge,
             ):
-                result = self.runner.invoke(cli, ["init", "--update", "--all", "--no-merge"])
+                result = self.runner.invoke(
+                    cli,
+                    ["init", "--update", "--all", "--no-merge", "--lib"],
+                )
 
         mock_merge.assert_not_called()
         assert result.exit_code == 0

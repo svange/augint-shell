@@ -50,6 +50,11 @@ class AiShellConfig:
     extra_volumes: list[str] = field(default_factory=list)
     extra_ports: list[int] = field(default_factory=list)
 
+    # Project workflow
+    repo_type: str | None = None  # "library" | "iac" | "monorepo"
+    branch_strategy: str | None = None  # "main" | "dev"
+    dev_branch: str = "dev"
+
     @property
     def full_image(self) -> str:
         """Return the full image reference with tag."""
@@ -141,6 +146,15 @@ def _apply_toml(config: AiShellConfig, path: Path) -> None:
     aider = data.get("aider", {})
     if "model" in aider:
         config.aider_model = aider["model"]
+
+    # [project] section
+    project = data.get("project", {})
+    if "repo_type" in project:
+        config.repo_type = project["repo_type"]
+    if "branch_strategy" in project:
+        config.branch_strategy = project["branch_strategy"]
+    if "dev_branch" in project:
+        config.dev_branch = project["dev_branch"]
 
 
 def _apply_env_vars(config: AiShellConfig) -> None:
