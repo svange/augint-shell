@@ -1,6 +1,9 @@
 """AI tool subcommands: claude, codex, opencode, aider, shell."""
 
+from __future__ import annotations
+
 import sys
+import tomllib
 from pathlib import Path
 
 import click
@@ -9,10 +12,96 @@ from rich.console import Console
 from ai_shell.config import load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import build_dev_environment
+from ai_shell.scaffold import BranchStrategy, RepoType
 
 console = Console(stderr=True)
 
 FAST_FAILURE_THRESHOLD = 5.0  # seconds — if claude -c exits faster, retry without -c
+
+
+# ── Repo-type resolution helpers ──────────────────────────────────
+
+
+def _read_persisted_project(target_dir: Path) -> dict[str, str]:
+    """Read [project] section from existing ai-shell.toml, if any."""
+    try:
+        toml_path = target_dir / "ai-shell.toml"
+        if not toml_path.exists():
+            return {}
+        with open(toml_path, "rb") as f:
+            data = tomllib.load(f)
+        result: dict[str, str] = data.get("project", {})
+        return result
+    except (OSError, tomllib.TOMLDecodeError, TypeError):
+        return {}
+
+
+def _prompt_repo_config() -> tuple[RepoType, BranchStrategy, str]:
+    """Interactively ask user for repo type and branch strategy."""
+    repo_type_val = click.prompt(
+        "Repo type",
+        type=click.Choice(["library", "iac", "monorepo"], case_sensitive=False),
+    )
+    branch_val = click.prompt(
+        "Branch strategy",
+        type=click.Choice(["main", "dev"], case_sensitive=False),
+        default="main",
+    )
+    dev_branch = "dev"
+    if branch_val == "dev":
+        dev_branch = click.prompt("Dev branch name", default="dev")
+    return RepoType(repo_type_val), BranchStrategy(branch_val), dev_branch
+
+
+def _resolve_repo_config(
+    flag: str | None,
+    target_dir: Path,
+    *,
+    prompt_if_missing: bool = False,
+) -> tuple[RepoType | None, BranchStrategy | None, str]:
+    """Resolve repo type / branch strategy from flag, config, or prompt.
+
+    Returns (repo_type, branch_strategy, dev_branch).
+    """
+    # 1. CLI flag wins
+    if flag:
+        repo_type = RepoType(flag)
+        # When flag is given without existing config, prompt for branch strategy
+        persisted = _read_persisted_project(target_dir)
+        if "branch_strategy" in persisted:
+            branch_strategy = BranchStrategy(persisted["branch_strategy"])
+            dev_branch = persisted.get("dev_branch", "dev")
+        elif prompt_if_missing:
+            branch_val = click.prompt(
+                "Branch strategy",
+                type=click.Choice(["main", "dev"], case_sensitive=False),
+                default="main",
+            )
+            branch_strategy = BranchStrategy(branch_val)
+            dev_branch = "dev"
+            if branch_strategy == BranchStrategy.DEV:
+                dev_branch = click.prompt("Dev branch name", default="dev")
+        else:
+            branch_strategy = None
+            dev_branch = "dev"
+        return repo_type, branch_strategy, dev_branch
+
+    # 2. Existing ai-shell.toml [project] section
+    persisted = _read_persisted_project(target_dir)
+    if "repo_type" in persisted:
+        repo_type = RepoType(persisted["repo_type"])
+        branch_strategy = (
+            BranchStrategy(persisted["branch_strategy"]) if "branch_strategy" in persisted else None
+        )
+        dev_branch = persisted.get("dev_branch", "dev")
+        return repo_type, branch_strategy, dev_branch
+
+    # 3. Interactive prompt (only for init, not for update/reset without flag)
+    if prompt_if_missing:
+        return _prompt_repo_config()
+
+    # 4. No config available
+    return None, None, "dev"
 
 
 def _get_manager(ctx) -> tuple[ContainerManager, str, dict[str, str]]:
@@ -67,18 +156,30 @@ def _get_manager(ctx) -> tuple[ContainerManager, str, dict[str, str]]:
     default=False,
     help="Skip merging notes into context file on --update/--reset.",
 )
+@click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
+@click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
+@click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def claude(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, extra_args):
+def claude(
+    ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, repo_type_flag, extra_args
+):
     """Launch Claude Code in the dev container."""
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_claude as _scaffold_claude
 
+        target_dir = Path.cwd()
+        repo_type, branch_strategy, _dev = _resolve_repo_config(
+            repo_type_flag,
+            target_dir,
+        )
         _scaffold_claude(
-            Path.cwd(),
+            target_dir,
             overwrite=do_reset or do_clean,
             clean=do_clean,
             merge=do_update,
+            repo_type=repo_type,
+            branch_strategy=branch_strategy,
         )
         if (do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
@@ -144,18 +245,30 @@ def claude(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, extra_
     default=False,
     help="Skip merging notes into context file on --update/--reset.",
 )
+@click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
+@click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
+@click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def codex(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, extra_args):
+def codex(
+    ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, repo_type_flag, extra_args
+):
     """Launch Codex in the dev container."""
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_codex as _scaffold_codex
 
+        target_dir = Path.cwd()
+        repo_type, branch_strategy, _dev = _resolve_repo_config(
+            repo_type_flag,
+            target_dir,
+        )
         _scaffold_codex(
-            Path.cwd(),
+            target_dir,
             overwrite=do_reset or do_clean,
             clean=do_clean,
             merge=do_update,
+            repo_type=repo_type,
+            branch_strategy=branch_strategy,
         )
         if (do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
@@ -209,17 +322,27 @@ def codex(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, extra_a
     default=False,
     help="Skip merging notes into context file on --update/--reset.",
 )
+@click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
+@click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
+@click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
 @click.pass_context
-def opencode(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge):
+def opencode(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, repo_type_flag):
     """Launch opencode in the dev container."""
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
 
+        target_dir = Path.cwd()
+        repo_type, branch_strategy, _dev = _resolve_repo_config(
+            repo_type_flag,
+            target_dir,
+        )
         _scaffold_opencode(
-            Path.cwd(),
+            target_dir,
             overwrite=do_reset or do_clean,
             clean=do_clean,
             merge=do_update,
+            repo_type=repo_type,
+            branch_strategy=branch_strategy,
         )
         if (do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
@@ -263,18 +386,27 @@ def opencode(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge):
     help="Delete and recreate aider config from templates.",
 )
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
+@click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
+@click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
+@click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def aider(ctx, do_init, do_update, do_reset, do_clean, safe, extra_args):
+def aider(ctx, do_init, do_update, do_reset, do_clean, safe, repo_type_flag, extra_args):
     """Launch aider with local LLM in the dev container."""
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_aider as _scaffold_aider
 
+        target_dir = Path.cwd()
+        repo_type, _branch, _dev = _resolve_repo_config(
+            repo_type_flag,
+            target_dir,
+        )
         _scaffold_aider(
-            Path.cwd(),
+            target_dir,
             overwrite=do_reset or do_clean,
             clean=do_clean,
             merge=do_update,
+            repo_type=repo_type,
         )
         return
 
@@ -332,7 +464,24 @@ def shell(ctx):
     default=False,
     help="Skip merging notes into context files on --update/--reset --all.",
 )
-def init(update, reset, clean, scaffold_all, skip_merge):
+@click.option(
+    "--lib",
+    "--library",
+    "repo_type_flag",
+    flag_value="library",
+    help="Scaffold for a library repo (publishes packages).",
+)
+@click.option(
+    "--iac", "repo_type_flag", flag_value="iac", help="Scaffold for an IaC / web / backend repo."
+)
+@click.option(
+    "--mono",
+    "--monorepo",
+    "repo_type_flag",
+    flag_value="monorepo",
+    help="Scaffold for a monorepo (git submodules).",
+)
+def init(update, reset, clean, scaffold_all, skip_merge, repo_type_flag):
     """Initialize ai-shell config files in the current directory."""
     from ai_shell.scaffold import scaffold_aider as _scaffold_aider
     from ai_shell.scaffold import scaffold_claude as _scaffold_claude
@@ -342,14 +491,60 @@ def init(update, reset, clean, scaffold_all, skip_merge):
 
     overwrite = reset or clean
     merge = update
-    scaffold_project(Path.cwd(), overwrite=overwrite, clean=clean, merge=merge)
+    target_dir = Path.cwd()
+
+    # Resolve repo type: flag > persisted config > interactive prompt
+    # Prompt only on fresh init (not update/reset without explicit flag)
+    is_fresh_init = not (update or reset or clean)
+    repo_type, branch_strategy, dev_branch = _resolve_repo_config(
+        repo_type_flag,
+        target_dir,
+        prompt_if_missing=is_fresh_init,
+    )
+
+    scaffold_project(
+        target_dir,
+        overwrite=overwrite,
+        clean=clean,
+        merge=merge,
+        repo_type=repo_type,
+        branch_strategy=branch_strategy,
+        dev_branch=dev_branch,
+    )
     if scaffold_all:
-        _scaffold_claude(Path.cwd(), overwrite=overwrite, clean=clean, merge=merge)
-        _scaffold_opencode(Path.cwd(), overwrite=overwrite, clean=clean, merge=merge)
-        _scaffold_codex(Path.cwd(), overwrite=overwrite, clean=clean, merge=merge)
-        _scaffold_aider(Path.cwd(), overwrite=overwrite, clean=clean, merge=merge)
+        _scaffold_claude(
+            target_dir,
+            overwrite=overwrite,
+            clean=clean,
+            merge=merge,
+            repo_type=repo_type,
+            branch_strategy=branch_strategy,
+        )
+        _scaffold_opencode(
+            target_dir,
+            overwrite=overwrite,
+            clean=clean,
+            merge=merge,
+            repo_type=repo_type,
+            branch_strategy=branch_strategy,
+        )
+        _scaffold_codex(
+            target_dir,
+            overwrite=overwrite,
+            clean=clean,
+            merge=merge,
+            repo_type=repo_type,
+            branch_strategy=branch_strategy,
+        )
+        _scaffold_aider(
+            target_dir,
+            overwrite=overwrite,
+            clean=clean,
+            merge=merge,
+            repo_type=repo_type,
+        )
         if (update or reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(Path.cwd(), "claude", background=True)
-            merge_notes_into_context(Path.cwd(), "codex", background=True)
+            merge_notes_into_context(target_dir, "claude", background=True)
+            merge_notes_into_context(target_dir, "codex", background=True)

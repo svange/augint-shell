@@ -7,12 +7,15 @@ import yaml
 from ai_shell.scaffold import (
     AGENTS_SKILL_DIRS,
     CLAUDE_SKILL_DIRS,
+    BranchStrategy,
+    RepoType,
     _deep_merge_settings,
     scaffold_aider,
     scaffold_claude,
     scaffold_codex,
     scaffold_opencode,
     scaffold_project,
+    skills_for_config,
 )
 
 
@@ -584,3 +587,222 @@ class TestNotesFile:
         notes.write_text("Custom notes")
         scaffold_opencode(tmp_path)
         assert notes.read_text() == "Custom notes"
+
+
+class TestSkillsForConfig:
+    def test_none_returns_all_skills(self):
+        skills = skills_for_config(None, None)
+        assert skills == CLAUDE_SKILL_DIRS
+
+    def test_library_main_excludes_promote(self):
+        skills = skills_for_config(RepoType.LIBRARY, BranchStrategy.MAIN)
+        assert "ai-promote" not in skills
+        assert "ai-standardize-renovate" in skills
+        assert "ai-standardize-release" in skills
+        assert "ai-setup-oidc" not in skills
+
+    def test_library_dev_includes_promote(self):
+        skills = skills_for_config(RepoType.LIBRARY, BranchStrategy.DEV)
+        assert "ai-promote" in skills
+
+    def test_iac_main_has_oidc_no_promote(self):
+        skills = skills_for_config(RepoType.IAC, BranchStrategy.MAIN)
+        assert "ai-setup-oidc" in skills
+        assert "ai-promote" not in skills
+        assert "ai-standardize-renovate" in skills
+
+    def test_iac_dev_has_oidc_and_promote(self):
+        skills = skills_for_config(RepoType.IAC, BranchStrategy.DEV)
+        assert "ai-setup-oidc" in skills
+        assert "ai-promote" in skills
+
+    def test_monorepo_has_mono_skills(self):
+        skills = skills_for_config(RepoType.MONOREPO, BranchStrategy.MAIN)
+        assert "ai-mono-status" in skills
+        assert "ai-mono-sync" in skills
+        assert "ai-mono-init" in skills
+        assert "ai-mono-health" in skills
+        assert "ai-mono-foreach" in skills
+
+    def test_monorepo_excludes_release_renovate_oidc(self):
+        skills = skills_for_config(RepoType.MONOREPO, BranchStrategy.MAIN)
+        assert "ai-standardize-renovate" not in skills
+        assert "ai-standardize-release" not in skills
+        assert "ai-setup-oidc" not in skills
+        assert "ai-promote" not in skills
+
+    def test_monorepo_has_universal_skills(self):
+        skills = skills_for_config(RepoType.MONOREPO, BranchStrategy.MAIN)
+        assert "ai-pick-issue" in skills
+        assert "ai-prepare-branch" in skills
+        assert "ai-submit-work" in skills
+        assert "ai-status" in skills
+
+    def test_all_types_have_universal_skills(self):
+        for repo_type in RepoType:
+            skills = skills_for_config(repo_type, BranchStrategy.MAIN)
+            assert "ai-pick-issue" in skills
+            assert "ai-prepare-branch" in skills
+            assert "ai-submit-work" in skills
+            assert "ai-monitor-pipeline" in skills
+            assert "ai-status" in skills
+            assert "ai-rollback" in skills
+            assert "ai-repo-health" in skills
+
+
+class TestScaffoldWithRepoType:
+    def test_claude_library_main_skills(self, tmp_path):
+        scaffold_claude(
+            tmp_path,
+            repo_type=RepoType.LIBRARY,
+            branch_strategy=BranchStrategy.MAIN,
+        )
+        skills_dir = tmp_path / ".claude" / "skills"
+        assert not (skills_dir / "ai-promote").exists()
+        assert not (skills_dir / "ai-setup-oidc").exists()
+        assert not (skills_dir / "ai-mono-status").exists()
+        assert (skills_dir / "ai-pick-issue" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-standardize-renovate" / "SKILL.md").is_file()
+
+    def test_claude_iac_dev_skills(self, tmp_path):
+        scaffold_claude(
+            tmp_path,
+            repo_type=RepoType.IAC,
+            branch_strategy=BranchStrategy.DEV,
+        )
+        skills_dir = tmp_path / ".claude" / "skills"
+        assert (skills_dir / "ai-promote" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-setup-oidc" / "SKILL.md").is_file()
+        assert not (skills_dir / "ai-mono-status").exists()
+
+    def test_claude_monorepo_skills(self, tmp_path):
+        scaffold_claude(
+            tmp_path,
+            repo_type=RepoType.MONOREPO,
+            branch_strategy=BranchStrategy.MAIN,
+        )
+        skills_dir = tmp_path / ".claude" / "skills"
+        assert (skills_dir / "ai-mono-status" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-mono-sync" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-mono-init" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-mono-health" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-mono-foreach" / "SKILL.md").is_file()
+        assert not (skills_dir / "ai-promote").exists()
+        assert not (skills_dir / "ai-standardize-renovate").exists()
+
+    def test_claude_none_delivers_all_original_skills(self, tmp_path):
+        scaffold_claude(tmp_path, repo_type=None, branch_strategy=None)
+        skills_dir = tmp_path / ".claude" / "skills"
+        for skill_name in CLAUDE_SKILL_DIRS:
+            assert (skills_dir / skill_name / "SKILL.md").is_file()
+
+    def test_stale_skills_removed_on_type_change(self, tmp_path):
+        # First scaffold with all skills
+        scaffold_claude(
+            tmp_path,
+            repo_type=RepoType.IAC,
+            branch_strategy=BranchStrategy.DEV,
+        )
+        skills_dir = tmp_path / ".claude" / "skills"
+        assert (skills_dir / "ai-promote" / "SKILL.md").is_file()
+
+        # Switch to monorepo -- ai-promote should be removed
+        scaffold_claude(
+            tmp_path,
+            overwrite=True,
+            repo_type=RepoType.MONOREPO,
+            branch_strategy=BranchStrategy.MAIN,
+        )
+        assert not (skills_dir / "ai-promote").exists()
+        assert (skills_dir / "ai-mono-status" / "SKILL.md").is_file()
+
+    def test_opencode_monorepo_skills(self, tmp_path):
+        scaffold_opencode(
+            tmp_path,
+            repo_type=RepoType.MONOREPO,
+            branch_strategy=BranchStrategy.MAIN,
+        )
+        skills_dir = tmp_path / ".agents" / "skills"
+        assert (skills_dir / "ai-mono-status" / "SKILL.md").is_file()
+        assert not (skills_dir / "ai-promote").exists()
+
+    def test_codex_library_skills(self, tmp_path):
+        scaffold_codex(
+            tmp_path,
+            repo_type=RepoType.LIBRARY,
+            branch_strategy=BranchStrategy.MAIN,
+        )
+        skills_dir = tmp_path / ".agents" / "skills"
+        assert not (skills_dir / "ai-promote").exists()
+        assert (skills_dir / "ai-pick-issue" / "SKILL.md").is_file()
+
+
+class TestNotesTemplateSelection:
+    def test_library_notes(self, tmp_path):
+        scaffold_project(
+            tmp_path,
+            repo_type=RepoType.LIBRARY,
+            branch_strategy=BranchStrategy.MAIN,
+        )
+        content = (tmp_path / "NOTES.md").read_text()
+        assert "## Publishing" in content
+        assert "## Submodule Map" not in content
+
+    def test_iac_notes(self, tmp_path):
+        scaffold_project(
+            tmp_path,
+            repo_type=RepoType.IAC,
+            branch_strategy=BranchStrategy.DEV,
+        )
+        content = (tmp_path / "NOTES.md").read_text()
+        assert "## Deployment" in content
+        assert "ai-promote" in content
+
+    def test_monorepo_notes(self, tmp_path):
+        scaffold_project(
+            tmp_path,
+            repo_type=RepoType.MONOREPO,
+            branch_strategy=BranchStrategy.MAIN,
+        )
+        content = (tmp_path / "NOTES.md").read_text()
+        assert "## Submodule Map" in content
+        assert "augint-mono" in content
+
+    def test_none_type_uses_default_notes(self, tmp_path):
+        scaffold_project(tmp_path, repo_type=None)
+        content = (tmp_path / "NOTES.md").read_text()
+        assert "## Project Overview" in content
+        assert "## Submodule Map" not in content
+        assert "## Publishing" not in content
+
+
+class TestProjectTomlContent:
+    def test_library_toml_has_project_section(self, tmp_path):
+        scaffold_project(
+            tmp_path,
+            repo_type=RepoType.LIBRARY,
+            branch_strategy=BranchStrategy.MAIN,
+        )
+        content = (tmp_path / "ai-shell.toml").read_text()
+        assert 'repo_type = "library"' in content
+        assert 'branch_strategy = "main"' in content
+        # Active [project] section should not have dev_branch when strategy is main
+        project_section = content.split("\n\n")[0]  # first block = [project]
+        assert "dev_branch" not in project_section
+
+    def test_iac_dev_toml_has_dev_branch(self, tmp_path):
+        scaffold_project(
+            tmp_path,
+            repo_type=RepoType.IAC,
+            branch_strategy=BranchStrategy.DEV,
+            dev_branch="staging",
+        )
+        content = (tmp_path / "ai-shell.toml").read_text()
+        assert 'repo_type = "iac"' in content
+        assert 'branch_strategy = "dev"' in content
+        assert 'dev_branch = "staging"' in content
+
+    def test_none_type_toml_no_project_section(self, tmp_path):
+        scaffold_project(tmp_path, repo_type=None)
+        content = (tmp_path / "ai-shell.toml").read_text()
+        assert "[project]" not in content or "# [project]" in content
