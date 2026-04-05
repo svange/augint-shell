@@ -207,6 +207,8 @@ RUN git config --global --add safe.directory '*' && \
     git config --global color.ui auto && \
     git config --global core.editor vim && \
     git config --global init.defaultBranch main && \
+    # Ignore file permission changes on drvfs/9p-mounted Windows filesystems
+    git config --global core.filemode false && \
     # Disable git hooks in container - AI tools commit frequently; pre-commit is run explicitly
     git config --global core.hooksPath /dev/null && \
     git config --global --unset-all http.sslbackend || true
