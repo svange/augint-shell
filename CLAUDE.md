@@ -26,7 +26,7 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 
 ## Critical Rules
 
-- **No rebase on main**: NEVER use `git pull --rebase` or `git rebase` on `main`. Use merge commits only.
+- **No rebase on main**: NEVER use `git pull --rebase` or `git rebase` on the default branch. Use merge commits only.
 - **No manual versioning**: NEVER manually edit version numbers. Python Semantic Release owns versioning via conventional commits. Version in `pyproject.toml` and `src/ai_shell/__init__.py`. Tag format: `augint-shell-v{version}`.
 - **No lock file edits**: NEVER directly write text into lock files (uv.lock, package-lock.json, poetry.lock, yarn.lock). Always use package manager commands (`uv lock`, `uv add`, `npm install`) to regenerate them. When a package manager command updates a lock file, ALWAYS stage and include it in the commit -- lock file changes must never be left uncommitted.
 - **No .env commits**: NEVER commit .env files. Use .env.example for templates.
@@ -75,7 +75,7 @@ git log --oneline -10         # Recent commits
 # GitHub CLI
 gh issue list --state open    # View open issues
 gh pr create                  # Create pull request
-gh pr merge --auto --squash   # Enable automerge
+gh pr merge --auto --merge    # Enable automerge
 gh run list                   # List workflow runs
 gh run view <id>              # View run details
 gh run watch <id>             # Watch run in real-time
