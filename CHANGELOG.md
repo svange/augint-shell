@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.25.0 (2026-04-05)
+
+### Bug Fixes
+
+- **scaffold**: Remove local rebase deny rules from settings template
+  ([`59c9f70`](https://github.com/svange/augint-shell/commit/59c9f70265a775a3aa637a8ee827679be4cd5f6f))
+
+### Features
+
+- **scaffold**: Bootstrap CLAUDE.md on update and detect stale branches
+  ([`1ae230b`](https://github.com/svange/augint-shell/commit/1ae230bb5599dcdf0a41ecbdcd5bdb97e963ef9d))
+
+- **scaffold**: Switch from squash to merge commits across all templates
+  ([`ce7962f`](https://github.com/svange/augint-shell/commit/ce7962f463c086ff23677fa5c3b025dccdf0c970))
+
+
 ## v0.24.0 (2026-04-05)
 
 ### Features
