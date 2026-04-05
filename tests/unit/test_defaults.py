@@ -190,3 +190,49 @@ class TestBuildDevEnvironmentDotenv:
         with patch.dict("os.environ", {}, clear=True):
             env = build_dev_environment(project_dir=tmp_path)
         assert env["AWS_REGION"] == "eu-west-1"
+
+
+class TestBuildDevEnvironmentBedrock:
+    def test_bedrock_adds_env_var(self):
+        env = build_dev_environment(bedrock=True)
+        assert env["CLAUDE_CODE_USE_BEDROCK"] == "1"
+
+    def test_no_bedrock_no_env_var(self):
+        env = build_dev_environment()
+        assert "CLAUDE_CODE_USE_BEDROCK" not in env
+
+    def test_bedrock_false_no_env_var(self):
+        env = build_dev_environment(bedrock=False)
+        assert "CLAUDE_CODE_USE_BEDROCK" not in env
+
+    def test_bedrock_profile_overrides_aws_profile(self):
+        with patch.dict("os.environ", {"AWS_PROFILE": "infra-acct"}, clear=True):
+            env = build_dev_environment(bedrock=True, bedrock_profile="ai-acct")
+        assert env["AWS_PROFILE"] == "ai-acct"
+        assert env["CLAUDE_CODE_USE_BEDROCK"] == "1"
+
+    def test_bedrock_without_bedrock_profile_keeps_aws_profile(self):
+        with patch.dict("os.environ", {"AWS_PROFILE": "infra-acct"}, clear=True):
+            env = build_dev_environment(bedrock=True)
+        assert env["AWS_PROFILE"] == "infra-acct"
+
+    def test_aws_profile_override(self):
+        with patch.dict("os.environ", {"AWS_PROFILE": "original"}, clear=True):
+            env = build_dev_environment(aws_profile="override")
+        assert env["AWS_PROFILE"] == "override"
+
+    def test_aws_region_override(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(aws_region="eu-west-1")
+        assert env["AWS_REGION"] == "eu-west-1"
+
+    def test_aws_profile_empty_uses_resolved(self):
+        with patch.dict("os.environ", {"AWS_PROFILE": "from-env"}, clear=True):
+            env = build_dev_environment(aws_profile="")
+        assert env["AWS_PROFILE"] == "from-env"
+
+    def test_bedrock_profile_only_applies_when_bedrock_enabled(self):
+        with patch.dict("os.environ", {"AWS_PROFILE": "infra"}, clear=True):
+            env = build_dev_environment(bedrock=False, bedrock_profile="ai-acct")
+        assert env["AWS_PROFILE"] == "infra"
+        assert "CLAUDE_CODE_USE_BEDROCK" not in env

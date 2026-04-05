@@ -50,6 +50,15 @@ class AiShellConfig:
     extra_volumes: list[str] = field(default_factory=list)
     extra_ports: list[int] = field(default_factory=list)
 
+    # AWS
+    ai_profile: str = ""  # AWS profile for infra (sets AWS_PROFILE in container)
+    aws_region: str = ""  # Override AWS_REGION
+    bedrock_profile: str = ""  # AWS profile for Bedrock LLM API calls
+
+    # Per-tool provider
+    claude_provider: str = ""  # "anthropic" (default) or "aws"
+    opencode_provider: str = ""  # "ollama" (default) or "aws"
+
     # Project workflow
     repo_type: str | None = None  # "library" | "iac" | "monorepo"
     branch_strategy: str | None = None  # "main" | "dev"
@@ -147,6 +156,25 @@ def _apply_toml(config: AiShellConfig, path: Path) -> None:
     if "model" in aider:
         config.aider_model = aider["model"]
 
+    # [aws] section
+    aws = data.get("aws", {})
+    if "ai_profile" in aws:
+        config.ai_profile = aws["ai_profile"]
+    if "region" in aws:
+        config.aws_region = aws["region"]
+    if "bedrock_profile" in aws:
+        config.bedrock_profile = aws["bedrock_profile"]
+
+    # [claude] section
+    claude_sec = data.get("claude", {})
+    if "provider" in claude_sec:
+        config.claude_provider = claude_sec["provider"]
+
+    # [opencode] section
+    opencode_sec = data.get("opencode", {})
+    if "provider" in opencode_sec:
+        config.opencode_provider = opencode_sec["provider"]
+
     # [project] section
     project = data.get("project", {})
     if "repo_type" in project:
@@ -169,6 +197,11 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_OLLAMA_PORT": ("ollama_port", int),
         "AI_SHELL_WEBUI_PORT": ("webui_port", int),
         "AI_SHELL_AIDER_MODEL": ("aider_model", str),
+        "AI_SHELL_AI_PROFILE": ("ai_profile", str),
+        "AI_SHELL_AWS_REGION": ("aws_region", str),
+        "AI_SHELL_BEDROCK_PROFILE": ("bedrock_profile", str),
+        "AI_SHELL_CLAUDE_PROVIDER": ("claude_provider", str),
+        "AI_SHELL_OPENCODE_PROVIDER": ("opencode_provider", str),
     }
 
     for env_key, (attr, type_fn) in env_map.items():

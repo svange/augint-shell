@@ -43,6 +43,11 @@ DEFAULT_WEBUI_PORT = 3000
 DEFAULT_DEV_PORTS = [3000, 4200, 5000, 5173, 5678, 8000, 8080, 8888]
 
 # =============================================================================
+# Bedrock defaults
+# =============================================================================
+DEFAULT_BEDROCK_MODEL = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+
+# =============================================================================
 # Container names
 # =============================================================================
 OLLAMA_CONTAINER = "augint-shell-ollama"
@@ -144,6 +149,11 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
 def build_dev_environment(
     extra_env: dict[str, str] | None = None,
     project_dir: Path | None = None,
+    *,
+    bedrock: bool = False,
+    aws_profile: str = "",
+    aws_region: str = "",
+    bedrock_profile: str = "",
 ) -> dict[str, str]:
     """Build environment variables matching docker-compose.yml dev service.
 
@@ -151,6 +161,10 @@ def build_dev_environment(
     host environment variables and hardcoded defaults.
 
     Priority (highest wins): extra_env > .env file > os.environ > defaults.
+
+    When *bedrock* is True, ``CLAUDE_CODE_USE_BEDROCK=1`` is injected and
+    *bedrock_profile* (if set) overrides ``AWS_PROFILE`` so the LLM provider
+    authenticates with the correct AWS account.
     """
     from dotenv import dotenv_values
 
@@ -167,14 +181,19 @@ def build_dev_environment(
         return os.environ.get(key, default)
 
     env: dict[str, str] = {
-        "AWS_PROFILE": _resolve("AWS_PROFILE"),
-        "AWS_REGION": _resolve("AWS_REGION", "us-east-1"),
+        "AWS_PROFILE": aws_profile or _resolve("AWS_PROFILE"),
+        "AWS_REGION": aws_region or _resolve("AWS_REGION", "us-east-1"),
         "AWS_PAGER": "",
         "GH_TOKEN": _resolve("GH_TOKEN"),
         "GITHUB_TOKEN": _resolve("GH_TOKEN"),
         "HUSKY": "0",
         "IS_SANDBOX": "1",
     }
+
+    if bedrock:
+        env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+        if bedrock_profile:
+            env["AWS_PROFILE"] = bedrock_profile
 
     if extra_env:
         env.update(extra_env)
