@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.28.0 (2026-04-05)
+
+### Features
+
+- **scaffold**: Add ai-fix-repo-standards skill for GitHub repo remediation
+  ([`dab03f8`](https://github.com/svange/augint-shell/commit/dab03f8b9f7891f5534469f9ee4a5694143c8352))
+
+
 ## v0.27.0 (2026-04-05)
 
 ### Features
