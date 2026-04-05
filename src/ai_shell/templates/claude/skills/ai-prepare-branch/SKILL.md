@@ -68,7 +68,7 @@ If on a work branch (not main/dev/staging), check whether its PR was already mer
 MERGED_PR=$(gh pr list --head $CURRENT_BRANCH --state merged --json number -q '.[0].number' 2>/dev/null)
 ```
 
-If `MERGED_PR` is non-empty, this branch is stale (squash-merged PRs + semantic-release create new commits on the target, so the old branch always diverges). Handle automatically:
+If `MERGED_PR` is non-empty, this branch is stale (merged PRs + semantic-release version bumps create new commits on the target, so the old branch diverges). Handle automatically:
 
 - **No uncommitted changes**: Report "Branch $CURRENT_BRANCH was merged via PR #$MERGED_PR. Switching to $BASE." Then `git checkout $BASE` and `git branch -D $CURRENT_BRANCH`. Proceed to step 4.
 - **Uncommitted changes present**: These are new work started on a stale branch. Stash, switch, delete:
