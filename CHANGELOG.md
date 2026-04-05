@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.24.0 (2026-04-05)
+
+### Features
+
+- **scaffold**: Add repo-type flags and monorepo skill support
+  ([#20](https://github.com/svange/augint-shell/pull/20),
+  [`dced272`](https://github.com/svange/augint-shell/commit/dced2729f2ceceb5a39ff56595b53fa780c0afb6))
+
+
 ## v0.23.0 (2026-04-04)
 
 ### Features
