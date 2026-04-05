@@ -65,14 +65,15 @@ These are independent -- ai-shell loads `.env` from the current working director
 
 ## Monorepo Coordination Tools
 
-This monorepo uses `augint-mono` for coordination across submodules:
+This monorepo uses `ai-mono` for coordination across submodules:
 
 ```bash
-uv run augint-mono status    # Cross-repo status dashboard
-uv run augint-mono sync      # Update submodule pointers
-uv run augint-mono init      # First-time dev setup
-uv run augint-mono health    # Cross-repo health analysis
-uv run augint-mono foreach   # Run command in each submodule
+uv run ai-mono status    # Cross-repo status dashboard
+uv run ai-mono sync      # Update submodule pointers
+uv run ai-mono init      # First-time dev setup
+uv run ai-mono health    # Cross-repo health analysis
+uv run ai-mono foreach   # Run command in each submodule
+# All commands support: --json (structured output), -s/--submodule <name> (filter)
 ```
 
 ## Conventions
@@ -83,11 +84,63 @@ uv run augint-mono foreach   # Run command in each submodule
 
 ## Development Workflow
 
-1. **Check status**: `/ai-mono-status` -- see what is happening across all repos
-2. **Sync pointers**: `/ai-mono-sync` -- ensure submodule pointers are current
-3. **Pick work**: Identify which submodule needs attention, `cd` into it
-4. **Develop**: Follow that submodule's own workflow (pick issue, prepare branch, develop, submit)
-5. **Update pointers**: Return to monorepo root, `/ai-mono-sync` to capture new commits
+1. **First-time setup** (once): `/ai-mono-init` -- initializes submodules, verifies branch config and .env files
+2. **Check status**: `/ai-mono-status` -- see what is happening across all repos
+3. **Sync pointers**: `/ai-mono-sync` -- ensure submodule pointers are current
+4. **Pick work**: Identify which submodule needs attention, `cd` into it
+5. **Develop**: Follow that submodule's own workflow (pick issue, prepare branch, develop, submit)
+6. **Update pointers**: Return to monorepo root, `/ai-mono-sync` to capture merged work
+
+Only sync pointers after PRs are merged in the submodule. Syncing while feature branches are in progress can cause confusion.
+
+## Key Concepts
+
+When explaining submodule state to users, use plain language:
+
+- **Submodule pointer**: the monorepo records which exact version (commit) of each submodule it uses. "Stale pointer" means the submodule has newer work that hasn't been picked up yet.
+- **Tracked branch**: the branch in each submodule that the monorepo follows for updates (configured in `.gitmodules`). IaC/backend repos typically track `dev`; libraries track `main`.
+- **Syncing**: updating the monorepo to use the latest version of each submodule's tracked branch.
+
+## Common Problems and Recovery
+
+### Accidental pointer change
+If `git status` shows an unexpected submodule change you didn't intend:
+```bash
+git restore <submodule-path>    # Undo the pointer change
+```
+
+### Submodule shows "modified content" or merge conflicts
+You (or the AI agent) edited files inside a submodule from the monorepo root. Fix by working inside the submodule:
+```bash
+cd <submodule>
+git status                      # See what changed
+git stash                       # Or commit/discard as appropriate
+cd ..
+```
+
+### Submodule not initialized or missing
+```bash
+/ai-mono-init                   # Re-initializes all submodules
+```
+
+### Pointer sync fails due to local changes in submodule
+```bash
+cd <submodule>
+git stash                       # Save local work
+cd ..
+/ai-mono-sync --commit          # Now sync will succeed
+cd <submodule>
+git stash pop                   # Restore local work
+```
+
+## Batch Operations vs Manual Work
+
+Use `/ai-mono-foreach` for **read-only checks** across all submodules:
+- `git status`, `uv run pytest`, dependency audits, standards checks
+
+Use **manual `cd` into each submodule** for **development work**:
+- Code changes, dependency updates, branch management, PR creation
+- The "no cross-boundary edits" rule means development always happens inside a submodule
 
 ## Architecture
 

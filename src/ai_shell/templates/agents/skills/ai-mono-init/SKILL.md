@@ -1,106 +1,68 @@
 ---
 name: ai-mono-init
 description: First-time monorepo development setup. Initializes submodules and verifies environment. Use when setting up a monorepo for development or saying 'set up this monorepo'.
-argument-hint: ""
+argument-hint: "[--submodule <name>]"
 ---
 
 Set up this monorepo for development: $ARGUMENTS
 
-Initializes all submodules, verifies tracked branches are configured in `.gitmodules`, checks .env files, and guides the user through per-submodule AI tool setup.
+Initializes all submodules, verifies tracked branches are configured in `.gitmodules`, checks .env files, and guides per-submodule AI tool setup.
 
 ## Usage Examples
 - `/ai-mono-init` - Full first-time setup
+- `/ai-mono-init --submodule backend` - Check one submodule only
 
-## 1. Verify Monorepo
-
-```bash
-if [ ! -f .gitmodules ]; then
-    echo "ERROR: No .gitmodules found. This does not appear to be a monorepo."
-    exit 1
-fi
-```
-
-## 2. Initialize Submodules
+## 1. Run Init
 
 ```bash
-git submodule update --init --recursive
+ai-mono init --json $ARGUMENTS
 ```
 
-Report which submodules were initialized.
+If `ai-mono` is not found, install it: `uv sync --all-extras`, then retry.
 
-## 3. Verify Tracked Branches
+**JSON response:**
+```json
+{
+  "submodules": [
+    {"name": "str", "tracked_branch": "str", "branch_configured": true, "env_status": "ok|missing|no_template"}
+  ],
+  "warnings": ["str"],
+  "deps_installed": true
+}
+```
 
-Each submodule should have a `branch` configured in `.gitmodules` so that `/ai-mono-sync` knows which branch to track. IaC repos with a dev-to-main workflow should track `dev`; library repos should track `main`.
+## 2. Configure Unconfigured Branches
 
+For each submodule where `branch_configured` is false, look inside the submodule directory to detect its type, then suggest the correct tracked branch:
+
+- **IaC / backend / web service**: has `*.tf` files, `Dockerfile`, `docker-compose.yml`, `serverless.yml`, or deployment configs → suggest tracking `dev` (these use a dev-to-main promotion workflow)
+- **Library / package**: has `pyproject.toml` with `[build-system]`, or `package.json` with a `main` field → suggest tracking `main` (libraries release directly from main)
+- **Unknown**: ask the user which branch this submodule releases from
+
+Explain to the user in plain terms: "The tracked branch tells the monorepo which branch to follow for updates. Backend services typically use 'dev' because changes go through staging first. Libraries use 'main' because they publish directly."
+
+Set the branch:
 ```bash
-NEEDS_BRANCH_CONFIG=()
-for SUBMODULE in $(git submodule status | awk '{print $2}'); do
-    BRANCH=$(git config -f .gitmodules "submodule.${SUBMODULE}.branch" 2>/dev/null)
-    if [ -z "$BRANCH" ]; then
-        NEEDS_BRANCH_CONFIG+=("$SUBMODULE")
-        echo "[WARN] $SUBMODULE: no branch set in .gitmodules"
-    else
-        echo "[OK] $SUBMODULE: tracks $BRANCH"
-    fi
-done
+git config -f .gitmodules submodule.<name>.branch <branch>
 ```
 
-If any submodules are missing branch config, guide the user:
-
-```
-The following submodules have no tracked branch in .gitmodules:
-  - frontend
-  - shared-lib
-
-Set the branch each submodule should track:
-  - IaC repos (dev-to-main workflow): git config -f .gitmodules submodule.frontend.branch dev
-  - Library repos (main-only):        git config -f .gitmodules submodule.shared-lib.branch main
-
-Then commit the change:
-  git add .gitmodules && git commit -m "chore: set tracked branches for submodules"
-```
-
-Ask the user which branch each unconfigured submodule should track, then run the `git config -f .gitmodules` commands and commit.
-
-## 4. Verify Environment Files
-
-For each submodule, check for `.env`:
-
+After setting all branches, stage and commit:
 ```bash
-for SUBMODULE in $(git submodule status | awk '{print $2}'); do
-    if [ -f "$SUBMODULE/.env" ]; then
-        echo "[OK] $SUBMODULE/.env exists"
-    elif [ -f "$SUBMODULE/.env.example" ]; then
-        echo "[WARN] $SUBMODULE/.env missing -- copy from .env.example:"
-        echo "  cp $SUBMODULE/.env.example $SUBMODULE/.env"
-    else
-        echo "[WARN] $SUBMODULE has no .env or .env.example"
-    fi
-done
+git add .gitmodules
+git commit -m "chore: set tracked branches for submodules"
 ```
 
-Also check the monorepo root:
-```bash
-if [ -f ".env" ]; then
-    echo "[OK] Monorepo root .env exists"
-elif [ -f ".env.example" ]; then
-    echo "[WARN] Root .env missing -- copy from .env.example"
-else
-    echo "[INFO] No .env at monorepo root (may not be needed)"
-fi
-```
+## 3. Fix Environment Files
 
-## 5. Check Dev Dependencies
+For each submodule where `env_status` is:
+- `missing` (has .env.example but no .env): `cp <submodule>/.env.example <submodule>/.env`
+- `no_template`: note that no .env may be needed, or ask the user
 
-If the monorepo root has a `pyproject.toml`:
-```bash
-if [ -f "pyproject.toml" ]; then
-    echo "Installing monorepo dev dependencies..."
-    uv sync
-fi
-```
+Also check root .env if warnings mention it.
 
-## 6. Report Setup Status
+## 4. Report Setup Status
+
+Format results as:
 
 ```
 Monorepo setup complete!
@@ -124,7 +86,13 @@ Next steps:
   3. Check monorepo status: /ai-mono-status
 ```
 
+Use the repo type detection from step 2 to suggest `--iac` vs `--lib` for each submodule:
+- `--iac` for backends, web services, and infrastructure (repos that deploy)
+- `--lib` for libraries and packages (repos that publish)
+
+This is a one-time setup. After init, use `/ai-mono-status` for ongoing monitoring.
+
 ## Error Handling
-- **Not a monorepo**: Clear error
-- **Submodule clone fails**: Report which submodule failed, suggest checking SSH keys / access
-- **uv not available**: Skip dependency install, suggest installing uv
+- **Not a monorepo**: CLI exits with error -- relay the message
+- **Submodule clone fails**: Suggest checking SSH keys / access
+- **Specified submodule not found**: CLI exits with error -- relay and list available submodules

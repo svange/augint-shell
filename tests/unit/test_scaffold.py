@@ -766,7 +766,7 @@ class TestNotesTemplateSelection:
         )
         content = (tmp_path / "NOTES.md").read_text()
         assert "## Submodule Map" in content
-        assert "augint-mono" in content
+        assert "ai-mono" in content
 
     def test_none_type_uses_default_notes(self, tmp_path):
         scaffold_project(tmp_path, repo_type=None)

@@ -8,108 +8,71 @@ Sync submodule pointers to their latest tracked branch HEAD: $ARGUMENTS
 
 Updates submodule pointers to the latest commit on each submodule's tracked branch (configured in `.gitmodules`), optionally staging and committing the pointer changes.
 
+Sync after PRs are merged in a submodule, not while feature branches are in progress. Syncing picks up whatever is on the tracked branch (typically `dev` or `main`).
+
 ## Usage Examples
 - `/ai-mono-sync` - Show what would change (dry run)
 - `/ai-mono-sync --commit` - Update pointers and commit changes
 - `/ai-mono-sync --submodule backend` - Sync only one submodule
 
-## 1. Verify Monorepo
+## 1. Preview Changes
 
 ```bash
-if [ ! -f .gitmodules ]; then
-    echo "ERROR: No .gitmodules found. This does not appear to be a monorepo."
-    exit 1
-fi
+ai-mono sync --json $ARGUMENTS
 ```
 
-## 2. Resolve Tracked Branch Per Submodule
+If `ai-mono` is not found, install it: `uv sync --all-extras`, then retry.
 
-Each submodule tracks a specific branch configured in `.gitmodules`. IaC repos with a dev-to-main workflow should track `dev`; library repos track `main`.
+If `--commit` was passed in $ARGUMENTS, skip to step 3.
 
-```bash
-tracked_branch_for() {
-    local sub="$1"
-    local branch
-    branch=$(git config -f .gitmodules "submodule.${sub}.branch" 2>/dev/null)
-    if [ -n "$branch" ]; then
-        echo "$branch"
-        return
-    fi
-    branch=$(cd "$sub" && git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-    if [ -n "$branch" ]; then
-        echo "$branch"
-        return
-    fi
-    echo "main"
+**JSON response:**
+```json
+{
+  "submodules": [
+    {
+      "name": "str",
+      "tracked_branch": "str",
+      "pointer_sha": "full SHA",
+      "remote_sha": "full SHA or null",
+      "behind": 0,
+      "updated": false
+    }
+  ],
+  "committed": false,
+  "commit_sha": null
 }
 ```
 
-## 3. Fetch All Submodules
+## 2. Show Changes and Ask for Confirmation
 
-```bash
-git submodule update --init --recursive
-git submodule foreach git fetch --all --prune
-```
-
-## 4. Check Each Submodule
-
-For each submodule, compare the current pointer with the tracked branch HEAD:
-
-```bash
-SUBMODULE="backend"
-TRACKED=$(tracked_branch_for "$SUBMODULE")
-POINTER_SHA=$(git submodule status "$SUBMODULE" | awk '{print $1}' | tr -d '+\-U')
-
-cd "$SUBMODULE"
-REMOTE_SHA=$(git rev-parse "origin/$TRACKED")
-
-if [ "$POINTER_SHA" != "$REMOTE_SHA" ]; then
-    BEHIND=$(git log --oneline "$POINTER_SHA..$REMOTE_SHA" | wc -l)
-    NEW_COMMITS=$(git log --oneline "$POINTER_SHA..$REMOTE_SHA" --limit 5)
-    echo "$SUBMODULE ($TRACKED): $BEHIND new commits"
-    echo "$NEW_COMMITS"
-fi
-cd ..
-```
-
-## 5. Show Changes Before Acting
-
-Display a summary of what would change:
+Display what would change:
 
 ```
 Submodule pointer updates:
-  backend  (tracks dev):   a1b2c3d -> x9y8z7w  (3 commits)
-  frontend (tracks dev):   d4e5f6g -> d4e5f6g  (up to date)
+  backend  (tracks dev):    a1b2c3d -> x9y8z7w  (3 commits)
+  frontend (tracks dev):    d4e5f6g -> d4e5f6g  (up to date)
   shared-lib (tracks main): h7i8j9k -> m3n4o5p  (1 commit)
 ```
 
-If `--commit` was NOT passed, stop here and ask: "Apply these changes? Run `/ai-mono-sync --commit` to update and commit."
+If any submodule is >20 commits behind, warn: "backend is 47 commits behind -- consider reviewing changes before syncing."
 
-## 6. Update Pointers
+If no submodules need updating: "All submodules are up to date. No action needed." Stop here.
 
-```bash
-# For each submodule that needs updating
-TRACKED=$(tracked_branch_for "$SUBMODULE")
-cd "$SUBMODULE"
-git checkout "$TRACKED"
-git pull origin "$TRACKED"
-cd ..
-```
+Otherwise, ask: "Apply these changes? Run `/ai-mono-sync --commit` to update and commit."
 
-## 7. Stage and Commit
+## 3. Apply Changes
+
+When `--commit` is in $ARGUMENTS (or user confirms):
 
 ```bash
-# Stage submodule pointer changes
-git add backend shared-lib  # only changed submodules
-
-# Build commit message listing what changed
-git commit -m "chore(deps): update submodule pointers
-
-- backend (dev): a1b2c3d -> x9y8z7w (3 commits)
-- shared-lib (main): h7i8j9k -> m3n4o5p (1 commit)"
+ai-mono sync --commit --json [--submodule "$NAME"]
 ```
 
-## 8. Final Output
+The CLI handles: fetching, updating pointers, staging, and committing with a `chore(deps): update submodule pointers` message listing each updated submodule.
+
+## 4. Report Results
+
+Parse the JSON response. If `committed` is true:
 
 ```
 Submodule pointers updated and committed.
@@ -120,13 +83,14 @@ Updated:
 Unchanged:
   - frontend (dev)
 
-Commit: chore(deps): update submodule pointers
+Commit: <commit_sha>
 Next: git push or /ai-submit-work
 ```
 
+If `committed` is false but updates were expected, warn that something went wrong.
+
 ## Error Handling
-- **Not a monorepo**: Clear error
-- **Submodule has local changes**: Warn and skip that submodule
-- **Submodule in detached HEAD**: Re-attach to tracked branch before updating
+- **Not a monorepo**: CLI exits with error -- relay the message
+- **Submodule has local changes**: CLI may fail to update -- warn and suggest stashing
 - **No changes**: Exit cleanly with "All submodules are up to date"
-- **No branch configured in .gitmodules**: Warn and fall back to remote HEAD or main
+- **Specified submodule not found**: CLI exits with error -- relay and list available submodules

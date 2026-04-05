@@ -12,82 +12,36 @@ Provides a unified view of work happening across all submodules: open PRs, pipel
 - `/ai-mono-status` - Full status across all submodules
 - `/ai-mono-status --submodule backend` - Status for one submodule only
 
-## 1. Detect Submodules
+## 1. Get Status Data
 
 ```bash
-# Verify this is a monorepo (has .gitmodules)
-if [ ! -f .gitmodules ]; then
-    echo "ERROR: No .gitmodules found. This does not appear to be a monorepo."
-    echo "Run this command from the monorepo root directory."
-    exit 1
-fi
-
-git submodule status --recursive
+ai-mono status --json $ARGUMENTS
 ```
 
-Parse each submodule: name, current SHA, path.
+If `ai-mono` is not found, install it: `uv sync --all-extras`, then retry.
 
-## 2. Resolve Tracked Branch Per Submodule
-
-Each submodule tracks a specific branch configured in `.gitmodules`. IaC repos with a dev-to-main workflow should track `dev`; library repos track `main`.
-
-```bash
-# Read the tracked branch from .gitmodules (falls back to remote HEAD, then "main")
-tracked_branch_for() {
-    local sub="$1"
-    # 1. Check .gitmodules branch setting
-    local branch
-    branch=$(git config -f .gitmodules "submodule.${sub}.branch" 2>/dev/null)
-    if [ -n "$branch" ]; then
-        echo "$branch"
-        return
-    fi
-    # 2. Fall back to the submodule's remote HEAD
-    branch=$(cd "$sub" && git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-    if [ -n "$branch" ]; then
-        echo "$branch"
-        return
-    fi
-    # 3. Default to main
-    echo "main"
+**JSON response:**
+```json
+{
+  "submodules": [
+    {
+      "name": "str",
+      "tracked_branch": "str",
+      "pointer_sha": "full SHA",
+      "remote_sha": "full SHA or null",
+      "behind": 0,
+      "open_prs": 0,
+      "ci_status": "passing|failing|unknown"
+    }
+  ],
+  "summary": {"total": 0, "stale": 0, "up_to_date": 0},
+  "recommendations": ["str"]
 }
 ```
 
-## 3. Per-Submodule Status
+## 2. Format Dashboard
 
-For each submodule:
-
-```bash
-SUBMODULE="backend"  # example
-TRACKED=$(tracked_branch_for "$SUBMODULE")
-
-# Current pointer vs tracked branch HEAD
-POINTER_SHA=$(git submodule status "$SUBMODULE" | awk '{print $1}' | tr -d '+\-U')
-cd "$SUBMODULE"
-git fetch --all --prune 2>/dev/null
-
-REMOTE_SHA=$(git rev-parse "origin/$TRACKED" 2>/dev/null)
-
-# Commits behind
-if [ "$POINTER_SHA" != "$REMOTE_SHA" ]; then
-    BEHIND=$(git log --oneline "$POINTER_SHA..$REMOTE_SHA" 2>/dev/null | wc -l)
-    echo "$SUBMODULE: $BEHIND commits behind origin/$TRACKED"
-else
-    echo "$SUBMODULE: up to date (tracking $TRACKED)"
-fi
-
-# Open PRs
-gh pr list --state open --json number,title,author,updatedAt --limit 5
-
-# Latest CI run
-gh run list --limit 1 --json status,conclusion,name,createdAt
-
-cd ..
-```
-
-## 4. Aggregated Dashboard
-
-Format output as a table:
+Present results as a table:
 
 ```
 Monorepo Status
@@ -105,17 +59,27 @@ Summary:
   - 2 submodules with stale pointers
 ```
 
-## 5. Suggested Next Actions
+Use the first 7 characters of pointer_sha for display.
 
-Based on status, suggest:
+## 3. AI Analysis
+
+Go beyond the CLI's raw data:
+
+- **Priority ordering**: Which submodule needs attention most urgently? Failing CI > stale pointers > open PRs needing review.
+- **Cross-referencing**: Do any open PRs correspond to stale pointers? (e.g., a merged PR in a submodule that hasn't been synced yet)
+- **Blocked work detection**: Are stale pointers blocking other submodules' work?
+
+## 4. Suggested Next Actions
+
+Based on status, suggest specific actions:
 - If submodules are behind: "Run `/ai-mono-sync` to update pointers"
 - If CI is failing: "Check frontend: `cd frontend && /ai-monitor-pipeline`"
 - If PRs need review: List them with links
-- If a submodule has no `branch` set in `.gitmodules`: "Consider setting tracked branch: `git config -f .gitmodules submodule.backend.branch dev`"
 - If everything is clean: "All submodules are up to date. No action needed."
 
+Include the CLI's `recommendations` array but enhance with skill-specific suggestions.
+
 ## Error Handling
-- **Not a monorepo**: Clear error pointing to monorepo root
-- **Submodule not initialized**: Suggest `git submodule update --init`
-- **No GitHub remote**: Skip PR/CI checks for that submodule, warn
-- **Rate limiting**: Warn and show partial results
+- **Not a monorepo**: CLI exits with error -- relay the message
+- **Submodule not initialized**: Suggest `/ai-mono-init`
+- **No GitHub remote / gh CLI missing**: CLI warns and returns `open_prs: 0`, `ci_status: "unknown"` -- note this in output

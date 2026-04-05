@@ -13,7 +13,7 @@ wheels = [
 
 [[package]]
 name = "augint-github"
-version = "1.3.5"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -22,9 +22,22 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6a/a4/fde29e2f2046ec8a3dcff470b384340669639cff29105015055f62f26810/augint_github-1.3.5.tar.gz", hash = "sha256:3f2f684dbdd3db1d24117e8f631be7bd97c6b784497437427a50ee7b0a8f82a7", size = 4732, upload-time = "2026-04-04T06:55:03.582Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e5/15/9f38002c3b0853bcb11d804e73d6d0ef04f992fb26bc067d739783a3424b/augint_github-1.4.0.tar.gz", hash = "sha256:858a804da657bb47dc716e544b18ea34056189167844e481e12c642ddc59380d", size = 13965, upload-time = "2026-04-05T03:13:53.661Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c4/3c/cf19410b451dd369c09aed87d8c03a79336738803e2912473326459e2d34/augint_github-1.3.5-py3-none-any.whl", hash = "sha256:fbd0a81c2129a5cfdd8dd9cacc626b9c059ec4cb54878777fd179fbd13f2dcca", size = 4714, upload-time = "2026-04-04T06:55:02.145Z" },
+    { url = "https://files.pythonhosted.org/packages/24/0d/63742dcd61d7fc282b4313b4e6d9168e9befddcaeb761998542cf68caccc/augint_github-1.4.0-py3-none-any.whl", hash = "sha256:a3bb9e2b08d5cdb41e374482efe64996d7ae8a9c26c2d94ca42639e15bb1c615", size = 21841, upload-time = "2026-04-05T03:13:52.522Z" },
+]
+
+[[package]]
+name = "augint-mono"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8a/4b/0087a47b04c52ef3858d3c3c8a96f6ebdc9e123813c10450e676159d0e59/augint_mono-0.1.3.tar.gz", hash = "sha256:f8dcda57001ca32e741bed1be2b47d9e5664bd09a1ec63a753765d676241319e", size = 8384, upload-time = "2026-04-05T03:50:05.961Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/ad/2ad0719bbfe062859ca2c8080e0ea5a838fc32ebeda61a353f05496ad90f/augint_mono-0.1.3-py3-none-any.whl", hash = "sha256:05eaf69b2bcecf3b173e550d2ad5e78e3b9f6a0749ef54ad4ad909f987b35133", size = 13217, upload-time = "2026-04-05T03:50:04.351Z" },
 ]
 
 [[package]]
@@ -56,6 +69,7 @@ dev = [
 [package.dev-dependencies]
 dev = [
     { name = "augint-github" },
+    { name = "augint-mono" },
 ]
 
 [package.metadata]
@@ -79,7 +93,10 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "augint-github", specifier = ">=1.3.1" }]
+dev = [
+    { name = "augint-github", specifier = ">=1.3.1" },
+    { name = "augint-mono", specifier = ">=0.1.2" },
+]
 
 [[package]]
 name = "bandit"
