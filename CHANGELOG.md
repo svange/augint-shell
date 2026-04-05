@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.27.0 (2026-04-05)
+
+### Features
+
+- **scaffold**: Filter Renovate dependency dashboard from issue picker
+  ([`dc2776b`](https://github.com/svange/augint-shell/commit/dc2776b3148c8e14e6404b721eedcde51be2facf))
+
+
 ## v0.26.1 (2026-04-05)
 
 ### Bug Fixes
