@@ -174,6 +174,7 @@ _UNIVERSAL_SKILLS = [
     "ai-standardize-precommit",
     "ai-standardize-dotfiles",
     "ai-standardize-repo",
+    "ai-fix-repo-standards",
 ]
 
 _RELEASE_SKILLS = ["ai-standardize-renovate", "ai-standardize-release"]
@@ -244,6 +245,7 @@ CLAUDE_SKILL_DIRS = [
     "ai-standardize-dotfiles",
     "ai-standardize-repo",
     "ai-setup-oidc",
+    "ai-fix-repo-standards",
 ]
 
 
