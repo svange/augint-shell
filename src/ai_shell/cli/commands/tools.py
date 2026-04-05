@@ -9,7 +9,7 @@ from pathlib import Path
 import click
 from rich.console import Console
 
-from ai_shell.config import load_config
+from ai_shell.config import AiShellConfig, load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import build_dev_environment
 from ai_shell.scaffold import BranchStrategy, RepoType
@@ -104,19 +104,35 @@ def _resolve_repo_config(
     return None, None, "dev"
 
 
-def _get_manager(ctx) -> tuple[ContainerManager, str, dict[str, str]]:
+def _get_manager(
+    ctx,
+    *,
+    bedrock: bool = False,
+    bedrock_profile: str = "",
+) -> tuple[ContainerManager, str, dict[str, str], AiShellConfig]:
     """Create ContainerManager from Click context and ensure dev container.
 
-    Returns (manager, container_name, exec_env) where exec_env is a freshly
-    resolved environment dict from .env / host env, suitable for passing as
-    extra_env to exec/run calls so that token updates take effect immediately.
+    Returns (manager, container_name, exec_env, config) where exec_env is a
+    freshly resolved environment dict from .env / host env, suitable for passing
+    as extra_env to exec/run calls so that token updates take effect immediately.
+
+    When *bedrock* is True, ``CLAUDE_CODE_USE_BEDROCK=1`` is injected into
+    exec_env and *bedrock_profile* overrides ``AWS_PROFILE`` for the tool
+    process (the container-level env retains the infra profile).
     """
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
-    exec_env = build_dev_environment(config.extra_env, config.project_dir)
-    return manager, container_name, exec_env
+    exec_env = build_dev_environment(
+        config.extra_env,
+        config.project_dir,
+        bedrock=bedrock,
+        aws_profile=config.ai_profile,
+        aws_region=config.aws_region,
+        bedrock_profile=bedrock_profile or config.bedrock_profile,
+    )
+    return manager, container_name, exec_env, config
 
 
 @click.command()
@@ -156,13 +172,25 @@ def _get_manager(ctx) -> tuple[ContainerManager, str, dict[str, str]]:
     default=False,
     help="Skip merging notes into context file on --update/--reset.",
 )
+@click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
+@click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
 @click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
 @click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def claude(
-    ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, repo_type_flag, extra_args
+    ctx,
+    do_init,
+    do_update,
+    do_reset,
+    do_clean,
+    safe,
+    skip_merge,
+    use_aws,
+    cli_profile,
+    repo_type_flag,
+    extra_args,
 ):
     """Launch Claude Code in the dev container."""
     if do_init or do_update or do_reset or do_clean:
@@ -187,7 +215,16 @@ def claude(
             merge_notes_into_context(Path.cwd(), "claude", background=True)
         return
 
-    manager, name, exec_env = _get_manager(ctx)
+    # Load config first to check provider setting
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    use_bedrock = use_aws or config.claude_provider == "aws"
+
+    manager, name, exec_env, config = _get_manager(
+        ctx,
+        bedrock=use_bedrock,
+        bedrock_profile=cli_profile or "",
+    )
 
     if safe:
         cmd = ["claude", *extra_args]
@@ -276,7 +313,7 @@ def codex(
             merge_notes_into_context(Path.cwd(), "codex", background=True)
         return
 
-    manager, name, exec_env = _get_manager(ctx)
+    manager, name, exec_env, _config = _get_manager(ctx)
     cmd = ["codex"]
     if not safe:
         cmd.extend(["--dangerously-bypass-approvals-and-sandbox"])
@@ -322,11 +359,24 @@ def codex(
     default=False,
     help="Skip merging notes into context file on --update/--reset.",
 )
+@click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
+@click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
 @click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
 @click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
 @click.pass_context
-def opencode(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, repo_type_flag):
+def opencode(
+    ctx,
+    do_init,
+    do_update,
+    do_reset,
+    do_clean,
+    safe,
+    skip_merge,
+    use_aws,
+    cli_profile,
+    repo_type_flag,
+):
     """Launch opencode in the dev container."""
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
@@ -350,7 +400,16 @@ def opencode(ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, repo
             merge_notes_into_context(Path.cwd(), "opencode", background=True)
         return
 
-    manager, name, exec_env = _get_manager(ctx)
+    # Load config first to check provider setting
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    use_bedrock = use_aws or config.opencode_provider == "aws"
+
+    manager, name, exec_env, config = _get_manager(
+        ctx,
+        bedrock=use_bedrock,
+        bedrock_profile=cli_profile or "",
+    )
     cmd = ["/root/.opencode/bin/opencode"]
     console.print(f"[bold]Launching opencode in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env)
@@ -410,8 +469,7 @@ def aider(ctx, do_init, do_update, do_reset, do_clean, safe, repo_type_flag, ext
         )
         return
 
-    manager, name, exec_env = _get_manager(ctx)
-    config = manager.config
+    manager, name, exec_env, config = _get_manager(ctx)
     cmd = ["aider", "--model", config.aider_model]
     if not safe:
         cmd.append("--yes-always")
@@ -426,7 +484,7 @@ def aider(ctx, do_init, do_update, do_reset, do_clean, safe, repo_type_flag, ext
 @click.pass_context
 def shell(ctx):
     """Open a bash shell in the dev container."""
-    manager, name, exec_env = _get_manager(ctx)
+    manager, name, exec_env, _config = _get_manager(ctx)
     console.print(f"[bold]Opening shell in {name}...[/bold]")
     manager.exec_interactive(name, ["/bin/bash"], extra_env=exec_env)
 

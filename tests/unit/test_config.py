@@ -209,3 +209,102 @@ branch_strategy = "main"
         config = load_config(project_dir=tmp_path)
         assert config.repo_type == "monorepo"
         assert config.branch_strategy == "main"
+
+
+class TestAwsConfig:
+    def test_aws_defaults_empty(self, tmp_path):
+        config = load_config(project_dir=tmp_path)
+        assert config.ai_profile == ""
+        assert config.aws_region == ""
+        assert config.bedrock_profile == ""
+        assert config.claude_provider == ""
+        assert config.opencode_provider == ""
+
+    def test_ai_profile_from_toml(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[aws]
+ai_profile = "my-infra"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.ai_profile == "my-infra"
+
+    def test_bedrock_profile_from_toml(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[aws]
+bedrock_profile = "my-ai-account"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.bedrock_profile == "my-ai-account"
+
+    def test_aws_region_from_toml(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[aws]
+region = "eu-west-1"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.aws_region == "eu-west-1"
+
+    def test_claude_provider_from_toml(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[claude]
+provider = "aws"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.claude_provider == "aws"
+
+    def test_opencode_provider_from_toml(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[opencode]
+provider = "aws"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.opencode_provider == "aws"
+
+    def test_full_aws_config(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[aws]
+ai_profile = "infra-acct"
+bedrock_profile = "ai-acct"
+region = "us-west-2"
+
+[claude]
+provider = "aws"
+
+[opencode]
+provider = "aws"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.ai_profile == "infra-acct"
+        assert config.bedrock_profile == "ai-acct"
+        assert config.aws_region == "us-west-2"
+        assert config.claude_provider == "aws"
+        assert config.opencode_provider == "aws"
+
+    def test_provider_env_vars(self, tmp_path):
+        env = {
+            "AI_SHELL_CLAUDE_PROVIDER": "aws",
+            "AI_SHELL_OPENCODE_PROVIDER": "aws",
+        }
+        with patch.dict("os.environ", env):
+            config = load_config(project_dir=tmp_path)
+        assert config.claude_provider == "aws"
+        assert config.opencode_provider == "aws"
+
+    def test_bedrock_profile_env_var(self, tmp_path):
+        with patch.dict("os.environ", {"AI_SHELL_BEDROCK_PROFILE": "ai-acct"}):
+            config = load_config(project_dir=tmp_path)
+        assert config.bedrock_profile == "ai-acct"
+
+    def test_ai_profile_env_var(self, tmp_path):
+        with patch.dict("os.environ", {"AI_SHELL_AI_PROFILE": "infra-acct"}):
+            config = load_config(project_dir=tmp_path)
+        assert config.ai_profile == "infra-acct"
+
+    def test_env_overrides_toml(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[claude]
+provider = "anthropic"
+""")
+        with patch.dict("os.environ", {"AI_SHELL_CLAUDE_PROVIDER": "aws"}):
+            config = load_config(project_dir=tmp_path)
+        assert config.claude_provider == "aws"

@@ -358,6 +358,14 @@ class TestScaffoldOpencode:
         assert bedrock["options"]["region"] == "{env:AWS_REGION}"
         assert bedrock["options"]["profile"] == "{env:AWS_PROFILE}"
 
+    def test_opencode_json_has_bedrock_models(self, tmp_path):
+        scaffold_opencode(tmp_path)
+        data = json.loads((tmp_path / "opencode.json").read_text())
+        models = data["provider"]["amazon-bedrock"]["models"]
+        assert "us.anthropic.claude-sonnet-4-20250514-v1:0" in models
+        assert "us.anthropic.claude-opus-4-20250514-v1:0" in models
+        assert "us.anthropic.claude-haiku-4-20250514-v1:0" in models
+
     def test_opencode_json_has_instructions(self, tmp_path):
         scaffold_opencode(tmp_path)
         data = json.loads((tmp_path / "opencode.json").read_text())
