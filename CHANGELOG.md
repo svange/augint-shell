@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.26.1 (2026-04-05)
+
+### Bug Fixes
+
+- **docker**: Set core.filemode false in container git config
+  ([`16d7efa`](https://github.com/svange/augint-shell/commit/16d7efaf1cd66bbd1040350b77536b3471677f72))
+
+
 ## v0.26.0 (2026-04-05)
 
 ### Bug Fixes
