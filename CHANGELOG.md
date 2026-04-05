@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v0.26.0 (2026-04-05)
+
+### Bug Fixes
+
+- Add lingering files
+  ([`92385a7`](https://github.com/svange/augint-shell/commit/92385a79ae446d3ba7537256984950080869bca7))
+
+### Features
+
+- **scaffold**: Rewrite ai-mono-* skills to consume CLI --json output
+  ([#22](https://github.com/svange/augint-shell/pull/22),
+  [`fce3a9b`](https://github.com/svange/augint-shell/commit/fce3a9b25a23733acc627c823392b97ab7f9edbd))
+
+
 ## v0.25.0 (2026-04-05)
 
 ### Bug Fixes
