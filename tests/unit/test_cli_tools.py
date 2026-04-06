@@ -677,10 +677,13 @@ class TestCheckBedrockAccess:
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
-        assert "aws" in args
-        assert "bedrock" in args
-        assert "--profile" in args
-        assert "rd" in args
+        assert "docker" in args
+        assert "test-container" in args
+        assert "bash" in args
+        # Shell command contains invoke-model and profile
+        shell_cmd = args[-1]
+        assert "invoke-model" in shell_cmd
+        assert "--profile rd" in shell_cmd
 
     @patch("ai_shell.cli.commands.tools.subprocess.run")
     def test_raises_on_failure(self, mock_run):
@@ -688,7 +691,7 @@ class TestCheckBedrockAccess:
 
         mock_run.return_value = MagicMock(
             returncode=1,
-            stderr="AccessDeniedException: not authorized to perform bedrock:ListFoundationModels",
+            stderr="AccessDeniedException: not authorized to perform bedrock:InvokeModel",
         )
         exec_env = {"AWS_PROFILE": "rd", "AWS_REGION": "us-east-1"}
 
@@ -705,4 +708,5 @@ class TestCheckBedrockAccess:
         _check_bedrock_access("test-container", exec_env)
 
         args = mock_run.call_args[0][0]
-        assert "--profile" not in args
+        shell_cmd = args[-1]
+        assert "--profile" not in shell_cmd
