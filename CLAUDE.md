@@ -133,8 +133,8 @@ All workflow skills (ai-prepare-branch, ai-submit-work, ai-monitor-pipeline, ai-
 
 1. Check `ai-shell.toml` for `[workflow] dev_branch` override (wins if set)
 2. Check remote branches (priority order): `origin/dev` > `origin/develop` > `origin/staging`
-3. First match = dev branch. Repo is "dev-based" (IaC/web/backend pattern).
-4. No match = "main-only" repo (library pattern).
+3. First match = dev branch. Repo is a "service" (deploy pattern: IaC/web/backend/frontend).
+4. No match = "library" repo (publish pattern, main-only).
 5. Default branch = `git symbolic-ref refs/remotes/origin/HEAD` or fallback `main`
 6. Base branch for new work = dev branch if found, else default branch
 
@@ -152,7 +152,23 @@ BASE=${DEV_BRANCH:-$DEFAULT_BRANCH}
 
 ## CI/CD Pipeline
 
-PR pipeline: pre-commit -> (security scan + compliance + unit tests in parallel). On merge to main: semantic-release -> (PyPI publish + Docker Hub publish + GitHub Pages docs deploy in parallel).
+### 4 Universal Quality Gates (all repos)
+
+1. **Code quality** - linting, formatting, type checking, file hygiene, build validation
+2. **Security scanning** - semgrep SAST + dependency vulnerability scanning
+3. **Unit tests** - tests + coverage threshold (>=80%)
+4. **License compliance** - GPL/AGPL blocking with enforcement
+
+### 2 Project Types
+
+- **library** (main-only): release -> publish (PyPI/npm) -> docs
+- **service** (dev+main): deploy staging -> integration tests -> deploy prod -> release
+
+### Pipeline Architecture
+
+Qualification (pre-merge): 4 gates above, enforced by branch rulesets.
+Delivery (post-merge): varies by type. Test stages named by type (unit, integration, e2e).
+Adapters (per language): Python (ruff, mypy, pytest, semgrep, pip-audit, liccheck) or TypeScript (biome, tsc, vitest, semgrep, npm audit, licensee).
 
 ## Testing Patterns
 

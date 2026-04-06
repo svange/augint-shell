@@ -149,7 +149,7 @@ def _write_file(path: Path, content: str, *, overwrite: bool) -> bool:
 
 class RepoType(StrEnum):
     LIBRARY = "library"
-    IAC = "iac"
+    SERVICE = "service"
     MONOREPO = "monorepo"
 
 
@@ -170,22 +170,29 @@ _UNIVERSAL_SKILLS = [
     "ai-repo-health",
     "ai-create-cmd",
     "ai-web-dev",
-    "ai-standardize-pipeline",
-    "ai-standardize-precommit",
-    "ai-standardize-dotfiles",
     "ai-standardize-repo",
-    "ai-fix-repo-standards",
+    "ai-new-project",
 ]
 
-_RELEASE_SKILLS = ["ai-standardize-renovate", "ai-standardize-release"]
 _PROMOTE_SKILLS = ["ai-promote"]
-_IAC_SKILLS = ["ai-setup-oidc"]
+_SERVICE_SKILLS = ["ai-setup-oidc"]
 _MONO_SKILLS = [
     "ai-mono-status",
     "ai-mono-sync",
     "ai-mono-init",
     "ai-mono-health",
     "ai-mono-foreach",
+]
+
+# Skills removed in the unified standardization consolidation.
+# Listed here so _remove_stale_skills() cleans them from existing repos.
+_DELETED_SKILLS = [
+    "ai-standardize-dotfiles",
+    "ai-standardize-precommit",
+    "ai-standardize-pipeline",
+    "ai-standardize-renovate",
+    "ai-standardize-release",
+    "ai-fix-repo-standards",
 ]
 
 
@@ -199,10 +206,8 @@ def skills_for_config(
 
     skills = list(_UNIVERSAL_SKILLS)
 
-    if repo_type != RepoType.MONOREPO:
-        skills.extend(_RELEASE_SKILLS)
-    if repo_type == RepoType.IAC:
-        skills.extend(_IAC_SKILLS)
+    if repo_type == RepoType.SERVICE:
+        skills.extend(_SERVICE_SKILLS)
     if repo_type == RepoType.MONOREPO:
         skills.extend(_MONO_SKILLS)
     if branch_strategy == BranchStrategy.DEV:
@@ -213,14 +218,14 @@ def skills_for_config(
 
 # All known skill names (superset for stale-skill cleanup).
 ALL_KNOWN_SKILLS = sorted(
-    set(_UNIVERSAL_SKILLS + _RELEASE_SKILLS + _PROMOTE_SKILLS + _IAC_SKILLS + _MONO_SKILLS)
+    set(_UNIVERSAL_SKILLS + _PROMOTE_SKILLS + _SERVICE_SKILLS + _MONO_SKILLS + _DELETED_SKILLS)
 )
 
 # NOTES.md template mapping by repo type.
 _NOTES_TEMPLATE: dict[RepoType | None, str] = {
     None: "notes.md",
     RepoType.LIBRARY: "notes-library.md",
-    RepoType.IAC: "notes-iac.md",
+    RepoType.SERVICE: "notes-service.md",
     RepoType.MONOREPO: "notes-monorepo.md",
 }
 
@@ -238,14 +243,9 @@ CLAUDE_SKILL_DIRS = [
     "ai-rollback",
     "ai-status",
     "ai-web-dev",
-    "ai-standardize-renovate",
-    "ai-standardize-release",
-    "ai-standardize-pipeline",
-    "ai-standardize-precommit",
-    "ai-standardize-dotfiles",
     "ai-standardize-repo",
+    "ai-new-project",
     "ai-setup-oidc",
-    "ai-fix-repo-standards",
 ]
 
 

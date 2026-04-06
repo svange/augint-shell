@@ -178,7 +178,9 @@ def _apply_toml(config: AiShellConfig, path: Path) -> None:
     # [project] section
     project = data.get("project", {})
     if "repo_type" in project:
-        config.repo_type = project["repo_type"]
+        value = project["repo_type"]
+        # Backward compat: "iac" was renamed to "service"
+        config.repo_type = "service" if value == "iac" else value
     if "branch_strategy" in project:
         config.branch_strategy = project["branch_strategy"]
     if "dev_branch" in project:
