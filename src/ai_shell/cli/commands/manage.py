@@ -1,4 +1,4 @@
-"""Container management commands: status, stop, clean, logs, pull."""
+"""Container management commands: status, stop, clean, logs, pull, env."""
 
 from pathlib import Path
 
@@ -7,7 +7,7 @@ from rich.console import Console
 
 from ai_shell.config import load_config
 from ai_shell.container import ContainerManager
-from ai_shell.defaults import dev_container_name
+from ai_shell.defaults import build_dev_environment, dev_container_name
 from ai_shell.exceptions import ContainerNotFoundError
 
 console = Console(stderr=True)
@@ -100,3 +100,29 @@ def manage_pull(ctx):
     console.print(f"[bold]Pulling {image}...[/bold]")
     manager._pull_image_if_needed(image)
     console.print(f"[green]Image ready: {image}[/green]")
+
+
+@manage_group.command("env")
+@click.option("--aws", "use_aws", is_flag=True, default=False, help="Show Bedrock environment.")
+@click.pass_context
+def manage_env(ctx, use_aws):
+    """Show environment variables that would be passed to AI tool processes."""
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    use_bedrock = use_aws or config.claude_provider == "aws"
+
+    exec_env = build_dev_environment(
+        config.extra_env,
+        config.project_dir,
+        bedrock=use_bedrock,
+        aws_profile=config.ai_profile,
+        aws_region=config.aws_region,
+        bedrock_profile=config.bedrock_profile if use_bedrock else "",
+    )
+
+    console.print("[bold]Resolved exec environment:[/bold]")
+    for key in sorted(exec_env):
+        value = exec_env[key]
+        if key in ("GH_TOKEN", "GITHUB_TOKEN") and value:
+            value = value[:4] + "..." + value[-4:] if len(value) > 8 else "***"
+        console.print(f"  {key}={value}")

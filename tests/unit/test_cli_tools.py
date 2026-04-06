@@ -9,6 +9,7 @@ from ai_shell.cli.__main__ import cli
 TEST_EXEC_ENV = {
     "AWS_PROFILE": "",
     "AWS_REGION": "us-east-1",
+    "AWS_DEFAULT_REGION": "us-east-1",
     "AWS_PAGER": "",
     "GH_TOKEN": "test-token",
     "GITHUB_TOKEN": "test-token",
@@ -530,6 +531,50 @@ class TestToolCommands:
 
         mock_merge.assert_not_called()
         assert result.exit_code == 0
+
+    def test_claude_bedrock_launch_message(self, mock_config, mock_manager_cls, mock_build_env):
+        bedrock_env = dict(TEST_EXEC_ENV)
+        bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+        bedrock_env["AWS_PROFILE"] = "rd"
+        mock_build_env.return_value = bedrock_env
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["claude", "--aws"])
+
+        assert "Bedrock" in result.output
+        assert "profile=rd" in result.output
+        assert "region=us-east-1" in result.output
+
+    def test_claude_config_provider_activates_bedrock(
+        self, mock_config, mock_manager_cls, mock_build_env
+    ):
+        config = MagicMock()
+        config.claude_provider = "aws"
+        config.bedrock_profile = "rd"
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
+        bedrock_env = dict(TEST_EXEC_ENV)
+        bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+        bedrock_env["AWS_PROFILE"] = "rd"
+        mock_build_env.return_value = bedrock_env
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["claude"])
+
+        assert "Bedrock" in result.output
+        mock_build_env.assert_called_once()
+        call_kwargs = mock_build_env.call_args[1]
+        assert call_kwargs["bedrock"] is True
 
     def test_version_flag(self, mock_config, mock_manager_cls, mock_build_env):
         result = self.runner.invoke(cli, ["--version"])

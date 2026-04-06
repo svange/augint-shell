@@ -226,14 +226,21 @@ def claude(
         bedrock_profile=cli_profile or "",
     )
 
+    if use_bedrock:
+        profile_label = exec_env.get("AWS_PROFILE", "default")
+        region_label = exec_env.get("AWS_REGION", "us-east-1")
+        bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
+    else:
+        bedrock_label = ""
+
     if safe:
         cmd = ["claude", *extra_args]
-        console.print(f"[bold]Launching Claude Code (safe mode) in {name}...[/bold]")
+        console.print(f"[bold]Launching Claude Code (safe mode){bedrock_label} in {name}...[/bold]")
         manager.exec_interactive(name, cmd, extra_env=exec_env)
     else:
         # Try with -c first (continue previous conversation)
         cmd_continue = ["claude", "--dangerously-skip-permissions", "-c", *extra_args]
-        console.print(f"[bold]Launching Claude Code in {name}...[/bold]")
+        console.print(f"[bold]Launching Claude Code{bedrock_label} in {name}...[/bold]")
         exit_code, elapsed = manager.run_interactive(name, cmd_continue, extra_env=exec_env)
 
         if exit_code != 0 and elapsed < FAST_FAILURE_THRESHOLD:
@@ -410,8 +417,16 @@ def opencode(
         bedrock=use_bedrock,
         bedrock_profile=cli_profile or "",
     )
+
+    if use_bedrock:
+        profile_label = exec_env.get("AWS_PROFILE", "default")
+        region_label = exec_env.get("AWS_REGION", "us-east-1")
+        bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
+    else:
+        bedrock_label = ""
+
     cmd = ["/root/.opencode/bin/opencode"]
-    console.print(f"[bold]Launching opencode in {name}...[/bold]")
+    console.print(f"[bold]Launching opencode{bedrock_label} in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env)
 
 

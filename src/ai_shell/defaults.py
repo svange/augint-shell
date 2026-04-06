@@ -190,6 +190,9 @@ def build_dev_environment(
         "IS_SANDBOX": "1",
     }
 
+    # Mirror AWS_REGION to AWS_DEFAULT_REGION so both Node.js SDK paths resolve
+    env["AWS_DEFAULT_REGION"] = env["AWS_REGION"]
+
     if bedrock:
         env["CLAUDE_CODE_USE_BEDROCK"] = "1"
         if bedrock_profile:
