@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -14,9 +16,59 @@ from ai_shell.container import ContainerManager
 from ai_shell.defaults import build_dev_environment
 from ai_shell.scaffold import BranchStrategy, RepoType
 
+logger = logging.getLogger(__name__)
 console = Console(stderr=True)
 
 FAST_FAILURE_THRESHOLD = 5.0  # seconds — if claude -c exits faster, retry without -c
+
+
+def _check_bedrock_access(
+    container_name: str,
+    exec_env: dict[str, str],
+) -> None:
+    """Verify Bedrock is reachable before launching a tool.
+
+    Runs a lightweight ``aws bedrock list-foundation-models --max-results 1``
+    inside the container.  Raises :class:`click.ClickException` with a
+    human-readable message on any failure (expired SSO, SCP deny, etc.).
+    """
+    args = ["docker", "exec"]
+    for key, value in exec_env.items():
+        args.extend(["-e", f"{key}={value}"])
+    args.extend(
+        [
+            container_name,
+            "aws",
+            "bedrock",
+            "list-foundation-models",
+            "--max-results",
+            "1",
+            "--region",
+            exec_env.get("AWS_REGION", "us-east-1"),
+            "--output",
+            "json",
+        ]
+    )
+
+    profile = exec_env.get("AWS_PROFILE", "")
+    if profile:
+        args.extend(["--profile", profile])
+
+    logger.debug("bedrock preflight: %s", " ".join(args))
+    result = subprocess.run(args, capture_output=True, text=True, timeout=15)
+
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        raise click.ClickException(
+            f"Bedrock access check failed (profile={profile or 'default'}, "
+            f"region={exec_env.get('AWS_REGION', 'us-east-1')}).\n"
+            f"  {stderr}\n\n"
+            "Possible causes:\n"
+            "  - AWS SSO session expired: run 'aws sso login --profile <profile>' on the host\n"
+            "  - Bedrock model access not enabled: check the Bedrock console under Model Access\n"
+            "  - SCP or IAM policy denying bedrock:* actions\n"
+            "  - Wrong AWS region: ensure Bedrock is available in the configured region"
+        )
 
 
 # ── Repo-type resolution helpers ──────────────────────────────────
@@ -230,6 +282,10 @@ def claude(
         profile_label = exec_env.get("AWS_PROFILE", "default")
         region_label = exec_env.get("AWS_REGION", "us-east-1")
         bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
+        console.print(
+            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+        )
+        _check_bedrock_access(name, exec_env)
     else:
         bedrock_label = ""
 
@@ -422,6 +478,10 @@ def opencode(
         profile_label = exec_env.get("AWS_PROFILE", "default")
         region_label = exec_env.get("AWS_REGION", "us-east-1")
         bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
+        console.print(
+            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+        )
+        _check_bedrock_access(name, exec_env)
     else:
         bedrock_label = ""
 

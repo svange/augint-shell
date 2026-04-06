@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import click
+import pytest
 from click.testing import CliRunner
 
 from ai_shell.cli.__main__ import cli
@@ -17,6 +19,7 @@ TEST_EXEC_ENV = {
 }
 
 
+@patch("ai_shell.cli.commands.tools._check_bedrock_access")
 @patch("ai_shell.cli.commands.tools.build_dev_environment")
 @patch("ai_shell.cli.commands.tools.ContainerManager")
 @patch("ai_shell.cli.commands.tools.load_config")
@@ -25,7 +28,7 @@ class TestToolCommands:
         self.runner = CliRunner()
 
     def test_claude_default_uses_permissive_with_continue(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
@@ -44,7 +47,9 @@ class TestToolCommands:
         mock_manager.exec_interactive.assert_not_called()
         assert result.exit_code == 0
 
-    def test_claude_retry_on_fast_failure(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_claude_retry_on_fast_failure(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
@@ -63,7 +68,9 @@ class TestToolCommands:
         assert cmd_fresh == ["claude", "--dangerously-skip-permissions"]
         assert mock_manager.exec_interactive.call_args[1]["extra_env"] == TEST_EXEC_ENV
 
-    def test_claude_no_retry_on_slow_failure(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_claude_no_retry_on_slow_failure(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
@@ -76,7 +83,9 @@ class TestToolCommands:
         mock_manager.exec_interactive.assert_not_called()
         assert result.exit_code == 1
 
-    def test_claude_safe_mode(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_claude_safe_mode(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
@@ -92,7 +101,9 @@ class TestToolCommands:
         # Should NOT use run_interactive at all
         mock_manager.run_interactive.assert_not_called()
 
-    def test_claude_with_extra_args(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_claude_with_extra_args(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
@@ -104,7 +115,7 @@ class TestToolCommands:
         cmd = mock_manager.run_interactive.call_args[0][1]
         assert cmd == ["claude", "--dangerously-skip-permissions", "-c", "--debug"]
 
-    def test_codex_command(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_codex_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
@@ -118,7 +129,9 @@ class TestToolCommands:
         assert "--dangerously-bypass-approvals-and-sandbox" in cmd
         assert mock_manager.exec_interactive.call_args[1]["extra_env"] == TEST_EXEC_ENV
 
-    def test_codex_safe_mode(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_codex_safe_mode(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
@@ -130,7 +143,7 @@ class TestToolCommands:
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert "--dangerously-bypass-approvals-and-sandbox" not in cmd
 
-    def test_shell_command(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_shell_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
@@ -143,7 +156,9 @@ class TestToolCommands:
         assert cmd == ["/bin/bash"]
         assert mock_manager.exec_interactive.call_args[1]["extra_env"] == TEST_EXEC_ENV
 
-    def test_aider_passes_model_and_env(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_aider_passes_model_and_env(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
         config.aider_model = "ollama_chat/qwen3.5:27b"
@@ -168,7 +183,9 @@ class TestToolCommands:
         assert extra_env["OLLAMA_API_BASE"] == "http://host.docker.internal:11434"
         assert extra_env["GH_TOKEN"] == "test-token"
 
-    def test_aider_safe_mode(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_aider_safe_mode(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
         config.aider_model = "ollama_chat/qwen3.5:27b"
@@ -187,7 +204,9 @@ class TestToolCommands:
         assert "--model" in cmd
         assert "--restore-chat-history" in cmd
 
-    def test_opencode_init_calls_scaffold(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_opencode_init_calls_scaffold(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
             with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
@@ -205,7 +224,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_opencode_update_calls_scaffold_with_merge(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -226,7 +245,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_opencode_reset_calls_scaffold_with_overwrite(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -247,7 +266,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_opencode_clean_calls_scaffold_with_clean(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -265,7 +284,9 @@ class TestToolCommands:
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
-    def test_codex_init_calls_scaffold(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_codex_init_calls_scaffold(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
             with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
@@ -283,7 +304,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_codex_update_calls_scaffold_with_merge(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -304,7 +325,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_codex_reset_calls_scaffold_with_overwrite(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -325,7 +346,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_codex_clean_calls_scaffold_with_clean(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -343,7 +364,9 @@ class TestToolCommands:
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
-    def test_aider_init_calls_scaffold(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_aider_init_calls_scaffold(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
             with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
@@ -360,7 +383,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_aider_update_calls_scaffold_with_merge(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -377,7 +400,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_aider_reset_calls_scaffold_with_overwrite(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -394,7 +417,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_aider_clean_calls_scaffold_with_clean(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -411,7 +434,9 @@ class TestToolCommands:
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
 
-    def test_claude_update_calls_merge(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_claude_update_calls_merge(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
             with (
@@ -424,7 +449,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_claude_update_with_no_merge_skips_merge(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -437,7 +462,9 @@ class TestToolCommands:
         mock_merge.assert_not_called()
         assert result.exit_code == 0
 
-    def test_claude_init_does_not_call_merge(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_claude_init_does_not_call_merge(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
             with (
@@ -448,7 +475,9 @@ class TestToolCommands:
 
         mock_merge.assert_not_called()
 
-    def test_claude_clean_does_not_call_merge(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_claude_clean_does_not_call_merge(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
             with (
@@ -459,7 +488,9 @@ class TestToolCommands:
 
         mock_merge.assert_not_called()
 
-    def test_codex_update_calls_merge(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_codex_update_calls_merge(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
             with (
@@ -472,7 +503,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_codex_update_with_no_merge_skips_merge(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -485,7 +516,9 @@ class TestToolCommands:
         mock_merge.assert_not_called()
         assert result.exit_code == 0
 
-    def test_opencode_update_calls_merge(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_opencode_update_calls_merge(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
             with (
@@ -498,7 +531,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_opencode_update_with_no_merge_skips_merge(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -512,7 +545,7 @@ class TestToolCommands:
         assert result.exit_code == 0
 
     def test_init_update_all_with_no_merge_skips_merge(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
@@ -532,7 +565,9 @@ class TestToolCommands:
         mock_merge.assert_not_called()
         assert result.exit_code == 0
 
-    def test_claude_bedrock_launch_message(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_claude_bedrock_launch_message(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
         bedrock_env = dict(TEST_EXEC_ENV)
         bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
         bedrock_env["AWS_PROFILE"] = "rd"
@@ -549,7 +584,7 @@ class TestToolCommands:
         assert "region=us-east-1" in result.output
 
     def test_claude_config_provider_activates_bedrock(
-        self, mock_config, mock_manager_cls, mock_build_env
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
         config.claude_provider = "aws"
@@ -576,7 +611,98 @@ class TestToolCommands:
         call_kwargs = mock_build_env.call_args[1]
         assert call_kwargs["bedrock"] is True
 
-    def test_version_flag(self, mock_config, mock_manager_cls, mock_build_env):
+    def test_claude_bedrock_preflight_called(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        bedrock_env = dict(TEST_EXEC_ENV)
+        bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+        bedrock_env["AWS_PROFILE"] = "rd"
+        mock_build_env.return_value = bedrock_env
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["claude", "--aws"])
+
+        mock_check_bedrock.assert_called_once_with("augint-shell-test-dev", bedrock_env)
+
+    def test_claude_bedrock_preflight_failure_blocks_launch(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        bedrock_env = dict(TEST_EXEC_ENV)
+        bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+        bedrock_env["AWS_PROFILE"] = "rd"
+        mock_build_env.return_value = bedrock_env
+        mock_check_bedrock.side_effect = click.ClickException("Bedrock access check failed")
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["claude", "--aws"])
+
+        assert result.exit_code != 0
+        assert "Bedrock access check failed" in result.output
+        mock_manager.run_interactive.assert_not_called()
+        mock_manager.exec_interactive.assert_not_called()
+
+    def test_claude_no_bedrock_skips_preflight(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["claude"])
+
+        mock_check_bedrock.assert_not_called()
+
+    def test_version_flag(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         result = self.runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
         assert "ai-shell" in result.output
+
+
+class TestCheckBedrockAccess:
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    def test_passes_on_success(self, mock_run):
+        from ai_shell.cli.commands.tools import _check_bedrock_access
+
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        exec_env = {"AWS_PROFILE": "rd", "AWS_REGION": "us-east-1"}
+
+        _check_bedrock_access("test-container", exec_env)
+
+        mock_run.assert_called_once()
+        args = mock_run.call_args[0][0]
+        assert "aws" in args
+        assert "bedrock" in args
+        assert "--profile" in args
+        assert "rd" in args
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    def test_raises_on_failure(self, mock_run):
+        from ai_shell.cli.commands.tools import _check_bedrock_access
+
+        mock_run.return_value = MagicMock(
+            returncode=1,
+            stderr="AccessDeniedException: not authorized to perform bedrock:ListFoundationModels",
+        )
+        exec_env = {"AWS_PROFILE": "rd", "AWS_REGION": "us-east-1"}
+
+        with pytest.raises(click.ClickException, match="Bedrock access check failed"):
+            _check_bedrock_access("test-container", exec_env)
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    def test_no_profile_flag_when_empty(self, mock_run):
+        from ai_shell.cli.commands.tools import _check_bedrock_access
+
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        exec_env = {"AWS_PROFILE": "", "AWS_REGION": "us-east-1"}
+
+        _check_bedrock_access("test-container", exec_env)
+
+        args = mock_run.call_args[0][0]
+        assert "--profile" not in args
