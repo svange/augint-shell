@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.31.0 (2026-04-06)
+
+### Features
+
+- **cli**: Add Bedrock diagnostics and user feedback
+  ([`bd8d368`](https://github.com/svange/augint-shell/commit/bd8d368bbff4ae742919573a6f77f2e546a23299))
+
+
 ## v0.30.0 (2026-04-06)
 
 
