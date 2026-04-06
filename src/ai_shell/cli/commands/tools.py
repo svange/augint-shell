@@ -28,45 +28,55 @@ def _check_bedrock_access(
 ) -> None:
     """Verify Bedrock is reachable before launching a tool.
 
-    Runs a lightweight ``aws bedrock list-foundation-models --max-results 1``
-    inside the container.  Raises :class:`click.ClickException` with a
-    human-readable message on any failure (expired SSO, SCP deny, etc.).
+    Sends a minimal 1-token ``invoke-model`` request inside the container to
+    validate the full path: AWS credentials, SCP policies, and model access.
+    Raises :class:`click.ClickException` with an actionable message on failure.
     """
+    from ai_shell.defaults import DEFAULT_BEDROCK_MODEL
+
+    region = exec_env.get("AWS_REGION", "us-east-1")
+    profile = exec_env.get("AWS_PROFILE", "")
+
+    # Build a tiny invoke-model call (1 max_token) to test the full auth chain
+    body = (
+        '{"anthropic_version":"bedrock-2023-05-31",'
+        '"max_tokens":1,'
+        '"messages":[{"role":"user","content":"ping"}]}'
+    )
+
+    # Write the body to a temp file inside the container, invoke, then clean up
+    write_cmd = f"echo '{body}' > /tmp/_bedrock_check.json"
+    invoke_cmd = (
+        f"aws bedrock-runtime invoke-model"
+        f" --model-id {DEFAULT_BEDROCK_MODEL}"
+        f" --region {region}"
+        f" --content-type application/json"
+        f" --accept application/json"
+        f" --body file:///tmp/_bedrock_check.json"
+        f" /tmp/_bedrock_check_out.json"
+    )
+    if profile:
+        invoke_cmd += f" --profile {profile}"
+    cleanup_cmd = "rm -f /tmp/_bedrock_check.json /tmp/_bedrock_check_out.json"
+    shell_cmd = f"{write_cmd} && {invoke_cmd}; rc=$?; {cleanup_cmd}; exit $rc"
+
     args = ["docker", "exec"]
     for key, value in exec_env.items():
         args.extend(["-e", f"{key}={value}"])
-    args.extend(
-        [
-            container_name,
-            "aws",
-            "bedrock",
-            "list-foundation-models",
-            "--max-results",
-            "1",
-            "--region",
-            exec_env.get("AWS_REGION", "us-east-1"),
-            "--output",
-            "json",
-        ]
-    )
-
-    profile = exec_env.get("AWS_PROFILE", "")
-    if profile:
-        args.extend(["--profile", profile])
+    args.extend([container_name, "bash", "-c", shell_cmd])
 
     logger.debug("bedrock preflight: %s", " ".join(args))
-    result = subprocess.run(args, capture_output=True, text=True, timeout=15)
+    result = subprocess.run(args, capture_output=True, text=True, timeout=30)
 
     if result.returncode != 0:
         stderr = result.stderr.strip()
         raise click.ClickException(
             f"Bedrock access check failed (profile={profile or 'default'}, "
-            f"region={exec_env.get('AWS_REGION', 'us-east-1')}).\n"
+            f"region={region}, model={DEFAULT_BEDROCK_MODEL}).\n"
             f"  {stderr}\n\n"
             "Possible causes:\n"
-            "  - AWS SSO session expired: run 'aws sso login --profile <profile>' on the host\n"
-            "  - Bedrock model access not enabled: check the Bedrock console under Model Access\n"
-            "  - SCP or IAM policy denying bedrock:* actions\n"
+            f"  - AWS SSO session expired: run 'aws sso login --profile {profile or '<profile>'}' on the host\n"
+            "  - SCP or IAM policy denying bedrock:InvokeModel\n"
             "  - Wrong AWS region: ensure Bedrock is available in the configured region"
         )
 
