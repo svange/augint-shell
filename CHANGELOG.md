@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.29.0 (2026-04-05)
+
+### Features
+
+- Add first-class Amazon Bedrock support for Claude Code and opencode
+  ([`4d91813`](https://github.com/svange/augint-shell/commit/4d91813631c8dcb12f2fd34ce09f37061ec77c05))
+
+
 ## v0.28.0 (2026-04-05)
 
 ### Features
