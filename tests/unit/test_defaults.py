@@ -236,3 +236,15 @@ class TestBuildDevEnvironmentBedrock:
             env = build_dev_environment(bedrock=False, bedrock_profile="ai-acct")
         assert env["AWS_PROFILE"] == "infra"
         assert "CLAUDE_CODE_USE_BEDROCK" not in env
+
+    def test_aws_default_region_mirrors_aws_region(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(aws_region="eu-west-1")
+        assert env["AWS_DEFAULT_REGION"] == "eu-west-1"
+        assert env["AWS_DEFAULT_REGION"] == env["AWS_REGION"]
+
+    def test_aws_default_region_default(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment()
+        assert env["AWS_DEFAULT_REGION"] == "us-east-1"
+        assert env["AWS_DEFAULT_REGION"] == env["AWS_REGION"]

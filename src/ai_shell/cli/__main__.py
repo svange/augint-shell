@@ -1,5 +1,6 @@
 """ai-shell CLI entry point."""
 
+import logging
 import sys
 
 import click
@@ -13,11 +14,14 @@ from ai_shell.cli.commands.tools import aider, claude, codex, init, opencode, sh
 @click.group()
 @click.version_option(version=__version__, prog_name="ai-shell")
 @click.option("--project", default=None, help="Override project name for container naming.")
+@click.option("--verbose", "-v", is_flag=True, default=False, help="Enable debug logging.")
 @click.pass_context
-def cli(ctx, project):
+def cli(ctx, project, verbose):
     """AI Shell - Launch AI coding tools and local LLMs in Docker containers."""
     ctx.ensure_object(dict)
     ctx.obj["project"] = project
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(message)s")
 
 
 # Tool subcommands
