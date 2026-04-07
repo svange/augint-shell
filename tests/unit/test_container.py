@@ -237,7 +237,10 @@ class TestEnsureOllama:
         mock_container_manager._get_container = MagicMock(return_value=None)
         mock_container_manager._pull_image_if_needed = MagicMock()
 
-        with patch("ai_shell.container.detect_gpu", return_value=True):
+        with (
+            patch("ai_shell.container.detect_gpu", return_value=True),
+            patch("ai_shell.container.get_vram_info", return_value=None),
+        ):
             mock_container_manager.ensure_ollama()
 
         call_kwargs = mock_docker_client.containers.run.call_args[1]
@@ -249,12 +252,78 @@ class TestEnsureOllama:
         mock_container_manager._get_container = MagicMock(return_value=None)
         mock_container_manager._pull_image_if_needed = MagicMock()
 
-        with patch("ai_shell.container.detect_gpu", return_value=False):
+        with (
+            patch("ai_shell.container.detect_gpu", return_value=False),
+            patch("ai_shell.container.get_vram_info", return_value=None),
+        ):
             mock_container_manager.ensure_ollama()
 
         call_kwargs = mock_docker_client.containers.run.call_args[1]
         assert "device_requests" not in call_kwargs
         assert call_kwargs["network"] == LLM_NETWORK
+
+    def test_sets_gpu_overhead_when_vram_info_available(
+        self, mock_container_manager, mock_docker_client
+    ):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+        vram_info = {
+            "total": 24 * 1024**3,
+            "free": 20 * 1024**3,
+            "used": 4 * 1024**3,
+        }
+
+        with (
+            patch("ai_shell.container.detect_gpu", return_value=True),
+            patch("ai_shell.container.get_vram_info", return_value=vram_info),
+        ):
+            mock_container_manager.ensure_ollama()
+
+        call_kwargs = mock_docker_client.containers.run.call_args[1]
+        assert "environment" in call_kwargs
+        overhead = int(call_kwargs["environment"]["OLLAMA_GPU_OVERHEAD"])
+        assert overhead == 4 * 1024**3 + 1 * 1024**3  # used + 1 GiB buffer
+
+    def test_no_environment_when_vram_info_unavailable(
+        self, mock_container_manager, mock_docker_client
+    ):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with (
+            patch("ai_shell.container.detect_gpu", return_value=True),
+            patch("ai_shell.container.get_vram_info", return_value=None),
+        ):
+            mock_container_manager.ensure_ollama()
+
+        call_kwargs = mock_docker_client.containers.run.call_args[1]
+        assert "environment" not in call_kwargs
+
+    def test_no_environment_when_no_gpu(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with (
+            patch("ai_shell.container.detect_gpu", return_value=False),
+            patch("ai_shell.container.get_vram_info", return_value=None),
+        ):
+            mock_container_manager.ensure_ollama()
+
+        call_kwargs = mock_docker_client.containers.run.call_args[1]
+        assert "environment" not in call_kwargs
+
+    def test_always_sets_cpu_shares(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with (
+            patch("ai_shell.container.detect_gpu", return_value=False),
+            patch("ai_shell.container.get_vram_info", return_value=None),
+        ):
+            mock_container_manager.ensure_ollama()
+
+        call_kwargs = mock_docker_client.containers.run.call_args[1]
+        assert call_kwargs["cpu_shares"] == 1024
 
 
 class TestContainerLifecycle:

@@ -19,8 +19,10 @@ import docker
 from ai_shell.defaults import (
     LLM_NETWORK,
     OLLAMA_CONTAINER,
+    OLLAMA_CPU_SHARES,
     OLLAMA_DATA_VOLUME,
     OLLAMA_IMAGE,
+    OLLAMA_VRAM_BUFFER_BYTES,
     SHM_SIZE,
     WEBUI_CONTAINER,
     WEBUI_DATA_VOLUME,
@@ -34,7 +36,7 @@ from ai_shell.exceptions import (
     DockerNotAvailableError,
     ImagePullError,
 )
-from ai_shell.gpu import detect_gpu
+from ai_shell.gpu import detect_gpu, get_vram_info
 
 if TYPE_CHECKING:
     from docker.models.containers import Container
@@ -239,9 +241,21 @@ class ContainerManager:
         # GPU auto-detection
         gpu_available = detect_gpu()
         device_requests = None
+        env: dict[str, str] = {}
         if gpu_available:
             device_requests = [DeviceRequest(count=1, capabilities=[["gpu"]])]
-            logger.info("GPU detected - Ollama will use NVIDIA GPU")
+            vram = get_vram_info()
+            if vram:
+                overhead = vram["used"] + OLLAMA_VRAM_BUFFER_BYTES
+                env["OLLAMA_GPU_OVERHEAD"] = str(overhead)
+                logger.info(
+                    "VRAM: %.1f GiB total, %.1f GiB free. Reserving %.1f GiB overhead for Ollama.",
+                    vram["total"] / 1024**3,
+                    vram["free"] / 1024**3,
+                    overhead / 1024**3,
+                )
+            else:
+                logger.info("GPU detected - Ollama will use NVIDIA GPU")
         else:
             logger.warning("No GPU detected - Ollama will run on CPU (slower inference)")
 
@@ -259,10 +273,13 @@ class ContainerManager:
             "restart_policy": {"Name": "unless-stopped"},
             "detach": True,
             "network": network_name,
+            "cpu_shares": OLLAMA_CPU_SHARES,
         }
 
         if device_requests:
             kwargs["device_requests"] = device_requests
+        if env:
+            kwargs["environment"] = env
 
         self.client.containers.run(**kwargs)
         logger.info("Ollama container created on port %d", self.config.ollama_port)

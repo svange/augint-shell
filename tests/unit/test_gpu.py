@@ -2,7 +2,13 @@
 
 from unittest.mock import MagicMock, patch
 
-from ai_shell.gpu import _check_docker_gpu_runtime, _check_nvidia_smi, detect_gpu
+from ai_shell.gpu import (
+    _check_docker_gpu_runtime,
+    _check_nvidia_smi,
+    detect_gpu,
+    get_vram_info,
+    get_vram_processes,
+)
 
 
 class TestDetectGpu:
@@ -65,6 +71,109 @@ class TestCheckNvidiaSmi:
             patch("ai_shell.gpu.subprocess.run", return_value=mock_result),
         ):
             assert _check_nvidia_smi() is False
+
+
+class TestGetVramInfo:
+    def test_returns_none_when_nvidia_smi_not_found(self):
+        with patch("ai_shell.gpu.shutil.which", return_value=None):
+            assert get_vram_info() is None
+
+    def test_returns_bytes_on_success(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "24564, 20000, 4564\n"
+
+        with (
+            patch("ai_shell.gpu.shutil.which", return_value="/usr/bin/nvidia-smi"),
+            patch("ai_shell.gpu.subprocess.run", return_value=mock_result),
+        ):
+            info = get_vram_info()
+
+        assert info is not None
+        assert info["total"] == 24564 * 1024 * 1024
+        assert info["free"] == 20000 * 1024 * 1024
+        assert info["used"] == 4564 * 1024 * 1024
+
+    def test_uses_first_gpu_when_multiple(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "24564, 20000, 4564\n8192, 6000, 2192\n"
+
+        with (
+            patch("ai_shell.gpu.shutil.which", return_value="/usr/bin/nvidia-smi"),
+            patch("ai_shell.gpu.subprocess.run", return_value=mock_result),
+        ):
+            info = get_vram_info()
+
+        assert info is not None
+        assert info["total"] == 24564 * 1024 * 1024
+
+    def test_returns_none_on_subprocess_failure(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+
+        with (
+            patch("ai_shell.gpu.shutil.which", return_value="/usr/bin/nvidia-smi"),
+            patch("ai_shell.gpu.subprocess.run", return_value=mock_result),
+        ):
+            assert get_vram_info() is None
+
+    def test_returns_none_on_unexpected_format(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "not, valid\n"
+
+        with (
+            patch("ai_shell.gpu.shutil.which", return_value="/usr/bin/nvidia-smi"),
+            patch("ai_shell.gpu.subprocess.run", return_value=mock_result),
+        ):
+            assert get_vram_info() is None
+
+
+class TestGetVramProcesses:
+    def test_returns_empty_when_nvidia_smi_not_found(self):
+        with patch("ai_shell.gpu.shutil.which", return_value=None):
+            assert get_vram_processes() == []
+
+    def test_returns_empty_on_no_output(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+
+        with (
+            patch("ai_shell.gpu.shutil.which", return_value="/usr/bin/nvidia-smi"),
+            patch("ai_shell.gpu.subprocess.run", return_value=mock_result),
+        ):
+            assert get_vram_processes() == []
+
+    def test_parses_process_list(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "12345, 2100, chrome\n67890, 4500, ollama\n"
+
+        with (
+            patch("ai_shell.gpu.shutil.which", return_value="/usr/bin/nvidia-smi"),
+            patch("ai_shell.gpu.subprocess.run", return_value=mock_result),
+        ):
+            procs = get_vram_processes()
+
+        assert len(procs) == 2
+        assert procs[0] == (12345, 2100, "chrome")
+        assert procs[1] == (67890, 4500, "ollama")
+
+    def test_skips_malformed_lines(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "12345, 2100, chrome\nbad line\n67890, 4500, ollama\n"
+
+        with (
+            patch("ai_shell.gpu.shutil.which", return_value="/usr/bin/nvidia-smi"),
+            patch("ai_shell.gpu.subprocess.run", return_value=mock_result),
+        ):
+            procs = get_vram_processes()
+
+        assert len(procs) == 2
 
 
 class TestCheckDockerGpuRuntime:
