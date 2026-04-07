@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.32.3 (2026-04-07)
+
+### Bug Fixes
+
+- **cli**: Use fileb:// and printf for Bedrock pre-flight body
+  ([`4e10a9c`](https://github.com/svange/augint-shell/commit/4e10a9cb644823f723cb9929f3eaa9ab3839a33d))
+
+
 ## v0.32.2 (2026-04-07)
 
 ### Bug Fixes
