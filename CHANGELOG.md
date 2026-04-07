@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.35.0 (2026-04-07)
+
+### Features
+
+- **cli**: Add URLs and config to llm status output
+  ([`9d5f98c`](https://github.com/svange/augint-shell/commit/9d5f98c0f413a4f84bccb9c50b88778e3c071701))
+
+
 ## v0.34.0 (2026-04-07)
 
 ### Features
