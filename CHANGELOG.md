@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.32.2 (2026-04-07)
+
+### Bug Fixes
+
+- **defaults**: Use cross-region inference profile for Bedrock pre-flight
+  ([`55e654f`](https://github.com/svange/augint-shell/commit/55e654f2e3e79cc8bade4e380396984e241ac133))
+
+
 ## v0.32.1 (2026-04-06)
 
 
