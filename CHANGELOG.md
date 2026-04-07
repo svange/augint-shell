@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.33.0 (2026-04-07)
+
+### Features
+
+- **cli**: Add --no-preflight flag to claude and opencode commands
+  ([`ef618da`](https://github.com/svange/augint-shell/commit/ef618da59df66f39cc5aec5086728ceb6e4c9728))
+
+
 ## v0.32.3 (2026-04-07)
 
 ### Bug Fixes
