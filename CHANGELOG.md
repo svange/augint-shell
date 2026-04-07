@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.34.0 (2026-04-07)
+
+### Features
+
+- **cli**: Auto-init config on first run, default to local provider
+  ([`39944e1`](https://github.com/svange/augint-shell/commit/39944e10b2803d654196f4daaaa40f3f89824cf5))
+
+
 ## v0.33.0 (2026-04-07)
 
 ### Features
