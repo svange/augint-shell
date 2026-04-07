@@ -237,6 +237,13 @@ def _get_manager(
 )
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
+@click.option(
+    "--no-preflight",
+    "skip_preflight",
+    is_flag=True,
+    default=False,
+    help="Skip Bedrock pre-flight check (for debugging).",
+)
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
 @click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
 @click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
@@ -252,6 +259,7 @@ def claude(
     skip_merge,
     use_aws,
     cli_profile,
+    skip_preflight,
     repo_type_flag,
     extra_args,
 ):
@@ -293,10 +301,11 @@ def claude(
         profile_label = exec_env.get("AWS_PROFILE", "default")
         region_label = exec_env.get("AWS_REGION", "us-east-1")
         bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-        console.print(
-            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
-        )
-        _check_bedrock_access(name, exec_env)
+        if not skip_preflight:
+            console.print(
+                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+            )
+            _check_bedrock_access(name, exec_env)
     else:
         bedrock_label = ""
 
@@ -435,6 +444,13 @@ def codex(
 )
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
+@click.option(
+    "--no-preflight",
+    "skip_preflight",
+    is_flag=True,
+    default=False,
+    help="Skip Bedrock pre-flight check (for debugging).",
+)
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
 @click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
 @click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
@@ -449,6 +465,7 @@ def opencode(
     skip_merge,
     use_aws,
     cli_profile,
+    skip_preflight,
     repo_type_flag,
 ):
     """Launch opencode in the dev container."""
@@ -489,10 +506,11 @@ def opencode(
         profile_label = exec_env.get("AWS_PROFILE", "default")
         region_label = exec_env.get("AWS_REGION", "us-east-1")
         bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-        console.print(
-            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
-        )
-        _check_bedrock_access(name, exec_env)
+        if not skip_preflight:
+            console.print(
+                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+            )
+            _check_bedrock_access(name, exec_env)
     else:
         bedrock_label = ""
 
