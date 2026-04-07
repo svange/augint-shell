@@ -182,21 +182,42 @@ def llm_setup(ctx):
 @llm_group.command("status")
 @click.pass_context
 def llm_status(ctx):
-    """Show status of LLM stack and loaded models."""
+    """Show status of LLM stack, URLs, and loaded models."""
     manager = _get_manager(ctx)
+    config = manager.config
+    ollama_running = manager.container_status(OLLAMA_CONTAINER) == "running"
+    webui_running = manager.container_status(WEBUI_CONTAINER) == "running"
 
     console.print("[bold]Container status:[/bold]")
-    for name in [OLLAMA_CONTAINER, WEBUI_CONTAINER]:
+    for name, running in [(OLLAMA_CONTAINER, ollama_running), (WEBUI_CONTAINER, webui_running)]:
         status = manager.container_status(name)
-        if status == "running":
+        if running:
             console.print(f"  {name}: [green]{status}[/green]")
         elif status is not None:
             console.print(f"  {name}: [yellow]{status}[/yellow]")
         else:
             console.print(f"  {name}: [red]not found[/red]")
 
-    # Show models if ollama is running
-    if manager.container_status(OLLAMA_CONTAINER) == "running":
+    console.print("\n[bold]Access URLs:[/bold]")
+    ollama_url = f"http://localhost:{config.ollama_port}"
+    webui_url = f"http://localhost:{config.webui_port}"
+    if ollama_running:
+        console.print(f"  Ollama API:         [cyan]{ollama_url}[/cyan]")
+        console.print(f"  OpenAI-compatible:  [cyan]{ollama_url}/v1[/cyan]")
+    else:
+        console.print(f"  Ollama API:         [dim]{ollama_url}[/dim] (not running)")
+        console.print(f"  OpenAI-compatible:  [dim]{ollama_url}/v1[/dim] (not running)")
+    if webui_running:
+        console.print(f"  Open WebUI:         [cyan]{webui_url}[/cyan]")
+    else:
+        console.print(f"  Open WebUI:         [dim]{webui_url}[/dim] (not running)")
+
+    console.print("\n[bold]Configuration:[/bold]")
+    console.print(f"  Primary model:   {config.primary_model}")
+    console.print(f"  Fallback model:  {config.fallback_model}")
+    console.print(f"  Context window:  {config.context_size} tokens")
+
+    if ollama_running:
         console.print("\n[bold]Available models:[/bold]")
         output = manager.exec_in_ollama(["ollama", "list"])
         console.print(output)

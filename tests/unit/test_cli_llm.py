@@ -88,7 +88,16 @@ class TestLlmCommands:
         assert mock_manager.stop_container.call_count == 2
 
     def test_llm_status_running(self, mock_config, mock_manager_cls):
+        config = MagicMock()
+        config.ollama_port = 11434
+        config.webui_port = 3000
+        config.primary_model = "qwen3-coder-next"
+        config.fallback_model = "qwen3.5:27b"
+        config.context_size = 32768
+        mock_config.return_value = config
+
         mock_manager = MagicMock()
+        mock_manager.config = config
         mock_manager.container_status.return_value = "running"
         mock_manager.exec_in_ollama.return_value = "NAME\tSIZE\nqwen3.5:27b\t16GB"
         mock_manager_cls.return_value = mock_manager
@@ -97,9 +106,23 @@ class TestLlmCommands:
 
         assert result.exit_code == 0
         assert "running" in result.output
+        assert "http://localhost:11434" in result.output
+        assert "http://localhost:11434/v1" in result.output
+        assert "http://localhost:3000" in result.output
+        assert "qwen3-coder-next" in result.output
+        assert "32768" in result.output
 
     def test_llm_status_not_found(self, mock_config, mock_manager_cls):
+        config = MagicMock()
+        config.ollama_port = 11434
+        config.webui_port = 3000
+        config.primary_model = "qwen3-coder-next"
+        config.fallback_model = "qwen3.5:27b"
+        config.context_size = 32768
+        mock_config.return_value = config
+
         mock_manager = MagicMock()
+        mock_manager.config = config
         mock_manager.container_status.return_value = None
         mock_manager_cls.return_value = mock_manager
 
@@ -107,6 +130,8 @@ class TestLlmCommands:
 
         assert result.exit_code == 0
         assert "not found" in result.output
+        assert "http://localhost:11434" in result.output
+        assert "not running" in result.output
 
     def test_llm_pull(self, mock_config, mock_manager_cls):
         config = MagicMock()
