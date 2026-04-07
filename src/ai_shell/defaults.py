@@ -48,6 +48,12 @@ DEFAULT_DEV_PORTS = [3000, 4200, 5000, 5173, 5678, 8000, 8080, 8888]
 DEFAULT_BEDROCK_MODEL = "us.anthropic.claude-sonnet-4-20250514-v1:0"
 
 # =============================================================================
+# Ollama GPU defaults
+# =============================================================================
+OLLAMA_VRAM_BUFFER_BYTES = 1 * 1024**3  # 1 GiB safety buffer reserved as overhead
+OLLAMA_CPU_SHARES = 1024  # Docker CPU scheduling priority (default 0 = fair-share)
+
+# =============================================================================
 # Container names
 # =============================================================================
 OLLAMA_CONTAINER = "augint-shell-ollama"

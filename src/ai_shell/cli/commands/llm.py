@@ -9,6 +9,7 @@ from rich.console import Console
 from ai_shell.config import load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import OLLAMA_CONTAINER, WEBUI_CONTAINER
+from ai_shell.gpu import get_vram_info, get_vram_processes
 
 console = Console(stderr=True)
 
@@ -216,6 +217,22 @@ def llm_status(ctx):
     console.print(f"  Primary model:   {config.primary_model}")
     console.print(f"  Fallback model:  {config.fallback_model}")
     console.print(f"  Context window:  {config.context_size} tokens")
+
+    vram = get_vram_info()
+    if vram is not None:
+        console.print("\n[bold]GPU VRAM:[/bold]")
+        console.print(
+            f"  Total: {vram['total'] / 1024**3:.1f} GiB  "
+            f"Used: {vram['used'] / 1024**3:.1f} GiB  "
+            f"Free: {vram['free'] / 1024**3:.1f} GiB"
+        )
+        processes = get_vram_processes()
+        console.print("\n  [bold]VRAM consumers:[/bold]")
+        if processes:
+            for pid, vram_mb, name in sorted(processes, key=lambda x: x[1], reverse=True):
+                console.print(f"    PID {pid:<8} {name:<20} {vram_mb / 1024:.1f} GiB")
+        else:
+            console.print("  (none)")
 
     if ollama_running:
         console.print("\n[bold]Available models:[/bold]")
