@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.36.0 (2026-04-07)
+
+### Features
+
+- **gpu**: Intelligent VRAM management and CPU priority for Ollama
+  ([`80f0dcf`](https://github.com/svange/augint-shell/commit/80f0dcf1cd796a10fb56b7ef330fc159998cb741))
+
+
 ## v0.35.0 (2026-04-07)
 
 ### Features
