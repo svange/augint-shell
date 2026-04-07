@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-04-07T17:09:58Z",
+  "generated_at": "2026-04-07T18:05:20Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 17,
+      "CONFIDENCE.HIGH": 21,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 17,
+      "SEVERITY.LOW": 21,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 2154,
+      "loc": 2255,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -76,7 +76,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 202,
+      "loc": 218,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -128,7 +128,7 @@
       "SEVERITY.LOW": 3,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 331,
+      "loc": 348,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -141,7 +141,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 142,
+      "loc": 144,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -159,15 +159,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/gpu.py": {
-      "CONFIDENCE.HIGH": 7,
+      "CONFIDENCE.HIGH": 11,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 7,
+      "SEVERITY.LOW": 11,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 65,
+      "loc": 131,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -291,7 +291,7 @@
   },
   "results": [
     {
-      "code": "140                 break\n141         except Exception:\n142             pass\n143         console.print(f\"  Waiting... ({i + 1}/10)\")\n",
+      "code": "141                 break\n142         except Exception:\n143             pass\n144         console.print(f\"  Waiting... ({i + 1}/10)\")\n",
       "col_offset": 8,
       "end_col_offset": 16,
       "filename": "src/ai_shell/cli/commands/llm.py",
@@ -302,10 +302,10 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Try, Except, Pass detected.",
-      "line_number": 141,
+      "line_number": 142,
       "line_range": [
-        141,
-        142
+        142,
+        143
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
       "test_id": "B110",
@@ -372,7 +372,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "55     sys.stderr.flush()\n56     result = subprocess.run(args)\n57     sys.exit(result.returncode)\n",
+      "code": "57     sys.stderr.flush()\n58     result = subprocess.run(args)\n59     sys.exit(result.returncode)\n",
       "col_offset": 13,
       "end_col_offset": 33,
       "filename": "src/ai_shell/container.py",
@@ -383,16 +383,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 56,
+      "line_number": 58,
       "line_range": [
-        56
+        58
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "68     start = time.monotonic()\n69     result = subprocess.run(args)\n70     elapsed = time.monotonic() - start\n",
+      "code": "70     start = time.monotonic()\n71     result = subprocess.run(args)\n72     elapsed = time.monotonic() - start\n",
       "col_offset": 13,
       "end_col_offset": 33,
       "filename": "src/ai_shell/container.py",
@@ -403,9 +403,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 69,
+      "line_number": 71,
       "line_range": [
-        69
+        71
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
@@ -432,7 +432,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "28     try:\n29         result = subprocess.run(\n30             [\"nvidia-smi\", \"--query-gpu=name\", \"--format=csv,noheader\"],\n31             capture_output=True,\n32             text=True,\n33             timeout=10,\n34         )\n35         if result.returncode == 0 and result.stdout.strip():\n",
+      "code": "30     try:\n31         result = subprocess.run(\n32             [\"nvidia-smi\", \"--query-gpu=name\", \"--format=csv,noheader\"],\n33             capture_output=True,\n34             text=True,\n35             timeout=10,\n36         )\n37         if result.returncode == 0 and result.stdout.strip():\n",
       "col_offset": 17,
       "end_col_offset": 9,
       "filename": "src/ai_shell/gpu.py",
@@ -443,21 +443,21 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 29,
+      "line_number": 31,
       "line_range": [
-        29,
-        30,
         31,
         32,
         33,
-        34
+        34,
+        35,
+        36
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "28     try:\n29         result = subprocess.run(\n30             [\"nvidia-smi\", \"--query-gpu=name\", \"--format=csv,noheader\"],\n31             capture_output=True,\n32             text=True,\n33             timeout=10,\n34         )\n35         if result.returncode == 0 and result.stdout.strip():\n",
+      "code": "30     try:\n31         result = subprocess.run(\n32             [\"nvidia-smi\", \"--query-gpu=name\", \"--format=csv,noheader\"],\n33             capture_output=True,\n34             text=True,\n35             timeout=10,\n36         )\n37         if result.returncode == 0 and result.stdout.strip():\n",
       "col_offset": 17,
       "end_col_offset": 9,
       "filename": "src/ai_shell/gpu.py",
@@ -468,21 +468,21 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 29,
+      "line_number": 31,
       "line_range": [
-        29,
-        30,
         31,
         32,
         33,
-        34
+        34,
+        35,
+        36
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "51     try:\n52         result = subprocess.run(\n53             [\"docker\", \"info\", \"--format\", \"{{.Runtimes}}\"],\n54             capture_output=True,\n55             text=True,\n56             timeout=10,\n57         )\n58         if result.returncode == 0 and \"nvidia\" in result.stdout.lower():\n",
+      "code": "55     try:\n56         result = subprocess.run(\n57             [\n58                 \"nvidia-smi\",\n59                 \"--query-gpu=memory.total,memory.free,memory.used\",\n60                 \"--format=csv,noheader,nounits\",\n61             ],\n62             capture_output=True,\n63             text=True,\n64             timeout=10,\n65         )\n66         if result.returncode != 0 or not result.stdout.strip():\n",
       "col_offset": 17,
       "end_col_offset": 9,
       "filename": "src/ai_shell/gpu.py",
@@ -493,21 +493,25 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 52,
+      "line_number": 56,
       "line_range": [
-        52,
-        53,
-        54,
-        55,
         56,
-        57
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "51     try:\n52         result = subprocess.run(\n53             [\"docker\", \"info\", \"--format\", \"{{.Runtimes}}\"],\n54             capture_output=True,\n55             text=True,\n56             timeout=10,\n57         )\n58         if result.returncode == 0 and \"nvidia\" in result.stdout.lower():\n",
+      "code": "55     try:\n56         result = subprocess.run(\n57             [\n58                 \"nvidia-smi\",\n59                 \"--query-gpu=memory.total,memory.free,memory.used\",\n60                 \"--format=csv,noheader,nounits\",\n61             ],\n62             capture_output=True,\n63             text=True,\n64             timeout=10,\n65         )\n66         if result.returncode != 0 or not result.stdout.strip():\n",
       "col_offset": 17,
       "end_col_offset": 9,
       "filename": "src/ai_shell/gpu.py",
@@ -518,21 +522,133 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 52,
+      "line_number": 56,
       "line_range": [
-        52,
-        53,
-        54,
-        55,
         56,
-        57
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "61         # Also check for default GPU support (newer Docker versions)\n62         result2 = subprocess.run(\n63             [\"docker\", \"info\", \"--format\", \"{{json .}}\"],\n64             capture_output=True,\n65             text=True,\n66             timeout=10,\n67         )\n68         if result2.returncode == 0 and \"nvidia\" in result2.stdout.lower():\n",
+      "code": "90     try:\n91         result = subprocess.run(\n92             [\n93                 \"nvidia-smi\",\n94                 \"--query-compute-apps=pid,used_gpu_memory,name\",\n95                 \"--format=csv,noheader,nounits\",\n96             ],\n97             capture_output=True,\n98             text=True,\n99             timeout=10,\n100         )\n101         if result.returncode != 0 or not result.stdout.strip():\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/gpu.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 91,
+      "line_range": [
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "90     try:\n91         result = subprocess.run(\n92             [\n93                 \"nvidia-smi\",\n94                 \"--query-compute-apps=pid,used_gpu_memory,name\",\n95                 \"--format=csv,noheader,nounits\",\n96             ],\n97             capture_output=True,\n98             text=True,\n99             timeout=10,\n100         )\n101         if result.returncode != 0 or not result.stdout.strip():\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/gpu.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 91,
+      "line_range": [
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "124     try:\n125         result = subprocess.run(\n126             [\"docker\", \"info\", \"--format\", \"{{.Runtimes}}\"],\n127             capture_output=True,\n128             text=True,\n129             timeout=10,\n130         )\n131         if result.returncode == 0 and \"nvidia\" in result.stdout.lower():\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/gpu.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 125,
+      "line_range": [
+        125,
+        126,
+        127,
+        128,
+        129,
+        130
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "124     try:\n125         result = subprocess.run(\n126             [\"docker\", \"info\", \"--format\", \"{{.Runtimes}}\"],\n127             capture_output=True,\n128             text=True,\n129             timeout=10,\n130         )\n131         if result.returncode == 0 and \"nvidia\" in result.stdout.lower():\n",
+      "col_offset": 17,
+      "end_col_offset": 9,
+      "filename": "src/ai_shell/gpu.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 125,
+      "line_range": [
+        125,
+        126,
+        127,
+        128,
+        129,
+        130
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "134         # Also check for default GPU support (newer Docker versions)\n135         result2 = subprocess.run(\n136             [\"docker\", \"info\", \"--format\", \"{{json .}}\"],\n137             capture_output=True,\n138             text=True,\n139             timeout=10,\n140         )\n141         if result2.returncode == 0 and \"nvidia\" in result2.stdout.lower():\n",
       "col_offset": 18,
       "end_col_offset": 9,
       "filename": "src/ai_shell/gpu.py",
@@ -543,21 +659,21 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 62,
+      "line_number": 135,
       "line_range": [
-        62,
-        63,
-        64,
-        65,
-        66,
-        67
+        135,
+        136,
+        137,
+        138,
+        139,
+        140
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "61         # Also check for default GPU support (newer Docker versions)\n62         result2 = subprocess.run(\n63             [\"docker\", \"info\", \"--format\", \"{{json .}}\"],\n64             capture_output=True,\n65             text=True,\n66             timeout=10,\n67         )\n68         if result2.returncode == 0 and \"nvidia\" in result2.stdout.lower():\n",
+      "code": "134         # Also check for default GPU support (newer Docker versions)\n135         result2 = subprocess.run(\n136             [\"docker\", \"info\", \"--format\", \"{{json .}}\"],\n137             capture_output=True,\n138             text=True,\n139             timeout=10,\n140         )\n141         if result2.returncode == 0 and \"nvidia\" in result2.stdout.lower():\n",
       "col_offset": 18,
       "end_col_offset": 9,
       "filename": "src/ai_shell/gpu.py",
@@ -568,14 +684,14 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 62,
+      "line_number": 135,
       "line_range": [
-        62,
-        63,
-        64,
-        65,
-        66,
-        67
+        135,
+        136,
+        137,
+        138,
+        139,
+        140
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
