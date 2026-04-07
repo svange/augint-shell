@@ -3,8 +3,8 @@
 # Every CLI flag maps to a YAML key (use dashes, not underscores).
 
 # Model selection
-model: ollama_chat/qwen3.5:27b
-# weak-model: ollama_chat/qwen3.5:27b
+model: ollama_chat/qwen3-coder-next
+# weak-model: ollama_chat/qwen3-coder-next
 
 # Auto-accept changes (disable for interactive approval)
 yes-always: true

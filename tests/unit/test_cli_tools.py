@@ -156,12 +156,13 @@ class TestToolCommands:
         assert cmd == ["/bin/bash"]
         assert mock_manager.exec_interactive.call_args[1]["extra_env"] == TEST_EXEC_ENV
 
+    @patch("ai_shell.scaffold.scaffold_aider")
     def test_aider_passes_model_and_env(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+        self, mock_scaffold_aider, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
-        config.aider_model = "ollama_chat/qwen3.5:27b"
+        config.aider_model = "ollama_chat/qwen3-coder-next"
         config.ollama_port = 11434
         mock_config.return_value = config
 
@@ -178,17 +179,18 @@ class TestToolCommands:
         extra_env = call_args[1].get("extra_env", {})
 
         assert "--model" in cmd
-        assert "ollama_chat/qwen3.5:27b" in cmd
+        assert "ollama_chat/qwen3-coder-next" in cmd
         assert "--yes-always" in cmd
         assert extra_env["OLLAMA_API_BASE"] == "http://host.docker.internal:11434"
         assert extra_env["GH_TOKEN"] == "test-token"
 
+    @patch("ai_shell.scaffold.scaffold_aider")
     def test_aider_safe_mode(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+        self, mock_scaffold_aider, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
-        config.aider_model = "ollama_chat/qwen3.5:27b"
+        config.aider_model = "ollama_chat/qwen3-coder-next"
         mock_config.return_value = config
 
         mock_manager = MagicMock()
@@ -710,3 +712,97 @@ class TestCheckBedrockAccess:
         args = mock_run.call_args[0][0]
         shell_cmd = args[-1]
         assert "--profile" not in shell_cmd
+
+
+class TestAutoInit:
+    """Auto-init triggers scaffold on first run when config files are missing."""
+
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    @patch("ai_shell.scaffold.scaffold_opencode")
+    def test_opencode_auto_inits_when_config_missing(
+        self, mock_scaffold, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = {}
+        config = MagicMock()
+        config.opencode_provider = ""
+        mock_config.return_value = config
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        with self.runner.isolated_filesystem():
+            self.runner.invoke(cli, ["opencode"])
+
+        mock_scaffold.assert_called_once()
+
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    @patch("ai_shell.scaffold.scaffold_claude")
+    def test_claude_auto_inits_when_config_missing(
+        self, mock_scaffold, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = {}
+        config = MagicMock()
+        config.claude_provider = ""
+        mock_config.return_value = config
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        with self.runner.isolated_filesystem():
+            self.runner.invoke(cli, ["claude"])
+
+        mock_scaffold.assert_called_once()
+
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    @patch("ai_shell.scaffold.scaffold_codex")
+    def test_codex_auto_inits_when_config_missing(
+        self, mock_scaffold, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = {}
+        mock_config.return_value = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        with self.runner.isolated_filesystem():
+            self.runner.invoke(cli, ["codex"])
+
+        mock_scaffold.assert_called_once()
+
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    @patch("ai_shell.scaffold.scaffold_aider")
+    def test_aider_auto_inits_when_config_missing(
+        self, mock_scaffold, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = {}
+        config = MagicMock()
+        config.aider_model = "ollama_chat/qwen3-coder-next"
+        config.ollama_port = 11434
+        mock_config.return_value = config
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        with self.runner.isolated_filesystem():
+            self.runner.invoke(cli, ["aider"])
+
+        mock_scaffold.assert_called_once()

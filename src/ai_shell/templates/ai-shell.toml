@@ -74,8 +74,8 @@
 # [opencode] - opencode settings
 # =============================================================================
 # provider: API backend for opencode.
-#   "ollama" - Local Ollama LLM instance (default)
-#   "aws"    - Amazon Bedrock (uses bedrock_profile from [aws] section)
+#   "local" - Local Ollama LLM instance (default)
+#   "aws"   - Amazon Bedrock (uses bedrock_profile from [aws] section)
 #
 # When provider = "aws", use opencode's model picker to select a Bedrock model.
 # Pre-configured models: Claude Sonnet 4, Opus 4, Haiku 4.
@@ -85,7 +85,7 @@
 # Override with env var: AI_SHELL_OPENCODE_PROVIDER
 #
 # [opencode]
-# provider = "aws"
+# provider = "local"
 
 # =============================================================================
 # [container] - Docker container settings
@@ -113,8 +113,8 @@
 # webui_port: Host port for Open WebUI (default: 3000)
 #
 # [llm]
-# primary_model = "qwen3.5:27b"
-# fallback_model = "qwen3-coder-next"
+# primary_model = "qwen3-coder-next"
+# fallback_model = "qwen3.5:27b"
 # context_size = 32768
 # ollama_port = 11434
 # webui_port = 3000
@@ -125,4 +125,4 @@
 # model: LLM model string (default: ollama_chat/<primary_model>)
 #
 # [aider]
-# model = "ollama_chat/qwen3.5:27b"
+# model = "ollama_chat/qwen3-coder-next"

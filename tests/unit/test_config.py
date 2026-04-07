@@ -10,7 +10,7 @@ class TestAiShellConfig:
     def test_defaults(self):
         config = AiShellConfig()
         assert config.image == "svange/augint-shell"
-        assert config.primary_model == "qwen3.5:27b"
+        assert config.primary_model == "qwen3-coder-next"
         assert config.ollama_port == 11434
         assert config.webui_port == 3000
 

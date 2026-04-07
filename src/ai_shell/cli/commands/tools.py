@@ -286,6 +286,18 @@ def claude(
             merge_notes_into_context(Path.cwd(), "claude", background=True)
         return
 
+    # Auto-init if .claude/ is missing
+    if not (Path.cwd() / ".claude").exists():
+        console.print("[dim].claude/ not found - running first-time init...[/dim]")
+        from ai_shell.scaffold import scaffold_claude as _scaffold_claude
+
+        _auto_repo_type, _auto_branch, _auto_dev = _resolve_repo_config(None, Path.cwd())
+        _scaffold_claude(
+            Path.cwd(),
+            repo_type=_auto_repo_type,
+            branch_strategy=_auto_branch,
+        )
+
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
@@ -396,6 +408,18 @@ def codex(
             merge_notes_into_context(Path.cwd(), "codex", background=True)
         return
 
+    # Auto-init if .codex/ is missing
+    if not (Path.cwd() / ".codex").exists():
+        console.print("[dim].codex/ not found - running first-time init...[/dim]")
+        from ai_shell.scaffold import scaffold_codex as _scaffold_codex
+
+        _auto_repo_type, _auto_branch, _auto_dev = _resolve_repo_config(None, Path.cwd())
+        _scaffold_codex(
+            Path.cwd(),
+            repo_type=_auto_repo_type,
+            branch_strategy=_auto_branch,
+        )
+
     manager, name, exec_env, _config = _get_manager(ctx)
     cmd = ["codex"]
     if not safe:
@@ -491,6 +515,18 @@ def opencode(
             merge_notes_into_context(Path.cwd(), "opencode", background=True)
         return
 
+    # Auto-init if opencode.json is missing
+    if not (Path.cwd() / "opencode.json").exists():
+        console.print("[dim]opencode.json not found - running first-time init...[/dim]")
+        from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
+
+        _auto_repo_type, _auto_branch, _auto_dev = _resolve_repo_config(None, Path.cwd())
+        _scaffold_opencode(
+            Path.cwd(),
+            repo_type=_auto_repo_type,
+            branch_strategy=_auto_branch,
+        )
+
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
@@ -572,6 +608,17 @@ def aider(ctx, do_init, do_update, do_reset, do_clean, safe, repo_type_flag, ext
             repo_type=repo_type,
         )
         return
+
+    # Auto-init if .aider.conf.yml is missing
+    if not (Path.cwd() / ".aider.conf.yml").exists():
+        console.print("[dim].aider.conf.yml not found - running first-time init...[/dim]")
+        from ai_shell.scaffold import scaffold_aider as _scaffold_aider
+
+        _auto_repo_type, _auto_branch, _auto_dev = _resolve_repo_config(None, Path.cwd())
+        _scaffold_aider(
+            Path.cwd(),
+            repo_type=_auto_repo_type,
+        )
 
     manager, name, exec_env, config = _get_manager(ctx)
     cmd = ["aider", "--model", config.aider_model]
