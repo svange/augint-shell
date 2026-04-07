@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-04-07T04:46:37Z",
+  "generated_at": "2026-04-07T04:56:19Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 17,
@@ -332,7 +332,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "68     logger.debug(\"bedrock preflight: %s\", \" \".join(args))\n69     result = subprocess.run(args, capture_output=True, text=True, timeout=30)\n70 \n",
+      "code": "69     logger.debug(\"bedrock preflight: %s\", \" \".join(args))\n70     result = subprocess.run(args, capture_output=True, text=True, timeout=30)\n71 \n",
       "col_offset": 13,
       "end_col_offset": 77,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -343,9 +343,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 69,
+      "line_number": 70,
       "line_range": [
-        69
+        70
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
