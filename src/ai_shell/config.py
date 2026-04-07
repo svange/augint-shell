@@ -57,7 +57,7 @@ class AiShellConfig:
 
     # Per-tool provider
     claude_provider: str = ""  # "anthropic" (default) or "aws"
-    opencode_provider: str = ""  # "ollama" (default) or "aws"
+    opencode_provider: str = ""  # "local" (default, Ollama) or "aws" (Bedrock)
 
     # Project workflow
     repo_type: str | None = None  # "library" | "iac" | "monorepo"

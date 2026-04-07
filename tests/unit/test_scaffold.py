@@ -332,7 +332,7 @@ class TestScaffoldOpencode:
         scaffold_opencode(tmp_path)
         data = json.loads((tmp_path / "opencode.json").read_text())
         assert data["$schema"] == "https://opencode.ai/config.json"
-        assert data["model"] == "ollama/qwen3.5:27b"
+        assert data["model"] == "ollama/qwen3-coder-next"
         assert "host.docker.internal:11434" in data["provider"]["ollama"]["options"]["baseURL"]
 
     def test_opencode_json_has_permissions(self, tmp_path):
@@ -508,7 +508,7 @@ class TestScaffoldAider:
         scaffold_aider(tmp_path)
         content = (tmp_path / ".aider.conf.yml").read_text()
         data = yaml.safe_load(content)
-        assert data["model"] == "ollama_chat/qwen3.5:27b"
+        assert data["model"] == "ollama_chat/qwen3-coder-next"
 
     def test_aider_conf_has_notes_read(self, tmp_path):
         scaffold_aider(tmp_path)

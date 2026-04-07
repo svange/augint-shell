@@ -110,8 +110,8 @@ class TestLlmCommands:
 
     def test_llm_pull(self, mock_config, mock_manager_cls):
         config = MagicMock()
-        config.primary_model = "qwen3.5:27b"
-        config.fallback_model = "qwen3-coder-next"
+        config.primary_model = "qwen3-coder-next"
+        config.fallback_model = "qwen3.5:27b"
         mock_config.return_value = config
 
         mock_manager = MagicMock()
