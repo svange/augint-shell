@@ -37,22 +37,23 @@ def _check_bedrock_access(
     region = exec_env.get("AWS_REGION", "us-east-1")
     profile = exec_env.get("AWS_PROFILE", "")
 
-    # Build a tiny invoke-model call (1 max_token) to test the full auth chain
+    # Build a tiny invoke-model call to test the full auth chain.
+    # Use printf (no trailing newline) and fileb:// (binary blob) -- required by AWS CLI.
     body = (
         '{"anthropic_version":"bedrock-2023-05-31",'
-        '"max_tokens":1,'
+        '"max_tokens":10,'
         '"messages":[{"role":"user","content":"ping"}]}'
     )
 
     # Write the body to a temp file inside the container, invoke, then clean up
-    write_cmd = f"echo '{body}' > /tmp/_bedrock_check.json"
+    write_cmd = f"printf '%s' '{body}' > /tmp/_bedrock_check.json"
     invoke_cmd = (
         f"aws bedrock-runtime invoke-model"
         f" --model-id {DEFAULT_BEDROCK_MODEL}"
         f" --region {region}"
         f" --content-type application/json"
         f" --accept application/json"
-        f" --body file:///tmp/_bedrock_check.json"
+        f" --body fileb:///tmp/_bedrock_check.json"
         f" /tmp/_bedrock_check_out.json"
     )
     if profile:
