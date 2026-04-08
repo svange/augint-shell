@@ -228,7 +228,7 @@ def skills_for_config(
 ) -> list[str]:
     """Return the skill list for a given repo type and branch strategy."""
     if repo_type is None:
-        return list(CLAUDE_SKILL_DIRS)
+        return list(_FALLBACK_SKILLS)
 
     skills = list(_UNIVERSAL_SKILLS)
 
@@ -258,7 +258,10 @@ _NOTES_TEMPLATE: dict[RepoType | None, str] = {
 
 # ── Public API ──────────────────────────────────────────────────────
 
-CLAUDE_SKILL_DIRS = [
+# Default skill set when repo_type is unknown (universal + service + promote).
+# Used by skills_for_config(None, None) as a safe fallback that includes
+# everything except workspace-only skills.
+_FALLBACK_SKILLS = [
     "ai-init",
     "ai-pick-issue",
     "ai-prepare-branch",
@@ -317,7 +320,7 @@ def scaffold_claude(
     console.print("[bold green]Claude configuration ready.[/bold green]")
 
 
-AGENTS_SKILL_DIRS = list(CLAUDE_SKILL_DIRS)  # Mirrored to .agents/skills/
+AGENTS_FALLBACK_SKILLS = list(_FALLBACK_SKILLS)  # Mirrored for agents/codex
 
 
 def _build_toml_content(

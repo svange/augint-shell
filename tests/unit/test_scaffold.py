@@ -5,8 +5,8 @@ import json
 import yaml
 
 from ai_shell.scaffold import (
-    AGENTS_SKILL_DIRS,
-    CLAUDE_SKILL_DIRS,
+    _FALLBACK_SKILLS,
+    AGENTS_FALLBACK_SKILLS,
     BranchStrategy,
     RepoType,
     _deep_merge_settings,
@@ -91,19 +91,19 @@ class TestScaffoldClaude:
     def test_creates_all_skill_dirs(self, tmp_path):
         scaffold_claude(tmp_path)
         skills_dir = tmp_path / ".claude" / "skills"
-        for skill_name in CLAUDE_SKILL_DIRS:
+        for skill_name in _FALLBACK_SKILLS:
             assert (skills_dir / skill_name / "SKILL.md").is_file(), f"Missing skill: {skill_name}"
 
     def test_skill_count_matches(self, tmp_path):
         scaffold_claude(tmp_path)
         skills_dir = tmp_path / ".claude" / "skills"
         actual = sorted(d.name for d in skills_dir.iterdir() if d.is_dir())
-        assert actual == sorted(CLAUDE_SKILL_DIRS)
+        assert actual == sorted(_FALLBACK_SKILLS)
 
     def test_skill_files_have_frontmatter(self, tmp_path):
         scaffold_claude(tmp_path)
         skills_dir = tmp_path / ".claude" / "skills"
-        for skill_name in CLAUDE_SKILL_DIRS:
+        for skill_name in _FALLBACK_SKILLS:
             content = (skills_dir / skill_name / "SKILL.md").read_text()
             assert content.startswith("---"), f"{skill_name}/SKILL.md missing YAML frontmatter"
             # Verify frontmatter closes
@@ -172,7 +172,7 @@ class TestScaffoldClaude:
     def test_clean_works_on_empty_dir(self, tmp_path):
         scaffold_claude(tmp_path, clean=True)
         assert (tmp_path / ".claude" / "settings.json").is_file()
-        for skill_name in CLAUDE_SKILL_DIRS:
+        for skill_name in _FALLBACK_SKILLS:
             assert (tmp_path / ".claude" / "skills" / skill_name / "SKILL.md").is_file()
 
     def test_does_not_create_notes_md(self, tmp_path):
@@ -378,7 +378,7 @@ class TestScaffoldOpencode:
     def test_creates_agents_skills(self, tmp_path):
         scaffold_opencode(tmp_path)
         skills_dir = tmp_path / ".agents" / "skills"
-        for skill_name in AGENTS_SKILL_DIRS:
+        for skill_name in AGENTS_FALLBACK_SKILLS:
             assert (skills_dir / skill_name / "SKILL.md").is_file(), (
                 f"Missing agent skill: {skill_name}"
             )
@@ -441,7 +441,7 @@ class TestScaffoldCodex:
     def test_creates_agents_skills(self, tmp_path):
         scaffold_codex(tmp_path)
         skills_dir = tmp_path / ".agents" / "skills"
-        for skill_name in AGENTS_SKILL_DIRS:
+        for skill_name in AGENTS_FALLBACK_SKILLS:
             assert (skills_dir / skill_name / "SKILL.md").is_file(), (
                 f"Missing agent skill: {skill_name}"
             )
@@ -449,7 +449,7 @@ class TestScaffoldCodex:
     def test_skill_files_have_frontmatter(self, tmp_path):
         scaffold_codex(tmp_path)
         skills_dir = tmp_path / ".agents" / "skills"
-        for skill_name in AGENTS_SKILL_DIRS:
+        for skill_name in AGENTS_FALLBACK_SKILLS:
             content = (skills_dir / skill_name / "SKILL.md").read_text()
             assert content.startswith("---"), f"{skill_name}/SKILL.md missing YAML frontmatter"
             second_marker = content.index("---", 3)
@@ -600,7 +600,7 @@ class TestNotesFile:
 class TestSkillsForConfig:
     def test_none_returns_all_skills(self):
         skills = skills_for_config(None, None)
-        assert skills == CLAUDE_SKILL_DIRS
+        assert skills == _FALLBACK_SKILLS
 
     def test_library_main_excludes_promote_and_service_skills(self):
         skills = skills_for_config(RepoType.LIBRARY, BranchStrategy.MAIN)
@@ -734,7 +734,7 @@ class TestScaffoldWithRepoType:
     def test_claude_none_delivers_all_original_skills(self, tmp_path):
         scaffold_claude(tmp_path, repo_type=None, branch_strategy=None)
         skills_dir = tmp_path / ".claude" / "skills"
-        for skill_name in CLAUDE_SKILL_DIRS:
+        for skill_name in _FALLBACK_SKILLS:
             assert (skills_dir / skill_name / "SKILL.md").is_file()
 
     def test_stale_skills_removed_on_type_change(self, tmp_path):
@@ -799,7 +799,7 @@ class TestNotesTemplateSelection:
         )
         content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
         assert "# Institutional Notes: Service Repos" in content
-        assert "merge-commit-only policy applies" in content
+        assert "Merge-commit-only policy applies" in content
         assert "ai-tools repo ..." in content
         assert "ai-tools standardize detect/audit/fix/verify" in content
 

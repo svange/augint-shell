@@ -85,13 +85,11 @@ Follow these steps to create a well-structured skill:
    ```
 
 7. **Register in scaffold.py**:
-   Add the skill name to `CLAUDE_SKILL_DIRS` in `src/ai_shell/scaffold.py`:
-   ```python
-   CLAUDE_SKILL_DIRS = [
-       # ... existing skills ...
-       "{skill-name}",
-   ]
-   ```
+   Add the skill name to the appropriate skill list in `src/ai_shell/scaffold.py`:
+   - `_UNIVERSAL_SKILLS` for skills that apply to all repo types
+   - `_SERVICE_SKILLS` for service-only skills
+   - `_WORKSPACE_SKILLS` for workspace-only skills
+   - `_FALLBACK_SKILLS` if it should also be included when repo type is unknown
 
 8. **Best practices**:
    - Keep skills focused on one primary task
