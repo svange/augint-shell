@@ -886,14 +886,6 @@ class TestProjectTomlContent:
 class TestRepoTypeCompat:
     """Verify repo-type config loading behavior."""
 
-    def test_iac_mapped_to_service_in_config(self, tmp_path):
-        from ai_shell.config import load_config
-
-        toml_content = '[project]\nrepo_type = "iac"\n'
-        (tmp_path / ".ai-shell.toml").write_text(toml_content)
-        config = load_config(project_dir=tmp_path)
-        assert config.repo_type == "service"
-
     def test_workspace_kept_in_config(self, tmp_path):
         from ai_shell.config import load_config
 
