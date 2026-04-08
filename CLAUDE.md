@@ -65,6 +65,13 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 
 5. **Monitor** (after PR): `/ai-monitor-pipeline` -- watches CI, diagnoses failures, auto-fixes and re-pushes
 
+## ai-tools
+
+- Normal repo commands: `ai-tools <command>`
+- Workspace/monorepo commands: `ai-tools mono <command>`
+- Prefer machine-readable output when available for agent consumption.
+- Branch, PR target, and validation policy should come from repo or workspace config, not guesswork.
+
 ## Key Commands
 
 ```bash

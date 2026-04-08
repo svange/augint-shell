@@ -102,7 +102,9 @@ class TestEnsureDevContainer:
     def test_reuses_matching_legacy_container(self, mock_container_manager):
         legacy_container = MagicMock()
         legacy_container.status = "running"
-        legacy_container.attrs = {"Mounts": [{"Source": str(mock_container_manager.config.project_dir.resolve())}]}
+        legacy_container.attrs = {
+            "Mounts": [{"Source": str(mock_container_manager.config.project_dir.resolve())}]
+        }
 
         def get_container(name):
             if name == "augint-shell-test-project-dev":

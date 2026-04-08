@@ -92,3 +92,4 @@ temp/
 # === License Reports (generated) ===
 license-report.json
 runtime-requirements.txt
+ai-shell.toml

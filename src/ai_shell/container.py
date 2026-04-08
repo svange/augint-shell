@@ -10,6 +10,7 @@ import logging
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
 from docker.errors import APIError, ImageNotFound, NotFound
@@ -427,7 +428,7 @@ class ContainerManager:
         except NotFound:
             return None
 
-    def _container_matches_project(self, container: Container, project_dir) -> bool:
+    def _container_matches_project(self, container: Container, project_dir: Path) -> bool:
         """Check whether a container's project mount matches *project_dir*."""
         resolved_project_dir = str(project_dir.resolve())
         mounts = container.attrs.get("Mounts", [])

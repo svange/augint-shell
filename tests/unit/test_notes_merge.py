@@ -149,7 +149,10 @@ class TestMergeNotesIntoContext:
             merge_notes_into_context(tmp_path, "claude")
 
         prompt = mock_run.call_args[0][0][mock_run.call_args[0][0].index("-p") + 1]
-        assert "Service-style repos usually branch from and target a development branch first." in prompt
+        assert (
+            "Service-style repos usually branch from and target a development branch first."
+            in prompt
+        )
 
     def test_background_uses_popen(self, tmp_path):
         (tmp_path / "CLAUDE.md").write_text("# Project")

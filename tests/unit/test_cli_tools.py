@@ -117,7 +117,7 @@ class TestToolCommands:
 
     def test_codex_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         config = MagicMock()
-        config.codex_api_key = ""
+        config.codex_openai_api_key = ""
         config.codex_provider = ""
         config.codex_profile = ""
         config.bedrock_profile = ""
@@ -144,7 +144,7 @@ class TestToolCommands:
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
-        config.codex_api_key = ""
+        config.codex_openai_api_key = ""
         config.codex_provider = ""
         config.codex_profile = ""
         config.bedrock_profile = ""
@@ -165,11 +165,12 @@ class TestToolCommands:
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert "--dangerously-bypass-approvals-and-sandbox" not in cmd
 
-    def test_codex_api_key_from_config(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    @patch("ai_shell.cli.commands.tools._inject_codex_api_key")
+    def test_codex_openai_api_key_from_config(
+        self, mock_inject, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
-        config.codex_api_key = "sk-test-123"
+        config.codex_openai_api_key = "sk-test-123"
         config.codex_provider = ""
         config.codex_profile = ""
         config.bedrock_profile = ""
@@ -179,8 +180,6 @@ class TestToolCommands:
         config.project_dir = "/tmp/test"
         mock_config.return_value = config
 
-        exec_env = dict(TEST_EXEC_ENV)
-        exec_env["OPENAI_API_KEY"] = "sk-test-123"
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
@@ -189,13 +188,24 @@ class TestToolCommands:
 
         self.runner.invoke(cli, ["codex"])
 
-        # Verify OPENAI_API_KEY was set in exec_env
-        actual_env = mock_manager.exec_interactive.call_args[1]["extra_env"]
-        assert actual_env["OPENAI_API_KEY"] == "sk-test-123"
+        # Verify auth.json was patched with the configured key
+        mock_inject.assert_called_once_with("augint-shell-test-dev", "sk-test-123")
 
+    @patch("ai_shell.cli.commands.tools._inject_codex_api_key")
     def test_codex_bedrock_launch_message(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+        self, mock_inject, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
+        config = MagicMock()
+        config.codex_openai_api_key = ""
+        config.codex_provider = ""
+        config.codex_profile = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
         bedrock_env = dict(TEST_EXEC_ENV)
         bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
         bedrock_env["AWS_PROFILE"] = "rd"
@@ -216,7 +226,7 @@ class TestToolCommands:
     ):
         config = MagicMock()
         config.codex_provider = "aws"
-        config.codex_api_key = ""
+        config.codex_openai_api_key = ""
         config.codex_profile = "rd"
         config.bedrock_profile = ""
         config.ai_profile = ""
@@ -241,9 +251,21 @@ class TestToolCommands:
         call_kwargs = mock_build_env.call_args[1]
         assert call_kwargs["bedrock"] is True
 
+    @patch("ai_shell.cli.commands.tools._inject_codex_api_key")
     def test_codex_bedrock_preflight_called(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+        self, mock_inject, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
+        config = MagicMock()
+        config.codex_openai_api_key = ""
+        config.codex_provider = ""
+        config.codex_profile = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
         bedrock_env = dict(TEST_EXEC_ENV)
         bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
         bedrock_env["AWS_PROFILE"] = "rd"
@@ -257,9 +279,21 @@ class TestToolCommands:
 
         mock_check_bedrock.assert_called_once()
 
+    @patch("ai_shell.cli.commands.tools._inject_codex_api_key")
     def test_codex_bedrock_no_preflight_skips_check(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+        self, mock_inject, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
+        config = MagicMock()
+        config.codex_openai_api_key = ""
+        config.codex_provider = ""
+        config.codex_profile = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
         bedrock_env = dict(TEST_EXEC_ENV)
         bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
         bedrock_env["AWS_PROFILE"] = "rd"

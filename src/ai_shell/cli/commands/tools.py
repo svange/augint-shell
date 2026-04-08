@@ -22,6 +22,44 @@ console = Console(stderr=True)
 FAST_FAILURE_THRESHOLD = 5.0  # seconds — if claude -c exits faster, retry without -c
 
 
+def _inject_codex_api_key(container_name: str, api_key: str) -> None:
+    """Write the configured API key into ~/.codex/auth.json inside the container.
+
+    Codex reads credentials from auth.json rather than the OPENAI_API_KEY env var,
+    so the env var alone has no effect. This patches auth.json in-place before
+    launch. Because ~/.codex/ is bind-mounted from the host, this also updates
+    the host file — effectively switching the active OpenAI account.
+
+    The key is passed via a dedicated env var to avoid any shell-escaping issues.
+    """
+    # Use python3 inside the container: read OPENAI_API_KEY from env and write to auth.json.
+    # auth_mode is set to "apikey" to tell codex not to use SSO tokens.
+    python_cmd = (
+        "import json, os; "
+        "p = os.path.expanduser('~/.codex/auth.json'); "
+        "d = json.loads(open(p).read()) if os.path.exists(p) else {}; "
+        "d['auth_mode'] = 'apikey'; "
+        "d['OPENAI_API_KEY'] = os.environ['_CODEX_INJECT_KEY']; "
+        "open(p, 'w').write(json.dumps(d))"
+    )
+    args = [
+        "docker",
+        "exec",
+        "-e",
+        f"_CODEX_INJECT_KEY={api_key}",
+        container_name,
+        "python3",
+        "-c",
+        python_cmd,
+    ]
+    logger.debug("codex api key inject: docker exec %s python3 -c ...", container_name)
+    result = subprocess.run(args, capture_output=True, text=True, timeout=10)
+    if result.returncode != 0:
+        raise click.ClickException(
+            f"Failed to inject codex api_key into ~/.codex/auth.json:\n  {result.stderr.strip()}"
+        )
+
+
 def _check_bedrock_access(
     container_name: str,
     exec_env: dict[str, str],
@@ -468,9 +506,12 @@ def codex(
         bedrock_profile=cli_profile or config.codex_profile,
     )
 
-    # Set OpenAI API key if configured
-    if config.codex_api_key:
-        exec_env["OPENAI_API_KEY"] = config.codex_api_key
+    # Inject API key into ~/.codex/auth.json if configured.
+    # Codex reads auth from auth.json (not the OPENAI_API_KEY env var), so we patch
+    # auth.json directly. This also updates the bind-mounted host file, effectively
+    # switching the active OpenAI account for the duration of the session.
+    if config.codex_openai_api_key:
+        _inject_codex_api_key(name, config.codex_openai_api_key)
 
     if use_bedrock:
         profile_label = exec_env.get("AWS_PROFILE", "default")

@@ -52,7 +52,7 @@ def _read_persisted_project(target_dir: Path) -> dict[str, str]:
 def _read_notes_template(target_dir: Path) -> str:
     """Load the generic or repo-specific institutional notes template."""
     project = _read_persisted_project(target_dir)
-    template_name = _NOTES_TEMPLATE_BY_REPO_TYPE.get(project.get("repo_type"), "notes.md")
+    template_name = _NOTES_TEMPLATE_BY_REPO_TYPE.get(project.get("repo_type") or "", "notes.md")
     ref = _TEMPLATES.joinpath(template_name)
     return ref.read_text(encoding="utf-8")
 
