@@ -14,7 +14,3 @@ Report:
 - run status and failed jobs
 - whether failures are auto-fixable or manual
 - concrete next step
-
-Transitional fallback:
-- If repo CI commands are unavailable, use `gh run watch` and `gh run view --log-failed` for a minimal diagnosis.
-- Recommend upgrading `ai-tools` for deterministic CI triage behavior.

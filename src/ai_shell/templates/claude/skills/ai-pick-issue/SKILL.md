@@ -16,7 +16,3 @@ Return:
 - why each candidate is prioritized
 - expected scope and dependency notes
 - recommended next branch plan
-
-Transitional fallback:
-- If `ai-tools repo issues pick` is unavailable, state the tool gap and use `gh issue view` for numeric input or `gh issue list --state open --search ...` for search input.
-- Never recommend closed issues as the default next task.

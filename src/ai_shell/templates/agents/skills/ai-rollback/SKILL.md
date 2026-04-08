@@ -12,6 +12,3 @@ Primary flow:
 3. If this is a dry run, stop after the plan.
 4. For non-dry-run requests, get explicit user confirmation, then run `ai-tools repo rollback apply --json $ARGUMENTS`.
 5. Summarize results and continue with `/ai-monitor-pipeline`.
-
-Transitional fallback:
-- If rollback commands are unavailable, state the tool gap and ask whether to switch to a manual revert workflow.

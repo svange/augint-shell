@@ -13,7 +13,3 @@ Report:
 - hygiene findings grouped by severity
 - safe cleanup actions
 - prioritized next actions
-
-Transitional fallback:
-- If `ai-tools repo health` is unavailable, run `ai-tools repo status --actionable --json` for a limited health snapshot.
-- Note that full health planning requires an updated `ai-tools` version.

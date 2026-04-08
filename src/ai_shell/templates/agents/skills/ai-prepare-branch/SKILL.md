@@ -14,8 +14,3 @@ Report:
 - prepared branch name
 - repos/conditions blocked by local state
 - next command to run
-
-Transitional fallback:
-- If `ai-tools repo branch prepare` is unavailable, state the tool gap first.
-- Run only a minimal safe fallback (`git fetch --all --prune`, detect base branch, create/switch branch).
-- Keep fallback logic small; do not recreate the old shell-heavy branching algorithm in this skill.
