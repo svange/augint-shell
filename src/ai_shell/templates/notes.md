@@ -27,7 +27,7 @@ They are not a project summary template and should not displace repo-specific ar
 - Conventional commits are required.
 - Libraries generally target `main`.
 - Service-style repos generally target their development branch, then promote via merge commit.
-- When a service or IaC rule says "merge commits only", apply it literally and do not squash.
+- When a service repo rule says "merge commits only", apply it literally and do not squash.
 
 ## AI Workflow Patterns
 

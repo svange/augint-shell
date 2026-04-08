@@ -7,7 +7,7 @@ argument-hint: ""
 Initialize this workspace.
 
 Steps:
-1. Run `/ai-init --workspace` if `ai-shell.toml` is missing.
+1. Run `/ai-init --workspace` if `.ai-shell.toml` is missing.
 2. Confirm workspace docs and manifest exist.
 3. Run `ai-tools mono sync --json` to materialize child repos.
 4. Run `ai-tools mono inspect --json` to verify dependency graph, selectors, and branch targets.

@@ -36,7 +36,7 @@ echo "Repository: $OWNER/$REPO"
 git fetch --all --prune 2>/dev/null
 REPO_TYPE="library"
 if git show-ref --verify --quiet refs/remotes/origin/dev 2>/dev/null; then
-    REPO_TYPE="iac"
+    REPO_TYPE="service"
 fi
 echo "Repo type: $REPO_TYPE"
 ```
@@ -134,7 +134,7 @@ echo "$TRUST_POLICY" | jq -r '
 Based on repo type detected in Step 1:
 
 - **Library** (no dev branch): `repo:OWNER/REPO:ref:refs/heads/main`
-- **IaC** (dev branch exists): both `repo:OWNER/REPO:ref:refs/heads/main` and `repo:OWNER/REPO:ref:refs/heads/dev`
+- **Service** (dev branch exists): both `repo:OWNER/REPO:ref:refs/heads/main` and `repo:OWNER/REPO:ref:refs/heads/dev`
 
 ### Report coverage
 
@@ -200,7 +200,7 @@ aws iam update-assume-role-policy \
 rm -f /tmp/trust-policy.json
 ```
 
-If multiple subjects need to be added (IaC repo needing both main and dev), apply all new subjects in a single policy update.
+If multiple subjects need to be added (Service repo needing both main and dev), apply all new subjects in a single policy update.
 
 ### Verify the update
 
@@ -231,7 +231,7 @@ Confirm the new subjects appear in the output.
 === OIDC Setup Complete ===
 
 Repository: svange/my-lib
-Repo type: IaC (dev + main)
+Repo type: Service (dev + main)
 AWS Account: 123456789012
 Profile: my-profile
 Role: GitHubActionsRole

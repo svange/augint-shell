@@ -16,7 +16,7 @@ Choose one:
 - `service` - deployable app/API/web/IaC repo, usually `dev` -> `main`
 - `workspace` - coordination repo for multiple child repos
 
-If the user does not specify a kind, ask once and persist it via `ai-shell.toml`.
+If the user does not specify a kind, ask once and persist it via `.ai-shell.toml`.
 
 ## 2. Determine Tool Scope
 
@@ -42,12 +42,12 @@ ai-shell codex --init --library
 ai-shell opencode --init --workspace
 ```
 
-If the repo already has `ai-shell.toml`, prefer `--update` over `--init`.
+If the repo already has `.ai-shell.toml`, prefer `--update` over `--init`.
 
 ## 4. Verify Result
 
 Confirm that:
-- `ai-shell.toml` has the expected `[project]` metadata
+- `.ai-shell.toml` has the expected `[project]` metadata
 - only the relevant skills were installed
 - workspace repos get `ai-workspace-*` skills and use `ai-tools mono ...`
 - normal repos use `ai-tools repo ...`
@@ -79,4 +79,3 @@ For `workspace` repos:
 
 - If repo kind is unclear, stop and ask once.
 - If wrong skills are already installed, use `--update` or `--reset`.
-- If the repo was initialized with an older alias like `iac`, explain the current equivalent (`service`).
