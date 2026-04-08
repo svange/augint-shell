@@ -67,9 +67,11 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 
 ## ai-tools
 
-- Normal repo commands: `ai-tools <command>`
+- Single-repo commands: `ai-tools repo <command>`
 - Workspace/monorepo commands: `ai-tools mono <command>`
-- Prefer machine-readable output when available for agent consumption.
+- Standardization commands: `ai-tools standardize <command>`
+- `augint-tools` is the project/repository name; `ai-tools` is the CLI command to run.
+- Prefer machine-readable output (`--json`) when available for agent consumption.
 - Branch, PR target, and validation policy should come from repo or workspace config, not guesswork.
 
 ## Key Commands
