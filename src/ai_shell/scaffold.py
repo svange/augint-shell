@@ -59,7 +59,7 @@ _AIDER_DIRS: list[str] = []
 _AIDER_FILES = [".aider.conf.yml", ".aiderignore"]
 
 _PROJECT_DIRS: list[str] = []
-_PROJECT_FILES = [".ai-shell.toml", "ai-shell.toml"]
+_PROJECT_FILES = [".ai-shell.toml"]
 
 _NOTES_FILE = "INSTITUTIONAL_KNOWLEDGE.md"
 

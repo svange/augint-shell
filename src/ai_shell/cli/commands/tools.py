@@ -128,8 +128,6 @@ def _read_persisted_project(target_dir: Path) -> dict[str, str]:
     try:
         toml_path = target_dir / ".ai-shell.toml"
         if not toml_path.exists():
-            toml_path = target_dir / "ai-shell.toml"
-        if not toml_path.exists():
             return {}
         with open(toml_path, "rb") as f:
             data = tomllib.load(f)

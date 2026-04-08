@@ -197,26 +197,6 @@ branch_strategy = "main"
         assert config.repo_type == "workspace"
         assert config.branch_strategy == "main"
 
-    def test_legacy_toml_name_still_loaded(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
-[container]
-image = "legacy/image"
-""")
-        config = load_config(project_dir=tmp_path)
-        assert config.image == "legacy/image"
-
-    def test_hidden_toml_takes_precedence(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
-[container]
-image = "legacy/image"
-""")
-        (tmp_path / ".ai-shell.toml").write_bytes(b"""
-[container]
-image = "hidden/image"
-""")
-        config = load_config(project_dir=tmp_path)
-        assert config.image == "hidden/image"
-
 
 class TestAwsConfig:
     def test_aws_defaults_empty(self, tmp_path):

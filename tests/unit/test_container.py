@@ -99,40 +99,6 @@ class TestEnsureDevContainer:
         assert name.startswith("augint-shell-test-project-")
         assert name.endswith("-dev")
 
-    def test_reuses_matching_legacy_container(self, mock_container_manager):
-        legacy_container = MagicMock()
-        legacy_container.status = "running"
-        legacy_container.attrs = {
-            "Mounts": [{"Source": str(mock_container_manager.config.project_dir.resolve())}]
-        }
-
-        def get_container(name):
-            if name == "augint-shell-test-project-dev":
-                return legacy_container
-            return None
-
-        mock_container_manager._get_container = MagicMock(side_effect=get_container)
-
-        name = mock_container_manager.ensure_dev_container()
-
-        assert name == "augint-shell-test-project-dev"
-        legacy_container.start.assert_not_called()
-
-    def test_ignores_mismatched_legacy_container(self, mock_container_manager):
-        legacy_container = MagicMock()
-        legacy_container.status = "exited"
-        legacy_container.attrs = {"Mounts": [{"Source": "/other/path"}]}
-        mock_container_manager._get_container = MagicMock(side_effect=[None, legacy_container])
-        mock_container_manager._pull_image_if_needed = MagicMock()
-        mock_container_manager.client.containers.run.return_value = MagicMock()
-
-        name = mock_container_manager.ensure_dev_container()
-
-        assert name.startswith("augint-shell-test-project-")
-        assert name.endswith("-dev")
-        assert name != "augint-shell-test-project-dev"
-        legacy_container.start.assert_not_called()
-
 
 class TestExecInteractive:
     def test_builds_correct_docker_args(self, mock_container_manager):

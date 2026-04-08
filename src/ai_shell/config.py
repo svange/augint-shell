@@ -96,10 +96,8 @@ def load_config(
     if global_config_path.exists():
         _apply_toml(config, global_config_path)
 
-    # Load project config — prefer hidden file, fall back to legacy name
+    # Load project config
     project_config_path = config.project_dir / ".ai-shell.toml"
-    if not project_config_path.exists():
-        project_config_path = config.project_dir / "ai-shell.toml"
     if project_config_path.exists():
         _apply_toml(config, project_config_path)
 

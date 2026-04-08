@@ -10,7 +10,6 @@ import logging
 import subprocess
 import sys
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
 from docker.errors import APIError, ImageNotFound, NotFound
@@ -110,16 +109,6 @@ class ContainerManager:
                 logger.info("Starting existing container: %s", name)
                 container.start()
             return name
-
-        legacy_name = dev_container_name(self.config.project_name)
-        legacy_container = self._get_container(legacy_name)
-        if legacy_container is not None and self._container_matches_project(
-            legacy_container, self.config.project_dir
-        ):
-            if legacy_container.status != "running":
-                logger.info("Starting legacy container: %s", legacy_name)
-                legacy_container.start()
-            return legacy_name
 
         logger.info("Creating dev container: %s", name)
         self._pull_image_if_needed(self.config.full_image)
@@ -427,15 +416,6 @@ class ContainerManager:
             return self.client.containers.get(name)
         except NotFound:
             return None
-
-    def _container_matches_project(self, container: Container, project_dir: Path) -> bool:
-        """Check whether a container's project mount matches *project_dir*."""
-        resolved_project_dir = str(project_dir.resolve())
-        mounts = container.attrs.get("Mounts", [])
-        for mount in mounts:
-            if mount.get("Source") == resolved_project_dir:
-                return True
-        return False
 
     def _pull_image_if_needed(self, image: str) -> None:
         """Pull a Docker image if not available locally."""

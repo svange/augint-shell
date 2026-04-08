@@ -89,15 +89,12 @@ def unique_project_name(path: Path, project_name: str | None = None) -> str:
     return f"{slug}-{digest}"
 
 
-def dev_container_name(project_name: str, project_dir: Path | None = None) -> str:
+def dev_container_name(project_name: str, project_dir: Path) -> str:
     """Build the dev container name for a project.
 
-    When *project_dir* is provided, the full resolved path is folded into the
-    name to avoid collisions across nested repo layouts. Without it, the legacy
-    basename-only format is preserved for compatibility.
+    The full resolved path is folded into the name to avoid collisions
+    across nested repo layouts.
     """
-    if project_dir is None:
-        return f"{CONTAINER_PREFIX}-{project_name}-dev"
     return f"{CONTAINER_PREFIX}-{unique_project_name(project_dir, project_name)}-dev"
 
 

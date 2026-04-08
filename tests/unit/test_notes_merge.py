@@ -152,19 +152,6 @@ class TestMergeNotesIntoContext:
         assert "ai-tools repo ..." in prompt
         assert "ai-tools standardize detect/audit/fix/verify" in prompt
 
-    def test_legacy_toml_name_still_read(self, tmp_path):
-        (tmp_path / "AGENTS.md").write_text("# Agents")
-        (tmp_path / "ai-shell.toml").write_text('[project]\nrepo_type = "workspace"\n')
-        with (
-            patch("ai_shell.notes_merge.shutil.which", return_value="/usr/bin/codex"),
-            patch("ai_shell.notes_merge.subprocess.run") as mock_run,
-        ):
-            mock_run.return_value.returncode = 0
-            merge_notes_into_context(tmp_path, "codex")
-
-        prompt = mock_run.call_args[0][0][-1]
-        assert "ai-tools mono sync" in prompt
-
     def test_service_repo_uses_service_template(self, tmp_path):
         (tmp_path / "CLAUDE.md").write_text("# CLAUDE.md")
         (tmp_path / ".ai-shell.toml").write_text('[project]\nrepo_type = "service"\n')
