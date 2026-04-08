@@ -6,6 +6,6 @@ argument-hint: "[--from repo-name]"
 
 Update downstream workspace dependencies: $ARGUMENTS
 
-Use `augint-tools update $ARGUMENTS`.
+Run `ai-tools mono update --json $ARGUMENTS`.
 
 Summarize changed repos and any follow-up release or validation steps.
