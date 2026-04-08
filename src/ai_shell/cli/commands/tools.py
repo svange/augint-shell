@@ -389,6 +389,15 @@ def claude(
     default=False,
     help="Skip merging notes into context file on --update/--reset.",
 )
+@click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
+@click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
+@click.option(
+    "--no-preflight",
+    "skip_preflight",
+    is_flag=True,
+    default=False,
+    help="Skip Bedrock pre-flight check (for debugging).",
+)
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
 @click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
 @click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
@@ -396,7 +405,18 @@ def claude(
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def codex(
-    ctx, do_init, do_update, do_reset, do_clean, safe, skip_merge, repo_type_flag, extra_args
+    ctx,
+    do_init,
+    do_update,
+    do_reset,
+    do_clean,
+    safe,
+    skip_merge,
+    use_aws,
+    cli_profile,
+    skip_preflight,
+    repo_type_flag,
+    extra_args,
 ):
     """Launch Codex in the dev container."""
     if do_init or do_update or do_reset or do_clean:
@@ -437,12 +457,39 @@ def codex(
 
             merge_notes_into_context(Path.cwd(), "codex", background=True)
 
-    manager, name, exec_env, _config = _get_manager(ctx)
+    # Load config first to check provider setting
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    use_bedrock = use_aws or config.codex_provider == "aws"
+
+    manager, name, exec_env, config = _get_manager(
+        ctx,
+        bedrock=use_bedrock,
+        bedrock_profile=cli_profile or config.codex_profile,
+    )
+
+    # Set OpenAI API key if configured
+    if config.codex_api_key:
+        exec_env["OPENAI_API_KEY"] = config.codex_api_key
+
+    if use_bedrock:
+        profile_label = exec_env.get("AWS_PROFILE", "default")
+        region_label = exec_env.get("AWS_REGION", "us-east-1")
+        bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
+        if not skip_preflight:
+            console.print(
+                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+            )
+            _check_bedrock_access(name, exec_env)
+    else:
+        bedrock_label = ""
+
     cmd = ["codex"]
     if not safe:
         cmd.extend(["--dangerously-bypass-approvals-and-sandbox"])
     cmd.extend(extra_args)
-    console.print(f"[bold]Launching Codex{' (safe mode)' if safe else ''} in {name}...[/bold]")
+    mode_label = " (safe mode)" if safe else ""
+    console.print(f"[bold]Launching Codex{mode_label}{bedrock_label} in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env)
 
 

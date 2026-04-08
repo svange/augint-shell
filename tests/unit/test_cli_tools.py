@@ -116,6 +116,17 @@ class TestToolCommands:
         assert cmd == ["claude", "--dangerously-skip-permissions", "-c", "--debug"]
 
     def test_codex_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
+        config = MagicMock()
+        config.codex_api_key = ""
+        config.codex_provider = ""
+        config.codex_profile = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
@@ -132,6 +143,17 @@ class TestToolCommands:
     def test_codex_safe_mode(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
+        config = MagicMock()
+        config.codex_api_key = ""
+        config.codex_provider = ""
+        config.codex_profile = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
@@ -142,6 +164,114 @@ class TestToolCommands:
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert "--dangerously-bypass-approvals-and-sandbox" not in cmd
+
+    def test_codex_api_key_from_config(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.codex_api_key = "sk-test-123"
+        config.codex_provider = ""
+        config.codex_profile = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
+        exec_env = dict(TEST_EXEC_ENV)
+        exec_env["OPENAI_API_KEY"] = "sk-test-123"
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["codex"])
+
+        # Verify OPENAI_API_KEY was set in exec_env
+        actual_env = mock_manager.exec_interactive.call_args[1]["extra_env"]
+        assert actual_env["OPENAI_API_KEY"] == "sk-test-123"
+
+    def test_codex_bedrock_launch_message(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        bedrock_env = dict(TEST_EXEC_ENV)
+        bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+        bedrock_env["AWS_PROFILE"] = "rd"
+        mock_build_env.return_value = bedrock_env
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["codex", "--aws"])
+
+        assert "Bedrock" in result.output
+        assert "profile=rd" in result.output
+        assert "region=us-east-1" in result.output
+
+    def test_codex_config_provider_activates_bedrock(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.codex_provider = "aws"
+        config.codex_api_key = ""
+        config.codex_profile = "rd"
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
+        bedrock_env = dict(TEST_EXEC_ENV)
+        bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+        bedrock_env["AWS_PROFILE"] = "rd"
+        mock_build_env.return_value = bedrock_env
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["codex"])
+
+        assert "Bedrock" in result.output
+        mock_build_env.assert_called_once()
+        call_kwargs = mock_build_env.call_args[1]
+        assert call_kwargs["bedrock"] is True
+
+    def test_codex_bedrock_preflight_called(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        bedrock_env = dict(TEST_EXEC_ENV)
+        bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+        bedrock_env["AWS_PROFILE"] = "rd"
+        mock_build_env.return_value = bedrock_env
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["codex", "--aws"])
+
+        mock_check_bedrock.assert_called_once()
+
+    def test_codex_bedrock_no_preflight_skips_check(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        bedrock_env = dict(TEST_EXEC_ENV)
+        bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+        bedrock_env["AWS_PROFILE"] = "rd"
+        mock_build_env.return_value = bedrock_env
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["codex", "--aws", "--no-preflight"])
+
+        mock_check_bedrock.assert_not_called()
 
     def test_shell_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)

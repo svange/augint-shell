@@ -89,6 +89,31 @@
 # provider = "local"
 
 # =============================================================================
+# [codex] - Codex settings
+# =============================================================================
+# provider: API backend for Codex.
+#   "openai" - OpenAI API (default, uses mounted ~/.codex credentials or api_key)
+#   "aws"    - Amazon Bedrock (uses profile from this section or [aws] bedrock_profile)
+#
+# api_key: OpenAI API key. If set, overrides mounted SSO auth.
+#   Useful for switching between OpenAI organizations.
+#   Override with env var: AI_SHELL_CODEX_API_KEY
+#
+# profile: AWS profile for Bedrock auth (when provider = "aws").
+#   Falls back to bedrock_profile from [aws] section if not set.
+#   Override with env var: AI_SHELL_CODEX_PROFILE
+#
+# Quick switch with CLI: ai-shell codex --aws
+# Override per-session:   ai-shell codex --aws --profile <name>
+#
+# Override with env var: AI_SHELL_CODEX_PROVIDER
+#
+# [codex]
+# provider = "openai"
+# api_key = "sk-proj-..."
+# profile = "my-bedrock-account"
+
+# =============================================================================
 # [container] - Docker container settings
 # =============================================================================
 # image: Docker image (default: svange/augint-shell)

@@ -58,6 +58,9 @@ class AiShellConfig:
     # Per-tool provider
     claude_provider: str = ""  # "anthropic" (default) or "aws"
     opencode_provider: str = ""  # "local" (default, Ollama) or "aws" (Bedrock)
+    codex_provider: str = ""  # "openai" (default) or "aws" (Bedrock)
+    codex_api_key: str = ""  # OpenAI API key (if set, overrides mounted SSO auth)
+    codex_profile: str = ""  # AWS profile for Bedrock auth (when provider = "aws")
 
     # Project workflow
     repo_type: str | None = None  # "library" | "service" | "workspace"
@@ -175,6 +178,15 @@ def _apply_toml(config: AiShellConfig, path: Path) -> None:
     if "provider" in opencode_sec:
         config.opencode_provider = opencode_sec["provider"]
 
+    # [codex] section
+    codex_sec = data.get("codex", {})
+    if "provider" in codex_sec:
+        config.codex_provider = codex_sec["provider"]
+    if "api_key" in codex_sec:
+        config.codex_api_key = codex_sec["api_key"]
+    if "profile" in codex_sec:
+        config.codex_profile = codex_sec["profile"]
+
     # [project] section
     project = data.get("project", {})
     if "repo_type" in project:
@@ -206,6 +218,9 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_BEDROCK_PROFILE": ("bedrock_profile", str),
         "AI_SHELL_CLAUDE_PROVIDER": ("claude_provider", str),
         "AI_SHELL_OPENCODE_PROVIDER": ("opencode_provider", str),
+        "AI_SHELL_CODEX_PROVIDER": ("codex_provider", str),
+        "AI_SHELL_CODEX_API_KEY": ("codex_api_key", str),
+        "AI_SHELL_CODEX_PROFILE": ("codex_profile", str),
     }
 
     for env_key, (attr, type_fn) in env_map.items():

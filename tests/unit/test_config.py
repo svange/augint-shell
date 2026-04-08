@@ -219,6 +219,9 @@ class TestAwsConfig:
         assert config.bedrock_profile == ""
         assert config.claude_provider == ""
         assert config.opencode_provider == ""
+        assert config.codex_provider == ""
+        assert config.codex_api_key == ""
+        assert config.codex_profile == ""
 
     def test_ai_profile_from_toml(self, tmp_path):
         (tmp_path / "ai-shell.toml").write_bytes(b"""
@@ -308,3 +311,51 @@ provider = "anthropic"
         with patch.dict("os.environ", {"AI_SHELL_CLAUDE_PROVIDER": "aws"}):
             config = load_config(project_dir=tmp_path)
         assert config.claude_provider == "aws"
+
+    def test_codex_provider_from_toml(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[codex]
+provider = "aws"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.codex_provider == "aws"
+
+    def test_codex_api_key_from_toml(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[codex]
+api_key = "sk-test-123"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.codex_api_key == "sk-test-123"
+
+    def test_codex_profile_from_toml(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[codex]
+profile = "my-bedrock-acct"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.codex_profile == "my-bedrock-acct"
+
+    def test_codex_full_config(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[codex]
+provider = "aws"
+api_key = "sk-test-123"
+profile = "bedrock-acct"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.codex_provider == "aws"
+        assert config.codex_api_key == "sk-test-123"
+        assert config.codex_profile == "bedrock-acct"
+
+    def test_codex_env_vars(self, tmp_path):
+        env = {
+            "AI_SHELL_CODEX_PROVIDER": "aws",
+            "AI_SHELL_CODEX_API_KEY": "sk-env-456",
+            "AI_SHELL_CODEX_PROFILE": "env-profile",
+        }
+        with patch.dict("os.environ", env):
+            config = load_config(project_dir=tmp_path)
+        assert config.codex_provider == "aws"
+        assert config.codex_api_key == "sk-env-456"
+        assert config.codex_profile == "env-profile"
