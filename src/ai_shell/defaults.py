@@ -85,7 +85,7 @@ def unique_project_name(path: Path, project_name: str | None = None) -> str:
     collisions between repos with the same leaf directory name.
     """
     slug = _sanitize_name((project_name or path.resolve().name).lower())
-    digest = sha1(str(path.resolve()).encode("utf-8")).hexdigest()[:8]
+    digest = sha1(str(path.resolve()).encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
     return f"{slug}-{digest}"
 
 

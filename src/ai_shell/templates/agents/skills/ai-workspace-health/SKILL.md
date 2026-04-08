@@ -6,7 +6,7 @@ argument-hint: "[--repos name1,name2]"
 
 Analyze workspace health: $ARGUMENTS
 
-Use `augint-tools status --json $ARGUMENTS` when available and report:
+Run `ai-tools mono status --actionable --json $ARGUMENTS` and report:
 - missing repos
 - dirty repos blocking coordinated work
 - branch drift against configured defaults

@@ -6,12 +6,11 @@ argument-hint: "[--repos name1,name2]"
 
 Show workspace status: $ARGUMENTS
 
-Use `augint-tools status $ARGUMENTS`.
+Run `ai-tools mono status --json $ARGUMENTS`.
 
 Report:
-- repo presence and sync state
-- branch / dirty / ahead-behind state per repo
-- open PR / CI summary when available
+- repos that are missing, dirty, blocked, or behind target
+- compact PR / CI rollup for repos needing action
 - highest-priority next action
 
-If `augint-tools` is missing, say so and tell the user to install it.
+If this subcommand is unavailable, state that the installed `ai-tools` version is missing `mono status` and ask the user to upgrade `ai-tools`.

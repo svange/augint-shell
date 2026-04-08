@@ -32,13 +32,13 @@ They are not a project summary template and should not displace repo-specific ar
 ## AI Workflow Patterns
 
 - Default normal-repo flow: pick issue -> prepare branch -> develop -> submit -> monitor.
-- Use repo-local skills and commands for implementation work inside a single repo.
-- Use `ai-tools` for standardized orchestration where available.
-- Workspace orchestration commands now live under `ai-tools mono ...`.
-
-## `ai-tools` Conventions
-
-- Normal repo commands are rooted at `ai-tools <command>`.
-- Workspace commands are rooted at `ai-tools mono <command>`.
-- Prefer machine-readable output when available for agent consumption.
+- Use repo-local skills as thin wrappers for `ai-tools` commands.
 - Keep branch, PR target, and validation policy driven by repo or workspace config rather than guesswork.
+- Prefer machine-readable output (`--json`) and summarize actionable results.
+
+## `ai-tools` Command Contract
+
+- Single-repo workflows are rooted at `ai-tools repo <command>`.
+- Workspace workflows are rooted at `ai-tools mono <command>`.
+- Standardization workflows are rooted at `ai-tools standardize <command>`.
+- `augint-tools` is the project/repository name; `ai-tools` is the command to run.

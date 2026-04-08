@@ -12,9 +12,15 @@ Merge them lightly and only when they add net-new guidance.
 ## `ai-tools mono` Conventions
 
 - Workspace orchestration commands live under `ai-tools mono`.
-- Use `ai-tools mono init` to bootstrap a workspace.
-- Use `ai-tools mono sync` to materialize or update child repos.
-- Use `ai-tools mono status`, `issues`, `branch`, `foreach`, `test`, `lint`, `submit`, and `update` for cross-repo orchestration.
+- Start with `ai-tools mono sync --json` to materialize or refresh child repos.
+- Use `ai-tools mono status --json` for the actionable workspace snapshot.
+- Use `ai-tools mono issues`, `branch`, `check`, `submit`, `update`, and `foreach` for cross-repo orchestration.
+- Prefer `ai-tools mono check --phase tests|quality --json` for coordinated validation.
+
+## `ai-tools standardize` In Workspaces
+
+- Run `ai-tools standardize ...` inside each child repo that needs standardization.
+- Keep workspace planning in `mono`; keep standards detection/fixes in `standardize`.
 
 ## Workspace Flow
 
