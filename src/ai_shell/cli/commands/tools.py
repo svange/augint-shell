@@ -288,7 +288,7 @@ def claude(
             repo_type=repo_type,
             branch_strategy=branch_strategy,
         )
-        if (do_update or do_reset) and not skip_merge:
+        if (do_init or do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
             merge_notes_into_context(Path.cwd(), "claude", background=True)
@@ -305,6 +305,10 @@ def claude(
             repo_type=_auto_repo_type,
             branch_strategy=_auto_branch,
         )
+        if not skip_merge:
+            from ai_shell.notes_merge import merge_notes_into_context
+
+            merge_notes_into_context(Path.cwd(), "claude", background=True)
 
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
@@ -411,7 +415,7 @@ def codex(
             repo_type=repo_type,
             branch_strategy=branch_strategy,
         )
-        if (do_update or do_reset) and not skip_merge:
+        if (do_init or do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
             merge_notes_into_context(Path.cwd(), "codex", background=True)
@@ -428,6 +432,10 @@ def codex(
             repo_type=_auto_repo_type,
             branch_strategy=_auto_branch,
         )
+        if not skip_merge:
+            from ai_shell.notes_merge import merge_notes_into_context
+
+            merge_notes_into_context(Path.cwd(), "codex", background=True)
 
     manager, name, exec_env, _config = _get_manager(ctx)
     cmd = ["codex"]
@@ -519,7 +527,7 @@ def opencode(
             repo_type=repo_type,
             branch_strategy=branch_strategy,
         )
-        if (do_update or do_reset) and not skip_merge:
+        if (do_init or do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
             merge_notes_into_context(Path.cwd(), "opencode", background=True)
@@ -536,6 +544,10 @@ def opencode(
             repo_type=_auto_repo_type,
             branch_strategy=_auto_branch,
         )
+        if not skip_merge:
+            from ai_shell.notes_merge import merge_notes_into_context
+
+            merge_notes_into_context(Path.cwd(), "opencode", background=True)
 
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None

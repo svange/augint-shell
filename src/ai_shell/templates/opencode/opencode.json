@@ -35,7 +35,7 @@
       }
     }
   },
-  "instructions": ["NOTES.md"],
+  "instructions": ["INSTITUTIONAL_KNOWLEDGE.md"],
   "permission": {
     "read": "allow",
     "edit": "allow",

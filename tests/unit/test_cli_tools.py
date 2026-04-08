@@ -211,7 +211,10 @@ class TestToolCommands:
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
+            with (
+                patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold,
+                patch("ai_shell.notes_merge.merge_notes_into_context") as mock_merge,
+            ):
                 result = self.runner.invoke(cli, ["opencode", "--init"])
 
         mock_scaffold.assert_called_once_with(
@@ -223,6 +226,7 @@ class TestToolCommands:
             branch_strategy=None,
         )
         mock_manager_cls.assert_not_called()
+        mock_merge.assert_called_once_with("/tmp/test", "opencode", background=True)
         assert result.exit_code == 0
 
     def test_opencode_update_calls_scaffold_with_merge(
@@ -291,7 +295,10 @@ class TestToolCommands:
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
             mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
+            with (
+                patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold,
+                patch("ai_shell.notes_merge.merge_notes_into_context") as mock_merge,
+            ):
                 result = self.runner.invoke(cli, ["codex", "--init"])
 
         mock_scaffold.assert_called_once_with(
@@ -303,6 +310,7 @@ class TestToolCommands:
             branch_strategy=None,
         )
         mock_manager_cls.assert_not_called()
+        mock_merge.assert_called_once_with("/tmp/test", "codex", background=True)
         assert result.exit_code == 0
 
     def test_codex_update_calls_scaffold_with_merge(
@@ -464,7 +472,7 @@ class TestToolCommands:
         mock_merge.assert_not_called()
         assert result.exit_code == 0
 
-    def test_claude_init_does_not_call_merge(
+    def test_claude_init_calls_merge(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         with patch("ai_shell.cli.commands.tools.Path") as mock_path:
@@ -475,7 +483,7 @@ class TestToolCommands:
             ):
                 self.runner.invoke(cli, ["claude", "--init"])
 
-        mock_merge.assert_not_called()
+        mock_merge.assert_called_once_with("/tmp/test", "claude", background=True)
 
     def test_claude_clean_does_not_call_merge(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock

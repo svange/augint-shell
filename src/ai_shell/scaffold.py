@@ -61,11 +61,11 @@ _AIDER_FILES = [".aider.conf.yml", ".aiderignore"]
 _PROJECT_DIRS: list[str] = []
 _PROJECT_FILES = ["ai-shell.toml"]
 
-_NOTES_FILE = "NOTES.md"
+_NOTES_FILE = "INSTITUTIONAL_KNOWLEDGE.md"
 
 
 def _write_notes(target_dir: Path, repo_type: RepoType | None = None) -> None:
-    """Create NOTES.md if it does not exist. Never overwrite or delete."""
+    """Create the institutional knowledge file if it does not exist."""
     path = target_dir / _NOTES_FILE
     if path.exists():
         console.print(f"[yellow]Skipped (protected): {path}[/yellow]")
@@ -228,7 +228,7 @@ ALL_KNOWN_SKILLS = sorted(
     set(_UNIVERSAL_SKILLS + _PROMOTE_SKILLS + _SERVICE_SKILLS + _WORKSPACE_SKILLS + _DELETED_SKILLS)
 )
 
-# NOTES.md template mapping by repo type.
+# Institutional knowledge template mapping by repo type.
 _NOTES_TEMPLATE: dict[RepoType | None, str] = {
     None: "notes.md",
     RepoType.LIBRARY: "notes-library.md",
@@ -358,7 +358,7 @@ def scaffold_opencode(
     repo_type: RepoType | None = None,
     branch_strategy: BranchStrategy | None = None,
 ) -> None:
-    """Create opencode configuration, NOTES.md, and ``.agents/skills/``."""
+    """Create opencode config, institutional knowledge, and ``.agents/skills/``."""
     if clean:
         _clean_paths(target_dir, _OPENCODE_DIRS, _OPENCODE_FILES)
         overwrite = True
@@ -397,7 +397,7 @@ def scaffold_codex(
     repo_type: RepoType | None = None,
     branch_strategy: BranchStrategy | None = None,
 ) -> None:
-    """Create ``.codex/`` config, NOTES.md, and ``.agents/skills/``."""
+    """Create ``.codex/`` config, institutional knowledge, and skills."""
     if clean:
         _clean_paths(target_dir, _CODEX_DIRS, _CODEX_FILES)
         overwrite = True
@@ -431,7 +431,7 @@ def scaffold_aider(
     merge: bool = False,
     repo_type: RepoType | None = None,
 ) -> None:
-    """Create ``.aider.conf.yml``, ``NOTES.md``, and ``.aiderignore``."""
+    """Create aider config and the institutional knowledge file."""
     if clean:
         _clean_paths(target_dir, _AIDER_DIRS, _AIDER_FILES)
         overwrite = True

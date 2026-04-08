@@ -74,7 +74,7 @@ git add -u
 
 **Auto-stage without asking** (known project files):
 - Files in `.claude/`, `.agents/`, `.github/` directories
-- `CLAUDE.md`, `AGENTS.md`, `NOTES.md`
+- `CLAUDE.md`, `AGENTS.md`, `INSTITUTIONAL_KNOWLEDGE.md`
 - Files under `src/`, `tests/` (matches project structure)
 - Files matching existing tracked file patterns
 

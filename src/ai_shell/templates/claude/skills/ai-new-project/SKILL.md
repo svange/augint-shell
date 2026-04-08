@@ -190,7 +190,7 @@ Run augint-shell scaffolding to deploy AI tool configurations:
 ai-shell init --project <repo-name>
 ```
 
-This deploys `.claude/skills/`, `.agents/skills/`, `ai-shell.toml`, and `NOTES.md` with the correct repo type and skill set.
+This deploys `.claude/skills/`, `.agents/skills/`, `ai-shell.toml`, and `INSTITUTIONAL_KNOWLEDGE.md` with the correct repo type and skill set.
 
 If `ai-shell` is not available, manually note that the user should run it later.
 

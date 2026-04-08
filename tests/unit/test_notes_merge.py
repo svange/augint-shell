@@ -10,7 +10,6 @@ class TestMergeNotesIntoContext:
         assert merge_notes_into_context(tmp_path, "aider") is False
 
     def test_bootstraps_context_file_when_missing(self, tmp_path):
-        """No CLAUDE.md -> create stub and proceed with merge."""
         with (
             patch("ai_shell.notes_merge.shutil.which", return_value="/usr/bin/claude"),
             patch("ai_shell.notes_merge.subprocess.run") as mock_run,
@@ -23,7 +22,6 @@ class TestMergeNotesIntoContext:
         mock_run.assert_called_once()
 
     def test_skipped_when_binary_not_found(self, tmp_path):
-        """CLAUDE.md exists but claude not on PATH."""
         (tmp_path / "CLAUDE.md").write_text("# Project")
         with patch("ai_shell.notes_merge.shutil.which", return_value=None):
             result = merge_notes_into_context(tmp_path, "claude")
@@ -97,7 +95,7 @@ class TestMergeNotesIntoContext:
 
         assert result is False
 
-    def test_prompt_contains_template_content(self, tmp_path):
+    def test_prompt_contains_institutional_guidance(self, tmp_path):
         (tmp_path / "CLAUDE.md").write_text("# Project")
         with (
             patch("ai_shell.notes_merge.shutil.which", return_value="/usr/bin/claude"),
@@ -109,8 +107,9 @@ class TestMergeNotesIntoContext:
         cmd = mock_run.call_args[0][0]
         prompt = cmd[cmd.index("-p") + 1]
         assert "into CLAUDE.md" in prompt
-        assert "Critical Rules" in prompt
-        assert "No rebase on main" in prompt
+        assert "institutional notes" in prompt
+        assert "shared workflow and policy guidance" in prompt
+        assert "make repeated updates more prominent" in prompt
 
     def test_codex_prompt_references_agents_md(self, tmp_path):
         (tmp_path / "AGENTS.md").write_text("# Agents")
@@ -121,13 +120,38 @@ class TestMergeNotesIntoContext:
             mock_run.return_value.returncode = 0
             merge_notes_into_context(tmp_path, "codex")
 
-        cmd = mock_run.call_args[0][0]
-        # For codex exec, prompt is the last positional arg
-        prompt = cmd[-1]
+        prompt = mock_run.call_args[0][0][-1]
         assert "into AGENTS.md" in prompt
+        assert "shared workflow and policy guidance" in prompt
+
+    def test_workspace_repo_uses_workspace_template(self, tmp_path):
+        (tmp_path / "AGENTS.md").write_text("# Agents")
+        (tmp_path / "ai-shell.toml").write_text('[project]\nrepo_type = "workspace"\n')
+        with (
+            patch("ai_shell.notes_merge.shutil.which", return_value="/usr/bin/codex"),
+            patch("ai_shell.notes_merge.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value.returncode = 0
+            merge_notes_into_context(tmp_path, "codex")
+
+        prompt = mock_run.call_args[0][0][-1]
+        assert "ai-tools mono sync" in prompt
+        assert "Workspace orchestration commands live under `ai-tools mono`" in prompt
+
+    def test_service_repo_uses_service_template(self, tmp_path):
+        (tmp_path / "CLAUDE.md").write_text("# CLAUDE.md")
+        (tmp_path / "ai-shell.toml").write_text('[project]\nrepo_type = "service"\n')
+        with (
+            patch("ai_shell.notes_merge.shutil.which", return_value="/usr/bin/claude"),
+            patch("ai_shell.notes_merge.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value.returncode = 0
+            merge_notes_into_context(tmp_path, "claude")
+
+        prompt = mock_run.call_args[0][0][mock_run.call_args[0][0].index("-p") + 1]
+        assert "Service-style repos usually branch from and target a development branch first." in prompt
 
     def test_background_uses_popen(self, tmp_path):
-        """background=True should use Popen, not run."""
         (tmp_path / "CLAUDE.md").write_text("# Project")
         with (
             patch("ai_shell.notes_merge.shutil.which", return_value="/usr/bin/claude"),
@@ -147,7 +171,6 @@ class TestMergeNotesIntoContext:
         assert call_kwargs["cwd"] == tmp_path
 
     def test_background_bootstraps_context_file_when_missing(self, tmp_path):
-        """background=True creates stub and proceeds with merge."""
         with (
             patch("ai_shell.notes_merge.shutil.which", return_value="/usr/bin/claude"),
             patch("ai_shell.notes_merge.subprocess.Popen") as mock_popen,
@@ -158,7 +181,6 @@ class TestMergeNotesIntoContext:
         mock_popen.assert_called_once()
 
     def test_background_skips_when_binary_missing(self, tmp_path):
-        """background=True still returns False if binary not on PATH."""
         (tmp_path / "CLAUDE.md").write_text("# Project")
         with (
             patch("ai_shell.notes_merge.shutil.which", return_value=None),

@@ -14,7 +14,7 @@ restore-chat-history: true
 
 # Read conventions file as context
 read:
-  - NOTES.md
+  - INSTITUTIONAL_KNOWLEDGE.md
 
 # Git settings
 auto-commits: true

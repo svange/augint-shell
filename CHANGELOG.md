@@ -185,7 +185,7 @@
 
 ### Chores
 
-- Update `NOTES.md` and standardization skills for enhanced clarity and validation
+- Update `INSTITUTIONAL_KNOWLEDGE.md` and standardization skills for enhanced clarity and validation
   ([`6068109`](https://github.com/svange/augint-shell/commit/60681097355bedbb8e681222a80a77d0d29b465c))
 
 
@@ -193,7 +193,7 @@
 
 ### Bug Fixes
 
-- Remove `NOTES.md` and enhance repository standardization scripts
+- Remove `INSTITUTIONAL_KNOWLEDGE.md` and enhance repository standardization scripts
   ([`43c9701`](https://github.com/svange/augint-shell/commit/43c97010fb86cbc8e0a6517f0cfa1509a5f1e965))
 
 
@@ -273,7 +273,7 @@
 
 ### Features
 
-- Add `merge_notes_into_context` function for intelligent merging of `NOTES.md`
+- Add `merge_notes_into_context` function for intelligent merging of `INSTITUTIONAL_KNOWLEDGE.md`
   ([`55ee3e6`](https://github.com/svange/augint-shell/commit/55ee3e6d6ffe238284124155712e4f9f06dc71de))
 
 
@@ -362,7 +362,7 @@
 
 ### Bug Fixes
 
-- Consolidate agent templates into `NOTES.md` and update scaffolding logic
+- Consolidate agent templates into `INSTITUTIONAL_KNOWLEDGE.md` and update scaffolding logic
   ([`be914d4`](https://github.com/svange/augint-shell/commit/be914d4d8c23244bb2a63a070b8f185e5a33e0b6))
 
 
