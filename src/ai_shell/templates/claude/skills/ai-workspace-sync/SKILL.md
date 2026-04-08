@@ -6,7 +6,7 @@ argument-hint: "[--repos name1,name2] [--dry-run]"
 
 Sync the workspace repos: $ARGUMENTS
 
-Use `augint-tools sync $ARGUMENTS`.
+Run `ai-tools mono sync --json $ARGUMENTS`.
 
 Summarize:
 - cloned repos

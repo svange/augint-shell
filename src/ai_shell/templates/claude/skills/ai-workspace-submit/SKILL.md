@@ -6,7 +6,7 @@ argument-hint: "[--repos name1,name2] [--dry-run]"
 
 Submit coordinated workspace changes: $ARGUMENTS
 
-Use `augint-tools submit $ARGUMENTS`.
+Run `ai-tools mono submit --json $ARGUMENTS`.
 
 Report:
 - pushed repos

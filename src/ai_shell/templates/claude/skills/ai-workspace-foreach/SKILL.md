@@ -6,7 +6,7 @@ argument-hint: "<command>"
 
 Run the given command across workspace repos.
 
-Use `augint-tools foreach -- $ARGUMENTS`.
+Run `ai-tools mono foreach --json -- $ARGUMENTS`.
 
 Summarize per repo:
 - command executed

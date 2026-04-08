@@ -27,7 +27,7 @@
       "Bash(uv run pip-audit:*)",
       "Bash(uv run pip-licenses:*)",
       "Bash(uv export:*)",
-      "Bash(augint-tools:*)",
+      "Bash(ai-tools:*)",
       "Bash(uv run:*)",
       "Bash(uv sync:*)",
       "Bash(uv build:*)",
