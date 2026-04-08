@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-04-07T18:05:20Z",
+  "generated_at": "2026-04-08T18:17:58Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 21,
+      "CONFIDENCE.HIGH": 22,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 21,
+      "SEVERITY.LOW": 22,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 2255,
+      "loc": 2429,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -94,15 +94,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/cli/commands/tools.py": {
-      "CONFIDENCE.HIGH": 2,
+      "CONFIDENCE.HIGH": 3,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 2,
+      "SEVERITY.LOW": 3,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 667,
+      "loc": 763,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -115,7 +115,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 156,
+      "loc": 172,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -128,7 +128,7 @@
       "SEVERITY.LOW": 3,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 348,
+      "loc": 366,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -141,7 +141,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 144,
+      "loc": 158,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -180,7 +180,7 @@
       "SEVERITY.LOW": 4,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 83,
+      "loc": 105,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -193,7 +193,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 347,
+      "loc": 355,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -332,7 +332,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "69     logger.debug(\"bedrock preflight: %s\", \" \".join(args))\n70     result = subprocess.run(args, capture_output=True, text=True, timeout=30)\n71 \n",
+      "code": "55     logger.debug(\"codex api key inject: docker exec %s python3 -c ...\", container_name)\n56     result = subprocess.run(args, capture_output=True, text=True, timeout=10)\n57     if result.returncode != 0:\n",
       "col_offset": 13,
       "end_col_offset": 77,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -343,9 +343,29 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 70,
+      "line_number": 56,
       "line_range": [
-        70
+        56
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "107     logger.debug(\"bedrock preflight: %s\", \" \".join(args))\n108     result = subprocess.run(args, capture_output=True, text=True, timeout=30)\n109 \n",
+      "col_offset": 13,
+      "end_col_offset": 77,
+      "filename": "src/ai_shell/cli/commands/tools.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 108,
+      "line_range": [
+        108
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
@@ -372,7 +392,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "57     sys.stderr.flush()\n58     result = subprocess.run(args)\n59     sys.exit(result.returncode)\n",
+      "code": "58     sys.stderr.flush()\n59     result = subprocess.run(args)\n60     sys.exit(result.returncode)\n",
       "col_offset": 13,
       "end_col_offset": 33,
       "filename": "src/ai_shell/container.py",
@@ -383,16 +403,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 58,
+      "line_number": 59,
       "line_range": [
-        58
+        59
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "70     start = time.monotonic()\n71     result = subprocess.run(args)\n72     elapsed = time.monotonic() - start\n",
+      "code": "71     start = time.monotonic()\n72     result = subprocess.run(args)\n73     elapsed = time.monotonic() - start\n",
       "col_offset": 13,
       "end_col_offset": 33,
       "filename": "src/ai_shell/container.py",
@@ -403,9 +423,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 71,
+      "line_number": 72,
       "line_range": [
-        71
+        72
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
@@ -698,7 +718,7 @@
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "10 import shutil\n11 import subprocess\n12 from importlib import resources\n",
+      "code": "10 import shutil\n11 import subprocess\n12 import tomllib\n",
       "col_offset": 0,
       "end_col_offset": 17,
       "filename": "src/ai_shell/notes_merge.py",
@@ -718,7 +738,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "13 from pathlib import Path\n14 from subprocess import DEVNULL\n15 \n",
+      "code": "14 from pathlib import Path\n15 from subprocess import DEVNULL\n16 \n",
       "col_offset": 0,
       "end_col_offset": 30,
       "filename": "src/ai_shell/notes_merge.py",
@@ -729,16 +749,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Consider possible security implications associated with the subprocess module.",
-      "line_number": 14,
+      "line_number": 15,
       "line_range": [
-        14
+        15
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess",
       "test_id": "B404",
       "test_name": "blacklist"
     },
     {
-      "code": "89         )\n90         subprocess.Popen(cmd, cwd=target_dir, stdout=DEVNULL, stderr=DEVNULL)  # noqa: S603\n91         return True\n",
+      "code": "110         )\n111         subprocess.Popen(cmd, cwd=target_dir, stdout=DEVNULL, stderr=DEVNULL)  # noqa: S603\n112         return True\n",
       "col_offset": 8,
       "end_col_offset": 77,
       "filename": "src/ai_shell/notes_merge.py",
@@ -749,16 +769,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 90,
+      "line_number": 111,
       "line_range": [
-        90
+        111
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "94     try:\n95         result = subprocess.run(cmd, cwd=target_dir, timeout=_MERGE_TIMEOUT)  # noqa: S603\n96         if result.returncode != 0:\n",
+      "code": "115     try:\n116         result = subprocess.run(cmd, cwd=target_dir, timeout=_MERGE_TIMEOUT)  # noqa: S603\n117         if result.returncode != 0:\n",
       "col_offset": 17,
       "end_col_offset": 76,
       "filename": "src/ai_shell/notes_merge.py",
@@ -769,9 +789,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 95,
+      "line_number": 116,
       "line_range": [
-        95
+        116
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
