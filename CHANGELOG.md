@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.37.1 (2026-04-08)
+
+### Bug Fixes
+
+- **workspace**: Update skills and docs to use ai-tools mono commands (main)
+  ([`f89d81f`](https://github.com/svange/augint-shell/commit/f89d81f6ee28aadfabe0154cd2e0372fee6532e8))
+
+
 ## v0.37.0 (2026-04-08)
 
 ### Bug Fixes
