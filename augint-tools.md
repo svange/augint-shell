@@ -1,5 +1,7 @@
 /mo# augint-tools
 
+> Note: `ai-tools.md` is now the current command and workflow specification for the `ai-tools` CLI surface. This document remains useful as background product direction.
+
 ## Purpose
 
 `augint-tools` is a new CLI project for AI-centered developer workflows.

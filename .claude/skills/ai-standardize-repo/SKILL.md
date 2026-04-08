@@ -1,253 +1,276 @@
 ---
 name: ai-standardize-repo
-description: Umbrella skill that enumerates all standardization tasks, shows repo status, and runs individual or all ai-standardize-* skills.
-argument-hint: "[--all] [--status] [renovate|release|pipeline|precommit|dotfiles]"
+description: Audit and fix repository standards (pipeline, rulesets, pre-commit, renovate, release, dotfiles) against universal quality gates.
+argument-hint: "[--validate|--fix] [github|pipeline|quality|security|tests|licenses|renovate|release|dotfiles]"
 ---
 
-Run repository standardization checks and fixes: $ARGUMENTS
+Audit and fix repository standards: $ARGUMENTS
 
-Entry point for standardizing repository configuration. Shows what is configured, what is missing, and can run individual or all `ai-standardize-*` skills.
+Unified standardization skill. Detects project type, audits against the universal standard, and fixes drift. Uses `ai-gh` for GitHub-side config and directly patches local files.
 
 ## Usage Examples
 
 ```bash
-/ai-standardize-repo              # Show standardization status checklist
-/ai-standardize-repo --status     # Same as above (explicit)
-/ai-standardize-repo --all        # Run all standardization skills sequentially
-/ai-standardize-repo renovate     # Run only ai-standardize-renovate
-/ai-standardize-repo release      # Run only ai-standardize-release
-/ai-standardize-repo pipeline     # Run only ai-standardize-pipeline
-/ai-standardize-repo precommit    # Run only ai-standardize-precommit
-/ai-standardize-repo dotfiles     # Run only ai-standardize-dotfiles
+/ai-standardize-repo                 # Full audit, present findings, ask before fixing
+/ai-standardize-repo --validate      # Audit only, no changes
+/ai-standardize-repo --fix           # Audit and fix everything
+/ai-standardize-repo renovate        # Audit+fix just renovate config
+/ai-standardize-repo github          # Audit+fix GitHub settings via ai-gh
 ```
 
-## 1. Available Standardization Skills
+---
 
-| Skill | Description | Key Config Files |
-|-------|-------------|-----------------|
-| `ai-standardize-renovate` | Renovate dependency update configuration | `renovate.json5` |
-| `ai-standardize-release` | Semantic-release versioning configuration | `pyproject.toml` / `.releaserc.json` |
-| `ai-standardize-pipeline` | CI/CD security scans, coverage, type checking | `.github/workflows/*.yml` |
-| `ai-standardize-precommit` | Pre-commit hooks for formatting, linting, secrets | `.pre-commit-config.yaml` |
-| `ai-standardize-dotfiles` | Editor config, gitignore, tool settings | `.editorconfig`, `.gitignore`, `pyproject.toml` |
+## The Standard
 
-## 2. Detect Repo Context
+### Pipeline Architecture
 
-```bash
-# Repo type
-git fetch --all --prune 2>/dev/null
-DEV_BRANCH=""
-for candidate in dev develop staging; do
-    if git show-ref --verify --quiet "refs/remotes/origin/$candidate" 2>/dev/null; then
-        DEV_BRANCH=$candidate
-        break
-    fi
-done
-REPO_TYPE="Library (main-only)"
-[ -n "$DEV_BRANCH" ] && REPO_TYPE="IaC ($DEV_BRANCH+main)"
+- **Qualification layer** (pre-merge, universal): 4 protected checks enforced by branch rulesets
+- **Delivery layer** (post-merge, varies by type): release/publish/deploy, test stages named by type
+- **Adapter layer** (per language/framework): tool choices inside each gate
 
-# Ecosystem
-ECOSYSTEM=""
-[ -f "pyproject.toml" ] && ECOSYSTEM="${ECOSYSTEM}Python "
-[ -f "package.json" ] && ECOSYSTEM="${ECOSYSTEM}Node "
-[ -z "$ECOSYSTEM" ] && ECOSYSTEM="Unknown"
+### 4 Universal Quality Gates
+
+All repos, all languages. These are the branch ruleset status check names.
+
+| # | Gate (status check name) | Python adapter | TypeScript/React adapter |
+|---|---|---|---|
+| 1 | **Code quality** | ruff format+check, mypy, yaml/whitespace/eof, forbid .env, uv.lock check, `uv build` | biome (lint+format), tsc --noEmit, yaml/whitespace/eof, forbid .env, lockfile check, `npm run build` / `cdk synth` / `sam build` |
+| 2 | **Security scanning** | semgrep (p/python, p/owasp-top-ten, p/secrets), pip-audit | semgrep (p/typescript, p/react, p/nodejs, p/owasp-top-ten, p/secrets), npm audit |
+| 3 | **Unit tests** | pytest --cov-fail-under=80 | vitest --coverage (threshold >=80%) |
+| 4 | **License compliance** | liccheck (enforce block on GPL/AGPL, allow LGPL) + pip-licenses (reporting artifacts) | licensee (enforce block on GPL/AGPL, allow LGPL) |
+
+Build validation is inside Code quality -- "can this code produce its artifact?" is a quality concern.
+
+### 2 Project Types
+
+| Type | Branch strategy | Rulesets | Post-merge delivery |
+|---|---|---|---|
+| **library** | main-only | 4 checks on main | release -> publish (PyPI/npm) -> docs |
+| **service** | dev + main | 4 checks on dev AND main | dev: deploy staging -> integration tests -> e2e tests; main: deploy prod -> smoke tests -> release |
+
+"Service" covers IaC (SAM, CDK, Terraform), frontends (React/Vite/Next.js), APIs, and anything that deploys.
+
+### Language Adapters
+
+- **Python**: uv, ruff, mypy, pytest, semgrep, pip-audit, liccheck + pip-licenses, pre-commit
+- **TypeScript**: pnpm, biome, tsc, vitest, semgrep, npm audit, licensee
+
+Framework (SAM/CDK/Terraform/Vite/Next.js) affects only the build step inside Code quality and the deploy step in delivery.
+
+---
+
+## 1. Context Detection
+
+Detect project shape before auditing.
+
+### Repo type
+1. Check `ai-shell.toml` for `[project] repo_type` override
+2. Check remote branches: if `origin/dev`, `origin/develop`, or `origin/staging` exists -> **service**
+3. Otherwise -> **library**
+
+### Language
+- `pyproject.toml` exists -> **python**
+- `package.json` exists -> **typescript**
+- Both exist -> **both** (audit each language's requirements)
+
+### Framework (service repos only)
+- `template.yaml` or `template.yml` or `samconfig.toml` -> **SAM**
+- `cdk.json` -> **CDK**
+- `main.tf` -> **Terraform**
+- `vite.config.*` -> **Vite**
+- `next.config.*` -> **Next.js**
+- None detected -> **plain**
+
+Display detected configuration:
+```
+Detected: type=service, language=python, framework=sam
+Branch strategy: dev+main (dev branch: dev)
 ```
 
-### Canary checks (existence + key content validation)
+---
 
-Run these checks to determine a three-level status for each area: **MISSING** (no config file), **DRIFT** (config exists but fails canary checks), or **OK** (config exists and passes all canary checks). Count errors (E) and warnings (W) separately.
+## 2. Audit
 
-```bash
-# ── Dotfiles ──
-DOTFILES_E=0; DOTFILES_W=0; DOTFILES_ISSUES=""
-DOTFILES_STATUS="MISSING"
-if [ -f ".editorconfig" ]; then
-    DOTFILES_STATUS="OK"
-    grep -q "root = true" .editorconfig 2>/dev/null || { DOTFILES_E=$((DOTFILES_E+1)); DOTFILES_ISSUES="${DOTFILES_ISSUES} .editorconfig missing root=true;"; }
-fi
-if [ -f ".gitignore" ]; then
-    grep -q '\.env' .gitignore 2>/dev/null || { DOTFILES_E=$((DOTFILES_E+1)); DOTFILES_ISSUES="${DOTFILES_ISSUES} .gitignore not protecting .env;"; }
-else
-    DOTFILES_E=$((DOTFILES_E+1)); DOTFILES_ISSUES="${DOTFILES_ISSUES} .gitignore missing;"
-fi
-if [ -f "pyproject.toml" ]; then
-    grep -q '\[tool.ruff\]' pyproject.toml 2>/dev/null || { DOTFILES_W=$((DOTFILES_W+1)); DOTFILES_ISSUES="${DOTFILES_ISSUES} no [tool.ruff];"; }
-    grep -q 'line-length' pyproject.toml 2>/dev/null || { DOTFILES_W=$((DOTFILES_W+1)); DOTFILES_ISSUES="${DOTFILES_ISSUES} ruff line-length not set;"; }
-    grep -q '\[tool.mypy\]' pyproject.toml 2>/dev/null || { DOTFILES_W=$((DOTFILES_W+1)); DOTFILES_ISSUES="${DOTFILES_ISSUES} no [tool.mypy];"; }
-fi
-[ "$DOTFILES_STATUS" != "MISSING" ] && [ $DOTFILES_E -gt 0 -o $DOTFILES_W -gt 0 ] && DOTFILES_STATUS="DRIFT"
+Check each concern against the standard. Report as PASS / DRIFT / MISSING with error (E) and warning (W) counts.
 
-# ── Pre-commit ──
-PRECOMMIT_E=0; PRECOMMIT_W=0; PRECOMMIT_ISSUES=""
-PRECOMMIT_STATUS="MISSING"
-if [ -f ".pre-commit-config.yaml" ]; then
-    PRECOMMIT_STATUS="OK"
-    for hook in ruff-format ruff-check mypy uv-lock-check; do
-        grep -q "$hook" .pre-commit-config.yaml 2>/dev/null || { PRECOMMIT_E=$((PRECOMMIT_E+1)); PRECOMMIT_ISSUES="${PRECOMMIT_ISSUES} missing $hook;"; }
-    done
-    # Check --no-sync on uv run entries
-    if grep -q "uv run" .pre-commit-config.yaml 2>/dev/null; then
-        grep "uv run" .pre-commit-config.yaml 2>/dev/null | grep -qv "\-\-no-sync" && { PRECOMMIT_W=$((PRECOMMIT_W+1)); PRECOMMIT_ISSUES="${PRECOMMIT_ISSUES} uv run missing --no-sync;"; }
-    fi
-elif [ -d ".husky" ]; then
-    PRECOMMIT_STATUS="OK"
-    # Node -- minimal canary: just confirm husky exists
-fi
-[ "$PRECOMMIT_STATUS" != "MISSING" ] && [ $PRECOMMIT_E -gt 0 -o $PRECOMMIT_W -gt 0 ] && PRECOMMIT_STATUS="DRIFT"
+### 2a. GitHub settings (`github` section)
 
-# ── CI/CD Pipeline ──
-PIPELINE_E=0; PIPELINE_W=0; PIPELINE_ISSUES=""
-PIPELINE_STATUS="MISSING"
-if [ -d ".github/workflows" ]; then
-    WF_COUNT=$(ls .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null | wc -l)
-    PIPELINE_STATUS="OK"
-    for tool in bandit pip-audit semgrep pip-licenses; do
-        grep -rlq "$tool" .github/workflows/ 2>/dev/null || { PIPELINE_E=$((PIPELINE_E+1)); PIPELINE_ISSUES="${PIPELINE_ISSUES} missing $tool;"; }
-    done
-    grep -rlq "cov-fail-under" .github/workflows/ 2>/dev/null || { PIPELINE_E=$((PIPELINE_E+1)); PIPELINE_ISSUES="${PIPELINE_ISSUES} no coverage enforcement;"; }
-    grep -rlq "mypy" .github/workflows/ 2>/dev/null || { PIPELINE_E=$((PIPELINE_E+1)); PIPELINE_ISSUES="${PIPELINE_ISSUES} no type checking;"; }
-fi
-[ "$PIPELINE_STATUS" != "MISSING" ] && [ $PIPELINE_E -gt 0 -o $PIPELINE_W -gt 0 ] && PIPELINE_STATUS="DRIFT"
+**Prerequisite**: `ai-gh` CLI must be available and `.env` must have `GH_REPO`, `GH_ACCOUNT`, `GH_TOKEN`. If missing, report and skip this section.
 
-# ── Renovate ──
-RENOVATE_E=0; RENOVATE_W=0; RENOVATE_ISSUES=""
-RENOVATE_STATUS="MISSING"
-RENOVATE_FILE=""
-for f in renovate.json5 renovate.json .renovaterc .renovaterc.json; do
-    if [ -f "$f" ]; then
-        RENOVATE_FILE="$f"
-        RENOVATE_STATUS="OK"
-        grep -q "vulnerabilityAlerts" "$f" 2>/dev/null || { RENOVATE_E=$((RENOVATE_E+1)); RENOVATE_ISSUES="${RENOVATE_ISSUES} missing vulnerabilityAlerts;"; }
-        grep -q "baseBranches" "$f" 2>/dev/null && { RENOVATE_W=$((RENOVATE_W+1)); RENOVATE_ISSUES="${RENOVATE_ISSUES} deprecated baseBranches (use baseBranchPatterns);"; }
-        break
-    fi
-done
-[ "$RENOVATE_STATUS" != "MISSING" ] && [ $RENOVATE_E -gt 0 -o $RENOVATE_W -gt 0 ] && RENOVATE_STATUS="DRIFT"
+Run: `ai-gh status --type <library|service> --verbose`
 
-# ── Semantic-release ──
-RELEASE_E=0; RELEASE_W=0; RELEASE_ISSUES=""
-RELEASE_STATUS="MISSING"
-RELEASE_FILE=""
-if [ -f "pyproject.toml" ] && grep -q "semantic_release" pyproject.toml 2>/dev/null; then
-    RELEASE_STATUS="OK"
-    RELEASE_FILE="pyproject.toml"
-    grep -q "exclude_commit_patterns" pyproject.toml 2>/dev/null || { RELEASE_E=$((RELEASE_E+1)); RELEASE_ISSUES="${RELEASE_ISSUES} missing exclude_commit_patterns;"; }
-    grep -q "skip ci" pyproject.toml 2>/dev/null || { RELEASE_E=$((RELEASE_E+1)); RELEASE_ISSUES="${RELEASE_ISSUES} missing [skip ci] in commit message;"; }
-    grep -q "tag_format" pyproject.toml 2>/dev/null || { RELEASE_W=$((RELEASE_W+1)); RELEASE_ISSUES="${RELEASE_ISSUES} tag_format not set;"; }
-fi
-for f in .releaserc.json .releaserc.yml .releaserc.js release.config.js release.config.cjs; do
-    if [ -f "$f" ]; then
-        RELEASE_STATUS="OK"
-        RELEASE_FILE="$f"
-        break
-    fi
-done
-if [ "$RELEASE_STATUS" = "MISSING" ] && [ -f "package.json" ] && grep -q '"release"' package.json 2>/dev/null; then
-    RELEASE_STATUS="OK"
-    RELEASE_FILE="package.json"
-fi
-[ "$RELEASE_STATUS" != "MISSING" ] && [ $RELEASE_E -gt 0 -o $RELEASE_W -gt 0 ] && RELEASE_STATUS="DRIFT"
-```
+Check:
+- Auto-merge enabled
+- Merge strategy: merge commits only (no squash, no rebase)
+- Delete branch on merge: enabled (unless dev branch exists)
+- Rulesets exist and match expected template
+- Required status checks match the 4 universal gates: "Code quality", "Security scanning", "Unit tests", "License compliance"
 
-## 3. Display Status Checklist
+**Note**: ai-gh may still use older gate names (e.g., "Pre-commit checks" instead of "Code quality"). If so, flag this as DRIFT and note that ai-gh templates need updating per augint-github issues.
 
-For each area, display its three-level status using the canary check results from Step 2:
+### 2b. Pipeline (`pipeline` section)
 
-- **`[  OK   ]`** -- config present and passes all canary checks
-- **`[ DRIFT ]`** -- config present but has issues (show `{E}E {W}W` counts and brief issue list)
-- **`[MISSING]`** -- config file not found
+Check `.github/workflows/pipeline.yaml` exists.
 
-```
-=== Repository Standardization Status ===
+Verify it has 4 jobs with these exact `name:` values (these are the status check contract):
+1. "Code quality"
+2. "Security scanning"
+3. "Unit tests"
+4. "License compliance"
 
-Repo type: {REPO_TYPE}
-Ecosystem: {ECOSYSTEM}
+For each job, check language-appropriate contents:
 
-  Status    | Area             | Detail
-  ----------+------------------+-------------------------------------------
-  [{status}] | Dotfiles         | {detail or issue summary}
-  [{status}] | Pre-commit       | {detail or issue summary}
-  [{status}] | CI/CD pipeline   | {detail or issue summary}
-  [{status}] | Renovate         | {detail or issue summary}
-  [{status}] | Semantic-release | {detail or issue summary}
+**Code quality job** must include:
+- Python: ruff format check, ruff lint check, mypy, yaml validation, .env blocking, uv.lock check, `uv build` (or framework build command)
+- TypeScript: biome check, tsc --noEmit, lockfile check, `npm run build` (or framework build command)
 
-Legend: OK = passes canary checks, DRIFT = issues found, MISSING = no config
-```
+**Security scanning job** must include:
+- Python: semgrep with p/python + p/owasp-top-ten + p/secrets rulesets, pip-audit
+- TypeScript: semgrep with p/typescript + p/react + p/nodejs rulesets, npm audit
+- Must NOT contain bandit (superseded by semgrep)
 
-For the **Detail** column:
-- **OK**: list what was found (e.g., `.editorconfig, .gitignore, ruff, mypy`)
-- **DRIFT**: show `{E}E {W}W` counts and the specific issues (e.g., `2E 0W -- missing ruff-format, mypy hooks`)
-- **MISSING**: say `no config found`
+**Unit tests job** must include:
+- Python: pytest with --cov-fail-under=80 (or configured threshold)
+- TypeScript: vitest or jest with coverage threshold >=80%
 
-Then show next steps, prioritizing DRIFT and MISSING areas first:
+**License compliance job** must include:
+- Python: liccheck or pip-licenses with enforcement (must have pass/fail exit code for GPL/AGPL)
+- TypeScript: licensee with allowlist enforcement
 
-```
-Next steps:
-  /ai-standardize-repo {area}       # {STATUS} -- {action hint}
-  ...
-  /ai-standardize-repo --all        # Run all checks and fixes
-```
+**Delivery jobs** (post-merge, not in rulesets):
+- Library: release, publish, docs jobs
+- Service: integration tests, e2e/smoke tests, deploy jobs (named by test type)
 
-Action hints by status:
-- **MISSING** -> `generate config`
-- **DRIFT** -> `run to diagnose and fix`
-- **OK** -> `validate in detail` (only show if user might want deeper checks)
+### 2c. Pre-commit / hooks (`quality` section)
 
-## 4. Run Skills
+**Python repos**: Check `.pre-commit-config.yaml` exists and contains:
+- `ruff-format` hook covering src/ and tests/
+- `ruff-check` hook with --fix covering src/ and tests/
+- `mypy` hook covering src/
+- `check-yaml` (with SAM template exclusion if framework is SAM)
+- `end-of-file-fixer`, `trailing-whitespace`
+- `forbid-env-commit` (blocks .env files)
+- `uv-lock-check` (validates uv.lock freshness)
+- All `uv run` entries use `--no-sync` flag
 
-### If `$ARGUMENTS` contains `--all`:
+**TypeScript repos**: Check for biome config (`biome.json` or `biome.jsonc`) and hook integration.
 
-Run each standardization skill in sequence (order matters -- later skills may reference earlier ones):
+Use `python-template.pre-commit-config.yaml` in this skill's directory as reference template.
 
-1. `/ai-standardize-dotfiles` -- foundational config files
-2. `/ai-standardize-precommit` -- developer quality gates
-3. `/ai-standardize-pipeline` -- CI/CD checks
-4. `/ai-standardize-renovate` -- dependency management
-5. `/ai-standardize-release` -- versioning (depends on renovate prefix scheme)
+### 2d. Renovate (`renovate` section)
 
-Report results from each, then show the combined summary.
+Check `renovate.json5` exists.
 
-### If `$ARGUMENTS` contains a skill name:
+Validate:
+- Correct template for type: library targets main, service targets dev (`baseBranchPatterns`)
+- Commit prefix scheme aligns with release config:
+  - Library: `chore(deps):` for prod deps (no release trigger), `fix(deps):` for vulnerabilities
+  - Service: `fix(deps):` for prod deps (triggers patch release on promotion)
+  - Both: `ci(deps):` for GitHub Actions, `chore(deps-dev):` for dev deps
+- `vulnerabilityAlerts` enabled with `automerge: true`
+- Major prod deps require `dependencyDashboardApproval: true`
+- `semantic-release` / `python-semantic-release` packages have `automerge: false`
+- No deprecated options: `baseBranches` (use `baseBranchPatterns`), `matchDepGroups` (use `matchCategories`)
+- No invalid managers: `uv` (use `pep621`), `pip_requirements` (use `pep621`)
 
-Map shorthand to full skill:
-- `renovate` -> execute `/ai-standardize-renovate`
-- `release` -> execute `/ai-standardize-release`
-- `pipeline` -> execute `/ai-standardize-pipeline`
-- `precommit` -> execute `/ai-standardize-precommit`
-- `dotfiles` -> execute `/ai-standardize-dotfiles`
+Use `library-template.json5` or `service-template.json5` in this skill's directory as reference.
 
-If the name does not match any known skill, show the available skills table from Step 1.
+### 2e. Semantic release (`release` section)
 
-### If `$ARGUMENTS` is empty or `--status`:
+**Python repos**: Check `[tool.semantic_release]` in `pyproject.toml`:
+- `exclude_commit_patterns` must exclude `chore`, `ci`, `style`, `test`, `build` (except `build(deps):`)
+- `commit_message` includes `[skip ci]`
+- `tag_format` uses project-name prefix: `{project-name}-v{version}`
+- `build_command`: library=`"uv lock && uv build"`, service=`""`
+- `version_variables` points to valid `__init__.py` with `__version__`
 
-Just show the status checklist from Step 3. Do not run any validation or generation.
+**TypeScript repos**: Check `.releaserc.json` or `release.config.js`:
+- `releaseRules`: `chore`/`ci` map to false, `fix` scope `deps` to patch
+- Git plugin message includes `[skip ci]`
 
-## 5. Combined Summary (after --all)
+Verify renovate prefix alignment: `fix(deps):` must NOT be excluded (triggers releases). `chore(deps):`, `ci(deps):` must be excluded.
+
+Use `python-template.toml` or `node-template.releaserc.json` in this skill's directory as reference.
+
+### 2f. Dotfiles (`dotfiles` section)
+
+Check `.editorconfig`:
+- `root = true`, `end_of_line = lf`, `insert_final_newline = true`
+- Python: 4 spaces indent. JS/TS/YAML/JSON: 2 spaces indent.
+
+Check `.gitignore`:
+- **Safety (ERROR if missing)**: `.env`, `.env.*`, `*.pem`, `.claude/settings.local.json`
+- **Build artifacts (WARNING)**: `__pycache__`, `node_modules/`, `*.pyc`, `.coverage`, `dist/`, `build/`
+- **Anti-patterns (flag)**: `*.lock` files should NOT be in .gitignore (lock files must be committed)
+
+Check tool config:
+- Python `pyproject.toml`: ruff `line-length = 100`, mypy strict or `disallow_untyped_defs`, coverage source and omit
+- TypeScript `package.json`: required scripts (dev, build, test, lint, format), biome config present
+
+Use `editorconfig-template` in this skill's directory as reference.
+
+---
+
+## 3. Present Findings
+
+Display a summary table:
 
 ```
-=== Standardization Summary ===
-
-Repo type: IaC (dev+main)
-Ecosystem: Python
-
-| Skill | Action | Issues | Fixed | Remaining |
-|-------|--------|--------|-------|-----------|
-| Dotfiles | Generated | 1 | 1 | 0 |
-| Pre-commit | Fixed | 3 | 3 | 0 |
-| Pipeline | Validated | 2 | 0 | 2 |
-| Renovate | Validated | 1 | 1 | 0 |
-| Release | Validated | 0 | 0 | 0 |
-
-Remaining issues:
-  [FAIL] Pipeline: Semgrep SAST scanning missing
-  [FAIL] Pipeline: License compliance checking missing
-
-Overall: 2 issues remaining. Add missing CI jobs manually or re-run individual skills with --fix.
+Section          Status    Errors  Warnings  Notes
+----------------------------------------------------------------------
+GitHub settings  DRIFT     1E      0W        Rulesets use old gate names
+Pipeline         PASS      0E      0W
+Pre-commit       DRIFT     0E      2W        Missing uv-lock-check hook
+Renovate         MISSING   1E      0W        No renovate.json5
+Release          PASS      0E      0W
+Dotfiles         DRIFT     0E      1W        Missing .editorconfig
+----------------------------------------------------------------------
+Total                      2E      3W
 ```
+
+If `--validate` was specified, stop here.
+
+If no args (default), ask the user: "Found 2 errors and 3 warnings. Fix all? [Y/n]"
+
+If `--fix` was specified or user confirms, proceed to step 4.
+
+---
+
+## 4. Fix (dependency order)
+
+Apply fixes in this order (later steps may depend on earlier ones):
+
+1. **Dotfiles**: Generate `.editorconfig` from template if missing. Add safety entries to `.gitignore`.
+2. **Pre-commit / quality config**: Generate `.pre-commit-config.yaml` from template if missing. Patch existing config to add missing hooks.
+3. **GitHub settings**: Run `ai-gh config --standardize`. Run `ai-gh rulesets --apply <library|service>`.
+4. **Pipeline**: If missing, generate via `ai-gh workflow --type <library|service>`. If exists but drifted, show diff and patch specific issues. Customize build step for detected framework.
+5. **Renovate**: Generate `renovate.json5` from template if missing. If exists, validate and patch prefix scheme.
+6. **Release**: Generate or append semantic-release config. Verify renovate prefix alignment.
+
+For each fix, show what changed. If a fix would overwrite user customizations in an existing file, show the diff and ask for confirmation.
+
+---
+
+## 5. Verify
+
+After fixes:
+1. If `ai-gh` is available: run `ai-gh status --type <library|service> --verbose` to verify GitHub-side alignment
+2. Re-run the audit from step 2 to confirm all issues are resolved
+3. Report final state
+
+```
+Verification: 0 errors, 0 warnings. Repository is standard-compliant.
+```
+
+If issues remain, list them with guidance on manual resolution.
+
+---
 
 ## Error Handling
 
-- **Not a git repo**: Abort with error
-- **Unknown skill name**: Show available skills table
-- **No ecosystem detected**: Warn, suggest checking if this is the correct directory
-- **Skill fails mid-run during --all**: Report the failure, continue with remaining skills, include failure in summary
+- `ai-gh` not installed or `.env` missing GH variables: skip GitHub sections, audit local config only, note what was skipped
+- Unknown repo type: ask the user (library or service?)
+- Unknown language: ask the user (python or typescript?)
+- Template file not found in skill directory: report error, skip that section
+- `ai-gh` commands fail: show error output, continue with remaining sections
+- Existing file has user customizations that conflict with standard: show diff, ask before overwriting
