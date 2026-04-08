@@ -2,6 +2,44 @@
 
 <!-- version list -->
 
+## v0.37.0 (2026-04-08)
+
+### Bug Fixes
+
+- **workspace**: Add ai-repo-health skill documentation (main)
+  ([`9c94f72`](https://github.com/svange/augint-shell/commit/9c94f72536985942da2ba861abfb0ee6e7114a0e))
+
+- **workspace**: Update skills to use ai-tools mono commands (main)
+  ([`70ffb04`](https://github.com/svange/augint-shell/commit/70ffb041e79e1112799a9a96c8882c06c9ac51f4))
+
+### Documentation
+
+- **workspace**: Remove deprecated legacy ai-* autonomous workflow skills (main)
+  ([`b668fa6`](https://github.com/svange/augint-shell/commit/b668fa6676ddbe0b5abd30316528f744b49bbbc0))
+
+- **workspace**: Update workspace and ai-tools usage conventions (main)
+  ([`eafe6d5`](https://github.com/svange/augint-shell/commit/eafe6d5bf7111deba2b8cb99f318d27b1eed1493))
+
+- **workspace**: Update workspace and ai-tools usage conventions (main)
+  ([`71ad67f`](https://github.com/svange/augint-shell/commit/71ad67ff2092b4027623fe263ae889c1974e45f5))
+
+### Features
+
+- Augint-tools integrations with monorepo workflow
+  ([`5f4c4bc`](https://github.com/svange/augint-shell/commit/5f4c4bca26c07e904691460a9119106f8aad1391))
+
+- **repo**: Add Codex provider support with AWS Bedrock integration (main)
+  ([`285a6d3`](https://github.com/svange/augint-shell/commit/285a6d3942e8b71022db2e7ad0096538cee1426b))
+
+- **repo**: Update standardization and new project docs with institutional knowledge
+  ([`2e91e6f`](https://github.com/svange/augint-shell/commit/2e91e6f54759fedad39d61c332271584a80e21d0))
+
+### Refactoring
+
+- Replace legacy workspace mono scaffolding
+  ([`4be77e8`](https://github.com/svange/augint-shell/commit/4be77e892b1817a2911c0f69292f06e179a002aa))
+
+
 ## v0.36.0 (2026-04-07)
 
 ### Features
