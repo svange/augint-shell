@@ -1,5 +1,5 @@
 # =============================================================================
-# ai-shell.toml - Project configuration for ai-shell
+# .ai-shell.toml - Project configuration for ai-shell
 # =============================================================================
 # Uncomment and modify settings you want to override.
 # Priority (highest wins): CLI flags > env vars > this file > global config > defaults

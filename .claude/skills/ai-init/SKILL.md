@@ -7,8 +7,7 @@ argument-hint: "[--library | --service | --workspace] [--codex | --claude | --op
 Set up AI tooling for this repository: $ARGUMENTS
 
 Use this when starting a new repo or when `ai-shell` has not been initialized yet.
-The goal is to choose the right repo type, install only the relevant skills, and
-avoid context litter.
+The goal is to choose the right repo type, install only the relevant skills, and avoid context litter.
 
 ## 1. Determine Repo Kind
 
@@ -50,7 +49,9 @@ If the repo already has `ai-shell.toml`, prefer `--update` over `--init`.
 Confirm that:
 - `ai-shell.toml` has the expected `[project]` metadata
 - only the relevant skills were installed
-- workspace repos get `ai-workspace-*` skills and use `augint-tools`
+- workspace repos get `ai-workspace-*` skills and use `ai-tools mono ...`
+- normal repos use `ai-tools repo ...`
+- standardization flows use `ai-tools standardize ...`
 - normal repos do not get workspace-only skills
 
 ## 5. Explain the Natural Workflow
@@ -61,6 +62,7 @@ For `library` / `service` repos:
 - develop
 - `/ai-submit-work`
 - `/ai-monitor-pipeline`
+- `/ai-standardize-repo` for standards alignment (`ai-tools standardize ...`)
 
 For `workspace` repos:
 - `/ai-workspace-sync`
@@ -75,6 +77,6 @@ For `workspace` repos:
 
 ## Error Handling
 
-- If repo kind is unclear, stop and ask once
-- If wrong skills are already installed, use `--update` or `--reset`
-- If the repo was initialized with an older alias like `iac`, explain the current equivalent (`service`)
+- If repo kind is unclear, stop and ask once.
+- If wrong skills are already installed, use `--update` or `--reset`.
+- If the repo was initialized with an older alias like `iac`, explain the current equivalent (`service`).

@@ -48,7 +48,7 @@ ollama_port = 12345
 [aider]
 model = "ollama_chat/llama3:8b"
 """
-        (tmp_path / "ai-shell.toml").write_bytes(toml_content)
+        (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
         config = load_config(project_dir=tmp_path)
 
         assert config.image == "custom/image"
@@ -73,7 +73,7 @@ model = "ollama_chat/llama3:8b"
 [container]
 image = "toml/image"
 """
-        (tmp_path / "ai-shell.toml").write_bytes(toml_content)
+        (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
 
         with patch.dict("os.environ", {"AI_SHELL_IMAGE": "env/image"}):
             config = load_config(project_dir=tmp_path)
@@ -105,7 +105,7 @@ primary_model = "global-model"
 primary_model = "global-model"
 """
         )
-        (tmp_path / "ai-shell.toml").write_bytes(
+        (tmp_path / ".ai-shell.toml").write_bytes(
             b"""
 [llm]
 primary_model = "project-model"
@@ -118,7 +118,7 @@ primary_model = "project-model"
         assert config.primary_model == "project-model"
 
     def test_extra_env_accumulated(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(
+        (tmp_path / ".ai-shell.toml").write_bytes(
             b"""
 [container]
 extra_env = { FOO = "bar", BAZ = "qux" }
@@ -152,7 +152,7 @@ extra_env = { FOO = "bar", BAZ = "qux" }
 [container]
 ports = [9000, 9229]
 """
-        (tmp_path / "ai-shell.toml").write_bytes(toml_content)
+        (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
         config = load_config(project_dir=tmp_path)
         assert 9000 in config.dev_ports
         assert 9229 in config.dev_ports
@@ -164,7 +164,7 @@ ports = [9000, 9229]
         assert 9229 in config.dev_ports
 
     def test_invalid_toml_gracefully_ignored(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_text("this is not valid toml {{{")
+        (tmp_path / ".ai-shell.toml").write_text("this is not valid toml {{{")
         config = load_config(project_dir=tmp_path)
         # Should load defaults without error
         assert config.image == "svange/augint-shell"
@@ -175,7 +175,7 @@ ports = [9000, 9229]
 repo_type = "library"
 branch_strategy = "main"
 """
-        (tmp_path / "ai-shell.toml").write_bytes(toml_content)
+        (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
         config = load_config(project_dir=tmp_path)
         assert config.repo_type == "library"
         assert config.branch_strategy == "main"
@@ -187,7 +187,7 @@ repo_type = "iac"
 branch_strategy = "dev"
 dev_branch = "staging"
 """
-        (tmp_path / "ai-shell.toml").write_bytes(toml_content)
+        (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
         config = load_config(project_dir=tmp_path)
         assert config.repo_type == "service"  # "iac" backward compat -> "service"
         assert config.branch_strategy == "dev"
@@ -205,10 +205,30 @@ dev_branch = "staging"
 repo_type = "workspace"
 branch_strategy = "main"
 """
-        (tmp_path / "ai-shell.toml").write_bytes(toml_content)
+        (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
         config = load_config(project_dir=tmp_path)
         assert config.repo_type == "workspace"
         assert config.branch_strategy == "main"
+
+    def test_legacy_toml_name_still_loaded(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[container]
+image = "legacy/image"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.image == "legacy/image"
+
+    def test_hidden_toml_takes_precedence(self, tmp_path):
+        (tmp_path / "ai-shell.toml").write_bytes(b"""
+[container]
+image = "legacy/image"
+""")
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
+[container]
+image = "hidden/image"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.image == "hidden/image"
 
 
 class TestAwsConfig:
@@ -224,7 +244,7 @@ class TestAwsConfig:
         assert config.codex_profile == ""
 
     def test_ai_profile_from_toml(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [aws]
 ai_profile = "my-infra"
 """)
@@ -232,7 +252,7 @@ ai_profile = "my-infra"
         assert config.ai_profile == "my-infra"
 
     def test_bedrock_profile_from_toml(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [aws]
 bedrock_profile = "my-ai-account"
 """)
@@ -240,7 +260,7 @@ bedrock_profile = "my-ai-account"
         assert config.bedrock_profile == "my-ai-account"
 
     def test_aws_region_from_toml(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [aws]
 region = "eu-west-1"
 """)
@@ -248,7 +268,7 @@ region = "eu-west-1"
         assert config.aws_region == "eu-west-1"
 
     def test_claude_provider_from_toml(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [claude]
 provider = "aws"
 """)
@@ -256,7 +276,7 @@ provider = "aws"
         assert config.claude_provider == "aws"
 
     def test_opencode_provider_from_toml(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [opencode]
 provider = "aws"
 """)
@@ -264,7 +284,7 @@ provider = "aws"
         assert config.opencode_provider == "aws"
 
     def test_full_aws_config(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [aws]
 ai_profile = "infra-acct"
 bedrock_profile = "ai-acct"
@@ -304,7 +324,7 @@ provider = "aws"
         assert config.ai_profile == "infra-acct"
 
     def test_env_overrides_toml(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [claude]
 provider = "anthropic"
 """)
@@ -313,7 +333,7 @@ provider = "anthropic"
         assert config.claude_provider == "aws"
 
     def test_codex_provider_from_toml(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [codex]
 provider = "aws"
 """)
@@ -321,7 +341,7 @@ provider = "aws"
         assert config.codex_provider == "aws"
 
     def test_codex_openai_api_key_from_toml(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [codex]
 openai_api_key = "sk-test-123"
 """)
@@ -329,7 +349,7 @@ openai_api_key = "sk-test-123"
         assert config.codex_openai_api_key == "sk-test-123"
 
     def test_codex_profile_from_toml(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [codex]
 profile = "my-bedrock-acct"
 """)
@@ -337,7 +357,7 @@ profile = "my-bedrock-acct"
         assert config.codex_profile == "my-bedrock-acct"
 
     def test_codex_full_config(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_bytes(b"""
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [codex]
 provider = "aws"
 openai_api_key = "sk-test-123"

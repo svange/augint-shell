@@ -287,40 +287,40 @@ class TestScaffoldClaude:
 class TestScaffoldProject:
     def test_creates_toml_only(self, tmp_path):
         scaffold_project(tmp_path)
-        assert (tmp_path / "ai-shell.toml").is_file()
+        assert (tmp_path / ".ai-shell.toml").is_file()
         # opencode.json is no longer created by scaffold_project
         assert not (tmp_path / "opencode.json").exists()
 
     def test_toml_has_commented_sections(self, tmp_path):
         scaffold_project(tmp_path)
-        content = (tmp_path / "ai-shell.toml").read_text()
+        content = (tmp_path / ".ai-shell.toml").read_text()
         assert "# [container]" in content
         assert "# [llm]" in content
         assert "# [aider]" in content
 
     def test_init_skips_existing(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_text("original")
+        (tmp_path / ".ai-shell.toml").write_text("original")
         scaffold_project(tmp_path, overwrite=False)
-        assert (tmp_path / "ai-shell.toml").read_text() == "original"
+        assert (tmp_path / ".ai-shell.toml").read_text() == "original"
 
     def test_reset_overwrites_existing(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_text("original")
+        (tmp_path / ".ai-shell.toml").write_text("original")
         scaffold_project(tmp_path, overwrite=True)
-        assert (tmp_path / "ai-shell.toml").read_text() != "original"
+        assert (tmp_path / ".ai-shell.toml").read_text() != "original"
 
     def test_update_overwrites_toml(self, tmp_path):
-        (tmp_path / "ai-shell.toml").write_text("original")
+        (tmp_path / ".ai-shell.toml").write_text("original")
         scaffold_project(tmp_path, merge=True)
-        assert (tmp_path / "ai-shell.toml").read_text() != "original"
+        assert (tmp_path / ".ai-shell.toml").read_text() != "original"
 
     def test_clean_removes_and_recreates(self, tmp_path):
         scaffold_project(tmp_path)
         scaffold_project(tmp_path, clean=True)
-        assert (tmp_path / "ai-shell.toml").is_file()
+        assert (tmp_path / ".ai-shell.toml").is_file()
 
     def test_clean_works_on_empty_dir(self, tmp_path):
         scaffold_project(tmp_path, clean=True)
-        assert (tmp_path / "ai-shell.toml").is_file()
+        assert (tmp_path / ".ai-shell.toml").is_file()
 
 
 class TestScaffoldOpencode:
@@ -640,7 +640,6 @@ class TestSkillsForConfig:
 
     def test_deleted_skills_not_in_any_config(self):
         deleted = [
-            "ai-standardize-dotfiles",
             "ai-standardize-precommit",
             "ai-standardize-pipeline",
             "ai-standardize-renovate",
@@ -676,8 +675,16 @@ class TestSkillsForConfig:
             assert "ai-rollback" in skills
             assert "ai-repo-health" in skills
             assert "ai-standardize-repo" in skills
+            assert "ai-standardize-dotfiles" in skills
             assert "ai-init" in skills
             assert "ai-new-project" in skills
+
+    def test_ai_standardize_dotfiles_deploys_companion_files(self, tmp_path):
+        scaffold_claude(tmp_path)
+        skill_dir = tmp_path / ".claude" / "skills" / "ai-standardize-dotfiles"
+        assert (skill_dir / "SKILL.md").is_file()
+        assert (skill_dir / "gitignore-template").is_file()
+        assert (skill_dir / "editorconfig-template").is_file()
 
 
 class TestScaffoldWithRepoType:
@@ -851,7 +858,7 @@ class TestProjectTomlContent:
             repo_type=RepoType.LIBRARY,
             branch_strategy=BranchStrategy.MAIN,
         )
-        content = (tmp_path / "ai-shell.toml").read_text()
+        content = (tmp_path / ".ai-shell.toml").read_text()
         assert 'repo_type = "library"' in content
         assert 'branch_strategy = "main"' in content
         # Active [project] section should not have dev_branch when strategy is main
@@ -865,14 +872,14 @@ class TestProjectTomlContent:
             branch_strategy=BranchStrategy.DEV,
             dev_branch="staging",
         )
-        content = (tmp_path / "ai-shell.toml").read_text()
+        content = (tmp_path / ".ai-shell.toml").read_text()
         assert 'repo_type = "service"' in content
         assert 'branch_strategy = "dev"' in content
         assert 'dev_branch = "staging"' in content
 
     def test_none_type_toml_no_project_section(self, tmp_path):
         scaffold_project(tmp_path, repo_type=None)
-        content = (tmp_path / "ai-shell.toml").read_text()
+        content = (tmp_path / ".ai-shell.toml").read_text()
         assert "[project]" not in content or "# [project]" in content
 
 
@@ -883,7 +890,7 @@ class TestRepoTypeCompat:
         from ai_shell.config import load_config
 
         toml_content = '[project]\nrepo_type = "iac"\n'
-        (tmp_path / "ai-shell.toml").write_text(toml_content)
+        (tmp_path / ".ai-shell.toml").write_text(toml_content)
         config = load_config(project_dir=tmp_path)
         assert config.repo_type == "service"
 
@@ -891,7 +898,7 @@ class TestRepoTypeCompat:
         from ai_shell.config import load_config
 
         toml_content = '[project]\nrepo_type = "workspace"\n'
-        (tmp_path / "ai-shell.toml").write_text(toml_content)
+        (tmp_path / ".ai-shell.toml").write_text(toml_content)
         config = load_config(project_dir=tmp_path)
         assert config.repo_type == "workspace"
 
@@ -899,7 +906,7 @@ class TestRepoTypeCompat:
         from ai_shell.config import load_config
 
         toml_content = '[project]\nrepo_type = "service"\n'
-        (tmp_path / "ai-shell.toml").write_text(toml_content)
+        (tmp_path / ".ai-shell.toml").write_text(toml_content)
         config = load_config(project_dir=tmp_path)
         assert config.repo_type == "service"
 
@@ -907,6 +914,6 @@ class TestRepoTypeCompat:
         from ai_shell.config import load_config
 
         toml_content = '[project]\nrepo_type = "library"\n'
-        (tmp_path / "ai-shell.toml").write_text(toml_content)
+        (tmp_path / ".ai-shell.toml").write_text(toml_content)
         config = load_config(project_dir=tmp_path)
         assert config.repo_type == "library"

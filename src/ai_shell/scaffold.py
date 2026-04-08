@@ -59,9 +59,28 @@ _AIDER_DIRS: list[str] = []
 _AIDER_FILES = [".aider.conf.yml", ".aiderignore"]
 
 _PROJECT_DIRS: list[str] = []
-_PROJECT_FILES = ["ai-shell.toml"]
+_PROJECT_FILES = [".ai-shell.toml", "ai-shell.toml"]
 
 _NOTES_FILE = "INSTITUTIONAL_KNOWLEDGE.md"
+
+
+def _write_skill_dir(
+    skills_dir: Path,
+    agent_prefix: str,
+    skill_name: str,
+    *,
+    overwrite: bool,
+) -> None:
+    """Write all files from a skill template directory to the target skills directory."""
+    skill_template_dir = _TEMPLATES.joinpath(agent_prefix, "skills", skill_name)
+    target_skill_dir = skills_dir / skill_name
+    for item in skill_template_dir.iterdir():
+        if item.is_file():
+            _write_file(
+                target_skill_dir / item.name,
+                item.read_text(encoding="utf-8").replace("\r\n", "\n"),
+                overwrite=overwrite,
+            )
 
 
 def _write_notes(target_dir: Path, repo_type: RepoType | None = None) -> None:
@@ -172,6 +191,7 @@ _UNIVERSAL_SKILLS = [
     "ai-create-cmd",
     "ai-web-dev",
     "ai-standardize-repo",
+    "ai-standardize-dotfiles",
     "ai-new-project",
 ]
 
@@ -194,7 +214,6 @@ _WORKSPACE_SKILLS = [
 # Skills removed in the unified standardization consolidation.
 # Listed here so _remove_stale_skills() cleans them from existing repos.
 _DELETED_SKILLS = [
-    "ai-standardize-dotfiles",
     "ai-standardize-precommit",
     "ai-standardize-pipeline",
     "ai-standardize-renovate",
@@ -252,6 +271,7 @@ CLAUDE_SKILL_DIRS = [
     "ai-status",
     "ai-web-dev",
     "ai-standardize-repo",
+    "ai-standardize-dotfiles",
     "ai-new-project",
     "ai-setup-oidc",
 ]
@@ -288,11 +308,7 @@ def scaffold_claude(
     # skill files
     active_skills = skills_for_config(repo_type, branch_strategy)
     for skill_name in active_skills:
-        _write_file(
-            skills_dir / skill_name / "SKILL.md",
-            _read_template("claude", "skills", skill_name, "SKILL.md"),
-            overwrite=effective_overwrite,
-        )
+        _write_skill_dir(skills_dir, "claude", skill_name, overwrite=effective_overwrite)
 
     # Remove skills that no longer apply (e.g. after repo type change)
     if repo_type is not None:
@@ -334,13 +350,13 @@ def scaffold_project(
     branch_strategy: BranchStrategy | None = None,
     dev_branch: str = "dev",
 ) -> None:
-    """Create ``ai-shell.toml`` in *target_dir*."""
+    """Create ``.ai-shell.toml`` in *target_dir*."""
     if clean:
         _clean_paths(target_dir, _PROJECT_DIRS, _PROJECT_FILES)
         overwrite = True
     effective_overwrite = overwrite or merge
     _write_file(
-        target_dir / "ai-shell.toml",
+        target_dir / ".ai-shell.toml",
         _build_toml_content(repo_type, branch_strategy, dev_branch),
         overwrite=effective_overwrite,
     )
@@ -375,11 +391,7 @@ def scaffold_opencode(
     active_skills = skills_for_config(repo_type, branch_strategy)
     skills_dir = target_dir / ".agents" / "skills"
     for skill_name in active_skills:
-        _write_file(
-            skills_dir / skill_name / "SKILL.md",
-            _read_template("agents", "skills", skill_name, "SKILL.md"),
-            overwrite=effective_overwrite,
-        )
+        _write_skill_dir(skills_dir, "agents", skill_name, overwrite=effective_overwrite)
 
     if repo_type is not None:
         _remove_stale_skills(skills_dir, active_skills)
@@ -410,11 +422,7 @@ def scaffold_codex(
     active_skills = skills_for_config(repo_type, branch_strategy)
     skills_dir = target_dir / ".agents" / "skills"
     for skill_name in active_skills:
-        _write_file(
-            skills_dir / skill_name / "SKILL.md",
-            _read_template("agents", "skills", skill_name, "SKILL.md"),
-            overwrite=effective_overwrite,
-        )
+        _write_skill_dir(skills_dir, "agents", skill_name, overwrite=effective_overwrite)
 
     if repo_type is not None:
         _remove_stale_skills(skills_dir, active_skills)

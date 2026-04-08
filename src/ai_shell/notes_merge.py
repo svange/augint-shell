@@ -36,9 +36,11 @@ _NOTES_TEMPLATE_BY_REPO_TYPE = {
 
 
 def _read_persisted_project(target_dir: Path) -> dict[str, str]:
-    """Read [project] section from existing ai-shell.toml, if any."""
+    """Read [project] section from existing .ai-shell.toml, if any."""
     try:
-        toml_path = target_dir / "ai-shell.toml"
+        toml_path = target_dir / ".ai-shell.toml"
+        if not toml_path.exists():
+            toml_path = target_dir / "ai-shell.toml"
         if not toml_path.exists():
             return {}
         with open(toml_path, "rb") as handle:

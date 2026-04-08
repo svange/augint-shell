@@ -27,6 +27,7 @@
       "Bash(uv run pip-audit:*)",
       "Bash(uv run pip-licenses:*)",
       "Bash(uv export:*)",
+      "Bash(ai-tools:*)",
       "Bash(uv run:*)",
       "Bash(uv sync:*)",
       "Bash(uv build:*)",
@@ -165,9 +166,7 @@
       "Bash(prettier:*)",
       "Bash(tsc:*)",
       "Bash(jest:*)",
-      "Bash(vitest:*)",
-      "Bash(augint-tools:*)",
-      "Bash(augint-tools:*)"
+      "Bash(vitest:*)"
     ],
     "deny": [
       "Write(poetry.lock)",
@@ -184,8 +183,6 @@
       "Bash(git push origin main:*)",
       "Bash(git push --force origin:*)",
       "Bash(git push --force -:*)",
-      "Bash(git rebase main:*)",
-      "Bash(git rebase origin/main:*)",
       "Bash(git pull --rebase:*)",
       "Bash(rm -rf /*)",
       "Bash(rm -rf /)",
