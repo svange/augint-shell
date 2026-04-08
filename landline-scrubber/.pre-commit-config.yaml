@@ -1,0 +1,31 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.12
+    hooks:
+      - id: ruff-format
+        files: ^scripts/
+      - id: ruff
+        args: [--fix]
+        files: ^scripts/
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.0
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: forbid-env-commit
+        name: Block .env file commits
+        entry: python -c "import subprocess,sys; files=subprocess.run(['git','diff','--cached','--name-only'],capture_output=True,text=True).stdout; sys.exit(1) if any(f.endswith('.env') or '/.env.' in f for f in files.splitlines()) else sys.exit(0)"
+        language: system
+        pass_filenames: false
+        always_run: true

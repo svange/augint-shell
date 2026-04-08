@@ -10,6 +10,7 @@ from ai_shell.defaults import (
     build_dev_mounts,
     dev_container_name,
     sanitize_project_name,
+    unique_project_name,
 )
 
 
@@ -44,6 +45,19 @@ class TestSanitizeProjectName:
 class TestDevContainerName:
     def test_basic(self):
         assert dev_container_name("my-project") == f"{CONTAINER_PREFIX}-my-project-dev"
+
+    def test_uses_path_hash_when_project_dir_provided(self):
+        project_dir = Path("/home/user/projects/workspace/my-project")
+        expected = unique_project_name(project_dir, "my-project")
+        assert dev_container_name("my-project", project_dir) == f"{CONTAINER_PREFIX}-{expected}-dev"
+
+    def test_same_leaf_name_different_paths_do_not_collide(self):
+        root = dev_container_name("woxom-infra", Path("/home/user/projects/woxom-infra"))
+        nested = dev_container_name(
+            "woxom-infra",
+            Path("/home/user/projects/woxom-ecosystem/woxom-infra"),
+        )
+        assert root != nested
 
 
 class TestBuildDevMounts:

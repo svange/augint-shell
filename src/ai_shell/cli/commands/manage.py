@@ -31,7 +31,7 @@ def manage_group(ctx):
 def manage_status(ctx):
     """Show dev container status for current project."""
     manager = _get_manager(ctx)
-    name = dev_container_name(manager.config.project_name)
+    name = dev_container_name(manager.config.project_name, manager.config.project_dir)
     status = manager.container_status(name)
 
     if status is None:
@@ -54,7 +54,7 @@ def manage_status(ctx):
 def manage_stop(ctx):
     """Stop the dev container for current project."""
     manager = _get_manager(ctx)
-    name = dev_container_name(manager.config.project_name)
+    name = dev_container_name(manager.config.project_name, manager.config.project_dir)
 
     try:
         manager.stop_container(name)
@@ -68,7 +68,7 @@ def manage_stop(ctx):
 def manage_clean(ctx):
     """Remove the dev container for current project."""
     manager = _get_manager(ctx)
-    name = dev_container_name(manager.config.project_name)
+    name = dev_container_name(manager.config.project_name, manager.config.project_dir)
 
     try:
         manager.remove_container(name)
@@ -83,7 +83,7 @@ def manage_clean(ctx):
 def manage_logs(ctx, follow):
     """Tail dev container logs."""
     manager = _get_manager(ctx)
-    name = dev_container_name(manager.config.project_name)
+    name = dev_container_name(manager.config.project_name, manager.config.project_dir)
 
     try:
         manager.container_logs(name, follow=follow)

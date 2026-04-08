@@ -60,7 +60,7 @@ class AiShellConfig:
     opencode_provider: str = ""  # "local" (default, Ollama) or "aws" (Bedrock)
 
     # Project workflow
-    repo_type: str | None = None  # "library" | "iac" | "monorepo"
+    repo_type: str | None = None  # "library" | "service" | "workspace"
     branch_strategy: str | None = None  # "main" | "dev"
     dev_branch: str = "dev"
 
@@ -179,8 +179,10 @@ def _apply_toml(config: AiShellConfig, path: Path) -> None:
     project = data.get("project", {})
     if "repo_type" in project:
         value = project["repo_type"]
-        # Backward compat: "iac" was renamed to "service"
-        config.repo_type = "service" if value == "iac" else value
+        if value == "iac":
+            config.repo_type = "service"
+        else:
+            config.repo_type = value
     if "branch_strategy" in project:
         config.branch_strategy = project["branch_strategy"]
     if "dev_branch" in project:

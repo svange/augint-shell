@@ -166,7 +166,8 @@
       "Bash(tsc:*)",
       "Bash(jest:*)",
       "Bash(vitest:*)",
-      "Bash(ai-mono:*)"
+      "Bash(augint-tools:*)",
+      "Bash(augint-tools:*)"
     ],
     "deny": [
       "Write(poetry.lock)",

@@ -180,7 +180,7 @@ branch_strategy = "main"
         assert config.repo_type == "library"
         assert config.branch_strategy == "main"
 
-    def test_project_section_iac_dev_maps_to_service(self, tmp_path):
+    def test_project_section_iac_maps_to_service(self, tmp_path):
         toml_content = b"""
 [project]
 repo_type = "iac"
@@ -199,15 +199,15 @@ dev_branch = "staging"
         assert config.branch_strategy is None
         assert config.dev_branch == "dev"
 
-    def test_project_section_monorepo(self, tmp_path):
+    def test_project_section_workspace(self, tmp_path):
         toml_content = b"""
 [project]
-repo_type = "monorepo"
+repo_type = "workspace"
 branch_strategy = "main"
 """
         (tmp_path / "ai-shell.toml").write_bytes(toml_content)
         config = load_config(project_dir=tmp_path)
-        assert config.repo_type == "monorepo"
+        assert config.repo_type == "workspace"
         assert config.branch_strategy == "main"
 
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from hashlib import sha1
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -65,21 +66,39 @@ WEBUI_CONTAINER = "augint-shell-webui"
 LLM_NETWORK = "augint-shell-llm"
 
 
-def sanitize_project_name(path: Path) -> str:
-    """Derive a safe container name suffix from a directory path.
-
-    Converts the directory basename to lowercase, replaces non-alphanumeric
-    characters with hyphens, and strips leading/trailing hyphens.
-    """
-    name = path.resolve().name.lower()
+def _sanitize_name(name: str) -> str:
+    """Convert an arbitrary string into a Docker-safe slug."""
     name = re.sub(r"[^a-z0-9-]", "-", name)
     name = re.sub(r"-+", "-", name)
     return name.strip("-") or "project"
 
 
-def dev_container_name(project_name: str) -> str:
-    """Build the dev container name for a project."""
-    return f"{CONTAINER_PREFIX}-{project_name}-dev"
+def sanitize_project_name(path: Path) -> str:
+    """Derive a safe project slug from a directory basename."""
+    return _sanitize_name(path.resolve().name.lower())
+
+
+def unique_project_name(path: Path, project_name: str | None = None) -> str:
+    """Build a path-stable project identifier for container naming.
+
+    The basename remains human-readable while a short path hash prevents
+    collisions between repos with the same leaf directory name.
+    """
+    slug = _sanitize_name((project_name or path.resolve().name).lower())
+    digest = sha1(str(path.resolve()).encode("utf-8")).hexdigest()[:8]
+    return f"{slug}-{digest}"
+
+
+def dev_container_name(project_name: str, project_dir: Path | None = None) -> str:
+    """Build the dev container name for a project.
+
+    When *project_dir* is provided, the full resolved path is folded into the
+    name to avoid collisions across nested repo layouts. Without it, the legacy
+    basename-only format is preserved for compatibility.
+    """
+    if project_dir is None:
+        return f"{CONTAINER_PREFIX}-{project_name}-dev"
+    return f"{CONTAINER_PREFIX}-{unique_project_name(project_dir, project_name)}-dev"
 
 
 def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:

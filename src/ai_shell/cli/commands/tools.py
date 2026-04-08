@@ -103,7 +103,7 @@ def _prompt_repo_config() -> tuple[RepoType, BranchStrategy, str]:
     """Interactively ask user for repo type and branch strategy."""
     repo_type_val = click.prompt(
         "Repo type",
-        type=click.Choice(["library", "iac", "monorepo"], case_sensitive=False),
+        type=click.Choice(["library", "service", "workspace"], case_sensitive=False),
     )
     branch_val = click.prompt(
         "Branch strategy",
@@ -113,7 +113,14 @@ def _prompt_repo_config() -> tuple[RepoType, BranchStrategy, str]:
     dev_branch = "dev"
     if branch_val == "dev":
         dev_branch = click.prompt("Dev branch name", default="dev")
-    return RepoType(repo_type_val), BranchStrategy(branch_val), dev_branch
+    return _normalize_repo_type_value(repo_type_val), BranchStrategy(branch_val), dev_branch
+
+
+def _normalize_repo_type_value(value: str) -> RepoType:
+    """Map user-facing aliases onto the internal repo type enum."""
+    if value == "iac":
+        return RepoType.SERVICE
+    return RepoType(value)
 
 
 def _resolve_repo_config(
@@ -128,7 +135,7 @@ def _resolve_repo_config(
     """
     # 1. CLI flag wins
     if flag:
-        repo_type = RepoType(flag)
+        repo_type = _normalize_repo_type_value(flag)
         # When flag is given without existing config, prompt for branch strategy
         persisted = _read_persisted_project(target_dir)
         if "branch_strategy" in persisted:
@@ -152,7 +159,7 @@ def _resolve_repo_config(
     # 2. Existing ai-shell.toml [project] section
     persisted = _read_persisted_project(target_dir)
     if "repo_type" in persisted:
-        repo_type = RepoType(persisted["repo_type"])
+        repo_type = _normalize_repo_type_value(persisted["repo_type"])
         branch_strategy = (
             BranchStrategy(persisted["branch_strategy"]) if "branch_strategy" in persisted else None
         )
@@ -245,8 +252,9 @@ def _get_manager(
     help="Skip Bedrock pre-flight check (for debugging).",
 )
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
+@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
 @click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
-@click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
+@click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def claude(
@@ -378,8 +386,9 @@ def claude(
     help="Skip merging notes into context file on --update/--reset.",
 )
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
+@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
 @click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
-@click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
+@click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def codex(
@@ -476,8 +485,9 @@ def codex(
     help="Skip Bedrock pre-flight check (for debugging).",
 )
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
+@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
 @click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
-@click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
+@click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.pass_context
 def opencode(
     ctx,
@@ -586,8 +596,9 @@ def opencode(
 )
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
+@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
 @click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
-@click.option("--mono", "--monorepo", "repo_type_flag", flag_value="monorepo", hidden=True)
+@click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def aider(ctx, do_init, do_update, do_reset, do_clean, safe, repo_type_flag, extra_args):
@@ -681,14 +692,19 @@ def shell(ctx):
     help="Scaffold for a library repo (publishes packages).",
 )
 @click.option(
+    "--service",
+    "repo_type_flag",
+    flag_value="service",
+    help="Scaffold for a service / app repo.",
+)
+@click.option(
     "--iac", "repo_type_flag", flag_value="iac", help="Scaffold for an IaC / web / backend repo."
 )
 @click.option(
-    "--mono",
-    "--monorepo",
+    "--workspace",
     "repo_type_flag",
-    flag_value="monorepo",
-    help="Scaffold for a monorepo (git submodules).",
+    flag_value="workspace",
+    help="Scaffold for a workspace repo coordinating multiple child repos.",
 )
 def init(update, reset, clean, scaffold_all, skip_merge, repo_type_flag):
     """Initialize ai-shell config files in the current directory."""

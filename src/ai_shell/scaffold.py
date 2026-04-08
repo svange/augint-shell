@@ -150,7 +150,7 @@ def _write_file(path: Path, content: str, *, overwrite: bool) -> bool:
 class RepoType(StrEnum):
     LIBRARY = "library"
     SERVICE = "service"
-    MONOREPO = "monorepo"
+    WORKSPACE = "workspace"
 
 
 class BranchStrategy(StrEnum):
@@ -161,6 +161,7 @@ class BranchStrategy(StrEnum):
 # ── Skill sets ────────────────────────────────────────────────────
 
 _UNIVERSAL_SKILLS = [
+    "ai-init",
     "ai-pick-issue",
     "ai-prepare-branch",
     "ai-submit-work",
@@ -176,12 +177,18 @@ _UNIVERSAL_SKILLS = [
 
 _PROMOTE_SKILLS = ["ai-promote"]
 _SERVICE_SKILLS = ["ai-setup-oidc"]
-_MONO_SKILLS = [
-    "ai-mono-status",
-    "ai-mono-sync",
-    "ai-mono-init",
-    "ai-mono-health",
-    "ai-mono-foreach",
+_WORKSPACE_SKILLS = [
+    "ai-workspace-status",
+    "ai-workspace-sync",
+    "ai-workspace-init",
+    "ai-workspace-health",
+    "ai-workspace-foreach",
+    "ai-workspace-pick",
+    "ai-workspace-branch",
+    "ai-workspace-test",
+    "ai-workspace-lint",
+    "ai-workspace-submit",
+    "ai-workspace-update",
 ]
 
 # Skills removed in the unified standardization consolidation.
@@ -208,8 +215,8 @@ def skills_for_config(
 
     if repo_type == RepoType.SERVICE:
         skills.extend(_SERVICE_SKILLS)
-    if repo_type == RepoType.MONOREPO:
-        skills.extend(_MONO_SKILLS)
+    if repo_type == RepoType.WORKSPACE:
+        skills.extend(_WORKSPACE_SKILLS)
     if branch_strategy == BranchStrategy.DEV:
         skills.extend(_PROMOTE_SKILLS)
 
@@ -218,7 +225,7 @@ def skills_for_config(
 
 # All known skill names (superset for stale-skill cleanup).
 ALL_KNOWN_SKILLS = sorted(
-    set(_UNIVERSAL_SKILLS + _PROMOTE_SKILLS + _SERVICE_SKILLS + _MONO_SKILLS + _DELETED_SKILLS)
+    set(_UNIVERSAL_SKILLS + _PROMOTE_SKILLS + _SERVICE_SKILLS + _WORKSPACE_SKILLS + _DELETED_SKILLS)
 )
 
 # NOTES.md template mapping by repo type.
@@ -226,13 +233,14 @@ _NOTES_TEMPLATE: dict[RepoType | None, str] = {
     None: "notes.md",
     RepoType.LIBRARY: "notes-library.md",
     RepoType.SERVICE: "notes-service.md",
-    RepoType.MONOREPO: "notes-monorepo.md",
+    RepoType.WORKSPACE: "notes-workspace.md",
 }
 
 
 # ── Public API ──────────────────────────────────────────────────────
 
 CLAUDE_SKILL_DIRS = [
+    "ai-init",
     "ai-pick-issue",
     "ai-prepare-branch",
     "ai-submit-work",

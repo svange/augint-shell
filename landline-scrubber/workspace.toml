@@ -1,0 +1,35 @@
+[workspace]
+name = "landline-scrubber"
+repos_dir = "repos"
+
+[[repos]]
+name = "ai-lls-lib"
+path = "repos/ai-lls-lib"
+url = "git@github.com:svange/ai-lls-lib.git"
+repo_type = "library"
+base_branch = "main"
+pr_target_branch = "main"
+test = "uv run pytest"
+lint = "uv run ruff check src tests"
+
+[[repos]]
+name = "ai-lls-api"
+path = "repos/ai-lls-api"
+url = "git@github.com:svange/ai-lls-api.git"
+repo_type = "service"
+base_branch = "dev"
+pr_target_branch = "dev"
+depends_on = ["ai-lls-lib"]
+test = "uv run pytest"
+lint = "uv run ruff check src tests"
+
+[[repos]]
+name = "ai-lls-web"
+path = "repos/ai-lls-web"
+url = "git@github.com:svange/ai-lls-web.git"
+repo_type = "service"
+base_branch = "dev"
+pr_target_branch = "dev"
+depends_on = ["ai-lls-api", "ai-lls-lib"]
+test = "pnpm test"
+lint = "pnpm lint"

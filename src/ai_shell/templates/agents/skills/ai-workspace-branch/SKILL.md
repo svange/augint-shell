@@ -1,0 +1,11 @@
+---
+name: ai-workspace-branch
+description: Create or switch coordinated branches across selected workspace repos.
+argument-hint: "<branch-name> [--repos name1,name2]"
+---
+
+Prepare coordinated branches: $ARGUMENTS
+
+Use `augint-tools branch $ARGUMENTS`.
+
+Report created/switched branches and any repos blocked by local changes.

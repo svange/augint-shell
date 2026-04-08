@@ -607,6 +607,7 @@ class TestSkillsForConfig:
         assert "ai-promote" not in skills
         assert "ai-setup-oidc" not in skills
         assert "ai-standardize-repo" in skills
+        assert "ai-init" in skills
         assert "ai-new-project" in skills
 
     def test_library_dev_includes_promote(self):
@@ -624,16 +625,16 @@ class TestSkillsForConfig:
         assert "ai-setup-oidc" in skills
         assert "ai-promote" in skills
 
-    def test_monorepo_has_mono_skills(self):
-        skills = skills_for_config(RepoType.MONOREPO, BranchStrategy.MAIN)
-        assert "ai-mono-status" in skills
-        assert "ai-mono-sync" in skills
-        assert "ai-mono-init" in skills
-        assert "ai-mono-health" in skills
-        assert "ai-mono-foreach" in skills
+    def test_workspace_has_workspace_skills(self):
+        skills = skills_for_config(RepoType.WORKSPACE, BranchStrategy.MAIN)
+        assert "ai-workspace-status" in skills
+        assert "ai-workspace-sync" in skills
+        assert "ai-workspace-init" in skills
+        assert "ai-workspace-health" in skills
+        assert "ai-workspace-foreach" in skills
 
-    def test_monorepo_excludes_service_skills(self):
-        skills = skills_for_config(RepoType.MONOREPO, BranchStrategy.MAIN)
+    def test_workspace_excludes_service_skills(self):
+        skills = skills_for_config(RepoType.WORKSPACE, BranchStrategy.MAIN)
         assert "ai-setup-oidc" not in skills
         assert "ai-promote" not in skills
 
@@ -654,8 +655,9 @@ class TestSkillsForConfig:
                         f"{name} should be deleted but found in {repo_type}/{branch_strategy}"
                     )
 
-    def test_monorepo_has_universal_skills(self):
-        skills = skills_for_config(RepoType.MONOREPO, BranchStrategy.MAIN)
+    def test_workspace_has_universal_skills(self):
+        skills = skills_for_config(RepoType.WORKSPACE, BranchStrategy.MAIN)
+        assert "ai-init" in skills
         assert "ai-pick-issue" in skills
         assert "ai-prepare-branch" in skills
         assert "ai-submit-work" in skills
@@ -674,6 +676,7 @@ class TestSkillsForConfig:
             assert "ai-rollback" in skills
             assert "ai-repo-health" in skills
             assert "ai-standardize-repo" in skills
+            assert "ai-init" in skills
             assert "ai-new-project" in skills
 
 
@@ -687,7 +690,8 @@ class TestScaffoldWithRepoType:
         skills_dir = tmp_path / ".claude" / "skills"
         assert not (skills_dir / "ai-promote").exists()
         assert not (skills_dir / "ai-setup-oidc").exists()
-        assert not (skills_dir / "ai-mono-status").exists()
+        assert not (skills_dir / "ai-workspace-status").exists()
+        assert (skills_dir / "ai-init" / "SKILL.md").is_file()
         assert (skills_dir / "ai-pick-issue" / "SKILL.md").is_file()
         assert (skills_dir / "ai-standardize-repo" / "SKILL.md").is_file()
         assert (skills_dir / "ai-new-project" / "SKILL.md").is_file()
@@ -704,20 +708,20 @@ class TestScaffoldWithRepoType:
         skills_dir = tmp_path / ".claude" / "skills"
         assert (skills_dir / "ai-promote" / "SKILL.md").is_file()
         assert (skills_dir / "ai-setup-oidc" / "SKILL.md").is_file()
-        assert not (skills_dir / "ai-mono-status").exists()
+        assert not (skills_dir / "ai-workspace-status").exists()
 
-    def test_claude_monorepo_skills(self, tmp_path):
+    def test_claude_workspace_skills(self, tmp_path):
         scaffold_claude(
             tmp_path,
-            repo_type=RepoType.MONOREPO,
+            repo_type=RepoType.WORKSPACE,
             branch_strategy=BranchStrategy.MAIN,
         )
         skills_dir = tmp_path / ".claude" / "skills"
-        assert (skills_dir / "ai-mono-status" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-mono-sync" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-mono-init" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-mono-health" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-mono-foreach" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-workspace-status" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-workspace-sync" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-workspace-init" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-workspace-health" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-workspace-foreach" / "SKILL.md").is_file()
         assert not (skills_dir / "ai-promote").exists()
 
     def test_claude_none_delivers_all_original_skills(self, tmp_path):
@@ -736,24 +740,24 @@ class TestScaffoldWithRepoType:
         skills_dir = tmp_path / ".claude" / "skills"
         assert (skills_dir / "ai-promote" / "SKILL.md").is_file()
 
-        # Switch to monorepo -- ai-promote should be removed
+        # Switch to workspace -- ai-promote should be removed
         scaffold_claude(
             tmp_path,
             overwrite=True,
-            repo_type=RepoType.MONOREPO,
+            repo_type=RepoType.WORKSPACE,
             branch_strategy=BranchStrategy.MAIN,
         )
         assert not (skills_dir / "ai-promote").exists()
-        assert (skills_dir / "ai-mono-status" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-workspace-status" / "SKILL.md").is_file()
 
-    def test_opencode_monorepo_skills(self, tmp_path):
+    def test_opencode_workspace_skills(self, tmp_path):
         scaffold_opencode(
             tmp_path,
-            repo_type=RepoType.MONOREPO,
+            repo_type=RepoType.WORKSPACE,
             branch_strategy=BranchStrategy.MAIN,
         )
         skills_dir = tmp_path / ".agents" / "skills"
-        assert (skills_dir / "ai-mono-status" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-workspace-status" / "SKILL.md").is_file()
         assert not (skills_dir / "ai-promote").exists()
 
     def test_codex_library_skills(self, tmp_path):
@@ -788,15 +792,15 @@ class TestNotesTemplateSelection:
         assert "## Deployment" in content
         assert "ai-promote" in content
 
-    def test_monorepo_notes(self, tmp_path):
+    def test_workspace_notes(self, tmp_path):
         scaffold_project(
             tmp_path,
-            repo_type=RepoType.MONOREPO,
+            repo_type=RepoType.WORKSPACE,
             branch_strategy=BranchStrategy.MAIN,
         )
         content = (tmp_path / "NOTES.md").read_text()
-        assert "## Submodule Map" in content
-        assert "ai-mono" in content
+        assert "## Repo Map" in content
+        assert "augint-tools" in content
 
     def test_none_type_uses_default_notes(self, tmp_path):
         scaffold_project(tmp_path, repo_type=None)
@@ -838,8 +842,8 @@ class TestProjectTomlContent:
         assert "[project]" not in content or "# [project]" in content
 
 
-class TestIacBackwardCompat:
-    """Verify 'iac' -> SERVICE backward compatibility in config loading."""
+class TestRepoTypeCompat:
+    """Verify repo-type config loading behavior."""
 
     def test_iac_mapped_to_service_in_config(self, tmp_path):
         from ai_shell.config import load_config
@@ -848,6 +852,14 @@ class TestIacBackwardCompat:
         (tmp_path / "ai-shell.toml").write_text(toml_content)
         config = load_config(project_dir=tmp_path)
         assert config.repo_type == "service"
+
+    def test_workspace_kept_in_config(self, tmp_path):
+        from ai_shell.config import load_config
+
+        toml_content = '[project]\nrepo_type = "workspace"\n'
+        (tmp_path / "ai-shell.toml").write_text(toml_content)
+        config = load_config(project_dir=tmp_path)
+        assert config.repo_type == "workspace"
 
     def test_service_stays_service_in_config(self, tmp_path):
         from ai_shell.config import load_config
