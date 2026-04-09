@@ -62,7 +62,7 @@
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.37.1"
+    "Version": "0.38.0"
   },
   {
     "License": "UNKNOWN",
@@ -262,7 +262,7 @@
   {
     "License": "MIT",
     "Name": "platformdirs",
-    "Version": "4.9.4"
+    "Version": "4.9.6"
   },
   {
     "License": "MIT License",
