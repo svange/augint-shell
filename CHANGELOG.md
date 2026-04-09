@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v0.38.1 (2026-04-09)
+
+### Chores
+
+- Remove remote session support and delete obsolete tests
+  ([`284d9d3`](https://github.com/svange/augint-shell/commit/284d9d30923c1714e316ecd89f5d5a8179801e74))
+
+- **workspace**: Rename all `mono` commands to `workspace` in skills and docs
+  ([`51d67cc`](https://github.com/svange/augint-shell/commit/51d67cc7c1e0a279dc70ce3de09c6ef1da793ce2))
+
+
 ## v0.38.0 (2026-04-09)
 
 ### Bug Fixes
