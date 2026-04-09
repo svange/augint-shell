@@ -811,8 +811,8 @@ class TestNotesTemplateSelection:
         )
         content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
         assert "# Institutional Notes: Workspaces" in content
-        assert "uv run ai-tools mono sync" in content
-        assert "Workspace orchestration commands live under `uv run ai-tools mono`" in content
+        assert "uv run ai-tools workspace sync" in content
+        assert "Workspace orchestration commands live under `uv run ai-tools workspace`" in content
         assert "uv run ai-tools standardize ..." in content
 
     def test_none_type_uses_default_notes(self, tmp_path):
@@ -824,7 +824,7 @@ class TestNotesTemplateSelection:
 
 
 class TestWorkspaceSkillCommandContract:
-    def test_workspace_skills_use_ai_tools_mono_surface(self, tmp_path):
+    def test_workspace_skills_use_ai_tools_workspace_surface(self, tmp_path):
         scaffold_codex(
             tmp_path,
             repo_type=RepoType.WORKSPACE,
@@ -832,17 +832,17 @@ class TestWorkspaceSkillCommandContract:
         )
         skills_dir = tmp_path / ".agents" / "skills"
         expected_commands = {
-            "ai-workspace-init": "uv run ai-tools mono sync --json",
-            "ai-workspace-sync": "uv run ai-tools mono sync --json",
-            "ai-workspace-status": "uv run ai-tools mono status --json",
-            "ai-workspace-pick": "uv run ai-tools mono issues --json",
-            "ai-workspace-branch": "uv run ai-tools mono branch --json",
-            "ai-workspace-test": "uv run ai-tools mono check --phase tests --json",
-            "ai-workspace-lint": "uv run ai-tools mono check --phase quality --json",
-            "ai-workspace-submit": "uv run ai-tools mono submit --json",
-            "ai-workspace-update": "uv run ai-tools mono update --json",
-            "ai-workspace-health": "uv run ai-tools mono status --actionable --json",
-            "ai-workspace-foreach": "uv run ai-tools mono foreach --json",
+            "ai-workspace-init": "uv run ai-tools workspace sync --json",
+            "ai-workspace-sync": "uv run ai-tools workspace sync --json",
+            "ai-workspace-status": "uv run ai-tools workspace status --json",
+            "ai-workspace-pick": "uv run ai-tools workspace issues --json",
+            "ai-workspace-branch": "uv run ai-tools workspace branch --json",
+            "ai-workspace-test": "uv run ai-tools workspace check --phase tests --json",
+            "ai-workspace-lint": "uv run ai-tools workspace check --phase quality --json",
+            "ai-workspace-submit": "uv run ai-tools workspace submit --json",
+            "ai-workspace-update": "uv run ai-tools workspace update --json",
+            "ai-workspace-health": "uv run ai-tools workspace status --actionable --json",
+            "ai-workspace-foreach": "uv run ai-tools workspace foreach --json",
         }
 
         for skill_name, command in expected_commands.items():

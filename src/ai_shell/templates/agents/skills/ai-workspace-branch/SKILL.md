@@ -6,6 +6,6 @@ argument-hint: "<branch-name> [--repos name1,name2]"
 
 Prepare coordinated branches: $ARGUMENTS
 
-Run `uv run ai-tools mono branch --json $ARGUMENTS`.
+Run `uv run ai-tools workspace branch --json $ARGUMENTS`.
 
 Report created/switched branches and any repos blocked by local changes.

@@ -6,7 +6,7 @@ argument-hint: "[--repos name1,name2] [--dry-run]"
 
 Submit coordinated workspace changes: $ARGUMENTS
 
-Run `uv run ai-tools mono submit --json $ARGUMENTS`.
+Run `uv run ai-tools workspace submit --json $ARGUMENTS`.
 
 Report:
 - pushed repos

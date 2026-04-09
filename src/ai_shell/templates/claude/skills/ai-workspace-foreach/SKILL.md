@@ -6,7 +6,7 @@ argument-hint: "<command>"
 
 Run the given command across workspace repos.
 
-Run `uv run ai-tools mono foreach --json -- $ARGUMENTS`.
+Run `uv run ai-tools workspace foreach --json -- $ARGUMENTS`.
 
 Summarize per repo:
 - command executed

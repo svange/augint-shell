@@ -9,18 +9,18 @@ Merge them lightly and only when they add net-new guidance.
 - Product code changes land in child repos, not in the workspace coordination layer.
 - The top-level agent may reason across all repos, but validation and PR submission remain repo-specific.
 
-## `uv run ai-tools mono` Conventions
+## `uv run ai-tools workspace` Conventions
 
-- Workspace orchestration commands live under `uv run ai-tools mono`.
-- Start with `uv run ai-tools mono sync --json` to materialize or refresh child repos.
-- Use `uv run ai-tools mono status --json` for the actionable workspace snapshot.
-- Use `uv run ai-tools mono issues`, `branch`, `check`, `submit`, `update`, and `foreach` for cross-repo orchestration.
-- Prefer `uv run ai-tools mono check --phase tests|quality --json` for coordinated validation.
+- Workspace orchestration commands live under `uv run ai-tools workspace`.
+- Start with `uv run ai-tools workspace sync --json` to materialize or refresh child repos.
+- Use `uv run ai-tools workspace status --json` for the actionable workspace snapshot.
+- Use `uv run ai-tools workspace issues`, `branch`, `check`, `submit`, `update`, and `foreach` for cross-repo orchestration.
+- Prefer `uv run ai-tools workspace check --phase tests|quality --json` for coordinated validation.
 
 ## `uv run ai-tools standardize` In Workspaces
 
 - Run `uv run ai-tools standardize ...` inside each child repo that needs standardization.
-- Keep workspace planning in `mono`; keep standards detection/fixes in `standardize`.
+- Keep workspace planning in `workspace`; keep standards detection/fixes in `standardize`.
 
 ## Workspace Flow
 

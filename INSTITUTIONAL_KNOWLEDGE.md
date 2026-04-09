@@ -34,11 +34,11 @@ They are not a project summary template and should not displace repo-specific ar
 - Default normal-repo flow: pick issue -> prepare branch -> develop -> submit -> monitor.
 - Use repo-local skills and commands for implementation work inside a single repo.
 - Use `ai-tools` for standardized orchestration where available.
-- Workspace orchestration commands now live under `ai-tools mono ...`.
+- Workspace orchestration commands live under `ai-tools workspace ...`.
 
 ## `ai-tools` Conventions
 
 - Normal repo commands are rooted at `ai-tools <command>`.
-- Workspace commands are rooted at `ai-tools mono <command>`.
+- Workspace commands are rooted at `ai-tools workspace <command>`.
 - Prefer machine-readable output when available for agent consumption.
 - Keep branch, PR target, and validation policy driven by repo or workspace config rather than guesswork.

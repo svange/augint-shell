@@ -20,4 +20,4 @@ Merge them lightly and only when they add net-new guidance.
 
 - Use `uv run ai-tools repo ...` for normal repo workflows (status, issues, branch prep, submit, CI).
 - Use `uv run ai-tools standardize detect/audit/fix/verify` for standards alignment.
-- Do not use workspace-only `uv run ai-tools mono ...` commands for single-repo library work.
+- Do not use workspace-only `uv run ai-tools workspace ...` commands for single-repo library work.

@@ -6,7 +6,7 @@ argument-hint: "[--repos name1,name2] [--dry-run]"
 
 Sync the workspace repos: $ARGUMENTS
 
-Run `uv run ai-tools mono sync --json $ARGUMENTS`.
+Run `uv run ai-tools workspace sync --json $ARGUMENTS`.
 
 Summarize:
 - cloned repos

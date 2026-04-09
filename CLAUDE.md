@@ -68,7 +68,7 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 ## ai-tools
 
 - Normal repo commands: `ai-tools <command>`
-- Workspace/monorepo commands: `ai-tools mono <command>`
+- Workspace commands: `ai-tools workspace <command>`
 - Prefer machine-readable output when available for agent consumption.
 - Branch, PR target, and validation policy should come from repo or workspace config, not guesswork.
 

@@ -35,7 +35,7 @@ That creates several problems:
 - multi-repo workflows are treated as a special case instead of one workflow category
 - AI agents must parse human-oriented command output
 - user setup is inconsistent across library, service, and workspace repos
-- repo coordination commands are coupled to the old `mono` naming
+- repo coordination commands should use `workspace` naming
 
 ## Product Direction
 
@@ -150,42 +150,41 @@ Workspace repos should also define a manifest for child repo orchestration.
 
 Suggested filename:
 
-`workspace.toml`
+`workspace.yaml`
 
 Suggested shape:
 
-```toml
-[workspace]
-name = "landline-scrubber"
-repos_dir = "repos"
+```yaml
+workspace:
+  name: landline-scrubber
+  repos_dir: repos
 
-[[repo]]
-name = "ai-lls-lib"
-path = "repos/ai-lls-lib"
-url = "https://github.com/org/ai-lls-lib.git"
-repo_type = "library"
-base_branch = "main"
-pr_target_branch = "main"
-install = "uv sync --all-extras"
-test = "uv run pytest -m \"unit\" -v"
-lint = "uv run pre-commit run --all-files"
+repos:
+  - name: ai-lls-lib
+    path: repos/ai-lls-lib
+    url: https://github.com/org/ai-lls-lib.git
+    repo_type: library
+    base_branch: main
+    pr_target_branch: main
+    install: uv sync --all-extras
+    test: uv run pytest -m "unit" -v
+    lint: uv run pre-commit run --all-files
 
-[[repo]]
-name = "ai-lls-api"
-path = "repos/ai-lls-api"
-url = "https://github.com/org/ai-lls-api.git"
-repo_type = "service"
-base_branch = "dev"
-pr_target_branch = "dev"
-install = "uv sync --all-extras"
-test = "uv run pytest -m \"unit\" -v"
-lint = "uv run pre-commit run --all-files"
-depends_on = ["ai-lls-lib"]
+  - name: ai-lls-api
+    path: repos/ai-lls-api
+    url: https://github.com/org/ai-lls-api.git
+    repo_type: service
+    base_branch: dev
+    pr_target_branch: dev
+    install: uv sync --all-extras
+    test: uv run pytest -m "unit" -v
+    lint: uv run pre-commit run --all-files
+    depends_on: [ai-lls-lib]
 ```
 
 ## Command Model
 
-The CLI should be organized by workflow domains, not by legacy mono naming.
+The CLI should be organized by workflow domains.
 
 Top-level shape:
 
@@ -445,7 +444,7 @@ These skills should call `augint-tools`, not reimplement workflow logic with raw
 ### Phase 3
 
 - update `ai-shell` templates and skills to call `augint-tools`
-- introduce workspace-named skills instead of legacy mono names
+- introduce workspace-named skills
 
 ### Phase 4
 

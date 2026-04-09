@@ -60,8 +60,8 @@ For normal repos, confirm:
 - `uv run ai-tools repo submit --json` is the submit entrypoint
 
 For workspace repos, confirm:
-- `uv run ai-tools mono status --json` works
-- workspace skills map to `uv run ai-tools mono ...`
+- `uv run ai-tools workspace status --json` works
+- workspace skills map to `uv run ai-tools workspace ...`
 
 ## 7. Initial Commit and Push
 

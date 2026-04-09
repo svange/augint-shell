@@ -20,7 +20,7 @@ Yes: `ai-tools` is supposed to implement the command surface and behavior descri
 Not necessarily all in one shot, but that file is the intended implementation spec for `ai-tools`, with:
 
 - `repo` workflow commands
-- `mono` workflow commands
+- `workspace` workflow commands
 - `standardize` workflow commands
 - shared detection/output/filtering contracts
 - the P0/P1/P2 rollout priorities
@@ -34,7 +34,7 @@ This repo should then be updated to consume that implemented surface.
 External dependency. Implement the new CLI surface described in [ai-tools.md](./ai-tools.md):
 
 - `ai-tools repo ...`
-- `ai-tools mono ...`
+- `ai-tools workspace ...`
 - `ai-tools standardize ...`
 
 This is required before the final thin-skill model is truly complete.
@@ -44,9 +44,9 @@ This is required before the final thin-skill model is truly complete.
 Update scaffolding, notes, templates, and tests so generated agent environments:
 
 - reference `ai-tools` consistently
-- use `ai-tools mono` consistently for workspace workflows
+- use `ai-tools workspace` consistently for workspace workflows
 - move toward thin wrapper skills for repo and standardize workflows
-- stop teaching stale `ai-tools mono` / `augint-tools` / shell-heavy hybrids
+- stop teaching stale `ai-tools workspace` / `augint-tools` / shell-heavy hybrids
 
 This PLAN covers **Workstream B**, while documenting dependencies on Workstream A.
 
@@ -66,11 +66,11 @@ There is an inconsistent mix of:
 
 - `augint-tools`
 - `ai-tools`
-- `ai-tools mono`
+- `ai-tools workspace`
 
 Current state:
 
-- notes and tests still mention `ai-tools mono`
+- notes and tests still mention `ai-tools workspace`
 - workspace skill templates currently mention `augint-tools ...`
 - the new spec says the project is `augint-tools` but the command should be `ai-tools`
 
@@ -119,7 +119,7 @@ After the work is complete:
 
 1. Generated notes teach:
    - `ai-tools repo ...` for normal repo workflows
-   - `ai-tools mono ...` for workspace workflows
+   - `ai-tools workspace ...` for workspace workflows
    - `ai-tools standardize ...` for standardization workflows
 
 2. Generated skills are thin wrappers wherever the corresponding `ai-tools` command exists.
@@ -156,7 +156,7 @@ Remove command-surface ambiguity first.
 
 1. Update notes templates to consistently say:
    - `ai-tools repo ...` for normal repo commands
-   - `ai-tools mono ...` for workspace commands
+   - `ai-tools workspace ...` for workspace commands
    - `ai-tools standardize ...` for standardization commands
 
 2. Update institutional guidance wording in:
@@ -175,14 +175,14 @@ Remove command-surface ambiguity first.
 
 - No scaffolded note template teaches `augint-tools ...` as the command.
 - No scaffolded note template teaches plain root-level `ai-tools status` / `ai-tools submit` as the primary normal-repo contract.
-- Workspace notes teach `ai-tools mono ...`.
+- Workspace notes teach `ai-tools workspace ...`.
 - Tests pass with the new wording.
 
 ## Phase 2: Convert Workspace Skills To Final Command Contract
 
 ### Goal
 
-Finish the mono/workspace side first because it is already closest.
+Finish the workspace side first because it is already closest.
 
 ### Changes
 
@@ -202,13 +202,13 @@ Update these source templates in both `agents` and `claude` trees:
 
 ### Required adjustments
 
-1. Change command text from `augint-tools ...` to `ai-tools mono ...`.
+1. Change command text from `augint-tools ...` to `ai-tools workspace ...`.
 
 2. Align each skill to the mapping in [ai-tools.md](./ai-tools.md), for example:
-   - status -> `ai-tools mono status --json`
-   - test -> `ai-tools mono check --phase tests --json`
-   - lint -> `ai-tools mono check --phase quality --json`
-   - health -> `ai-tools mono status --actionable --json`
+   - status -> `ai-tools workspace status --json`
+   - test -> `ai-tools workspace check --phase tests --json`
+   - lint -> `ai-tools workspace check --phase quality --json`
+   - health -> `ai-tools workspace status --actionable --json`
 
 3. Keep them thin:
    - call the tool
@@ -217,7 +217,7 @@ Update these source templates in both `agents` and `claude` trees:
 
 ### Acceptance Criteria
 
-- Workspace skills are all consistent with `ai-tools mono`.
+- Workspace skills are all consistent with `ai-tools workspace`.
 - No workspace skill contains stale `augint-tools` command text.
 - Skills remain compact wrappers.
 
@@ -321,7 +321,7 @@ Ensure bootstrap flows teach the correct command surface from day one.
 ### Changes
 
 1. `ai-init` should explain:
-   - workspace repos get `ai-workspace-*` skills and use `ai-tools mono`
+   - workspace repos get `ai-workspace-*` skills and use `ai-tools workspace`
    - normal repos use `ai-tools repo`
    - standardization flows use `ai-tools standardize`
 
@@ -347,7 +347,7 @@ Lock the new contract into tests so it does not drift again.
 
 2. Add or extend tests to cover:
    - normal repo notes mention `ai-tools repo`
-   - workspace notes mention `ai-tools mono`
+   - workspace notes mention `ai-tools workspace`
    - standardization guidance mentions `ai-tools standardize`
    - workspace skill templates no longer reference `augint-tools`
 
@@ -386,18 +386,18 @@ These are the `ai-tools` capabilities this repo expects to exist eventually.
 - `ai-tools standardize audit`
 - `ai-tools standardize fix`
 - `ai-tools standardize verify`
-- `ai-tools mono inspect`
-- `ai-tools mono check`
-- improved `ai-tools mono status`
+- `ai-tools workspace inspect`
+- `ai-tools workspace check`
+- improved `ai-tools workspace status`
 
 ### P1 expected next
 
 - `ai-tools repo issues pick`
 - `ai-tools repo promote`
 - `ai-tools repo rollback`
-- `ai-tools mono graph`
-- improved `ai-tools mono update`
-- improved `ai-tools mono submit --monitor`
+- `ai-tools workspace graph`
+- improved `ai-tools workspace update`
+- improved `ai-tools workspace submit --monitor`
 
 ### P2 expected later
 
@@ -469,8 +469,8 @@ Do not do these as part of this repo plan unless requirements change:
 
 This repo portion is done when:
 
-- scaffolded notes consistently teach `ai-tools repo`, `ai-tools mono`, and `ai-tools standardize`
-- workspace skills are fully aligned to `ai-tools mono`
+- scaffolded notes consistently teach `ai-tools repo`, `ai-tools workspace`, and `ai-tools standardize`
+- workspace skills are fully aligned to `ai-tools workspace`
 - repo and standardize skills are rewritten to delegate to `ai-tools` as commands become available
 - tests enforce the new contract
 - there is no material naming drift left between docs, skill templates, and tests
