@@ -6,6 +6,6 @@ argument-hint: "[--repos name1,name2]"
 
 Run workspace tests: $ARGUMENTS
 
-Run `ai-tools mono check --phase tests --json $ARGUMENTS`.
+Run `uv run ai-tools mono check --phase tests --json $ARGUMENTS`.
 
 Summarize failing repos first, then the overall pass/fail state.

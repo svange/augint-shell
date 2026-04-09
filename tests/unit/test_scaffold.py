@@ -788,8 +788,8 @@ class TestNotesTemplateSelection:
         content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
         assert "# Institutional Notes: Library Repos" in content
         assert "semantic-release" in content
-        assert "ai-tools repo ..." in content
-        assert "ai-tools standardize detect/audit/fix/verify" in content
+        assert "uv run ai-tools repo ..." in content
+        assert "uv run ai-tools standardize detect/audit/fix/verify" in content
 
     def test_service_notes(self, tmp_path):
         scaffold_project(
@@ -800,8 +800,8 @@ class TestNotesTemplateSelection:
         content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
         assert "# Institutional Notes: Service Repos" in content
         assert "merge-commit-only policy applies" in content
-        assert "ai-tools repo ..." in content
-        assert "ai-tools standardize detect/audit/fix/verify" in content
+        assert "uv run ai-tools repo ..." in content
+        assert "uv run ai-tools standardize detect/audit/fix/verify" in content
 
     def test_workspace_notes(self, tmp_path):
         scaffold_project(
@@ -811,9 +811,9 @@ class TestNotesTemplateSelection:
         )
         content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
         assert "# Institutional Notes: Workspaces" in content
-        assert "ai-tools mono sync" in content
-        assert "Workspace orchestration commands live under `ai-tools mono`" in content
-        assert "ai-tools standardize ..." in content
+        assert "uv run ai-tools mono sync" in content
+        assert "Workspace orchestration commands live under `uv run ai-tools mono`" in content
+        assert "uv run ai-tools standardize ..." in content
 
     def test_none_type_uses_default_notes(self, tmp_path):
         scaffold_project(tmp_path, repo_type=None)
@@ -832,17 +832,17 @@ class TestWorkspaceSkillCommandContract:
         )
         skills_dir = tmp_path / ".agents" / "skills"
         expected_commands = {
-            "ai-workspace-init": "ai-tools mono sync --json",
-            "ai-workspace-sync": "ai-tools mono sync --json",
-            "ai-workspace-status": "ai-tools mono status --json",
-            "ai-workspace-pick": "ai-tools mono issues --json",
-            "ai-workspace-branch": "ai-tools mono branch --json",
-            "ai-workspace-test": "ai-tools mono check --phase tests --json",
-            "ai-workspace-lint": "ai-tools mono check --phase quality --json",
-            "ai-workspace-submit": "ai-tools mono submit --json",
-            "ai-workspace-update": "ai-tools mono update --json",
-            "ai-workspace-health": "ai-tools mono status --actionable --json",
-            "ai-workspace-foreach": "ai-tools mono foreach --json",
+            "ai-workspace-init": "uv run ai-tools mono sync --json",
+            "ai-workspace-sync": "uv run ai-tools mono sync --json",
+            "ai-workspace-status": "uv run ai-tools mono status --json",
+            "ai-workspace-pick": "uv run ai-tools mono issues --json",
+            "ai-workspace-branch": "uv run ai-tools mono branch --json",
+            "ai-workspace-test": "uv run ai-tools mono check --phase tests --json",
+            "ai-workspace-lint": "uv run ai-tools mono check --phase quality --json",
+            "ai-workspace-submit": "uv run ai-tools mono submit --json",
+            "ai-workspace-update": "uv run ai-tools mono update --json",
+            "ai-workspace-health": "uv run ai-tools mono status --actionable --json",
+            "ai-workspace-foreach": "uv run ai-tools mono foreach --json",
         }
 
         for skill_name, command in expected_commands.items():

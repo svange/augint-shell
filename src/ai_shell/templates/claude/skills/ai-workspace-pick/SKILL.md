@@ -6,7 +6,7 @@ argument-hint: "[query or filters]"
 
 Pick work across the workspace: $ARGUMENTS
 
-Run `ai-tools mono issues --json $ARGUMENTS`.
+Run `uv run ai-tools mono issues --json $ARGUMENTS`.
 
 Return:
 - 3 best issue candidates

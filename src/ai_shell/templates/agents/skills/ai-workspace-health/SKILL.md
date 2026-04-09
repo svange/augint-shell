@@ -6,7 +6,7 @@ argument-hint: "[--repos name1,name2]"
 
 Analyze workspace health: $ARGUMENTS
 
-Run `ai-tools mono status --actionable --json $ARGUMENTS` and report:
+Run `uv run ai-tools mono status --actionable --json $ARGUMENTS` and report:
 - missing repos
 - dirty repos blocking coordinated work
 - branch drift against configured defaults

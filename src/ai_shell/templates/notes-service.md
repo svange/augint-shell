@@ -18,6 +18,6 @@ Merge them lightly and only when they add net-new guidance.
 
 ## `ai-tools` Usage
 
-- Use `ai-tools repo ...` for normal repo workflows (status, issues, branch prep, submit, CI, promote/rollback where applicable).
-- Use `ai-tools standardize detect/audit/fix/verify` for standards alignment.
-- Do not use workspace-only `ai-tools mono ...` commands for single-repo service work.
+- Use `uv run ai-tools repo ...` for normal repo workflows (status, issues, branch prep, submit, CI, promote/rollback where applicable).
+- Use `uv run ai-tools standardize detect/audit/fix/verify` for standards alignment.
+- Do not use workspace-only `uv run ai-tools mono ...` commands for single-repo service work.
