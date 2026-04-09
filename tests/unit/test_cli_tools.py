@@ -238,7 +238,6 @@ class TestToolCommands:
         assert call_kwargs["workdir"] is None
         assert result.exit_code == 0
 
-    def test_codex_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         config = MagicMock()
         config.codex_openai_api_key = ""
         config.codex_provider = ""
