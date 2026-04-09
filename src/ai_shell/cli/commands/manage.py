@@ -5,6 +5,7 @@ from pathlib import Path
 import click
 from rich.console import Console
 
+from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import build_dev_environment, dev_container_name
@@ -20,7 +21,7 @@ def _get_manager(ctx) -> ContainerManager:
     return ContainerManager(config)
 
 
-@click.group("manage")
+@click.group("manage", context_settings=CONTEXT_SETTINGS)
 @click.pass_context
 def manage_group(ctx):
     """Manage dev containers."""

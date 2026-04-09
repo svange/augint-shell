@@ -6,6 +6,7 @@ from pathlib import Path
 import click
 from rich.console import Console
 
+from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import OLLAMA_CONTAINER, WEBUI_CONTAINER
@@ -55,7 +56,7 @@ def _get_manager(ctx) -> ContainerManager:
     return ContainerManager(config)
 
 
-@click.group("llm")
+@click.group("llm", context_settings=CONTEXT_SETTINGS)
 @click.pass_context
 def llm_group(ctx):
     """Manage the local LLM stack (Ollama + Open WebUI)."""
