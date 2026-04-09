@@ -473,9 +473,7 @@ def claude(
             worktree_name = _generate_worktree_name()
         container_project_dir = f"/root/projects/{config.project_name}"
         worktree_dir = _setup_worktree(name, container_project_dir, worktree_name)
-        console.print(
-            f"[dim]Worktree: {worktree_dir} (branch: worktree-{worktree_name})[/dim]"
-        )
+        console.print(f"[dim]Worktree: {worktree_dir} (branch: worktree-{worktree_name})[/dim]")
 
     if safe:
         cmd = ["claude", *extra_args]
@@ -493,9 +491,7 @@ def claude(
             # -c failed quickly (likely no prior conversation), retry without it
             console.print("[yellow]No prior conversation found, starting fresh...[/yellow]")
             cmd_fresh = ["claude", "--dangerously-skip-permissions", *extra_args]
-            manager.exec_interactive(
-                name, cmd_fresh, extra_env=exec_env, workdir=worktree_dir
-            )
+            manager.exec_interactive(name, cmd_fresh, extra_env=exec_env, workdir=worktree_dir)
         else:
             sys.exit(exit_code)
 
