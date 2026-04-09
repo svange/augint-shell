@@ -207,6 +207,43 @@ class TestExecInteractive:
 
             assert exc_info.value.code == 130
 
+    def test_passes_workdir(self, mock_container_manager):
+        with (
+            patch("ai_shell.container.subprocess.run") as mock_run,
+            patch("ai_shell.container.sys.stdin") as mock_stdin,
+        ):
+            mock_run.return_value = MagicMock(returncode=0)
+            mock_stdin.isatty.return_value = True
+
+            with pytest.raises(SystemExit):
+                mock_container_manager.exec_interactive(
+                    "augint-shell-test-dev",
+                    ["claude"],
+                    workdir="/root/projects/my-project/.claude/worktrees/feat",
+                )
+
+            args = mock_run.call_args[0][0]
+            assert "-w" in args
+            w_idx = args.index("-w")
+            assert args[w_idx + 1] == "/root/projects/my-project/.claude/worktrees/feat"
+
+    def test_no_workdir_omits_w_flag(self, mock_container_manager):
+        with (
+            patch("ai_shell.container.subprocess.run") as mock_run,
+            patch("ai_shell.container.sys.stdin") as mock_stdin,
+        ):
+            mock_run.return_value = MagicMock(returncode=0)
+            mock_stdin.isatty.return_value = True
+
+            with pytest.raises(SystemExit):
+                mock_container_manager.exec_interactive(
+                    "augint-shell-test-dev",
+                    ["claude"],
+                )
+
+            args = mock_run.call_args[0][0]
+            assert "-w" not in args
+
 
 class TestRunInteractive:
     def test_returns_exit_code_and_elapsed(self, mock_container_manager):
@@ -250,6 +287,25 @@ class TestRunInteractive:
             )
 
             assert exit_code == 1
+
+    def test_passes_workdir(self, mock_container_manager):
+        with (
+            patch("ai_shell.container.subprocess.run") as mock_run,
+            patch("ai_shell.container.sys.stdin") as mock_stdin,
+        ):
+            mock_run.return_value = MagicMock(returncode=0)
+            mock_stdin.isatty.return_value = True
+
+            mock_container_manager.run_interactive(
+                "augint-shell-test-dev",
+                ["claude", "-c"],
+                workdir="/root/projects/my-project/.claude/worktrees/feat",
+            )
+
+            args = mock_run.call_args[0][0]
+            assert "-w" in args
+            w_idx = args.index("-w")
+            assert args[w_idx + 1] == "/root/projects/my-project/.claude/worktrees/feat"
 
 
 class TestEnsureLlmNetwork:

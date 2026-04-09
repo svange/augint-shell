@@ -6,6 +6,7 @@ import logging
 import subprocess
 import sys
 import tomllib
+import uuid
 from pathlib import Path
 
 import click
@@ -20,6 +21,81 @@ logger = logging.getLogger(__name__)
 console = Console(stderr=True)
 
 FAST_FAILURE_THRESHOLD = 5.0  # seconds — if claude -c exits faster, retry without -c
+
+# Worktrees are created inside .claude/worktrees/ so they stay within the bind
+# mount and remain visible on the host.  The branch name mirrors the directory
+# name with a "worktree-" prefix, matching the convention used by ``claude
+# --worktree``.
+WORKTREE_BASE_DIR = ".claude/worktrees"
+
+
+def _generate_worktree_name() -> str:
+    """Return a short random hex string for an auto-named worktree."""
+    return uuid.uuid4().hex[:8]
+
+
+def _setup_worktree(container_name: str, container_project_dir: str, name: str) -> str:
+    """Create a git worktree inside the container and return its absolute container path.
+
+    The worktree is placed at ``.claude/worktrees/{name}`` relative to the
+    project root so it stays inside the Docker bind mount.  If the directory
+    already exists the creation step is skipped and the existing worktree is
+    reused.  The branch is named ``worktree-{name}``.
+
+    Raises :class:`click.ClickException` when worktree creation fails for an
+    unexpected reason.
+    """
+    worktree_rel = f"{WORKTREE_BASE_DIR}/{name}"
+    worktree_abs = f"{container_project_dir}/{worktree_rel}"
+    branch = f"worktree-{name}"
+
+    # First attempt: create new worktree + new branch
+    result = subprocess.run(
+        [
+            "docker",
+            "exec",
+            "-w",
+            container_project_dir,
+            container_name,
+            "git",
+            "worktree",
+            "add",
+            worktree_rel,
+            "-b",
+            branch,
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        # Branch already exists → switch to it without -b
+        if "already exists" in stderr or "already checked out" in stderr:
+            result2 = subprocess.run(
+                [
+                    "docker",
+                    "exec",
+                    "-w",
+                    container_project_dir,
+                    container_name,
+                    "git",
+                    "worktree",
+                    "add",
+                    worktree_rel,
+                    branch,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            stderr2 = result2.stderr.strip()
+            if result2.returncode != 0 and "already" not in stderr2:
+                raise click.ClickException(f"Failed to create worktree '{name}': {stderr2}")
+        # Worktree directory already registered → treat as success
+        elif "already" not in stderr:
+            raise click.ClickException(f"Failed to create worktree '{name}': {stderr}")
+
+    return worktree_abs
 
 
 def _inject_codex_api_key(container_name: str, api_key: str) -> None:
@@ -295,6 +371,22 @@ def _get_manager(
 @click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
 @click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
 @click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
+@click.option(
+    "--worktree",
+    "-w",
+    "worktree_name",
+    default=None,
+    is_flag=False,
+    flag_value="",
+    help=(
+        "Create an isolated git worktree and run Claude in it.  "
+        "The value becomes the worktree directory name and branch suffix "
+        "(``worktree-<name>``).  A short random name is generated when the "
+        "flag is given without a value.  "
+        "Worktrees are placed at ``.claude/worktrees/<name>/`` inside the "
+        "bind mount so they remain visible on the host."
+    ),
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def claude(
@@ -309,6 +401,7 @@ def claude(
     cli_profile,
     skip_preflight,
     repo_type_flag,
+    worktree_name,
     extra_args,
 ):
     """Launch Claude Code in the dev container."""
@@ -373,21 +466,36 @@ def claude(
     else:
         bedrock_label = ""
 
+    # Resolve worktree working directory (if --worktree/-w was given)
+    worktree_dir: str | None = None
+    if worktree_name is not None:
+        if worktree_name == "":
+            worktree_name = _generate_worktree_name()
+        container_project_dir = f"/root/projects/{config.project_name}"
+        worktree_dir = _setup_worktree(name, container_project_dir, worktree_name)
+        console.print(
+            f"[dim]Worktree: {worktree_dir} (branch: worktree-{worktree_name})[/dim]"
+        )
+
     if safe:
         cmd = ["claude", *extra_args]
         console.print(f"[bold]Launching Claude Code (safe mode){bedrock_label} in {name}...[/bold]")
-        manager.exec_interactive(name, cmd, extra_env=exec_env)
+        manager.exec_interactive(name, cmd, extra_env=exec_env, workdir=worktree_dir)
     else:
         # Try with -c first (continue previous conversation)
         cmd_continue = ["claude", "--dangerously-skip-permissions", "-c", *extra_args]
         console.print(f"[bold]Launching Claude Code{bedrock_label} in {name}...[/bold]")
-        exit_code, elapsed = manager.run_interactive(name, cmd_continue, extra_env=exec_env)
+        exit_code, elapsed = manager.run_interactive(
+            name, cmd_continue, extra_env=exec_env, workdir=worktree_dir
+        )
 
         if exit_code != 0 and elapsed < FAST_FAILURE_THRESHOLD:
             # -c failed quickly (likely no prior conversation), retry without it
             console.print("[yellow]No prior conversation found, starting fresh...[/yellow]")
             cmd_fresh = ["claude", "--dangerously-skip-permissions", *extra_args]
-            manager.exec_interactive(name, cmd_fresh, extra_env=exec_env)
+            manager.exec_interactive(
+                name, cmd_fresh, extra_env=exec_env, workdir=worktree_dir
+            )
         else:
             sys.exit(exit_code)
 
