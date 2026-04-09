@@ -6,12 +6,13 @@ import sys
 import click
 
 from ai_shell import __version__
+from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.cli.commands.llm import llm_group
 from ai_shell.cli.commands.manage import manage_group
 from ai_shell.cli.commands.tools import aider, claude, codex, init, opencode, shell
 
 
-@click.group()
+@click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(version=__version__, prog_name="ai-shell")
 @click.option("--project", default=None, help="Override project name for container naming.")
 @click.option("--verbose", "-v", is_flag=True, default=False, help="Enable debug logging.")

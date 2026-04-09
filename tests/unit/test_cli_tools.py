@@ -978,3 +978,30 @@ class TestAutoInit:
             self.runner.invoke(cli, ["aider"])
 
         mock_scaffold.assert_called_once()
+
+
+class TestHelpShortFlag:
+    """Verify -h works as alias for --help across all groups and commands."""
+
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    def test_main_group_h_flag(self):
+        result = self.runner.invoke(cli, ["-h"])
+        assert result.exit_code == 0
+        assert "Usage" in result.output
+
+    def test_claude_h_flag(self):
+        result = self.runner.invoke(cli, ["claude", "-h"])
+        assert result.exit_code == 0
+        assert "Usage" in result.output
+
+    def test_llm_h_flag(self):
+        result = self.runner.invoke(cli, ["llm", "-h"])
+        assert result.exit_code == 0
+        assert "Usage" in result.output
+
+    def test_manage_h_flag(self):
+        result = self.runner.invoke(cli, ["manage", "-h"])
+        assert result.exit_code == 0
+        assert "Usage" in result.output

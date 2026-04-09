@@ -11,6 +11,7 @@ from pathlib import Path
 import click
 from rich.console import Console
 
+from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import AiShellConfig, load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import build_dev_environment
@@ -245,7 +246,7 @@ def _get_manager(
     return manager, container_name, exec_env, config
 
 
-@click.command()
+@click.command(context_settings=CONTEXT_SETTINGS)
 @click.option(
     "--init",
     "do_init",
@@ -392,7 +393,7 @@ def claude(
             sys.exit(exit_code)
 
 
-@click.command()
+@click.command(context_settings=CONTEXT_SETTINGS)
 @click.option(
     "--init",
     "do_init",
@@ -536,7 +537,7 @@ def codex(
     manager.exec_interactive(name, cmd, extra_env=exec_env)
 
 
-@click.command()
+@click.command(context_settings=CONTEXT_SETTINGS)
 @click.option(
     "--init",
     "do_init",
@@ -667,7 +668,7 @@ def opencode(
     manager.exec_interactive(name, cmd, extra_env=exec_env)
 
 
-@click.command()
+@click.command(context_settings=CONTEXT_SETTINGS)
 @click.option(
     "--init",
     "do_init",
@@ -744,7 +745,7 @@ def aider(ctx, do_init, do_update, do_reset, do_clean, safe, repo_type_flag, ext
     manager.exec_interactive(name, cmd, extra_env=exec_env)
 
 
-@click.command()
+@click.command(context_settings=CONTEXT_SETTINGS)
 @click.pass_context
 def shell(ctx):
     """Open a bash shell in the dev container."""
@@ -753,7 +754,7 @@ def shell(ctx):
     manager.exec_interactive(name, ["/bin/bash"], extra_env=exec_env)
 
 
-@click.command()
+@click.command(context_settings=CONTEXT_SETTINGS)
 @click.option(
     "--update",
     is_flag=True,
