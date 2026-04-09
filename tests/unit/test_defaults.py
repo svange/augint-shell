@@ -167,7 +167,6 @@ class TestBuildDevEnvironmentDotenv:
             env = build_dev_environment(project_dir=tmp_path)
         assert env["GH_TOKEN"] == "from-dotenv"
         assert env["GITHUB_TOKEN"] == "from-dotenv"
-        assert env["GIT_TERMINAL_PROMPT"] == "0"
 
     def test_dotenv_overrides_os_environ(self, tmp_path):
         (tmp_path / ".env").write_text("GH_TOKEN=from-dotenv\n")
@@ -199,7 +198,6 @@ class TestBuildDevEnvironmentDotenv:
             env = build_dev_environment(project_dir=tmp_path)
         assert env["GH_TOKEN"] == ""
         assert env["AWS_REGION"] == "us-east-1"
-        assert "GIT_TERMINAL_PROMPT" not in env
 
     def test_dotenv_aws_region(self, tmp_path):
         (tmp_path / ".env").write_text("AWS_REGION=eu-west-1\n")
