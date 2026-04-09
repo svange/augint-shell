@@ -61,6 +61,7 @@ class AiShellConfig:
     codex_provider: str = ""  # "openai" (default) or "aws" (Bedrock)
     codex_openai_api_key: str = ""  # OpenAI API key (if set, overrides mounted SSO auth)
     codex_profile: str = ""  # AWS profile for Bedrock auth (when provider = "aws")
+    copilot_provider: str = ""  # "github" (default) or "aws" (Bedrock)
 
     # Project workflow
     repo_type: str | None = None  # "library" | "service" | "workspace"
@@ -189,6 +190,11 @@ def _apply_toml(config: AiShellConfig, path: Path) -> None:
     if "profile" in codex_sec:
         config.codex_profile = codex_sec["profile"]
 
+    # [copilot] section
+    copilot_sec = data.get("copilot", {})
+    if "provider" in copilot_sec:
+        config.copilot_provider = copilot_sec["provider"]
+
     # [project] section
     project = data.get("project", {})
     if "repo_type" in project:
@@ -223,6 +229,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_CODEX_PROVIDER": ("codex_provider", str),
         "AI_SHELL_CODEX_OPENAI_API_KEY": ("codex_openai_api_key", str),
         "AI_SHELL_CODEX_PROFILE": ("codex_profile", str),
+        "AI_SHELL_COPILOT_PROVIDER": ("copilot_provider", str),
     }
 
     for env_key, (attr, type_fn) in env_map.items():

@@ -58,6 +58,9 @@ _CODEX_FILES: list[str] = []
 _AIDER_DIRS: list[str] = []
 _AIDER_FILES = [".aider.conf.yml", ".aiderignore"]
 
+_COPILOT_DIRS: list[str] = []
+_COPILOT_FILES = [".github/copilot-instructions.md"]
+
 _PROJECT_DIRS: list[str] = []
 _PROJECT_FILES = [".ai-shell.toml", "ai-shell.toml"]
 
@@ -457,3 +460,26 @@ def scaffold_aider(
 
     _write_notes(target_dir, repo_type=repo_type)
     console.print("[bold green]Aider configuration ready.[/bold green]")
+
+
+def scaffold_copilot(
+    target_dir: Path,
+    *,
+    overwrite: bool = False,
+    clean: bool = False,
+    merge: bool = False,
+    repo_type: RepoType | None = None,
+) -> None:
+    """Create ``.github/copilot-instructions.md`` and the institutional knowledge file."""
+    if clean:
+        _clean_paths(target_dir, _COPILOT_DIRS, _COPILOT_FILES)
+        overwrite = True
+    effective_overwrite = overwrite or merge
+    _write_file(
+        target_dir / ".github" / "copilot-instructions.md",
+        _read_template("copilot", "copilot-instructions.md"),
+        overwrite=effective_overwrite,
+    )
+
+    _write_notes(target_dir, repo_type=repo_type)
+    console.print("[bold green]GitHub Copilot configuration ready.[/bold green]")

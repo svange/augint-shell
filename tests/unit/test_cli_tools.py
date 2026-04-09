@@ -729,6 +729,7 @@ class TestToolCommands:
                 patch("ai_shell.scaffold.scaffold_opencode"),
                 patch("ai_shell.scaffold.scaffold_codex"),
                 patch("ai_shell.scaffold.scaffold_aider"),
+                patch("ai_shell.scaffold.scaffold_copilot"),
                 patch("ai_shell.notes_merge.merge_notes_into_context") as mock_merge,
             ):
                 result = self.runner.invoke(
@@ -837,6 +838,123 @@ class TestToolCommands:
         result = self.runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
         assert "ai-shell" in result.output
+
+    def test_copilot_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        with self.runner.isolated_filesystem():
+            import os
+
+            os.makedirs(".github", exist_ok=True)
+            open(".github/copilot-instructions.md", "w").close()
+            self.runner.invoke(cli, ["copilot"])
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert cmd == ["gh", "copilot"]
+        assert mock_manager.exec_interactive.call_args[1]["extra_env"] == TEST_EXEC_ENV
+
+    def test_copilot_command_with_extra_args(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        with self.runner.isolated_filesystem():
+            import os
+
+            os.makedirs(".github", exist_ok=True)
+            open(".github/copilot-instructions.md", "w").close()
+            self.runner.invoke(cli, ["copilot", "suggest", "list files"])
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert cmd == ["gh", "copilot", "suggest", "list files"]
+
+    def test_copilot_init_calls_scaffold(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with (
+                patch("ai_shell.scaffold.scaffold_copilot") as mock_scaffold,
+                patch("ai_shell.notes_merge.merge_notes_into_context") as mock_merge,
+            ):
+                result = self.runner.invoke(cli, ["copilot", "--init"])
+
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=False,
+            clean=False,
+            merge=False,
+            repo_type=None,
+        )
+        mock_manager_cls.assert_not_called()
+        mock_merge.assert_called_once_with("/tmp/test", "copilot", background=True)
+        assert result.exit_code == 0
+
+    def test_copilot_update_calls_scaffold_with_merge(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with (
+                patch("ai_shell.scaffold.scaffold_copilot") as mock_scaffold,
+                patch("ai_shell.notes_merge.merge_notes_into_context"),
+            ):
+                result = self.runner.invoke(cli, ["copilot", "--update"])
+
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=False,
+            clean=False,
+            merge=True,
+            repo_type=None,
+        )
+        assert result.exit_code == 0
+
+    def test_copilot_reset_calls_scaffold_with_overwrite(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with (
+                patch("ai_shell.scaffold.scaffold_copilot") as mock_scaffold,
+                patch("ai_shell.notes_merge.merge_notes_into_context"),
+            ):
+                result = self.runner.invoke(cli, ["copilot", "--reset"])
+
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=True,
+            clean=False,
+            merge=False,
+            repo_type=None,
+        )
+        assert result.exit_code == 0
+
+    def test_copilot_clean_calls_scaffold_with_clean(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
+            mock_path.cwd.return_value = "/tmp/test"
+            with patch("ai_shell.scaffold.scaffold_copilot") as mock_scaffold:
+                result = self.runner.invoke(cli, ["copilot", "--clean"])
+
+        mock_scaffold.assert_called_once_with(
+            "/tmp/test",
+            overwrite=True,
+            clean=True,
+            merge=False,
+            repo_type=None,
+        )
+        mock_manager_cls.assert_not_called()
+        assert result.exit_code == 0
 
 
 class TestCheckBedrockAccess:
@@ -978,3 +1096,25 @@ class TestAutoInit:
             self.runner.invoke(cli, ["aider"])
 
         mock_scaffold.assert_called_once()
+
+
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    @patch("ai_shell.scaffold.scaffold_copilot")
+    def test_copilot_auto_inits_when_config_missing(
+        self, mock_scaffold, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = {}
+        mock_config.return_value = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        with self.runner.isolated_filesystem():
+            self.runner.invoke(cli, ["copilot"])
+
+        mock_scaffold.assert_called_once()
+

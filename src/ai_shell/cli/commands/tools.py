@@ -745,6 +745,99 @@ def aider(ctx, do_init, do_update, do_reset, do_clean, safe, repo_type_flag, ext
 
 
 @click.command()
+@click.option(
+    "--init",
+    "do_init",
+    is_flag=True,
+    default=False,
+    help="Create .github/copilot-instructions.md in current directory and exit.",
+)
+@click.option(
+    "--update",
+    "do_update",
+    is_flag=True,
+    default=False,
+    help="Update managed files, merging settings to preserve user customizations.",
+)
+@click.option(
+    "--reset",
+    "do_reset",
+    is_flag=True,
+    default=False,
+    help="Force-overwrite all managed config files from templates.",
+)
+@click.option(
+    "--clean",
+    "do_clean",
+    is_flag=True,
+    default=False,
+    help="Delete and recreate .github/copilot-instructions.md from templates.",
+)
+@click.option(
+    "--no-merge",
+    "skip_merge",
+    is_flag=True,
+    default=False,
+    help="Skip merging notes into context file on --update/--reset.",
+)
+@click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
+@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
+@click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
+@click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
+@click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
+@click.pass_context
+def copilot(
+    ctx,
+    do_init,
+    do_update,
+    do_reset,
+    do_clean,
+    skip_merge,
+    repo_type_flag,
+    extra_args,
+):
+    """Launch GitHub Copilot CLI in the dev container."""
+    if do_init or do_update or do_reset or do_clean:
+        from ai_shell.scaffold import scaffold_copilot as _scaffold_copilot
+
+        target_dir = Path.cwd()
+        repo_type, _branch, _dev = _resolve_repo_config(
+            repo_type_flag,
+            target_dir,
+        )
+        _scaffold_copilot(
+            target_dir,
+            overwrite=do_reset or do_clean,
+            clean=do_clean,
+            merge=do_update,
+            repo_type=repo_type,
+        )
+        if (do_init or do_update or do_reset) and not skip_merge:
+            from ai_shell.notes_merge import merge_notes_into_context
+
+            merge_notes_into_context(Path.cwd(), "copilot", background=True)
+        return
+
+    # Auto-init if .github/copilot-instructions.md is missing
+    if not (Path.cwd() / ".github" / "copilot-instructions.md").exists():
+        console.print(
+            "[dim].github/copilot-instructions.md not found - running first-time init...[/dim]"
+        )
+        from ai_shell.scaffold import scaffold_copilot as _scaffold_copilot
+
+        _auto_repo_type, _auto_branch, _auto_dev = _resolve_repo_config(None, Path.cwd())
+        _scaffold_copilot(
+            Path.cwd(),
+            repo_type=_auto_repo_type,
+        )
+
+    manager, name, exec_env, _config = _get_manager(ctx)
+    cmd = ["gh", "copilot", *extra_args]
+    console.print(f"[bold]Launching GitHub Copilot CLI in {name}...[/bold]")
+    manager.exec_interactive(name, cmd, extra_env=exec_env)
+
+
+@click.command()
 @click.pass_context
 def shell(ctx):
     """Open a bash shell in the dev container."""
@@ -813,6 +906,7 @@ def init(update, reset, clean, scaffold_all, skip_merge, repo_type_flag):
     from ai_shell.scaffold import scaffold_aider as _scaffold_aider
     from ai_shell.scaffold import scaffold_claude as _scaffold_claude
     from ai_shell.scaffold import scaffold_codex as _scaffold_codex
+    from ai_shell.scaffold import scaffold_copilot as _scaffold_copilot
     from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
     from ai_shell.scaffold import scaffold_project
 
@@ -864,6 +958,13 @@ def init(update, reset, clean, scaffold_all, skip_merge, repo_type_flag):
             branch_strategy=branch_strategy,
         )
         _scaffold_aider(
+            target_dir,
+            overwrite=overwrite,
+            clean=clean,
+            merge=merge,
+            repo_type=repo_type,
+        )
+        _scaffold_copilot(
             target_dir,
             overwrite=overwrite,
             clean=clean,

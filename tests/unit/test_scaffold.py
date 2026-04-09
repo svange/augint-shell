@@ -13,6 +13,7 @@ from ai_shell.scaffold import (
     scaffold_aider,
     scaffold_claude,
     scaffold_codex,
+    scaffold_copilot,
     scaffold_opencode,
     scaffold_project,
     skills_for_config,
@@ -917,3 +918,52 @@ class TestRepoTypeCompat:
         (tmp_path / ".ai-shell.toml").write_text(toml_content)
         config = load_config(project_dir=tmp_path)
         assert config.repo_type == "library"
+
+
+class TestScaffoldCopilot:
+    def test_creates_copilot_instructions(self, tmp_path):
+        scaffold_copilot(tmp_path)
+        assert (tmp_path / ".github" / "copilot-instructions.md").is_file()
+
+    def test_copilot_instructions_is_markdown(self, tmp_path):
+        scaffold_copilot(tmp_path)
+        content = (tmp_path / ".github" / "copilot-instructions.md").read_text()
+        assert "# GitHub Copilot Instructions" in content
+
+    def test_creates_notes_md(self, tmp_path):
+        scaffold_copilot(tmp_path)
+        assert (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").is_file()
+
+    def test_init_skips_existing(self, tmp_path):
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        instructions = github_dir / "copilot-instructions.md"
+        instructions.write_text("original")
+        scaffold_copilot(tmp_path, overwrite=False)
+        assert instructions.read_text() == "original"
+
+    def test_reset_overwrites_existing(self, tmp_path):
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        instructions = github_dir / "copilot-instructions.md"
+        instructions.write_text("original")
+        scaffold_copilot(tmp_path, overwrite=True)
+        assert instructions.read_text() != "original"
+
+    def test_update_overwrites_existing(self, tmp_path):
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        instructions = github_dir / "copilot-instructions.md"
+        instructions.write_text("original")
+        scaffold_copilot(tmp_path, merge=True)
+        assert instructions.read_text() != "original"
+
+    def test_clean_removes_and_recreates(self, tmp_path):
+        scaffold_copilot(tmp_path)
+        scaffold_copilot(tmp_path, clean=True)
+        assert (tmp_path / ".github" / "copilot-instructions.md").is_file()
+        assert (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").is_file()
+
+    def test_clean_works_on_empty_dir(self, tmp_path):
+        scaffold_copilot(tmp_path, clean=True)
+        assert (tmp_path / ".github" / "copilot-instructions.md").is_file()
