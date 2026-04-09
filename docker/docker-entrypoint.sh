@@ -16,6 +16,10 @@ fi
 # Force gnutls SSL backend globally only
 git config --global http.sslBackend gnutls
 
+# Prune stale worktree references left by container-local worktrees that
+# vanished on container recreation (no-op if no stale refs or not a git repo)
+git worktree prune 2>/dev/null || true
+
 # Install/sync project dependencies FIRST, before anything else starts
 # This ensures Claude Code has access to all tools
 if [ -f "uv.lock" ]; then
