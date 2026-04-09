@@ -115,7 +115,129 @@ class TestToolCommands:
         cmd = mock_manager.run_interactive.call_args[0][1]
         assert cmd == ["claude", "--dangerously-skip-permissions", "-c", "--debug"]
 
-    def test_codex_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
+    @patch("ai_shell.cli.commands.tools._setup_worktree")
+    def test_claude_worktree_named(
+        self, mock_setup_wt, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        """--worktree <name> creates the worktree and passes workdir to exec calls."""
+        config = MagicMock()
+        config.project_name = "my-project"
+        config.claude_provider = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        wt_abs = "/root/projects/my-project/.claude/worktrees/feat-123"
+        mock_setup_wt.return_value = wt_abs
+
+        self.runner.invoke(cli, ["claude", "--worktree", "feat-123"])
+
+        mock_setup_wt.assert_called_once_with(
+            "augint-shell-test-dev",
+            "/root/projects/my-project",
+            "feat-123",
+        )
+        call_kwargs = mock_manager.run_interactive.call_args[1]
+        assert call_kwargs["workdir"] == wt_abs
+
+    @patch("ai_shell.cli.commands.tools._setup_worktree")
+    @patch("ai_shell.cli.commands.tools._generate_worktree_name")
+    def test_claude_worktree_auto_named(
+        self,
+        mock_gen_name,
+        mock_setup_wt,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        """--worktree without a value auto-generates a name."""
+        config = MagicMock()
+        config.project_name = "my-project"
+        config.claude_provider = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        mock_gen_name.return_value = "abc12345"
+        wt_abs = "/root/projects/my-project/.claude/worktrees/abc12345"
+        mock_setup_wt.return_value = wt_abs
+
+        self.runner.invoke(cli, ["claude", "-w"])
+
+        mock_gen_name.assert_called_once()
+        mock_setup_wt.assert_called_once_with(
+            "augint-shell-test-dev",
+            "/root/projects/my-project",
+            "abc12345",
+        )
+        call_kwargs = mock_manager.run_interactive.call_args[1]
+        assert call_kwargs["workdir"] == wt_abs
+
+    @patch("ai_shell.cli.commands.tools._setup_worktree")
+    def test_claude_worktree_safe_mode(
+        self, mock_setup_wt, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        """--worktree with --safe passes workdir to exec_interactive."""
+        config = MagicMock()
+        config.project_name = "my-project"
+        config.claude_provider = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        wt_abs = "/root/projects/my-project/.claude/worktrees/feat-safe"
+        mock_setup_wt.return_value = wt_abs
+
+        self.runner.invoke(cli, ["claude", "--worktree", "feat-safe", "--safe"])
+
+        call_kwargs = mock_manager.exec_interactive.call_args[1]
+        assert call_kwargs["workdir"] == wt_abs
+
+    def test_claude_no_worktree_passes_none_workdir(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        """When --worktree is not given, workdir=None is passed (no -w flag on docker exec)."""
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["claude"])
+
+        mock_manager.ensure_dev_container.assert_called_once()
+        mock_manager.run_interactive.assert_called_once()
+        cmd = mock_manager.run_interactive.call_args[0][1]
+        assert cmd == ["claude", "--dangerously-skip-permissions", "-c"]
+        call_kwargs = mock_manager.run_interactive.call_args[1]
+        assert call_kwargs["workdir"] is None
+        assert result.exit_code == 0
+
         config = MagicMock()
         config.codex_openai_api_key = ""
         config.codex_provider = ""

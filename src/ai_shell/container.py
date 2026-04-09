@@ -174,16 +174,21 @@ class ContainerManager:
         container_name: str,
         command: list[str],
         extra_env: dict[str, str] | None = None,
+        workdir: str | None = None,
     ) -> NoReturn:
         """Execute an interactive command in a container.
 
         Uses subprocess.run for cross-platform TTY compatibility.
         Detects whether stdin is a TTY to decide on -i/-t flags.
+        If *workdir* is given it is passed as ``-w`` to ``docker exec``.
         """
         args = ["docker", "exec"]
 
         if sys.stdin.isatty():
             args.append("-it")
+
+        if workdir:
+            args.extend(["-w", workdir])
 
         if extra_env:
             for key, value in extra_env.items():
@@ -199,16 +204,21 @@ class ContainerManager:
         container_name: str,
         command: list[str],
         extra_env: dict[str, str] | None = None,
+        workdir: str | None = None,
     ) -> tuple[int, float]:
         """Execute an interactive command, returning (exit_code, elapsed_seconds).
 
         Same as exec_interactive but does not call sys.exit().
         Used for retry logic (e.g., claude -c fallback).
+        If *workdir* is given it is passed as ``-w`` to ``docker exec``.
         """
         args = ["docker", "exec"]
 
         if sys.stdin.isatty():
             args.append("-it")
+
+        if workdir:
+            args.extend(["-w", workdir])
 
         if extra_env:
             for key, value in extra_env.items():
