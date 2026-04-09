@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.40.0 (2026-04-09)
+
+### Features
+
+- **cli**: Add -h as alias for --help across all commands
+  ([`40be7b5`](https://github.com/svange/augint-shell/commit/40be7b5f6311396156cd60a8320461edfec2a8da))
+
+
 ## v0.39.0 (2026-04-09)
 
 ### Bug Fixes
