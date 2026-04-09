@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v0.39.0 (2026-04-09)
+
+### Bug Fixes
+
+- Add git worktree prune to docker-entrypoint.sh
+  ([#43](https://github.com/svange/augint-shell/pull/43),
+  [`da30da5`](https://github.com/svange/augint-shell/commit/da30da5aeaa114b87f6bc027eba19fa073778f8b))
+
+- Restore test_codex_command and apply ruff format fixes
+  ([#43](https://github.com/svange/augint-shell/pull/43),
+  [`da30da5`](https://github.com/svange/augint-shell/commit/da30da5aeaa114b87f6bc027eba19fa073778f8b))
+
+- Restore test_codex_command definition and apply ruff format fixes
+  ([#43](https://github.com/svange/augint-shell/pull/43),
+  [`da30da5`](https://github.com/svange/augint-shell/commit/da30da5aeaa114b87f6bc027eba19fa073778f8b))
+
+### Features
+
+- Add --worktree/-w flag to ai-shell claude and git worktree prune to docker entrypoint
+  ([#43](https://github.com/svange/augint-shell/pull/43),
+  [`da30da5`](https://github.com/svange/augint-shell/commit/da30da5aeaa114b87f6bc027eba19fa073778f8b))
+
+- Add --worktree/-w flag to ai-shell claude for isolated git worktree sessions
+  ([#43](https://github.com/svange/augint-shell/pull/43),
+  [`da30da5`](https://github.com/svange/augint-shell/commit/da30da5aeaa114b87f6bc027eba19fa073778f8b))
+
+
 ## v0.38.1 (2026-04-09)
 
 ### Chores
