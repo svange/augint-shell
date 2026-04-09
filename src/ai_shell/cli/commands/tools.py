@@ -279,13 +279,7 @@ def _get_manager(
     "--remote",
     is_flag=True,
     default=False,
-    help="Start a remote Claude session (headless, connectable from other machines).",
-)
-@click.option(
-    "--name",
-    "session_name",
-    default=None,
-    help="Name for the remote session (requires --remote).",
+    help="Start a named remote Claude session (headless, connectable from other machines).",
 )
 @click.option(
     "--no-merge",
@@ -317,7 +311,6 @@ def claude(
     do_clean,
     safe,
     remote,
-    session_name,
     skip_merge,
     use_aws,
     cli_profile,
@@ -326,9 +319,6 @@ def claude(
     extra_args,
 ):
     """Launch Claude Code in the dev container."""
-    if session_name and not remote:
-        raise click.UsageError("--name requires --remote")
-
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_claude as _scaffold_claude
 
@@ -367,17 +357,18 @@ def claude(
 
             merge_notes_into_context(Path.cwd(), "claude", background=True)
 
-    # Build remote session flags
-    remote_args: list[str] = []
-    if remote:
-        remote_args.append("--remote")
-        if session_name:
-            remote_args.extend(["--name", session_name])
-
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
     use_bedrock = use_aws or config.claude_provider == "aws"
+
+    # Build remote session flags — auto-derive session name from project
+    remote_args: list[str] = []
+    if remote:
+        from ai_shell.defaults import sanitize_project_name
+
+        session_name = config.project_name or sanitize_project_name(Path.cwd())
+        remote_args = ["--remote", "--name", session_name]
 
     manager, name, exec_env, config = _get_manager(
         ctx,
