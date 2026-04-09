@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-04-09T09:02:13Z",
+  "generated_at": "2026-04-09T17:27:40Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 22,
+      "CONFIDENCE.HIGH": 26,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 22,
+      "SEVERITY.LOW": 26,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 2441,
+      "loc": 2534,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -94,15 +94,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/cli/commands/tools.py": {
-      "CONFIDENCE.HIGH": 3,
+      "CONFIDENCE.HIGH": 7,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 3,
+      "SEVERITY.LOW": 7,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 765,
+      "loc": 850,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -128,7 +128,7 @@
       "SEVERITY.LOW": 3,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 366,
+      "loc": 374,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -332,9 +332,45 @@
       "test_name": "blacklist"
     },
     {
-      "code": "55     logger.debug(\"codex api key inject: docker exec %s python3 -c ...\", container_name)\n56     result = subprocess.run(args, capture_output=True, text=True, timeout=10)\n57     if result.returncode != 0:\n",
+      "code": "52     # First attempt: create new worktree + new branch\n53     result = subprocess.run(\n54         [\n55             \"docker\",\n56             \"exec\",\n57             \"-w\",\n58             container_project_dir,\n59             container_name,\n60             \"git\",\n61             \"worktree\",\n62             \"add\",\n63             worktree_rel,\n64             \"-b\",\n65             branch,\n66         ],\n67         capture_output=True,\n68         text=True,\n69     )\n70 \n",
       "col_offset": 13,
-      "end_col_offset": 77,
+      "end_col_offset": 5,
+      "filename": "src/ai_shell/cli/commands/tools.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 53,
+      "line_range": [
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "52     # First attempt: create new worktree + new branch\n53     result = subprocess.run(\n54         [\n55             \"docker\",\n56             \"exec\",\n57             \"-w\",\n58             container_project_dir,\n59             container_name,\n60             \"git\",\n61             \"worktree\",\n62             \"add\",\n63             worktree_rel,\n64             \"-b\",\n65             branch,\n66         ],\n67         capture_output=True,\n68         text=True,\n69     )\n70 \n",
+      "col_offset": 13,
+      "end_col_offset": 5,
       "filename": "src/ai_shell/cli/commands/tools.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
@@ -343,16 +379,102 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 56,
+      "line_number": 53,
       "line_range": [
-        56
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "107     logger.debug(\"bedrock preflight: %s\", \" \".join(args))\n108     result = subprocess.run(args, capture_output=True, text=True, timeout=30)\n109 \n",
+      "code": "74         if \"already exists\" in stderr or \"already checked out\" in stderr:\n75             result2 = subprocess.run(\n76                 [\n77                     \"docker\",\n78                     \"exec\",\n79                     \"-w\",\n80                     container_project_dir,\n81                     container_name,\n82                     \"git\",\n83                     \"worktree\",\n84                     \"add\",\n85                     worktree_rel,\n86                     branch,\n87                 ],\n88                 capture_output=True,\n89                 text=True,\n90             )\n91             stderr2 = result2.stderr.strip()\n",
+      "col_offset": 22,
+      "end_col_offset": 13,
+      "filename": "src/ai_shell/cli/commands/tools.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Starting a process with a partial executable path",
+      "line_number": 75,
+      "line_range": [
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
+      "test_id": "B607",
+      "test_name": "start_process_with_partial_path"
+    },
+    {
+      "code": "74         if \"already exists\" in stderr or \"already checked out\" in stderr:\n75             result2 = subprocess.run(\n76                 [\n77                     \"docker\",\n78                     \"exec\",\n79                     \"-w\",\n80                     container_project_dir,\n81                     container_name,\n82                     \"git\",\n83                     \"worktree\",\n84                     \"add\",\n85                     worktree_rel,\n86                     branch,\n87                 ],\n88                 capture_output=True,\n89                 text=True,\n90             )\n91             stderr2 = result2.stderr.strip()\n",
+      "col_offset": 22,
+      "end_col_offset": 13,
+      "filename": "src/ai_shell/cli/commands/tools.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 75,
+      "line_range": [
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "131     logger.debug(\"codex api key inject: docker exec %s python3 -c ...\", container_name)\n132     result = subprocess.run(args, capture_output=True, text=True, timeout=10)\n133     if result.returncode != 0:\n",
       "col_offset": 13,
       "end_col_offset": 77,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -363,9 +485,29 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 108,
+      "line_number": 132,
       "line_range": [
-        108
+        132
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "183     logger.debug(\"bedrock preflight: %s\", \" \".join(args))\n184     result = subprocess.run(args, capture_output=True, text=True, timeout=30)\n185 \n",
+      "col_offset": 13,
+      "end_col_offset": 77,
+      "filename": "src/ai_shell/cli/commands/tools.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 184,
+      "line_range": [
+        184
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
