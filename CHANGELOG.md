@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.38.0 (2026-04-09)
+
+### Bug Fixes
+
+- **claude**: Auto-infer remote session name and set GIT_TERMINAL_PROMPT with GH_TOKEN
+  ([`e2cd48e`](https://github.com/svange/augint-shell/commit/e2cd48e2c7aa12c15fb8fbf530a6b4bba42dd8f7))
+
+- **templates**: Use `uv run ai-tools` in all skill and notes templates
+  ([`70f1b55`](https://github.com/svange/augint-shell/commit/70f1b55d3807a78f4fd0e68e0863dd8cde2a08bb))
+
+### Build System
+
+- Add augint-tools as dev dependency
+  ([`eba512c`](https://github.com/svange/augint-shell/commit/eba512c04bca635b3c094cbc8bf749364d892d91))
+
+### Features
+
+- **claude**: Add --remote and --name flags for named remote sessions
+  ([`161d85b`](https://github.com/svange/augint-shell/commit/161d85ba3ca506f834fe8321a8373b54b1b0453a))
+
+
 ## v0.37.1 (2026-04-08)
 
 ### Bug Fixes
