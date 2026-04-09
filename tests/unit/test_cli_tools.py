@@ -238,7 +238,6 @@ class TestToolCommands:
         assert call_kwargs["workdir"] is None
         assert result.exit_code == 0
 
-
         config = MagicMock()
         config.codex_openai_api_key = ""
         config.codex_provider = ""
