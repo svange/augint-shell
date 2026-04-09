@@ -135,8 +135,8 @@ class TestMergeNotesIntoContext:
             merge_notes_into_context(tmp_path, "codex")
 
         prompt = mock_run.call_args[0][0][-1]
-        assert "ai-tools mono sync" in prompt
-        assert "Workspace orchestration commands live under `ai-tools mono`" in prompt
+        assert "uv run ai-tools mono sync" in prompt
+        assert "Workspace orchestration commands live under `uv run ai-tools mono`" in prompt
 
     def test_library_repo_uses_repo_and_standardize_contract(self, tmp_path):
         (tmp_path / "AGENTS.md").write_text("# Agents")
@@ -149,8 +149,8 @@ class TestMergeNotesIntoContext:
             merge_notes_into_context(tmp_path, "codex")
 
         prompt = mock_run.call_args[0][0][-1]
-        assert "ai-tools repo ..." in prompt
-        assert "ai-tools standardize detect/audit/fix/verify" in prompt
+        assert "uv run ai-tools repo ..." in prompt
+        assert "uv run ai-tools standardize detect/audit/fix/verify" in prompt
 
     def test_legacy_toml_name_still_read(self, tmp_path):
         (tmp_path / "AGENTS.md").write_text("# Agents")
@@ -163,7 +163,7 @@ class TestMergeNotesIntoContext:
             merge_notes_into_context(tmp_path, "codex")
 
         prompt = mock_run.call_args[0][0][-1]
-        assert "ai-tools mono sync" in prompt
+        assert "uv run ai-tools mono sync" in prompt
 
     def test_service_repo_uses_service_template(self, tmp_path):
         (tmp_path / "CLAUDE.md").write_text("# CLAUDE.md")

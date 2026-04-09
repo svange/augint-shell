@@ -7,7 +7,7 @@ argument-hint: "[--dry-run]"
 Promote the configured staging branch to the production branch: $ARGUMENTS
 
 Primary command:
-- `ai-tools repo promote --json $ARGUMENTS`
+- `uv run ai-tools repo promote --json $ARGUMENTS`
 
 Report:
 - source and target branches
@@ -16,5 +16,5 @@ Report:
 - blockers that must be resolved before release
 
 Transitional fallback:
-- If `ai-tools repo promote` is unavailable, state the tool gap clearly.
+- If `uv run ai-tools repo promote` is unavailable, state the tool gap clearly.
 - Stop unless the user explicitly asks for a manual promotion flow.

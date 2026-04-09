@@ -6,7 +6,7 @@ argument-hint: "[--repos name1,name2]"
 
 Show workspace status: $ARGUMENTS
 
-Run `ai-tools mono status --json $ARGUMENTS`.
+Run `uv run ai-tools mono status --json $ARGUMENTS`.
 
 Report:
 - repos that are missing, dirty, blocked, or behind target

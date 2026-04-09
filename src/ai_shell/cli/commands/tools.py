@@ -276,6 +276,12 @@ def _get_manager(
 )
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.option(
+    "--remote",
+    is_flag=True,
+    default=False,
+    help="Start a named remote Claude session (headless, connectable from other machines).",
+)
+@click.option(
     "--no-merge",
     "skip_merge",
     is_flag=True,
@@ -304,6 +310,7 @@ def claude(
     do_reset,
     do_clean,
     safe,
+    remote,
     skip_merge,
     use_aws,
     cli_profile,
@@ -355,6 +362,14 @@ def claude(
     config = load_config(project_override=project, project_dir=Path.cwd())
     use_bedrock = use_aws or config.claude_provider == "aws"
 
+    # Build remote session flags — auto-derive session name from project
+    remote_args: list[str] = []
+    if remote:
+        from ai_shell.defaults import sanitize_project_name
+
+        session_name = config.project_name or sanitize_project_name(Path.cwd())
+        remote_args = ["--remote", "--name", session_name]
+
     manager, name, exec_env, config = _get_manager(
         ctx,
         bedrock=use_bedrock,
@@ -373,20 +388,38 @@ def claude(
     else:
         bedrock_label = ""
 
+    remote_label = " (remote)" if remote else ""
+
     if safe:
-        cmd = ["claude", *extra_args]
-        console.print(f"[bold]Launching Claude Code (safe mode){bedrock_label} in {name}...[/bold]")
+        cmd = ["claude", *remote_args, *extra_args]
+        console.print(
+            f"[bold]Launching Claude Code (safe mode){remote_label}"
+            f"{bedrock_label} in {name}...[/bold]"
+        )
         manager.exec_interactive(name, cmd, extra_env=exec_env)
     else:
         # Try with -c first (continue previous conversation)
-        cmd_continue = ["claude", "--dangerously-skip-permissions", "-c", *extra_args]
-        console.print(f"[bold]Launching Claude Code{bedrock_label} in {name}...[/bold]")
+        cmd_continue = [
+            "claude",
+            "--dangerously-skip-permissions",
+            *remote_args,
+            "-c",
+            *extra_args,
+        ]
+        console.print(
+            f"[bold]Launching Claude Code{remote_label}{bedrock_label} in {name}...[/bold]"
+        )
         exit_code, elapsed = manager.run_interactive(name, cmd_continue, extra_env=exec_env)
 
         if exit_code != 0 and elapsed < FAST_FAILURE_THRESHOLD:
             # -c failed quickly (likely no prior conversation), retry without it
             console.print("[yellow]No prior conversation found, starting fresh...[/yellow]")
-            cmd_fresh = ["claude", "--dangerously-skip-permissions", *extra_args]
+            cmd_fresh = [
+                "claude",
+                "--dangerously-skip-permissions",
+                *remote_args,
+                *extra_args,
+            ]
             manager.exec_interactive(name, cmd_fresh, extra_env=exec_env)
         else:
             sys.exit(exit_code)

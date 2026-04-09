@@ -205,15 +205,24 @@ def build_dev_environment(
             return dotenv_val
         return os.environ.get(key, default)
 
+    gh_token = _resolve("GH_TOKEN")
+
     env: dict[str, str] = {
         "AWS_PROFILE": aws_profile or _resolve("AWS_PROFILE"),
         "AWS_REGION": aws_region or _resolve("AWS_REGION", "us-east-1"),
         "AWS_PAGER": "",
-        "GH_TOKEN": _resolve("GH_TOKEN"),
-        "GITHUB_TOKEN": _resolve("GH_TOKEN"),
+        "GH_TOKEN": gh_token,
+        "GITHUB_TOKEN": gh_token,
         "HUSKY": "0",
         "IS_SANDBOX": "1",
     }
+
+    # When a GH_TOKEN is available, prevent git from hanging on interactive
+    # HTTPS auth prompts and tell gh to act as the git credential helper so
+    # that git-push/fetch use the token automatically.
+    if gh_token:
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GH_TOKEN"] = gh_token
 
     # Mirror AWS_REGION to AWS_DEFAULT_REGION so both Node.js SDK paths resolve
     env["AWS_DEFAULT_REGION"] = env["AWS_REGION"]

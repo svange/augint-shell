@@ -115,6 +115,95 @@ class TestToolCommands:
         cmd = mock_manager.run_interactive.call_args[0][1]
         assert cmd == ["claude", "--dangerously-skip-permissions", "-c", "--debug"]
 
+    def test_claude_remote_auto_names_session(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.project_name = "my-project"
+        config.claude_provider = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["claude", "--remote"])
+
+        cmd = mock_manager.run_interactive.call_args[0][1]
+        assert cmd == [
+            "claude",
+            "--dangerously-skip-permissions",
+            "--remote",
+            "--name",
+            "my-project",
+            "-c",
+        ]
+        assert "(remote)" in result.output
+
+    def test_claude_remote_retry_preserves_name(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.project_name = "my-project"
+        config.claude_provider = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (1, 1.0)
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["claude", "--remote"])
+
+        cmd_fresh = mock_manager.exec_interactive.call_args[0][1]
+        assert cmd_fresh == [
+            "claude",
+            "--dangerously-skip-permissions",
+            "--remote",
+            "--name",
+            "my-project",
+        ]
+
+    def test_claude_remote_safe_mode(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.project_name = "my-project"
+        config.claude_provider = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["claude", "--safe", "--remote"])
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert cmd == ["claude", "--remote", "--name", "my-project"]
+        assert "(safe mode)" in result.output
+        assert "(remote)" in result.output
+
     def test_codex_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         config = MagicMock()
         config.codex_openai_api_key = ""
