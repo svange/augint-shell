@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.46.0 (2026-04-11)
+
+### Features
+
+- Enhance standardization process with dry-run and JSON output options
+  ([`4062b79`](https://github.com/svange/augint-shell/commit/4062b796483c93e0bc275523c70485b1c9c42f74))
+
+
 ## v0.45.0 (2026-04-11)
 
 ### Features
