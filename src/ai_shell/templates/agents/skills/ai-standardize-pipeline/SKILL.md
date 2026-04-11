@@ -121,11 +121,31 @@ file, examine its `on:` triggers, `jobs.<id>.name` values, and `run:` /
   as-is; surface it in Step 2.5 as an explicit ask.
 
 **Substep 2c -- emit a classification report** to the user before any
-writes happen:
+writes happen. **For every post-deploy test helper and every custom
+job in a pre-merge candidate, include the job's `if:` condition
+verbatim** (or `(no if)` when the job has none). This matters for
+Step 2.5 question 5: when you propose a synthetic `Acceptance tests`
+aggregator over parallel test jobs, the aggregator's own `if:` has to
+be consistent with the aggregated jobs' conditions -- you cannot wire a
+`push && ref == refs/heads/dev` aggregator over a job that only runs
+on `pull_request`, or vice versa. Without this information up front,
+you will either (a) guess wrong and ask an unnecessary follow-up, or
+(b) silently widen/narrow the effective trigger when you write the
+aggregator (S10-3):
 
 ```
 Workflow discovery in <repo>:
-  .github/workflows/ci.yml         -> pre-merge pipeline candidate (9 jobs: Pre-commit checks, Security scanning, Unit tests, License compliance, deploy-test-stack, integration-tests, release, publish-to-pypi, docs)
+  .github/workflows/ci.yml         -> pre-merge pipeline candidate (9 jobs)
+    jobs:
+      pre-commit          : name="Pre-commit checks"    if=(no if)
+      security-scan       : name="Security scanning"    if=(no if)
+      unit-tests          : name="Unit tests"           if=(no if)
+      license-compliance  : name="License compliance"   if=(no if)
+      deploy-test-stack   : name="Deploy test stack"    if="github.event_name == 'push' && github.ref == 'refs/heads/dev'"
+      integration-tests   : name="Integration tests"    if="github.event_name == 'push' && github.ref == 'refs/heads/dev'"  needs=[deploy-test-stack]
+      e2e-payment         : name="E2E Payment Tests"    if="github.event_name == 'push' && github.ref == 'refs/heads/dev'"
+      e2e-admin           : name="E2E Admin Tests"      if="github.event_name == 'push'"  # broader than the others
+      publish-reports     : name="Publish CI Reports"   if="github.event_name == 'push' && github.ref == 'refs/heads/dev'"
   .github/workflows/deploy.yml     -> post-merge deploy helper (sam deploy to staging/prod)
   .github/workflows/promote.yml    -> scheduled cron (promotes dev -> main nightly)
   .github/workflows/cve-review.yml -> scheduled cron (quarterly CVE review)
@@ -133,7 +153,17 @@ Workflow discovery in <repo>:
 Canonical pipeline target: .github/workflows/pipeline.yaml
   Currently: missing
   Will use ci.yml as the starting state after user confirms in Step 2.5.
+
+Post-deploy `if:` consistency check:
+  integration-tests, e2e-payment, e2e-admin, publish-reports share
+  `if:` "push && refs/heads/dev", EXCEPT e2e-admin which uses the
+  broader "push" only. Surface this in Step 2.5 question 5 before
+  proposing an aggregator `if:`.
 ```
+
+Read each relevant job body carefully enough to capture its `if:`
+line. Do not truncate or normalize the expression — the aggregator
+has to match it exactly.
 
 ### Step 2.5 -- surface ambiguities and non-standard patterns via AskUserQuestion
 
@@ -202,7 +232,14 @@ than a reference read until every question is answered.
    > alone and skip the canonical `Acceptance tests` gate (the
    > iac_production ruleset will fail). [d] Abort.
 
-   The synthetic aggregator pattern:
+   The synthetic aggregator pattern. **The body must include
+   `actions/checkout` and `aws-actions/configure-aws-credentials` even
+   though the job is logically a no-op** -- the canonical
+   `Acceptance tests` minimum spec requires both steps, and
+   `ai-shell standardize pipeline --validate` will report
+   `spec_failures` without them even when the `needs:` wiring is
+   correct. The `echo` trailer just declares success after the
+   aggregated jobs all pass (S10-1):
 
    ```yaml
    acceptance-tests:
@@ -210,7 +247,17 @@ than a reference read until every question is answered.
      needs: [e2e-smoke, e2e-payment, e2e-admin, e2e-bulk]
      runs-on: ubuntu-latest
      if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+     permissions:
+       contents: read
+       id-token: write
      steps:
+       - name: Checkout
+         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+       - name: Configure AWS credentials
+         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502  # v4
+         with:
+           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_STAGING }}
+           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
        - name: All post-deploy tests passed
          run: echo "all post-deploy tests passed"
    ```
@@ -422,7 +469,10 @@ canonical gates inline and the user's parallel test structure preserved.
 > (recommended -- preserves parallel structure), or rename one of
 > them?
 
-User picks aggregator. AI inserts:
+User picks aggregator. AI inserts (note the `checkout` +
+`configure-aws-credentials` steps are required by the canonical
+`Acceptance tests` spec even though the job is logically a no-op; see
+Step 2.5 question 5 for rationale):
 
 ```yaml
 acceptance-tests:
@@ -430,7 +480,17 @@ acceptance-tests:
   needs: [e2e-smoke, e2e-payment, e2e-admin, e2e-bulk]
   runs-on: ubuntu-latest
   if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+  permissions:
+    contents: read
+    id-token: write
   steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502  # v4
+      with:
+        role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_STAGING }}
+        aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
     - name: All post-deploy tests passed
       run: echo "all post-deploy tests passed"
 ```

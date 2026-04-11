@@ -71,6 +71,31 @@ LEGACY_PREFIX_PATTERNS: tuple[tuple[str, str], ...] = (
     ("cypress", "Acceptance tests"),
 )
 
+# S10-2: job names whose first word indicates a publisher / aggregator /
+# reporter role must NEVER be flagged as legacy gate candidates, even if
+# they contain a test-related substring. Examples that previously
+# false-positive-matched ``LEGACY_PREFIX_PATTERNS``:
+#
+#   - ``Publish E2E Reports``      (GitHub Pages report publisher)
+#   - ``Aggregate Integration Results``
+#   - ``Archive Smoke Test Logs``
+#   - ``Upload Playwright Traces``
+#
+# These jobs consume/aggregate test artifacts; they are not themselves
+# the ``Acceptance tests`` gate. ``_guess_legacy_gate`` checks the first
+# token of the job name against these prefixes and suppresses the match
+# when any hit. ``startswith`` catches inflections (publish /
+# publishing / published / publisher, etc.) without exhaustive listing.
+_PUBLISHER_FIRST_WORD_PREFIXES: tuple[str, ...] = (
+    "publish",
+    "upload",
+    "aggregate",
+    "archive",
+    "download",
+    "collect",
+    "gather",
+)
+
 
 # ── Spec / template dataclasses ─────────────────────────────────────────
 
@@ -282,12 +307,24 @@ def _check_spec(job_def: dict[str, Any], spec: JobSpec) -> str | None:
 
 
 def _guess_legacy_gate(name: str) -> str | None:
-    """Map a non-canonical job ``name:`` to a canonical gate, or None."""
+    """Map a non-canonical job ``name:`` to a canonical gate, or None.
+
+    S10-2: publisher/aggregator job names (first word starts with
+    ``publish``, ``upload``, ``aggregate``, ``archive``, ``download``,
+    ``collect``, or ``gather``) are never flagged as legacy candidates
+    even if they contain a test-related substring. This prevents
+    ``Publish E2E Reports`` and similar publisher jobs from
+    false-positive-matching the ``Acceptance tests`` legacy patterns.
+    """
     if name in LEGACY_NAME_MAP:
         return LEGACY_NAME_MAP[name]
     lowered = name.lower()
+    first_word = lowered.strip().split(maxsplit=1)[0] if lowered.strip() else ""
+    is_publisher = any(first_word.startswith(p) for p in _PUBLISHER_FIRST_WORD_PREFIXES)
     for needle, gate in LEGACY_PREFIX_PATTERNS:
         if needle in lowered:
+            if is_publisher:
+                return None
             return gate
     return None
 

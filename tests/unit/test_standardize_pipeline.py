@@ -552,6 +552,42 @@ class TestGuessLegacyGate:
     def test_canonical_name_returns_none(self):
         assert _guess_legacy_gate("Code quality") is None
 
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "Publish E2E Reports",
+            "Publishing Playwright Traces",
+            "Publisher: E2E Dashboard",
+            "Upload Integration Test Artifacts",
+            "Aggregate Smoke Test Results",
+            "Archive Cypress Screenshots",
+            "Download E2E Logs",
+            "Collect Playwright Reports",
+            "Gather Integration Test Output",
+        ],
+    )
+    def test_publisher_jobs_not_flagged_as_legacy(self, name: str):
+        """S10-2: publisher/aggregator jobs whose name contains a
+        test-related token must not false-positive-match the
+        ``Acceptance tests`` legacy prefix patterns.
+        """
+        assert _guess_legacy_gate(name) is None
+
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            # True test jobs starting with a test-related token must
+            # still flag as legacy candidates even though publisher
+            # suppression is in effect.
+            ("E2E Smoke Tests", "Acceptance tests"),
+            ("End-to-end test suite", "Acceptance tests"),
+            ("Playwright regression", "Acceptance tests"),
+            ("Cypress full run", "Acceptance tests"),
+        ],
+    )
+    def test_real_test_jobs_still_flagged(self, name: str, expected: str):
+        assert _guess_legacy_gate(name) == expected
+
 
 class TestLegacyMaps:
     def test_legacy_name_map_has_eight_or_more_entries(self):
