@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-04-11T05:14:43Z",
+  "generated_at": "2026-04-11T14:47:00Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 29,
@@ -11,7 +11,7 @@
       "SEVERITY.LOW": 30,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 4301,
+      "loc": 4405,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -102,7 +102,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 259,
+      "loc": 267,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -271,7 +271,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 152,
+      "loc": 191,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -336,7 +336,7 @@
       "SEVERITY.LOW": 3,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 141,
+      "loc": 146,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -349,7 +349,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 350,
+      "loc": 402,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1156,7 +1156,7 @@
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "42 class VerifyStatus(StrEnum):\n43     PASS = \"PASS\"\n44     DRIFT = \"DRIFT\"\n",
+      "code": "49 class VerifyStatus(StrEnum):\n50     PASS = \"PASS\"\n51     DRIFT = \"DRIFT\"\n",
       "col_offset": 11,
       "end_col_offset": 17,
       "filename": "src/ai_shell/standardize/verify.py",
@@ -1167,9 +1167,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Possible hardcoded password: 'PASS'",
-      "line_number": 43,
+      "line_number": 50,
       "line_range": [
-        43
+        50
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html",
       "test_id": "B105",
