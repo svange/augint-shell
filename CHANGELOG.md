@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.43.0 (2026-04-11)
+
+### Features
+
+- Add CI/CD pipeline configuration and enhance standardization process
+  ([`3958d2c`](https://github.com/svange/augint-shell/commit/3958d2c58130b43a72cbd90cc77c9454059a6148))
+
+
 ## v0.42.0 (2026-04-11)
 
 ### Features
