@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.48.0 (2026-04-11)
+
+### Features
+
+- Add husky pre-commit hook and standardization configuration files
+  ([`d1eadda`](https://github.com/svange/augint-shell/commit/d1eadda134bfbe33754d26769777ffdbc23376df))
+
+
 ## v0.47.0 (2026-04-11)
 
 ### Features
