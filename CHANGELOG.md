@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.44.0 (2026-04-11)
+
+### Features
+
+- **standardize**: Revert reusable workflows; AI-mediated pipeline merge
+  ([`e04128a`](https://github.com/svange/augint-shell/commit/e04128acd458d684ba03a12ab58cacbb511ad740))
+
+
 ## v0.43.0 (2026-04-11)
 
 ### Features
