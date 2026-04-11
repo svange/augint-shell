@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.42.0 (2026-04-11)
+
+### Features
+
+- Update templates to remove ADAPT comments and add gitleaks to pre-commit config
+  ([`1eb3482`](https://github.com/svange/augint-shell/commit/1eb3482d50f57b35689ffbbd06a4c8f37ea1f5e0))
+
+
 ## v0.41.0 (2026-04-11)
 
 ### Features
