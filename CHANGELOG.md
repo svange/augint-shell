@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.45.0 (2026-04-11)
+
+### Features
+
+- Enhance standardization documentation and add workspace-level orchestration skill
+  ([`d069a6e`](https://github.com/svange/augint-shell/commit/d069a6e6340f101f2cc41fb23f280080282fdb93))
+
+
 ## v0.44.0 (2026-04-11)
 
 ### Features
