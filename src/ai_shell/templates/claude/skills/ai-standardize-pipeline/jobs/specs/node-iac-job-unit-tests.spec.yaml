@@ -1,0 +1,14 @@
+gate: Unit tests
+language: node
+repo_type: iac
+required_steps:
+  - kind: action
+    matches: actions/checkout
+  - kind: action
+    matches: actions/setup-node
+  - kind: run
+    matches_regex: '^npm ci\b'
+  - kind: run
+    matches_regex: '(vitest|jest).* (run|--coverage)|run.*test.*--coverage'
+  - kind: action
+    matches: actions/upload-artifact

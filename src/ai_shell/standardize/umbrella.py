@@ -136,15 +136,40 @@ def run_all(root: Path | str = ".") -> tuple[StepResult, ...]:
         results.append(StepResult("precommit", StepStatus.FAILED, str(exc)))
         return tuple(results)
 
-    # 4. Pipeline
+    # 4. Pipeline -- AI-mediated under T5-7. The Python umbrella runs the
+    # read-only validator and surfaces a SKIPPED hint instructing the
+    # caller to invoke `/ai-standardize-pipeline` for the merge. We do not
+    # write `pipeline.yaml` from Python.
     try:
-        pipe_result = pipeline.apply(detection, root_path)
-        pipe_msg = f"{len(pipe_result.gate_files)} gate(s) written" + (
-            " + scaffolded pipeline.yaml"
-            if pipe_result.scaffold_written
-            else " (pipeline.yaml preserved)"
-        )
-        results.append(StepResult("pipeline", StepStatus.OK, pipe_msg))
+        report = pipeline.validate(root_path)
+        if report.is_clean():
+            results.append(
+                StepResult(
+                    "pipeline",
+                    StepStatus.OK,
+                    f"{len(report.present)} canonical gate(s) present; spec clean",
+                )
+            )
+        else:
+            summary = []
+            if report.missing:
+                summary.append(f"missing: {', '.join(report.missing)}")
+            if report.legacy_candidates:
+                summary.append(
+                    "legacy: " + ", ".join(f"{n}->{g}" for _i, n, g in report.legacy_candidates)
+                )
+            if report.spec_failures:
+                summary.append("spec: " + "; ".join(f"{g}: {r}" for g, r in report.spec_failures))
+            if not report.pipeline_present:
+                summary.append("pipeline.yaml missing")
+            results.append(
+                StepResult(
+                    "pipeline",
+                    StepStatus.SKIPPED,
+                    "drift detected -- run `/ai-standardize-pipeline` skill: "
+                    + ("; ".join(summary) or "see validate report"),
+                )
+            )
     except Exception as exc:  # noqa: BLE001
         results.append(StepResult("pipeline", StepStatus.FAILED, str(exc)))
         return tuple(results)

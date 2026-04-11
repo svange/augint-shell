@@ -18,7 +18,7 @@ Audit and fix repository standards: $ARGUMENTS
 1. **Detect** repo type x language via `uv run ai-shell standardize detect --json`. On ambiguity (both `pyproject.toml` and `package.json` present), surface the evidence and ask the user which to choose, then persist their answer to `ai-shell.toml` under `[standardize] language = "..."`.
 2. **Dotfiles** -- write `.editorconfig` and `.gitignore` from the bundled templates.
 3. **Pre-commit** -- `uv run ai-shell standardize precommit`
-4. **Pipeline** -- `uv run ai-shell standardize pipeline`. For iac repos this also writes `.github/workflows/promote-dev-to-main.nightly.yml`.
+4. **Pipeline** -- AI-mediated single-file merge. Invoke `/ai-standardize-pipeline` as a sub-skill. The Python layer (`ai-shell standardize pipeline --validate`) provides a read-only drift report and canonical job snippets via `--print-template <Gate>`; the skill prose drives Claude through reading the existing `pipeline.yaml`, merging in any missing canonical gates, renaming legacy variants (e.g. `Pre-commit checks` -> `Code quality`), preserving custom jobs and parallel post-deploy patterns, and writing one merged `pipeline.yaml` containing all gates inline as a single workflow. Do NOT call `ai-shell standardize pipeline --write` -- that flag no longer exists. The promote-dev-to-main.nightly.yml file is the only template file that ships separately and is regenerated from the canon by the pipeline skill on iac repos.
 5. **Renovate** -- `uv run ai-shell standardize renovate`
 6. **Release** -- `uv run ai-shell standardize release`
 7. **OIDC** -- invoke the `/ai-setup-oidc` skill. Runs before rulesets so deploy jobs have credentials the first time gates enforce.

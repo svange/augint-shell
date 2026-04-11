@@ -1,0 +1,12 @@
+gate: Compliance
+language: node
+repo_type: library
+required_steps:
+  - kind: action
+    matches: actions/checkout
+  - kind: action
+    matches: actions/setup-node
+  - kind: run
+    matches_regex: '^npm ci\b'
+  - kind: run
+    matches_regex: 'license-checker.* --failOn .*GPL'
