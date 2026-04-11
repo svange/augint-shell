@@ -62,12 +62,12 @@
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.39.0"
+    "Version": "0.40.0"
   },
   {
     "License": "UNKNOWN",
     "Name": "augint-tools",
-    "Version": "2.1.1"
+    "Version": "3.0.1"
   },
   {
     "License": "Apache-2.0",
@@ -175,9 +175,9 @@
     "Version": "2.3.0"
   },
   {
-    "License": "MIT License",
+    "License": "MIT",
     "Name": "librt",
-    "Version": "0.8.1"
+    "Version": "0.9.0"
   },
   {
     "License": "Apache-2.0",
@@ -357,7 +357,7 @@
   {
     "License": "MIT",
     "Name": "ruff",
-    "Version": "0.15.9"
+    "Version": "0.15.10"
   },
   {
     "License": "ISC License (ISCL)",
@@ -395,6 +395,11 @@
     "Version": "0.13.3"
   },
   {
+    "License": "Apache-2.0",
+    "Name": "types-PyYAML",
+    "Version": "6.0.12.20260408"
+  },
+  {
     "License": "MIT",
     "Name": "typing-inspection",
     "Version": "0.4.2"
@@ -412,7 +417,7 @@
   {
     "License": "MIT",
     "Name": "virtualenv",
-    "Version": "21.2.0"
+    "Version": "21.2.1"
   },
   {
     "License": "BSD-2-Clause",
