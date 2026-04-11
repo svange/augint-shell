@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.47.0 (2026-04-11)
+
+### Features
+
+- Implement dotfiles standardization with idempotent writes for .editorconfig and .gitignore
+  ([`4d6d1a6`](https://github.com/svange/augint-shell/commit/4d6d1a6c50ca970458de6a4ebc733562c45a17cc))
+
+
 ## v0.46.0 (2026-04-11)
 
 ### Features
