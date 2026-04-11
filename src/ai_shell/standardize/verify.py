@@ -57,9 +57,10 @@ class VerifyFinding:
     def to_dict(self) -> dict[str, Any]:
         """JSON-friendly shape for ``--verify --json`` (T8-3).
 
-        Downstream consumers (e.g. ``ai-tools workspace standardize --verify``)
-        parse this directly to aggregate per-repo verify results into a
-        workspace-level report.
+        Downstream consumers (e.g. the ``/ai-workspace-standardize``
+        skill looping over children with ``ai-tools standardize
+        <child-path> --verify --json``) parse this directly to aggregate
+        per-repo verify results into a workspace-level report.
         """
         return {
             "section": self.section,

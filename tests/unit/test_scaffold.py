@@ -822,7 +822,7 @@ class TestNotesTemplateSelection:
         assert "# Institutional Notes: Library Repos" in content
         assert "semantic-release" in content
         assert "uv run ai-tools repo ..." in content
-        assert "uv run ai-tools standardize detect/audit/fix/verify" in content
+        assert "uv run ai-tools standardize <path> --verify --json" in content
 
     def test_service_notes(self, tmp_path):
         scaffold_project(
@@ -834,7 +834,7 @@ class TestNotesTemplateSelection:
         assert "# Institutional Notes: Service Repos" in content
         assert "merge-commit-only policy applies" in content
         assert "uv run ai-tools repo ..." in content
-        assert "uv run ai-tools standardize detect/audit/fix/verify" in content
+        assert "uv run ai-tools standardize <path> --verify --json" in content
 
     def test_workspace_notes(self, tmp_path):
         scaffold_project(
@@ -846,7 +846,9 @@ class TestNotesTemplateSelection:
         assert "# Institutional Notes: Workspaces" in content
         assert "uv run ai-tools workspace sync" in content
         assert "Workspace orchestration commands live under `uv run ai-tools workspace`" in content
-        assert "uv run ai-tools standardize ..." in content
+        assert "uv run ai-tools standardize <child-path>" in content
+        # The "never cd" rationale must ship with the workspace notes.
+        assert "Never `cd` into a child repo" in content
 
     def test_none_type_uses_default_notes(self, tmp_path):
         scaffold_project(tmp_path, repo_type=None)

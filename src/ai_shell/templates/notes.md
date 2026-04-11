@@ -40,5 +40,5 @@ They are not a project summary template and should not displace repo-specific ar
 
 - Single-repo workflows are rooted at `uv run ai-tools repo <command>`.
 - Workspace workflows are rooted at `uv run ai-tools workspace <command>`.
-- Standardization workflows are rooted at `uv run ai-tools standardize <command>`.
+- Standardization workflows are rooted at `uv run ai-tools standardize [PATH] [--verify|--all|--area <area>]`.
 - `augint-tools` is the project/repository name; `ai-tools` is the command to run.

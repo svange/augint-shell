@@ -1,9 +1,13 @@
-// Renovate Bot Configuration — Library (main-only, publishes)
+// Renovate Bot Configuration — IaC (dev/main, deploys infrastructure)
 // Docs: https://docs.renovatebot.com/configuration-options/
 //
-// Canonical template written by `ai-shell standardize renovate`. The
-// generator substitutes manager/dep-type strings for Node when the
-// detected language is Node. Do not hand-edit; regenerate instead.
+// Canonical template written by `ai-shell standardize renovate`. Differs
+// from the library template in two ways:
+//   - `baseBranchPatterns: ["dev"]` so Renovate targets the staging branch
+//   - Production deps use `fix(deps):` prefix to trigger patch releases
+//     at dev->main promotion time
+// The generator substitutes manager/dep-type strings for Node when
+// detected. Do not hand-edit; regenerate instead.
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
 
@@ -11,6 +15,9 @@
     "config:recommended",
     "helpers:pinGitHubActionDigestsToSemver"
   ],
+
+  // Target dev branch (staging deploys), not main
+  "baseBranchPatterns": ["dev"],
 
   "schedule": ["before 11:59pm on Sunday"],
   "timezone": "America/Los_Angeles",
@@ -41,27 +48,27 @@
   },
 
   "packageRules": [
-    // --- Production dependencies: chore(deps): — no release ---
+    // --- Production dependencies: fix(deps): — triggers patch release ---
 
     {
       "matchDepTypes": ["project.dependencies"],
       "matchManagers": ["pep621"],
       "matchUpdateTypes": ["patch"],
-      "commitMessagePrefix": "chore(deps):",
+      "commitMessagePrefix": "fix(deps):",
       "automerge": true
     },
     {
       "matchDepTypes": ["project.dependencies"],
       "matchManagers": ["pep621"],
       "matchUpdateTypes": ["minor"],
-      "commitMessagePrefix": "chore(deps):",
+      "commitMessagePrefix": "fix(deps):",
       "automerge": false
     },
     {
       "matchDepTypes": ["project.dependencies"],
       "matchManagers": ["pep621"],
       "matchUpdateTypes": ["major"],
-      "commitMessagePrefix": "chore(deps):",
+      "commitMessagePrefix": "fix(deps):",
       "automerge": false,
       "dependencyDashboardApproval": true
     },

@@ -44,21 +44,22 @@ files. No fragmentation in the GitHub Actions UI.
   canonical pre-merge gates (`Code quality`, `Security`, `Unit tests`,
   `Compliance`, `Build validation`) and post-deploy gate (`Acceptance
   tests`)
-- The drift report from `ai-shell standardize pipeline --validate --json`
-- The canonical job snippets from `ai-shell standardize pipeline --print-template <Gate>`
-- The minimum specs from `ai-shell standardize pipeline --print-spec <Gate>`
+- The drift report from `ai-tools standardize <path> --area pipeline --verify --json`
+- The canonical job snippets from `ai-shell standardize pipeline --print-template <Gate>` (low-level introspection)
+- The minimum specs from `ai-shell standardize pipeline --print-spec <Gate>` (low-level introspection)
 
 ## Process
 
 ### Step 1 -- detect language x type
 
 ```bash
-uv run ai-shell standardize detect --json <repo>
+uv run ai-tools standardize <path> --verify --json
 ```
 
-Note the language (python/node) and repo type (library/iac). On
-ambiguous, ask the user via `AskUserQuestion` and stop until they
-choose. Persist their answer to `ai-shell.toml` under `[standardize]`.
+The drift report includes the detected language (python/node) and repo
+type (library/iac). On ambiguous, ask the user via `AskUserQuestion`
+and stop until they choose. Persist their answer to `ai-shell.toml`
+under `[standardize]`.
 
 ### Step 2 -- discover and classify every workflow file
 
@@ -253,7 +254,7 @@ contains no workflow files, ask one question before proceeding:
 ### Step 3 -- run validate (structural drift report)
 
 ```bash
-uv run ai-shell standardize pipeline --validate --json <repo>
+uv run ai-tools standardize <path> --area pipeline --verify --json
 ```
 
 Combined with the classification from Step 2, this gives you:
@@ -316,7 +317,7 @@ delete the old file via `Bash rm` after the new one is written.
 
 ### Step 6 -- re-validate and iterate
 
-Re-run `ai-shell standardize pipeline --validate --json <repo>`. If
+Re-run `ai-tools standardize <path> --area pipeline --verify --json`. If
 `is_clean` is true, report success.
 
 If still drifted, identify what's still missing and iterate. Cap at 4

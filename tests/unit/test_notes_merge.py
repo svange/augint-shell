@@ -150,7 +150,7 @@ class TestMergeNotesIntoContext:
 
         prompt = mock_run.call_args[0][0][-1]
         assert "uv run ai-tools repo ..." in prompt
-        assert "uv run ai-tools standardize detect/audit/fix/verify" in prompt
+        assert "uv run ai-tools standardize <path> --verify --json" in prompt
 
     def test_legacy_toml_name_still_read(self, tmp_path):
         (tmp_path / "AGENTS.md").write_text("# Agents")

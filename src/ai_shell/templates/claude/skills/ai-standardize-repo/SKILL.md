@@ -20,11 +20,11 @@ Every sub-skill the umbrella invokes has its own ask-before-acting contract (T5-
 
 ## The 10-step sequence (`--all`)
 
-1. **Detect** repo type x language via `uv run ai-shell standardize detect --json`. On ambiguity (both `pyproject.toml` and `package.json` present), surface the evidence and ask the user which to choose, then persist their answer to `ai-shell.toml` under `[standardize] language = "..."`.
+1. **Detect** repo type x language via `uv run ai-tools standardize <path> --verify --json`. On ambiguity (both `pyproject.toml` and `package.json` present), surface the evidence and ask the user which to choose, then persist their answer to `ai-shell.toml` under `[standardize] language = "..."`.
 
 2. **Dotfiles** -- write `.editorconfig` and `.gitignore` from the bundled templates. The dotfiles sub-skill asks before overwriting existing custom entries (T5-13).
 
-3. **Pre-commit** -- `uv run ai-shell standardize precommit`. The precommit sub-skill detects custom hooks and asks whether to preserve, merge, or discard before writing (T5-13).
+3. **Pre-commit** -- `uv run ai-tools standardize <path> --area precommit`. The precommit sub-skill detects custom hooks and asks whether to preserve, merge, or discard before writing (T5-13).
 
 4. **Pipeline** -- AI-mediated single-file merge. Invoke `/ai-standardize-pipeline` as a sub-skill. The sub-skill (T5-11):
    - Discovers every `.github/workflows/*.yaml` file (not just `pipeline.yaml`) and classifies each by intent: pre-merge pipeline candidate, post-merge deploy helper, post-merge publish helper, scheduled cron, dispatch-only, post-deploy test helper, other
@@ -33,9 +33,9 @@ Every sub-skill the umbrella invokes has its own ask-before-acting contract (T5-
 
    The Python layer (`ai-shell standardize pipeline --validate`) is read-only and provides only the drift report plus canonical job snippets (`--print-template <Gate>`). Do NOT call `ai-shell standardize pipeline --write` -- that flag does not exist. `promote-dev-to-main.nightly.yml` is the only template file that ships separately (iac repos only).
 
-5. **Renovate** -- `uv run ai-shell standardize renovate`. The renovate sub-skill detects custom `packageRules` / `matchPackageNames` / `commitMessagePrefix` overrides and asks before rewriting (T5-13).
+5. **Renovate** -- `uv run ai-tools standardize <path> --area renovate`. The renovate sub-skill detects custom `packageRules` / `matchPackageNames` / `commitMessagePrefix` overrides and asks before rewriting (T5-13).
 
-6. **Release** -- `uv run ai-shell standardize release`. The release sub-skill detects custom fields inside `[tool.semantic_release]` (python) or `.releaserc.json` (node) and asks before overwriting (T5-13).
+6. **Release** -- `uv run ai-tools standardize <path> --area release`. The release sub-skill detects custom fields inside `[tool.semantic_release]` (python) or `.releaserc.json` (node) and asks before overwriting (T5-13).
 
 7. **OIDC** -- invoke the `/ai-setup-oidc` skill as a sub-skill. The Python umbrella returns `NEEDS_ACTION` for this step because it does not touch AWS IAM trust policies directly (T5-12). Before invoking the sub-skill, do a quick read-only check of current OIDC trust state:
 
@@ -49,9 +49,9 @@ Every sub-skill the umbrella invokes has its own ask-before-acting contract (T5-
 
 9. **Rulesets** -- the generator emits one spec file for library repos (single `library` ruleset on the default branch) or two spec files for iac repos (`iac_dev` on `refs/heads/dev` with 5 pre-merge gates, `iac_production` on the default branch with 5 + `Acceptance tests`). For each spec, call `ai-gh rulesets apply <tempfile>`.
 
-10. **Verify** -- `uv run ai-shell standardize repo --verify`. Reports per-section PASS/DRIFT/FAIL and exits non-zero on any drift.
+10. **Verify** -- `uv run ai-tools standardize <path> --verify`. Reports per-section PASS/DRIFT/FAIL and exits non-zero on any drift.
 
-All orchestration logic lives in `ai-shell standardize` subcommands; this skill's prose is just the contract for when to invoke which command. Sub-skills generate content directly from templates; `ai-gh` is only called for GitHub state mutation (steps 8 and 9).
+The stable contract is `ai-tools standardize <path>`; it dispatches to `ai-shell standardize` subcommands under the hood, but skill prose should always call the `ai-tools` wrapper (except for low-level introspection like `ai-shell standardize pipeline --print-template` / `--print-spec`). Sub-skills generate content directly from templates; `ai-gh` is only called for GitHub state mutation (steps 8 and 9).
 
 ## Dry-run mode (`--dry-run` / `--plan`)
 

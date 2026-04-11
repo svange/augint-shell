@@ -21,10 +21,11 @@ before writing. If the user aborts, exit with
 ### Step 1 -- detect language
 
 ```bash
-uv run ai-shell standardize detect --json <repo>
+uv run ai-tools standardize <path> --verify --json
 ```
 
-Note the language (python/node). On ambiguous, ask the user and stop.
+The drift report includes the detected language (python/node). On
+ambiguous, ask the user and stop.
 
 ### Step 2 -- read the existing config (if present)
 
@@ -91,10 +92,11 @@ describe the drift and ask:
 
 ### Step 5 -- write the merged file
 
-Only after every question is answered, call the Python generator:
+Only after every question is answered, call the generator via the
+stable wrapper:
 
 ```bash
-uv run ai-shell standardize precommit <repo>
+uv run ai-tools standardize <path> --area precommit
 ```
 
 This writes `.pre-commit-config.yaml` (python) or `.husky/pre-commit` +
@@ -120,6 +122,35 @@ Re-run `Read` on the written file and confirm:
 Report the count of canonical hooks written, custom hooks preserved,
 and any hooks the user chose to discard.
 
+## Expected side effect: ruff coverage may expand to `tests/`
+
+The canonical python template runs `ruff format` and `ruff check` over
+BOTH `src/` and `tests/`. Many existing repos only covered `src/`,
+because that's what the pre-canonical template did. The first run after
+standardization will therefore surface pre-existing violations in the
+test tree that the team has never seen -- this looks like a regression
+but is actually a coverage improvement.
+
+Before you write the merged config, warn the user:
+
+> Canonical ruff runs over both `src/` and `tests/`. Your existing
+> config only covers `src/`. Regenerating will expose any pre-existing
+> violations in `tests/`. Options:
+> [a] Proceed and fix violations in a follow-up commit (recommended --
+>     keeps the standardization PR focused).
+> [b] Proceed and add targeted `per-file-ignores` entries for common
+>     test-only patterns (`SIM117` for nested `with` in fixtures,
+>     `E402` for import-after-patch). I'll suggest them after I see
+>     what fires.
+> [c] Abort and expand ruff coverage manually in a separate PR.
+
+Option [a] is the right default: standardization PRs should be
+mechanical and reviewable. Test-suite lint cleanup is its own unit of
+work. If the user picks [b], wait until after the canonical write
+lands, run `uv run ruff check tests/` to collect the real violations,
+then propose a concrete `per-file-ignores` block for the user to
+approve.
+
 ## Constraints
 
 - **Zero writes before every question is answered.** The ask-before-
@@ -133,3 +164,6 @@ and any hooks the user chose to discard.
   quality` CI gate exactly (ruff format, ruff check, mypy,
   uv-lock-check, gitleaks, etc.). Drift here means drift between local
   and CI behavior, which is always worth flagging.
+- **Ruff coverage expansion is a one-time side effect.** Warn, then
+  proceed; never use the violation count as a reason to block the
+  write. The user owns whether to fix or suppress those violations.

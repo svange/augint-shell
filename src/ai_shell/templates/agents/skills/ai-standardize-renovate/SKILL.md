@@ -19,10 +19,11 @@ modified.`
 ### Step 1 -- detect language and repo type
 
 ```bash
-uv run ai-shell standardize detect --json <repo>
+uv run ai-tools standardize <path> --verify --json
 ```
 
-Note python/node and library/iac. On ambiguous, ask and stop.
+The drift report includes python/node and library/iac. On ambiguous,
+ask and stop.
 
 ### Step 2 -- read the existing config (if present)
 
@@ -101,10 +102,11 @@ For critical drift (node/iac `automergeStrategy: squash`):
 
 ### Step 5 -- write the merged file
 
-Only after every question is answered, call the Python generator:
+Only after every question is answered, call the generator via the
+stable wrapper:
 
 ```bash
-uv run ai-shell standardize renovate <repo>
+uv run ai-tools standardize <path> --area renovate
 ```
 
 The Python generator produces the canonical content. For user-approved

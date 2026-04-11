@@ -148,7 +148,7 @@ change in augint-shell — downstream tools read the canon at runtime.
 | Repo / workspace workflow helpers | augint-tools | `ai-tools repo`, `ai-tools workspace` |
 | Standardization orchestration (single-repo) | augint-shell | `/ai-standardize-repo` |
 | Standardization orchestration (workspace) | augint-shell | `/ai-workspace-standardize` |
-| Workspace bulk verify | augint-tools | `ai-tools workspace standardize --verify --json` |
+| Workspace bulk verify | augint-shell skill layer | `/ai-workspace-standardize --verify` loops over children calling `ai-tools standardize <child-path> --verify --json` |
 | AI agent configuration | augint-shell (`.ai-shell.toml`) | container settings, model provider — NOT for repo-shape detection |
 
 ### Canonical gate vocabulary

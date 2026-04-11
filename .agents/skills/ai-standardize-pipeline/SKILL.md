@@ -1,255 +1,474 @@
 ---
 name: ai-standardize-pipeline
-description: Audit and fix CI/CD GitHub Actions workflows. Checks security scanning, coverage enforcement, type checking, CVE ignores, and concurrency settings.
-argument-hint: "[--validate-only] [--fix]"
+description: AI-mediated single-file merge of `.github/workflows/pipeline.yaml` against the canonical gate vocabulary. Discovers every workflow file, classifies each by intent, surfaces every ambiguity via AskUserQuestion before making any changes, then rewrites in place preserving custom jobs, dependency wiring, parallel post-deploy patterns, and special concurrency/permissions blocks.
+argument-hint: "[<repo path>]"
 ---
 
-Audit and fix CI/CD pipeline configuration for this repository: $ARGUMENTS
+Standardize the GitHub Actions pipeline at $ARGUMENTS (defaults to cwd).
 
-Reads GitHub Actions workflow files and validates they meet the standard security/quality gate structure. Detects missing scans, inconsistent settings, and provides fixes.
+This skill is the AI-mediated half of repo standardization. The Python
+layer (`ai-shell standardize pipeline ...`) is **read-only** -- it parses
+the existing pipeline content, classifies jobs, and reports drift. It does
+NOT write to disk. You (the AI) are the merge engine: discover, classify,
+ask, then write one merged `pipeline.yaml` containing all canonical gates
+inline alongside any user-custom jobs.
 
-## Usage Examples
+## Core principle: ask before acting
+
+**Zero files are modified until every ambiguity has been explicitly
+answered by the user via `AskUserQuestion`.** When in doubt, ask. The AI's
+job is to recognize what it doesn't know and surface it, not to guess.
+If the user aborts at any question, the skill exits with
+`Standardization aborted by user at <question>. No files were modified.`
+and the repo is untouched.
+
+## Why AI not Python
+
+Real pipelines have variability that no static merge engine can handle:
+parallelized post-deploy test patterns, custom report aggregators,
+ephemeral AWS test infrastructure, repo-specific deploy wiring, custom
+concurrency/permissions/env blocks, and foreign projects being adopted
+into the org with immature pipelines under non-canonical filenames. The
+user's principle: *"this is not an easily programmable process, which is
+why we're using AI."* You handle the variability. Python provides only
+what is deterministic.
+
+The output must be **one** `pipeline.yaml` file with **all canonical
+gates inline as jobs** in the **same workflow DAG**. No reusable workflow
+files. No fragmentation in the GitHub Actions UI.
+
+## Inputs
+
+- The repo root (defaults to cwd from `$ARGUMENTS`)
+- `gates.json` from the `ai-standardize-repo` skill directory -- the
+  canonical pre-merge gates (`Code quality`, `Security`, `Unit tests`,
+  `Compliance`, `Build validation`) and post-deploy gate (`Acceptance
+  tests`)
+- The drift report from `ai-tools standardize <path> --area pipeline --verify --json`
+- The canonical job snippets from `ai-shell standardize pipeline --print-template <Gate>` (low-level introspection)
+- The minimum specs from `ai-shell standardize pipeline --print-spec <Gate>` (low-level introspection)
+
+## Process
+
+### Step 1 -- detect language x type
 
 ```bash
-/ai-standardize-pipeline              # Full audit with recommendations
-/ai-standardize-pipeline --validate   # Report issues only, no fixes
-/ai-standardize-pipeline --fix        # Auto-fix detected issues
+uv run ai-tools standardize <path> --verify --json
 ```
 
-## 1. Detect Ecosystem and Workflow Files
+The drift report includes the detected language (python/node) and repo
+type (library/iac). On ambiguous, ask the user via `AskUserQuestion`
+and stop until they choose. Persist their answer to `ai-shell.toml`
+under `[standardize]`.
+
+### Step 2 -- discover and classify every workflow file
+
+**Do not assume any particular filename.** A repo might use
+`pipeline.yaml` (canonical), `ci.yml` (legacy), `main.yml`, `build.yml`,
+or something non-standard entirely. A foreign project being adopted into
+the org may have an immature pipeline under any name. This step
+inventories every workflow file under `.github/workflows/` and classifies
+each one by intent so Step 2.5 can surface the right questions.
+
+**Substep 2a -- list every workflow file:**
 
 ```bash
-# Find all workflow files
-WORKFLOWS=$(find .github/workflows -name '*.yml' -o -name '*.yaml' 2>/dev/null)
-if [ -z "$WORKFLOWS" ]; then
-    echo "ERROR: No GitHub Actions workflows found in .github/workflows/"
-    exit 1
-fi
-
-# Detect ecosystem
-ECOSYSTEM="unknown"
-[ -f "pyproject.toml" ] && ECOSYSTEM="python"
-[ -f "package.json" ] && ECOSYSTEM="node"
-
-# Detect if repo has infrastructure (SAM/CloudFormation)
-HAS_INFRA=false
-[ -f "template.yaml" ] && HAS_INFRA=true
-[ -f "infrastructure/template.yaml" ] && HAS_INFRA=true
-
-# Detect repo type (library vs IaC)
-DEV_BRANCH=""
-for candidate in dev develop staging; do
-    git show-ref --verify --quiet "refs/remotes/origin/$candidate" 2>/dev/null && DEV_BRANCH=$candidate && break
-done
+ls <repo>/.github/workflows/
 ```
 
-Report: ecosystem, workflow files found, infrastructure presence, repo type.
+or use `Glob` with `<repo>/.github/workflows/*.{yml,yaml}`. If the
+directory does not exist, skip to the empty-starting-state flow at the
+end of Step 2.5 (first-run scaffold on an empty repo).
 
-## 2. Security Scanning Completeness
+**Substep 2b -- `Read` each file and classify by intent.** For each
+file, examine its `on:` triggers, `jobs.<id>.name` values, and `run:` /
+`uses:` steps. Emit one of the following classifications:
 
-Read each workflow file and check for the presence of required security tools.
+- **pre-merge pipeline candidate** -- triggered by `pull_request:` and/or
+  `push:` to `main`/`dev`, has jobs that look like canonical gates (`Code
+  quality` / `Security` / `Unit tests` / `Compliance` / `Build
+  validation` / `Acceptance tests`) or any legacy variant from the known
+  rename map (`Pre-commit checks`, `Security scanning`, `License
+  compliance`, `Validate SAM template`, `SAST scanning`, `Quality checks`,
+  `Integration tests`, `Smoke tests`, `E2E *`). The canonical target
+  file is `pipeline.yaml`; this classification identifies which file
+  (possibly a non-canonical name) is the starting state for the merge.
 
-### Python repos must have ALL of:
+- **post-merge deploy helper** -- triggered by `push:` to `main`/`dev`
+  AND contains `sam deploy`, `aws s3 sync`, `aws cloudfront`, `cdk
+  deploy`, `terraform apply`, or similar deploy commands. Typically
+  stays as its own file.
 
-1. **Bandit** (static security analysis)
-   ```bash
-   grep -l "bandit" .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
+- **post-merge publish helper** -- contains `twine upload`, `uv
+  publish`, `npm publish`, `pypa/gh-action-pypi-publish`, or similar.
+  Typically stays as its own file.
+
+- **scheduled / cron** -- has `on: schedule:`. Examples: nightly
+  promotion workflows, CVE review workflows, weekly dependency audits.
+  Stays as-is.
+
+- **dispatch-only** -- `on: workflow_dispatch:` only. Manual / debugging
+  workflows. Stays as-is.
+
+- **post-deploy test helper** -- triggered by `push:` with a conditional
+  `if:` restricting to the dev branch, has `pytest -m integration`,
+  `playwright`, or similar deployed-environment tests. These are
+  candidates for the canonical `Acceptance tests` gate or for being
+  preserved alongside a synthetic aggregator.
+
+- **other** -- Renovate auto-merge enforcer, GitHub Pages publisher,
+  custom automation, or anything you cannot classify confidently. Stays
+  as-is; surface it in Step 2.5 as an explicit ask.
+
+**Substep 2c -- emit a classification report** to the user before any
+writes happen:
+
+```
+Workflow discovery in <repo>:
+  .github/workflows/ci.yml         -> pre-merge pipeline candidate (9 jobs: Pre-commit checks, Security scanning, Unit tests, License compliance, deploy-test-stack, integration-tests, release, publish-to-pypi, docs)
+  .github/workflows/deploy.yml     -> post-merge deploy helper (sam deploy to staging/prod)
+  .github/workflows/promote.yml    -> scheduled cron (promotes dev -> main nightly)
+  .github/workflows/cve-review.yml -> scheduled cron (quarterly CVE review)
+
+Canonical pipeline target: .github/workflows/pipeline.yaml
+  Currently: missing
+  Will use ci.yml as the starting state after user confirms in Step 2.5.
+```
+
+### Step 2.5 -- surface ambiguities and non-standard patterns via AskUserQuestion
+
+**This is the ask-before-acting gate.** After classification, walk every
+decision point where you would otherwise have to guess and pause via
+`AskUserQuestion`. Do NOT write any files, invoke any sub-commands, or
+call `ai-shell standardize pipeline --print-template` as anything other
+than a reference read until every question is answered.
+
+**Ambiguities to surface:**
+
+1. **Multiple pre-merge pipeline candidates.**
+   > I found two files that look like pre-merge pipelines: `ci.yml` (9
+   > jobs) and `pipeline.yaml` (5 jobs). Which should I use as the
+   > starting state? [a] ci.yml, [b] pipeline.yaml, [c] merge both (I'll
+   > describe conflicts), [d] abort.
+
+2. **Non-canonical filename for the chosen candidate.** Even when
+   obvious, ask:
+   > Found `ci.yml` as the pre-merge pipeline. After merging canonical
+   > gates, I'll write to `pipeline.yaml` (canonical filename) and
+   > delete `ci.yml`. OK? [a] Yes, rename to pipeline.yaml and delete
+   > ci.yml. [b] Keep the existing filename (`ci.yml`). [c] Abort.
+
+3. **Legacy gate names that look renameable.** For each legacy-name
+   match:
+   > Found `Pre-commit checks` -- this looks like the canonical `Code
+   > quality` gate. Rename the job to `code-quality` / `Code quality`
+   > and replace the body with the canonical template? Your existing
+   > `needs:` wiring will be preserved. [a] Rename and replace body. [b]
+   > Rename but keep the existing body. [c] Leave as custom, don't
+   > treat as canonical. [d] Abort.
+
+4. **Custom jobs that look like non-standard patterns.** For each
+   unrecognized custom job, describe its intent (read the job body to
+   understand what it does) and ask:
+   > `deploy-test-stack` -- runs `sam deploy --stack-name
+   > test-{{github.run_id}}` against a testing AWS account. This looks
+   > like ephemeral AWS test infrastructure for a library repo. I'll
+   > preserve it as a custom job and wire the canonical `Unit tests`
+   > gate to run after it. OK? [a] Preserve and wire as described. [b]
+   > Preserve but don't touch Unit tests wiring. [c] Delete this job.
+   > [d] Abort.
+
+   > `publish-ci-reports` -- aggregates coverage + bandit + semgrep +
+   > compliance reports into a GitHub Pages site. I'll preserve it as a
+   > custom job running on push to main. OK?
+
+   > `integration-tests` -- runs `pytest -m integration` against the
+   > ephemeral test stack. For library repos this is unusual but
+   > legitimate (ephemeral test infra, not production deploy).
+   > Canonical `Acceptance tests` lives on iac repos only. [a] Preserve
+   > as custom, no Acceptance tests gate (recommended for library). [b]
+   > Rename to `Acceptance tests` (treat as iac). [c] Abort.
+
+5. **Parallelized post-deploy test patterns.** When multiple custom jobs
+   all depend on a deploy job and run Playwright/pytest/etc. against the
+   deployed environment:
+   > Found 4 jobs (`e2e-smoke`, `e2e-payment`, `e2e-admin`, `e2e-bulk`)
+   > that all depend on `build-and-deploy` and run Playwright against
+   > the deployed environment. Options: [a] Insert a synthetic
+   > `Acceptance tests` aggregator that depends on all 4 and satisfies
+   > the iac_production ruleset's required check (recommended --
+   > preserves your parallel structure). [b] Rename one of them to
+   > `Acceptance tests` and wire the others as its deps. [c] Leave them
+   > alone and skip the canonical `Acceptance tests` gate (the
+   > iac_production ruleset will fail). [d] Abort.
+
+   The synthetic aggregator pattern:
+
+   ```yaml
+   acceptance-tests:
+     name: Acceptance tests
+     needs: [e2e-smoke, e2e-payment, e2e-admin, e2e-bulk]
+     runs-on: ubuntu-latest
+     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+     steps:
+       - name: All post-deploy tests passed
+         run: echo "all post-deploy tests passed"
    ```
-   - Expected: `uv run bandit -r src/ -ll` (medium+high severity)
-   - Should output both JSON report and console summary
-   - Report should be uploaded as artifact
 
-2. **pip-audit** (dependency vulnerability scanning)
-   ```bash
-   grep -l "pip-audit" .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
-   ```
-   - Expected: `uv run pip-audit --desc --format json --output pip-audit-report.json`
-   - Should scan production dependencies (`--no-dev` or default)
-   - CVE ignores should use **GHSA format** (e.g., `--ignore-vuln GHSA-xxxx-xxxx-xxxx`), not CVE IDs
-   - Report should be uploaded as artifact
+6. **Top-level customizations to preserve.** Read the existing file's
+   top-level keys (`name`, `on`, `env`, `concurrency`, `permissions`)
+   and ask:
+   > The existing `ci.yml` has these top-level keys I'll preserve:
+   > `env.AWS_REGION`, `env.TEST_STACK_NAME`,
+   > `concurrency.cancel-in-progress: false`, `permissions.id-token:
+   > write`. Preserve all? (recommended) [a] Yes, preserve all. [b]
+   > Preserve some (I'll list them). [c] Discard all and use canonical
+   > defaults. [d] Abort.
 
-3. **Semgrep** (SAST pattern matching)
-   ```bash
-   grep -l "semgrep" .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
-   ```
-   - Expected: Semgrep with relevant rulesets (`p/python`, `p/security-audit`, `p/secrets`, `p/owasp-top-ten`)
-   - Can use `semgrep/semgrep-action@v1` or manual install
-   - Should output SARIF for GitHub integration
+7. **Spec-failing canonical jobs.** If a canonical job exists but fails
+   its minimum spec:
+   > `Unit tests` is present but the job is missing the coverage floor
+   > step (`--cov-fail-under=80`). [a] Insert the missing step and
+   > preserve the rest. [b] Replace the entire body with the canonical
+   > template. [c] Leave the drift and abort standardization.
 
-4. **License compliance** (GPL/AGPL detection)
-   ```bash
-   grep -l "pip-licenses" .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
-   ```
-   - Expected: `uv run pip-licenses --from=mixed --format=json`
-   - Must check for incompatible licenses (GPL, AGPL -- LGPL is OK)
-   - Should fail the build if incompatible licenses found
+8. **Dangerous or uncertain workflows.** For any file you could not
+   classify confidently, surface it:
+   > Found `.github/workflows/release.yml` that publishes to PyPI via
+   > `pypa/gh-action-pypi-publish`. I classified it as a post-merge
+   > publish helper and do not plan to modify it. Confirm I should
+   > leave it alone? [a] Yes, leave alone. [b] This is actually my
+   > pre-merge pipeline -- use it as the starting state. [c] Abort.
 
-### Node repos must have ALL of:
+**Only after Step 2.5 is fully answered does Step 3 run.** If the user
+aborts at any question, exit with `Standardization aborted by user at
+<question>. No files were modified.` and stop.
 
-1. **npm audit** (dependency vulnerability scanning)
-   - Expected: `npm audit --audit-level=critical --omit=dev`
-   - Should fail on critical vulnerabilities
+**Empty-repo fallback.** If `.github/workflows/` does not exist or
+contains no workflow files, ask one question before proceeding:
+> No existing pipeline found in `.github/workflows/`. Scaffold a fresh
+> canonical `pipeline.yaml` with all gates (Code quality, Security,
+> Unit tests, Compliance, Build validation, Acceptance tests iac only)?
+> [a] Yes, scaffold from canonical templates. [b] Abort.
 
-2. **Semgrep** (SAST pattern matching)
-   - Expected: rulesets `p/javascript`, `p/typescript`, `p/security-audit`, `p/secrets`
-
-Flag any missing tools with severity **ERROR** and provide the job/step YAML to add.
-
-## 3. Coverage Enforcement
-
-### Python repos
-
-Search for coverage enforcement in test jobs:
-```bash
-grep -n "cov-fail-under\|coverage.*fail" .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
-```
-
-- Expected: `--cov-fail-under=80` in pytest commands
-- If missing: flag as **ERROR** and show the fix:
-  ```yaml
-  - name: Run tests with coverage
-    run: uv run pytest --cov=src --cov-fail-under=80 -v
-  ```
-
-### Node repos
-
-Search for coverage thresholds in test configuration:
-- Check `vitest.config.js` or `jest.config.js` for `coverageThreshold`
-- Check workflow for `--coverage` flag
-- If no enforcement: flag as **WARNING**
-
-## 4. Type Checking in CI
-
-### Python repos
+### Step 3 -- run validate (structural drift report)
 
 ```bash
-grep -n "mypy" .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
+uv run ai-tools standardize <path> --area pipeline --verify --json
 ```
 
-- MyPy should run either in the pre-commit job or as a dedicated step
-- Expected: `uv run mypy src/`
-- If missing: flag as **ERROR**
+Combined with the classification from Step 2, this gives you:
 
-### Node repos
+- `present` -- canonical gates already in the candidate by name
+- `missing` -- canonical gates that are not present
+- `legacy_candidates` -- jobs whose `name:` matches a known legacy
+  variant from the rename map
+- `spec_failures` -- canonical jobs that lack required steps in the
+  declared minimum spec
+- `custom_jobs` -- job IDs that are neither canonical nor legacy.
+  **You MUST preserve these verbatim** unless the user said otherwise
+  in Step 2.5.
 
-```bash
-grep -n "tsc\|type-check\|vue-tsc" .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
-```
+### Step 4 -- merge
 
-- TypeScript type checking should run in quality checks
-- If missing: flag as **WARNING**
+For each canonical gate in `gates.json`:
 
-## 5. CVE Ignore Standardization
+1. **If present in `report.present` AND NOT in `report.spec_failures`** --
+   leave it alone. The job already meets the canonical spec.
 
-Extract all vulnerability ignore directives:
-```bash
-grep -n "ignore-vuln\|--ignore\|GHSA-\|CVE-" .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
-```
+2. **If present in `report.spec_failures`** -- the job exists with the
+   right name but is missing required steps. Follow the user's answer
+   from Step 2.5 question 7 (insert missing steps / replace body /
+   abort). Read the canonical template with `ai-shell standardize
+   pipeline --print-template <Gate>` as reference.
 
-Validate:
-- **Format**: All ignores should use GHSA identifiers (e.g., `GHSA-5239-wwwm-4pmq`), not CVE IDs
-  - CVE IDs can change; GHSA is the GitHub-canonical identifier
-  - If CVE format found, look up the GHSA equivalent and suggest the fix
-- **Documentation**: Each ignore should have a comment explaining why and when it was added
-- **Review process**: Check if a quarterly CVE review workflow exists:
-  ```bash
-  grep -l "cve-review\|cve_review\|vulnerability.*review" .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
-  ```
-  - If missing: flag as **WARNING** and provide the template (cron quarterly, auto-creates review issue)
+3. **If a `legacy_candidates` entry exists for this gate** -- follow
+   the user's answer from Step 2.5 question 3. Typical default: rename
+   the job key and `name:` field, replace the body from the canonical
+   template, preserve the existing `needs:` clause.
 
-## 6. Concurrency Settings
+4. **If multiple legacy candidates map to the same canonical gate** --
+   follow the user's answer from Step 2.5 question 5 (synthetic
+   aggregator / rename one / skip).
 
-Read concurrency config from each workflow:
-```bash
-grep -A3 "concurrency:" .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
-```
+5. **If neither present, legacy, nor spec-failed** -- the gate is
+   genuinely missing. Read the canonical template via `--print-template`
+   and insert it. Default `needs:` wiring: `Code quality` first;
+   `Security`, `Unit tests`, `Compliance`, `Build validation` all
+   default to `needs: [code-quality]`; `Acceptance tests` defaults to
+   `needs: [code-quality, security, unit-tests, compliance,
+   build-validation]`.
 
-Rules:
-- **Repos with infrastructure deployment jobs** (SAM deploy, CloudFormation, Terraform): `cancel-in-progress: false`
-  - Canceling an in-progress infrastructure deployment can leave resources in inconsistent state
-- **Pure CI repos** (no infra, just tests/lint/publish): `cancel-in-progress: true` is acceptable
-  - Saves CI minutes by canceling superseded runs
+For every job ID in `report.custom_jobs`, follow the user's answer from
+Step 2.5 question 4 (typical default: leave it untouched). Body,
+`needs:`, `if:`, `env:`, `concurrency:`, `permissions:` -- all
+preserved.
 
-If a repo has infrastructure jobs but uses `cancel-in-progress: true`, flag as **ERROR**.
+Preserve top-level keys per Step 2.5 question 6.
 
-## 7. Pipeline Structure Validation
+### Step 5 -- write the merged file
 
-Check the standard job dependency chain:
+Use `Write` to write the merged content to
+`<repo>/.github/workflows/pipeline.yaml`. Single file. All jobs inline.
+No reusable workflow files (`_gate-*.yaml`).
 
-### Python library pattern:
-```
-pre-commit -> [security-scan, compliance, unit-tests] (parallel) -> release -> [publish, docs] (parallel)
-```
+If Step 2.5 question 2 confirmed a rename (e.g. `ci.yml` -> `pipeline.yaml`),
+delete the old file via `Bash rm` after the new one is written.
 
-### Python IaC pattern:
-```
-pre-commit -> [security-scan, compliance, unit-tests, infra-validation] (parallel) -> deploy -> [integration-tests, smoke-tests] -> release
-```
+### Step 6 -- re-validate and iterate
 
-### Node IaC pattern:
-```
-[quality-checks, sast-scan, unit-tests] (parallel) -> build-deploy -> deploy-verify -> [e2e suites] (parallel)
-```
+Re-run `ai-tools standardize <path> --area pipeline --verify --json`. If
+`is_clean` is true, report success.
 
-Flag if:
-- Security scans don't gate the deploy job
-- Tests run after deploy without depending on deploy success
-- Release runs without all quality gates passing first
+If still drifted, identify what's still missing and iterate. Cap at 4
+total iterations (initial + 3 retries) -- if still drifted on the 5th
+read, abort with a clear error and the latest report so the user can
+intervene manually.
 
-## 8. Artifact and Reporting
+## Worked example 1: ai-lls-lib (python library with SAM test infra)
 
-Check that security reports are preserved:
-```bash
-grep -n "upload-artifact\|actions/upload" .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
-```
+**Initial state** -- `pipeline.yaml` has these jobs:
 
-Verify:
-- Bandit report (JSON) uploaded as artifact
-- pip-audit report (JSON) uploaded as artifact
-- Semgrep SARIF uploaded (either as artifact or via GitHub code scanning)
-- Coverage reports uploaded
-- Retention days set (recommend 1-7 days for CI artifacts)
+- `pre-commit` (`name: Pre-commit checks`)
+- `security-scan` (`name: Security scanning`)
+- `unit-tests` (`name: Unit tests`) -- already canonical
+- `compliance-reports` (`name: License compliance`)
+- `deploy-test-infrastructure`, `integration-tests` -- custom test infra
+  (ephemeral AWS SAM stack)
+- `release`, `publish-to-pypi`, `docs` -- custom
 
-## Error Handling
-
-- **No workflows found**: Abort -- repo may not use GitHub Actions
-- **Mixed ecosystems**: Handle repos with both Python and Node (check both sets of requirements)
-- **Custom CI systems**: If no `.github/workflows/` but has `.gitlab-ci.yml`, Jenkinsfile, etc., warn that this skill only supports GitHub Actions
-- **Workflow syntax errors**: Don't attempt to fix YAML syntax -- flag and skip
-
-## Final Output
+**Discovery report (Step 2):**
 
 ```
-=== CI/CD Pipeline Standardization Report ===
+Workflow discovery in ai-lls-lib:
+  .github/workflows/pipeline.yaml -> pre-merge pipeline candidate (9 jobs)
+  (no other workflow files)
 
-Ecosystem: Python
-Repo type: IaC (dev+main)
-Infrastructure: SAM (template.yaml detected)
-Workflows analyzed: 3
+Classification of pipeline.yaml:
+  Pre-commit checks            -> legacy candidate for 'Code quality'
+  Security scanning            -> legacy candidate for 'Security'
+  Unit tests                   -> already canonical
+  License compliance           -> legacy candidate for 'Compliance'
+  deploy-test-infrastructure   -> custom (ephemeral AWS test stack)
+  integration-tests            -> custom (pytest against test stack)
+  release                      -> custom (python-semantic-release on main)
+  publish-to-pypi              -> custom (pypa/gh-action-pypi-publish)
+  docs                         -> custom (pdoc to GitHub Pages)
 
-Security Scanning:
-  [PASS] Bandit: present in pipeline.yaml
-  [PASS] pip-audit: present in pipeline.yaml
-  [FAIL] Semgrep: MISSING -- add SAST scanning
-  [FAIL] License compliance: MISSING -- add GPL/AGPL detection
-
-Quality Gates:
-  [PASS] Coverage enforcement: 80% floor in unit-tests job
-  [FAIL] MyPy type checking: not found in any workflow
-  [PASS] Pre-commit: runs as first job
-
-Pipeline Safety:
-  [PASS] Concurrency: cancel-in-progress: false (correct for infra)
-  [WARN] CVE ignores use CVE format -- recommend GHSA identifiers
-  [WARN] No quarterly CVE review workflow found
-
-Artifacts:
-  [PASS] Bandit report uploaded
-  [PASS] pip-audit report uploaded
-  [WARN] Semgrep SARIF not uploaded (Semgrep not configured)
-
-Next steps:
-  /ai-standardize-precommit    # Validate pre-commit hooks
-  /ai-standardize-dotfiles     # Validate project config files
-  /ai-standardize-repo         # Full standardization checklist
+Missing canonical gates: Compliance (legacy candidate exists), Build validation
 ```
+
+**Ask-before-acting loop (Step 2.5):**
+
+> Question 1 of 4: I'll rename the legacy gates (Pre-commit checks ->
+> Code quality, Security scanning -> Security, License compliance ->
+> Compliance) and replace their bodies with the canonical templates,
+> preserving their `needs:` clauses. Insert `Build validation` as a new
+> gate depending on `code-quality`. OK? [a] Yes, proceed. [b] Keep
+> legacy names. [c] Abort.
+
+> Question 2 of 4: The `deploy-test-infrastructure` -> `integration-tests`
+> pattern looks like ephemeral AWS test infrastructure for this library.
+> For library repos this is unusual but legitimate. I plan to preserve
+> both jobs as custom and NOT insert the canonical `Acceptance tests`
+> gate (libraries don't require one). Is that correct? [a] Preserve as
+> custom, no Acceptance tests (recommended for library). [b] Preserve
+> AND also insert a synthetic `Acceptance tests` gate. [c] Rename
+> `integration-tests` -> `Acceptance tests` (treat as iac). [d] Abort.
+
+> Question 3 of 4: Found `release`, `publish-to-pypi`, `docs` jobs that
+> handle semantic-release, PyPI publish, and pdoc deploy. I'll preserve
+> all three as custom jobs and leave their `needs:` clauses alone. OK?
+
+> Question 4 of 4: Top-level customizations to preserve:
+> `env.TEST_STACK_NAME`, `concurrency.cancel-in-progress: false` (safe
+> for iac test infra), `permissions.id-token: write`. OK to preserve
+> all?
+
+Only after all four questions are answered does the merge run and the
+file get written.
+
+## Worked example 2: ai-lls-api (ci.yml + Integration/Smoke split)
+
+**Initial state**: `ci.yml` (not `pipeline.yaml`) with jobs including
+`integration-tests` (`name: Integration tests`) and `smoke-tests` (`name:
+Smoke tests`), plus custom `deploy-staging` and `Publish CI reports`.
+
+**Ask-before-acting loop:**
+
+> Question 1: Found `ci.yml` as the pre-merge pipeline. After merging
+> canonical gates, I'll write to `pipeline.yaml` and delete `ci.yml`.
+> OK?
+
+> Question 2: Two jobs match the canonical `Acceptance tests` gate:
+> `integration-tests` and `smoke-tests`. Options: [a] Insert a synthetic
+> aggregator that depends on both (recommended). [b] Rename one to
+> `Acceptance tests` (which one?). [c] Abort.
+
+Whatever the user picks, the result is one `pipeline.yaml` with the
+canonical gates inline and the user's parallel test structure preserved.
+
+## Worked example 3: ai-lls-web (4 parallel E2E jobs)
+
+**Initial state**: 4 custom jobs `e2e-smoke`, `e2e-payment`,
+`e2e-admin`, `e2e-bulk` (each `name: E2E * Tests`), no canonical
+`Acceptance tests` gate.
+
+**Ask-before-acting loop:**
+
+> Question: 4 jobs match the canonical `Acceptance tests` gate:
+> `e2e-smoke`, `e2e-payment`, `e2e-admin`, `e2e-bulk`. Insert a
+> synthetic `Acceptance tests` aggregator that depends on all four
+> (recommended -- preserves parallel structure), or rename one of
+> them?
+
+User picks aggregator. AI inserts:
+
+```yaml
+acceptance-tests:
+  name: Acceptance tests
+  needs: [e2e-smoke, e2e-payment, e2e-admin, e2e-bulk]
+  runs-on: ubuntu-latest
+  if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+  steps:
+    - name: All post-deploy tests passed
+      run: echo "all post-deploy tests passed"
+```
+
+The 4 E2E jobs are left untouched.
+
+## Constraints
+
+- **Single file output.** Never write `_gate-*.yaml` reusable workflow
+  files. Pipeline standardization is one inline file. Period.
+- **Custom jobs are sacred.** Anything in `report.custom_jobs` is
+  preserved verbatim unless the user explicitly said otherwise in Step
+  2.5.
+- **Job IDs follow canonical slugs.** When renaming a legacy job, the
+  YAML map key becomes the lowercased hyphenated gate name
+  (`code-quality:`, `security:`, `unit-tests:`, `compliance:`,
+  `build-validation:`, `acceptance-tests:`). The `name:` field becomes
+  the exact canonical gate string.
+- **Action versions are not your concern.** Renovate manages action SHA
+  pins; the canonical templates ship with the current pinned SHAs but
+  you don't enforce a specific version.
+- **Step `name:` fields are free text.** The minimum spec only checks
+  `uses:` (action repo path substring) and `run:` (regex). You can
+  rename steps freely.
+- **iac repos must include `Acceptance tests`.** Library repos must NOT
+  include `Acceptance tests`.
+- **iac `Acceptance tests` jobs must be guarded** by
+  `if: github.event_name == 'push' && github.ref == 'refs/heads/dev'`
+  so they only run after a dev push (not on PRs against main).
+- **Zero files are modified** until every question from Step 2.5 is
+  answered. If the user aborts at any point, exit with
+  `Standardization aborted by user. No files were modified.` and the
+  repo is untouched.
+
+Report:
+
+- Count of canonical gates added / preserved / renamed
+- Count of custom jobs preserved
+- Final `is_clean` status from the second validate run
+- List of any iterations needed to reach clean
+- Any files that were renamed or deleted (e.g. `ci.yml` -> `pipeline.yaml`)

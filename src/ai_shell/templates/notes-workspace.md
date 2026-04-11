@@ -19,7 +19,8 @@ Merge them lightly and only when they add net-new guidance.
 
 ## `uv run ai-tools standardize` In Workspaces
 
-- Run `uv run ai-tools standardize ...` inside each child repo that needs standardization.
+- Run `uv run ai-tools standardize <child-path> [--verify|--all|--area <area>]` **from the workspace root**, passing the child path as an argument.
+- Never `cd` into a child repo to run standardize. `uv run` inside a child re-solves the child's lockfile and can downgrade augint-tools in the shared workspace venv.
 - Keep workspace planning in `workspace`; keep standards detection/fixes in `standardize`.
 
 ## Workspace Flow

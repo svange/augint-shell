@@ -21,10 +21,11 @@ before writing. If the user aborts, exit with
 ### Step 1 -- detect language
 
 ```bash
-uv run ai-shell standardize detect --json <repo>
+uv run ai-tools standardize <path> --verify --json
 ```
 
-Note the language (python/node). On ambiguous, ask the user and stop.
+The drift report includes the detected language (python/node). On
+ambiguous, ask the user and stop.
 
 ### Step 2 -- read the existing config (if present)
 
@@ -91,10 +92,11 @@ describe the drift and ask:
 
 ### Step 5 -- write the merged file
 
-Only after every question is answered, call the Python generator:
+Only after every question is answered, call the generator via the
+stable wrapper:
 
 ```bash
-uv run ai-shell standardize precommit <repo>
+uv run ai-tools standardize <path> --area precommit
 ```
 
 This writes `.pre-commit-config.yaml` (python) or `.husky/pre-commit` +

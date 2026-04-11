@@ -51,7 +51,7 @@ Confirm that:
 - only the relevant skills were installed
 - workspace repos get `ai-workspace-*` skills and use `uv run ai-tools workspace ...`
 - normal repos use `uv run ai-tools repo ...`
-- standardization flows use `uv run ai-tools standardize ...`
+- standardization flows use `uv run ai-tools standardize <path> [--verify|--all|--area <area>]`
 - normal repos do not get workspace-only skills
 
 ## 5. Explain the Natural Workflow
@@ -62,7 +62,7 @@ For `library` / `service` repos:
 - develop
 - `/ai-submit-work`
 - `/ai-monitor-pipeline`
-- `/ai-standardize-repo` for standards alignment (`uv run ai-tools standardize ...`)
+- `/ai-standardize-repo` for standards alignment (`uv run ai-tools standardize <path> --verify --json` then `--all`)
 
 For `workspace` repos:
 - `/ai-workspace-sync`

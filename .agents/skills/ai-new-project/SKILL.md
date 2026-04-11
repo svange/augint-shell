@@ -27,7 +27,7 @@ For `service` repos, create and push a development branch (`dev`/`develop`/`stag
 
 Create the baseline project skeleton for the selected ecosystem, then run package manager initialization commands.
 
-Do not manually encode the full standards policy in this skill. Keep local scaffolding minimal and delegate standards rules to `ai-tools standardize`.
+Do not manually encode the full standards policy in this skill. Keep local scaffolding minimal and delegate standards rules to `uv run ai-tools standardize <path> [--verify|--all|--area <area>]`.
 
 ## 4. Scaffold AI Tooling
 
@@ -39,29 +39,28 @@ ai-shell init --service
 ai-shell init --workspace
 ```
 
-## 5. Apply Standards via `ai-tools standardize`
+## 5. Apply Standards via `uv run ai-tools standardize`
 
-Run:
+Run (from the workspace / parent directory, passing the repo path):
 
 ```bash
-ai-tools standardize detect --json
-ai-tools standardize audit --json
-ai-tools standardize fix --write --json
-ai-tools standardize verify --json
+uv run ai-tools standardize <path> --verify --json    # detect + drift report
+uv run ai-tools standardize <path> --all              # apply all standards
+uv run ai-tools standardize <path> --verify --json    # post-apply verification
 ```
 
-If the user asks for audit-only mode, skip `fix` and stop after `audit`.
+If the user asks for audit-only mode, stop after the first `--verify` call and do not run `--all`.
 
 ## 6. Verify Workflow Surface
 
 For normal repos, confirm:
-- `ai-tools repo status --json` works
-- `ai-tools repo branch prepare --json` is the branch-prep entrypoint
-- `ai-tools repo submit --json` is the submit entrypoint
+- `uv run ai-tools repo status --json` works
+- `uv run ai-tools repo branch prepare --json` is the branch-prep entrypoint
+- `uv run ai-tools repo submit --json` is the submit entrypoint
 
 For workspace repos, confirm:
-- `ai-tools workspace status --json` works
-- workspace skills map to `ai-tools workspace ...`
+- `uv run ai-tools workspace status --json` works
+- workspace skills map to `uv run ai-tools workspace ...`
 
 ## 7. Initial Commit and Push
 

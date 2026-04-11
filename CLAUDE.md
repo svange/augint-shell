@@ -71,7 +71,9 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 
 - Single-repo commands: `uv run ai-tools repo <command>`
 - Workspace commands: `uv run ai-tools workspace <command>`
-- Standardization commands: `uv run ai-tools standardize <command>`
+- Standardization commands: `uv run ai-tools standardize [PATH] [--verify|--all|--area <x>]`
+- Run `ai-tools standardize <child-path>` **from the workspace root**; never `cd` into a child. `uv run` inside a child re-solves the child lockfile and can downgrade augint-tools in the shared workspace venv.
+- `ai-tools standardize` is the stable user-facing contract; `ai-shell standardize` is the implementation layer (skill prose should call `ai-tools`, not `ai-shell`, except for low-level introspection like `--print-template` / `--print-spec`).
 - Use repo-local skills as thin wrappers for `ai-tools` commands.
 - Prefer machine-readable output (`--json`) and summarize actionable results.
 - Branch, PR target, and validation policy should come from repo or workspace config, not guesswork.
@@ -198,7 +200,7 @@ Lessons learned across five rounds of iteration. Violating any of these will bre
 - **Do not** use `.ai-shell.toml` for repo-shape or workspace-shape detection. That file is scoped to AI agent configuration (container settings, model provider). Repo shape is detected by `ai-shell standardize detect`; workspace shape is read via `ai-tools workspace inspect` from `workspace.yaml`.
 - **Do not** allow squash merge on any repo type. Squash drops the `[skip ci]` marker semantic-release emits on promotion merges and breaks the dev->main release cycle. All repos use merge commits. `ai-gh config --standardize` enforces this.
 - **Do not** delete org-inherited rulesets during verify or apply. `verify._verify_rulesets` filters them out by `source_type == "Organization"`; only repo-scope branch rulesets participate in drift computation.
-- **Do not** run `ai-tools standardize` — it was deleted in `augint-tools` 3.0.1. Use `ai-shell standardize <area>` (per-section) or `/ai-standardize-repo --all` (full umbrella) instead.
+- **Do not** call `ai-shell standardize ...` directly from skill prose (except the low-level `pipeline --print-template` / `pipeline --print-spec` introspection commands). The stable contract is `ai-tools standardize <path> [--verify|--all|--area <area>]`; the `ai-shell` commands are the implementation layer underneath. Calling `ai-shell` directly bypasses the wrapper's path/argument handling.
 - **Do not** introduce hard `==` version pins in any generated config or template. Floor-only `>=X.Y.Z` pins are fine; Renovate-managed SHA pins (`@<sha> # vX.Y.Z`) in workflow `uses:` lines are fine. Hard exact pins break dependency resolution across the monorepo shared venv.
 - **Do not** `cd` into a child repo when orchestrating workspace-level commands. Always pass the child path as an argument. Reason: the workspace shares a single venv and `uv run` re-solves against the child's `pyproject.toml` floor, downgrading the venv for every subsequent child. Fix: always invoke from the workspace root with `<child-path>` args. Documented in `/ai-workspace-standardize`.
 - **Do not** hand-edit files under `.claude/skills/` or `.agents/skills/`. Those are scaffolded from `src/ai_shell/templates/`. Edit the templates and re-run scaffold (or run `/ai-init --reset` in the consumer repo).

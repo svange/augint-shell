@@ -19,5 +19,5 @@ Merge them lightly and only when they add net-new guidance.
 ## `ai-tools` Usage
 
 - Use `uv run ai-tools repo ...` for normal repo workflows (status, issues, branch prep, submit, CI).
-- Use `uv run ai-tools standardize detect/audit/fix/verify` for standards alignment.
+- Use `uv run ai-tools standardize <path> --verify --json` to check drift and `--all` to apply all standards; use `--area <area>` to target a single section.
 - Do not use workspace-only `uv run ai-tools workspace ...` commands for single-repo library work.

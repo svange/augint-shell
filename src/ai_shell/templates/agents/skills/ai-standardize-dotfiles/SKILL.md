@@ -21,11 +21,11 @@ modified.`
 ### Step 1 -- detect ecosystem
 
 ```bash
-uv run ai-shell standardize detect --json <repo>
+uv run ai-tools standardize <path> --verify --json
 ```
 
-Note the language (python/node). Multiple ecosystems are allowed --
-check both sets.
+The drift report includes the detected language (python/node).
+Multiple ecosystems are allowed -- check both sets.
 
 ### Step 2 -- read existing dotfiles (if present)
 
