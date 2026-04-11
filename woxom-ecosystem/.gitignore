@@ -1,0 +1,35 @@
+# Legacy monolith reference (clone from https://github.com/mjkuniversal/hwh-work.git)
+reference/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# IDE (machine-local)
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (safety net -- should not exist at root)
+node_modules/
+
+# Python (safety net)
+__pycache__/
+*.pyc
+.venv/
+
+# Leftover from rebuild (Windows can't delete deep node_modules -- delete manually)
+woxom-health-web-DELETEME/
+
+# Child repos (cloned by ai-tools workspace sync)
+woxom-common/
+woxom-crm/
+woxom-data-parser/
+woxom-health-web/
+woxom-infra/
+woxom-quoting-tool/
+woxom-sales-dashboard/
+woxom-visualization/

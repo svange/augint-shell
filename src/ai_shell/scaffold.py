@@ -192,6 +192,10 @@ _UNIVERSAL_SKILLS = [
     "ai-web-dev",
     "ai-standardize-repo",
     "ai-standardize-dotfiles",
+    "ai-standardize-pipeline",
+    "ai-standardize-precommit",
+    "ai-standardize-renovate",
+    "ai-standardize-release",
     "ai-new-project",
 ]
 
@@ -211,13 +215,8 @@ _WORKSPACE_SKILLS = [
     "ai-workspace-update",
 ]
 
-# Skills removed in the unified standardization consolidation.
-# Listed here so _remove_stale_skills() cleans them from existing repos.
+# Skills fully removed (no longer shipped, cleaned from existing repos).
 _DELETED_SKILLS = [
-    "ai-standardize-precommit",
-    "ai-standardize-pipeline",
-    "ai-standardize-renovate",
-    "ai-standardize-release",
     "ai-fix-repo-standards",
 ]
 
@@ -272,6 +271,10 @@ CLAUDE_SKILL_DIRS = [
     "ai-web-dev",
     "ai-standardize-repo",
     "ai-standardize-dotfiles",
+    "ai-standardize-pipeline",
+    "ai-standardize-precommit",
+    "ai-standardize-renovate",
+    "ai-standardize-release",
     "ai-new-project",
     "ai-setup-oidc",
 ]

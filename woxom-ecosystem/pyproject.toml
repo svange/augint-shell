@@ -1,0 +1,16 @@
+[project]
+name = "woxom-ecosystem"
+version = "0.1.0"
+description = "Woxom health insurance ecosystem workspace"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "augint-tools>=2.1.1",
+]
+
+[dependency-groups]
+dev = [
+    "augint-github>=1.3.5",
+    "augint-tools>=2.1.1",
+    "augint-shell>=0.38.0",
+]

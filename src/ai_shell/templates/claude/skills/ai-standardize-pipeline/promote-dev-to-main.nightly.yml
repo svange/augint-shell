@@ -1,0 +1,79 @@
+name: Promote dev to main (nightly)
+
+on:
+  schedule:
+    # 7am UTC = midnight Pacific, post-business-hours
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  promote:
+    name: Promote dev to main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Check if dev is ahead of main
+        id: check
+        run: |
+          git fetch origin main dev
+          AHEAD=$(git rev-list --count origin/main..origin/dev)
+          echo "ahead=$AHEAD" >> $GITHUB_OUTPUT
+          if [ "$AHEAD" = "0" ]; then
+            echo "dev is not ahead of main; nothing to promote"
+          else
+            echo "dev is $AHEAD commit(s) ahead of main"
+          fi
+
+      - name: Dispatch pipeline on dev tip
+        if: steps.check.outputs.ahead != '0'
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          DEV_SHA=$(git rev-parse origin/dev)
+          echo "dev_sha=$DEV_SHA" >> $GITHUB_OUTPUT
+          gh workflow run pipeline.yaml --ref dev
+          # Wait for the newly-queued run and capture its id
+          sleep 10
+          RUN_ID=$(gh run list --workflow=pipeline.yaml --branch=dev --limit=1 --json databaseId --jq '.[0].databaseId')
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+
+      - name: Wait for acceptance tests
+        if: steps.check.outputs.ahead != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        timeout-minutes: 30
+        run: |
+          gh run watch ${{ steps.dispatch.outputs.run_id }} --exit-status
+
+      - name: Open promotion PR
+        if: steps.check.outputs.ahead != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head dev \
+            --title "chore(release): promote dev to main" \
+            --body "Nightly promotion of dev to main. Acceptance tests green on dev tip." \
+            || echo "PR may already exist"
+
+      - name: Enable automerge
+        if: steps.check.outputs.ahead != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          PR_NUMBER=$(gh pr list --head dev --base main --json number --jq '.[0].number')
+          if [ -n "$PR_NUMBER" ]; then
+            gh pr merge "$PR_NUMBER" --auto --merge
+          fi

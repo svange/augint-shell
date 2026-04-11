@@ -10,6 +10,8 @@ dependencies = [
     "click>=8.1.0",
     "rich>=14.0",
     "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+    "tomlkit>=0.13",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +27,7 @@ dev = [
     "pip-licenses>=5.0.0",
     "pytest-html>=4.0.0",
     "pdoc>=15.0.0",
+    "types-PyYAML>=6.0",
 ]
 
 [project.scripts]

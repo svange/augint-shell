@@ -639,11 +639,10 @@ class TestSkillsForConfig:
         assert "ai-promote" not in skills
 
     def test_deleted_skills_not_in_any_config(self):
+        # ai-fix-repo-standards was the old monolith; it is the only skill
+        # still in the deleted set. The ai-standardize-* sub-skills were
+        # reinstated when the standardization system was rewritten.
         deleted = [
-            "ai-standardize-precommit",
-            "ai-standardize-pipeline",
-            "ai-standardize-renovate",
-            "ai-standardize-release",
             "ai-fix-repo-standards",
         ]
         for repo_type in RepoType:
@@ -652,6 +651,26 @@ class TestSkillsForConfig:
                 for name in deleted:
                     assert name not in skills, (
                         f"{name} should be deleted but found in {repo_type}/{branch_strategy}"
+                    )
+
+    def test_standardize_subskills_in_every_config(self):
+        # The umbrella + sub-skill rewrite requires all four sub-skills to
+        # ship alongside ai-standardize-repo so the umbrella can invoke them
+        # as individual steps.
+        required = [
+            "ai-standardize-repo",
+            "ai-standardize-dotfiles",
+            "ai-standardize-pipeline",
+            "ai-standardize-precommit",
+            "ai-standardize-renovate",
+            "ai-standardize-release",
+        ]
+        for repo_type in RepoType:
+            for branch_strategy in BranchStrategy:
+                skills = skills_for_config(repo_type, branch_strategy)
+                for name in required:
+                    assert name in skills, (
+                        f"{name} missing from {repo_type}/{branch_strategy} config"
                     )
 
     def test_workspace_has_universal_skills(self):
@@ -702,8 +721,12 @@ class TestScaffoldWithRepoType:
         assert (skills_dir / "ai-pick-issue" / "SKILL.md").is_file()
         assert (skills_dir / "ai-standardize-repo" / "SKILL.md").is_file()
         assert (skills_dir / "ai-new-project" / "SKILL.md").is_file()
-        # Deleted skills must not be deployed
-        assert not (skills_dir / "ai-standardize-renovate").exists()
+        # Sub-skills must ship alongside the umbrella
+        assert (skills_dir / "ai-standardize-pipeline" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-standardize-precommit" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-standardize-renovate" / "SKILL.md").is_file()
+        assert (skills_dir / "ai-standardize-release" / "SKILL.md").is_file()
+        # The old monolith must not be deployed
         assert not (skills_dir / "ai-fix-repo-standards").exists()
 
     def test_claude_service_dev_skills(self, tmp_path):

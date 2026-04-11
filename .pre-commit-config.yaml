@@ -41,3 +41,10 @@ repos:
         language: system
         files: 'pyproject\.toml$'
         pass_filenames: false
+
+      - id: standardize-lint
+        name: Standardize drift lint (gate vocabulary)
+        entry: uv run --no-sync ai-shell standardize lint
+        language: system
+        pass_filenames: false
+        files: '(SKILL\.md|\.(ya?ml|toml|json5?|md))$'

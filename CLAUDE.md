@@ -159,12 +159,19 @@ BASE=${DEV_BRANCH:-$DEFAULT_BRANCH}
 
 ## CI/CD Pipeline
 
-### 4 Universal Quality Gates (all repos)
+### 5 Universal Pre-Merge Gates (all repos)
 
-1. **Code quality** - linting, formatting, type checking, file hygiene, build validation
-2. **Security scanning** - semgrep SAST + dependency vulnerability scanning
+Canonical vocabulary from `gates.json` in `ai-standardize-repo` skill:
+
+1. **Code quality** - linting, formatting, type checking, file hygiene
+2. **Security** - Bandit/Semgrep SAST + dependency vulnerability scanning
 3. **Unit tests** - tests + coverage threshold (>=80%)
-4. **License compliance** - GPL/AGPL blocking with enforcement
+4. **Compliance** - GPL/AGPL license blocking
+5. **Build validation** - `uv build` / `sam build` / `cdk synth` / `vite build` / `terraform validate`
+
+### 1 Post-Deploy Gate (service/iac repos only)
+
+6. **Acceptance tests** - runs against staging after dev deploy; required on main ruleset only
 
 ### 2 Project Types
 
