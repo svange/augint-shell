@@ -139,7 +139,12 @@ def run_all(root: Path | str = ".") -> tuple[StepResult, ...]:
     # 4. Pipeline
     try:
         pipe_result = pipeline.apply(detection, root_path)
-        results.append(StepResult("pipeline", StepStatus.OK, f"{pipe_result.template}"))
+        pipe_msg = f"{len(pipe_result.gate_files)} gate(s) written" + (
+            " + scaffolded pipeline.yaml"
+            if pipe_result.scaffold_written
+            else " (pipeline.yaml preserved)"
+        )
+        results.append(StepResult("pipeline", StepStatus.OK, pipe_msg))
     except Exception as exc:  # noqa: BLE001
         results.append(StepResult("pipeline", StepStatus.FAILED, str(exc)))
         return tuple(results)

@@ -1,0 +1,38 @@
+name: Compliance
+
+on:
+  workflow_call:
+
+jobs:
+  run:
+    name: Compliance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ vars.PYTHON_VERSION || '3.12' }}
+      - name: Install UV
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Install dependencies
+        run: uv sync --frozen --all-extras
+      - name: Generate license reports
+        run: |
+          uv run pip-licenses --from=mixed --format=json --output-file=license-report.json
+          uv run pip-licenses --from=mixed --format=html --output-file=license-report.html
+          uv run pip-licenses --from=mixed --fail-on 'GPL;AGPL;LGPL' --summary
+      - name: Upload license reports
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: license-reports
+          path: |
+            license-report.json
+            license-report.html

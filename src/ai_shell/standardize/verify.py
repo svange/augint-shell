@@ -16,12 +16,19 @@ import difflib
 import os
 from dataclasses import dataclass
 from enum import StrEnum
-from importlib import resources
 from pathlib import Path
 from typing import Any
 
 from ai_shell.standardize.detection import Detection, RepoType, detect
-from ai_shell.standardize.pipeline import _TEMPLATE_NAMES as _PIPELINE_TEMPLATES
+from ai_shell.standardize.gates import load_gates
+from ai_shell.standardize.pipeline import (
+    PipelineDriftError,
+    _expected_gates_for,
+    _gate_filename,
+    _gate_template_name,
+    _load_template,
+    _validate_existing_pipeline,
+)
 
 # Canonical repo settings per the one-page contract. These match what
 # ``ai-gh config --standardize`` writes (see augint-github 1.9.2's
@@ -76,38 +83,68 @@ def _diff(a: str, b: str, label_a: str, label_b: str) -> str:
 
 
 def _verify_pipeline(root: Path, detection: Detection) -> VerifyFinding:
-    """Compare .github/workflows/pipeline.yaml against the canonical template."""
-    key = (detection.language, detection.repo_type)
-    template_name = _PIPELINE_TEMPLATES.get(key)
-    if template_name is None:
+    """Verify pipeline.yaml references canonical gates and gate files match templates.
+
+    This mirrors the two halves of `pipeline.apply()` contract:
+
+    1. For every expected gate, the ``_gate-<slug>.yaml`` file on disk must
+       match the corresponding template byte-for-byte.
+    2. The user-owned ``pipeline.yaml`` must exist and must reference every
+       canonical gate via ``uses: ./.github/workflows/_gate-<slug>.yaml``.
+    """
+    workflows_dir = root / ".github" / "workflows"
+    pipeline_path = workflows_dir / "pipeline.yaml"
+    gates = load_gates()
+    expected_gates = _expected_gates_for(detection, gates)
+
+    # Part 1: per-gate file drift
+    drifts: list[str] = []
+    missing_gate_files: list[str] = []
+    for gate_name in expected_gates:
+        gate_path = workflows_dir / _gate_filename(gate_name)
+        expected_content = _load_template(
+            _gate_template_name(detection.language, detection.repo_type, gate_name)
+        )
+        if not gate_path.is_file():
+            missing_gate_files.append(gate_path.name)
+            continue
+        actual = _read_or_empty(gate_path)
+        if actual != expected_content:
+            drifts.append(gate_path.name)
+
+    # Part 2: pipeline.yaml presence + canonical references
+    if not pipeline_path.is_file():
         return VerifyFinding(
             section="pipeline",
             status=VerifyStatus.FAIL,
-            message=f"no template for {detection.language.value}/{detection.repo_type.value}",
+            message=f"{pipeline_path} missing (run `ai-shell standardize pipeline` to scaffold)",
         )
-    ref = resources.files("ai_shell.templates").joinpath(
-        "claude", "skills", "ai-standardize-pipeline", template_name
-    )
-    expected = ref.read_text(encoding="utf-8")
-    actual_path = root / ".github" / "workflows" / "pipeline.yaml"
-    actual = _read_or_empty(actual_path)
-    if actual == expected:
-        return VerifyFinding(
-            section="pipeline",
-            status=VerifyStatus.PASS,
-            message=f"matches {template_name}",
-        )
-    if not actual:
+    pipeline_text = pipeline_path.read_text(encoding="utf-8")
+    try:
+        _validate_existing_pipeline(pipeline_text, expected_gates, pipeline_path)
+    except PipelineDriftError as exc:
         return VerifyFinding(
             section="pipeline",
             status=VerifyStatus.FAIL,
-            message=f"{actual_path} missing",
+            message=str(exc).splitlines()[0],
+        )
+
+    if missing_gate_files:
+        return VerifyFinding(
+            section="pipeline",
+            status=VerifyStatus.FAIL,
+            message="missing canonical gate file(s): " + ", ".join(missing_gate_files),
+        )
+    if drifts:
+        return VerifyFinding(
+            section="pipeline",
+            status=VerifyStatus.DRIFT,
+            message="canonical gate file(s) differ from template: " + ", ".join(drifts),
         )
     return VerifyFinding(
         section="pipeline",
-        status=VerifyStatus.DRIFT,
-        message=f"{actual_path} differs from {template_name}",
-        diff=_diff(expected, actual, f"expected/{template_name}", str(actual_path)),
+        status=VerifyStatus.PASS,
+        message=f"{len(expected_gates)} canonical gates wired, files match templates",
     )
 
 
@@ -269,6 +306,27 @@ def _required_contexts(ruleset: dict[str, Any]) -> set[str]:
     return set()
 
 
+def _is_repo_branch_ruleset(ruleset: dict[str, Any]) -> bool:
+    """True if *ruleset* is a repo-scope branch ruleset we can legitimately
+    compare against our generated spec.
+
+    Org-inherited rulesets (``source_type == "Organization"``) and non-branch
+    rulesets (``target != "branch"``, e.g. ``push`` or ``repository`` rules)
+    are filtered out so they are not reported as drift. The user cannot and
+    should not manage these at the repo level.
+    """
+    if not isinstance(ruleset, dict):
+        return False
+    if ruleset.get("target") != "branch":
+        return False
+    source_type = ruleset.get("source_type")
+    # Treat anything other than "Repository" (e.g. "Organization", "Enterprise")
+    # as inherited and out of scope. Missing/unknown source_type defaults to
+    # in-scope so we don't silently ignore genuine repo rulesets on older API
+    # responses.
+    return source_type in (None, "Repository")
+
+
 def _verify_rulesets(root: Path, detection: Detection) -> VerifyFinding:
     """Read live rulesets from GitHub and diff against the generated spec."""
     from ai_shell.standardize import rulesets as rs
@@ -300,9 +358,15 @@ def _verify_rulesets(root: Path, detection: Detection) -> VerifyFinding:
             message=f"failed to read rulesets: {exc}",
         )
 
+    # Partition live rulesets: in-scope (repo-scope branch) vs inherited
+    # (org/enterprise or non-branch). Only in-scope rulesets participate in
+    # missing/extra drift computation. Inherited ones are noted separately.
+    in_scope_live = [r for r in live if _is_repo_branch_ruleset(r)]
+    inherited_live = [r for r in live if isinstance(r, dict) and not _is_repo_branch_ruleset(r)]
+
     specs = rs.generate(detection)
     expected_by_name = {spec.name: spec for spec in specs}
-    live_by_name = {item.get("name"): item for item in live if isinstance(item, dict)}
+    live_by_name = {item.get("name"): item for item in in_scope_live if item.get("name")}
 
     missing = set(expected_by_name) - set(live_by_name)
     extra = {n for n in live_by_name if n not in expected_by_name and n}
@@ -324,6 +388,13 @@ def _verify_rulesets(root: Path, detection: Detection) -> VerifyFinding:
             parts.append("extra contexts: " + ", ".join(sorted(c for c in ctx_extra if c)))
         drift_details.append(f"{name} ({'; '.join(parts)})")
 
+    inherited_names: list[str] = sorted(str(r["name"]) for r in inherited_live if r.get("name"))
+    inherited_note = (
+        " (inherited from org, ignored: " + ", ".join(inherited_names) + ")"
+        if inherited_names
+        else ""
+    )
+
     if missing or extra or drift_details:
         msg_parts: list[str] = []
         if missing:
@@ -335,13 +406,13 @@ def _verify_rulesets(root: Path, detection: Detection) -> VerifyFinding:
         return VerifyFinding(
             section="rulesets",
             status=VerifyStatus.DRIFT,
-            message="; ".join(msg_parts),
+            message="; ".join(msg_parts) + inherited_note,
         )
 
     return VerifyFinding(
         section="rulesets",
         status=VerifyStatus.PASS,
-        message=f"{len(specs)} ruleset(s) match spec",
+        message=f"{len(specs)} ruleset(s) match spec" + inherited_note,
     )
 
 

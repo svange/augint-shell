@@ -35,6 +35,29 @@ def _det_iac() -> Detection:
     )
 
 
+def _make_ruleset(
+    name: str,
+    contexts: list[str],
+    *,
+    target: str = "branch",
+    source_type: str = "Repository",
+) -> dict:
+    """Build a live ruleset dict shaped like the GitHub REST API response."""
+    return {
+        "name": name,
+        "target": target,
+        "source_type": source_type,
+        "rules": [
+            {
+                "type": "required_status_checks",
+                "parameters": {
+                    "required_status_checks": [{"context": c} for c in contexts],
+                },
+            }
+        ],
+    }
+
+
 def _mock_repo_with_rulesets(live_rulesets: list[dict]) -> MagicMock:
     """Build a PyGithub Repository mock whose `_requester` returns *live_rulesets*.
 
@@ -114,23 +137,16 @@ class TestVerifyRulesets:
         monkeypatch.setenv("GH_ACCOUNT", "y")
         monkeypatch.setenv("GH_TOKEN", "z")
         live = [
-            {
-                "name": "library",
-                "rules": [
-                    {
-                        "type": "required_status_checks",
-                        "parameters": {
-                            "required_status_checks": [
-                                {"context": "Code quality"},
-                                {"context": "Security"},
-                                {"context": "Unit tests"},
-                                {"context": "Compliance"},
-                                {"context": "Build validation"},
-                            ]
-                        },
-                    }
+            _make_ruleset(
+                "library",
+                [
+                    "Code quality",
+                    "Security",
+                    "Unit tests",
+                    "Compliance",
+                    "Build validation",
                 ],
-            }
+            )
         ]
         repo = _mock_repo_with_rulesets(live)
         with patch("ai_shell.standardize.verify._open_github_repo", return_value=repo):
@@ -154,22 +170,10 @@ class TestVerifyRulesets:
         monkeypatch.setenv("GH_TOKEN", "z")
         # library ruleset exists but is missing `Compliance`
         live = [
-            {
-                "name": "library",
-                "rules": [
-                    {
-                        "type": "required_status_checks",
-                        "parameters": {
-                            "required_status_checks": [
-                                {"context": "Code quality"},
-                                {"context": "Security"},
-                                {"context": "Unit tests"},
-                                {"context": "Build validation"},
-                            ]
-                        },
-                    }
-                ],
-            }
+            _make_ruleset(
+                "library",
+                ["Code quality", "Security", "Unit tests", "Build validation"],
+            )
         ]
         repo = _mock_repo_with_rulesets(live)
         with patch("ai_shell.standardize.verify._open_github_repo", return_value=repo):
@@ -183,23 +187,16 @@ class TestVerifyRulesets:
         monkeypatch.setenv("GH_TOKEN", "z")
         # Only iac_dev exists, iac_production missing
         live = [
-            {
-                "name": "iac_dev",
-                "rules": [
-                    {
-                        "type": "required_status_checks",
-                        "parameters": {
-                            "required_status_checks": [
-                                {"context": "Code quality"},
-                                {"context": "Security"},
-                                {"context": "Unit tests"},
-                                {"context": "Compliance"},
-                                {"context": "Build validation"},
-                            ]
-                        },
-                    }
+            _make_ruleset(
+                "iac_dev",
+                [
+                    "Code quality",
+                    "Security",
+                    "Unit tests",
+                    "Compliance",
+                    "Build validation",
                 ],
-            }
+            )
         ]
         repo = _mock_repo_with_rulesets(live)
         with patch("ai_shell.standardize.verify._open_github_repo", return_value=repo):
@@ -218,6 +215,93 @@ class TestVerifyRulesets:
             finding = _verify_rulesets(tmp_path, _det_library())
         assert finding.status == VerifyStatus.FAIL
         assert "404" in finding.message
+
+
+class TestOrgInheritedRulesetFiltering:
+    """Regression for T5-6: org-inherited rulesets must not be reported
+    as drift and must not prevent a PASS verdict on repos whose branch
+    rulesets already match the spec."""
+
+    _CANONICAL_LIBRARY_CONTEXTS = [
+        "Code quality",
+        "Security",
+        "Unit tests",
+        "Compliance",
+        "Build validation",
+    ]
+
+    def test_inherited_org_ruleset_is_not_extra(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("GH_REPO", "x")
+        monkeypatch.setenv("GH_ACCOUNT", "y")
+        monkeypatch.setenv("GH_TOKEN", "z")
+        live = [
+            _make_ruleset("library", self._CANONICAL_LIBRARY_CONTEXTS),
+            _make_ruleset(
+                "Base Repo Rules",
+                [],
+                target="branch",
+                source_type="Organization",
+            ),
+        ]
+        repo = _mock_repo_with_rulesets(live)
+        with patch("ai_shell.standardize.verify._open_github_repo", return_value=repo):
+            finding = _verify_rulesets(tmp_path, _det_library())
+        assert finding.status == VerifyStatus.PASS
+        assert "Base Repo Rules" not in finding.message or "inherited" in finding.message
+
+    def test_inherited_note_appended_to_pass(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("GH_REPO", "x")
+        monkeypatch.setenv("GH_ACCOUNT", "y")
+        monkeypatch.setenv("GH_TOKEN", "z")
+        live = [
+            _make_ruleset("library", self._CANONICAL_LIBRARY_CONTEXTS),
+            _make_ruleset(
+                "Base Repo Rules",
+                [],
+                source_type="Organization",
+            ),
+        ]
+        repo = _mock_repo_with_rulesets(live)
+        with patch("ai_shell.standardize.verify._open_github_repo", return_value=repo):
+            finding = _verify_rulesets(tmp_path, _det_library())
+        assert finding.status == VerifyStatus.PASS
+        assert "inherited from org, ignored: Base Repo Rules" in finding.message
+
+    def test_non_branch_ruleset_is_not_extra(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv("GH_REPO", "x")
+        monkeypatch.setenv("GH_ACCOUNT", "y")
+        monkeypatch.setenv("GH_TOKEN", "z")
+        live = [
+            _make_ruleset("library", self._CANONICAL_LIBRARY_CONTEXTS),
+            _make_ruleset("Push protection", [], target="push"),
+        ]
+        repo = _mock_repo_with_rulesets(live)
+        with patch("ai_shell.standardize.verify._open_github_repo", return_value=repo):
+            finding = _verify_rulesets(tmp_path, _det_library())
+        assert finding.status == VerifyStatus.PASS
+
+    def test_real_branch_extra_still_reported(self, tmp_path: Path, monkeypatch):
+        """If there's a genuine repo-scope branch ruleset we didn't generate,
+        it must still show up as drift. Only inherited/non-branch is filtered."""
+        monkeypatch.setenv("GH_REPO", "x")
+        monkeypatch.setenv("GH_ACCOUNT", "y")
+        monkeypatch.setenv("GH_TOKEN", "z")
+        live = [
+            _make_ruleset("library", self._CANONICAL_LIBRARY_CONTEXTS),
+            # Legacy branch ruleset, repo-scoped, should be flagged
+            _make_ruleset("Publishable library", []),
+            # Org ruleset, should be noted but not flagged
+            _make_ruleset("Base Repo Rules", [], source_type="Organization"),
+        ]
+        repo = _mock_repo_with_rulesets(live)
+        with patch("ai_shell.standardize.verify._open_github_repo", return_value=repo):
+            finding = _verify_rulesets(tmp_path, _det_library())
+        assert finding.status == VerifyStatus.DRIFT
+        assert "Publishable library" in finding.message
+        # Base Repo Rules shows up only in the inherited note, not in extras
+        assert "extra rulesets: Publishable library" in finding.message
+        assert "extra rulesets: Base Repo Rules" not in finding.message
+        assert "inherited from org, ignored: Base Repo Rules" in finding.message
 
 
 class TestVerifyRepoSettings:

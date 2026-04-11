@@ -15,7 +15,6 @@ from rich.console import Console
 
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.standardize.detection import detect as _detect
-from ai_shell.standardize.gates import load_gates
 from ai_shell.standardize.lint import scan
 from ai_shell.standardize.pipeline import PipelineDriftError
 from ai_shell.standardize.pipeline import apply as _pipeline_apply
@@ -101,13 +100,13 @@ def standardize_detect(path: Path, as_json: bool) -> None:
     "action",
     flag_value="write",
     default="write",
-    help="Write the canonical pipeline.yaml (default).",
+    help="Regenerate `_gate-*.yaml` files and scaffold pipeline.yaml on first run.",
 )
 @click.option(
     "--verify",
     "action",
     flag_value="verify",
-    help="Diff the existing pipeline.yaml against the template; non-zero on drift.",
+    help="Check that pipeline.yaml references all canonical gates and gate files match templates.",
 )
 @click.argument(
     "path",
@@ -116,7 +115,13 @@ def standardize_detect(path: Path, as_json: bool) -> None:
     required=False,
 )
 def standardize_pipeline(action: str, path: Path) -> None:
-    """Generate or verify `.github/workflows/pipeline.yaml`."""
+    """Generate or verify the canonical pipeline workflow set.
+
+    The generator always regenerates the `_gate-*.yaml` reusable workflow
+    files (tool-owned) and, on first run only, scaffolds `pipeline.yaml`.
+    Subsequent runs leave `pipeline.yaml` alone but assert that every
+    canonical gate is still referenced via `uses:`.
+    """
     root = path.resolve()
     detection = _detect(root)
     if detection.is_ambiguous():
@@ -129,35 +134,39 @@ def standardize_pipeline(action: str, path: Path) -> None:
         )
         raise click.exceptions.Exit(code=2)
 
+    if action == "verify":
+        # Verify delegates to the same machinery as `standardize repo --verify`
+        # for the pipeline section, including per-gate drift comparison.
+        from ai_shell.standardize.verify import VerifyStatus, _verify_pipeline
+
+        finding = _verify_pipeline(root, detection)
+        color = {
+            VerifyStatus.PASS: "green",
+            VerifyStatus.DRIFT: "yellow",
+            VerifyStatus.FAIL: "red",
+        }[finding.status]
+        console.print(f"[{color}][{finding.status.value}][/{color}] {finding.message}")
+        if not finding.is_clean():
+            raise click.exceptions.Exit(code=1)
+        return
+
     try:
-        result = _pipeline_apply(detection, root, dry_run=(action == "verify"))
+        result = _pipeline_apply(detection, root)
     except PipelineDriftError as exc:
         console.print(f"[red]pipeline drift:[/red] {exc}")
         raise click.exceptions.Exit(code=1) from exc
 
-    if action == "verify":
-        # Diff would-be content against the on-disk file.
-        expected = result.path.read_text(encoding="utf-8") if result.path.is_file() else ""
-        # Re-render to compare, bypassing the dry_run (we need the content).
-        from importlib import resources as _resources
-
-        expected_rendered = (
-            _resources.files("ai_shell.templates")
-            .joinpath("claude", "skills", "ai-standardize-pipeline", result.template)
-            .read_text(encoding="utf-8")
+    for gate_file in result.gate_files:
+        console.print(f"[green]wrote gate[/green] {gate_file}")
+    if result.scaffold_written:
+        console.print(f"[green]scaffolded[/green] {result.pipeline_path}")
+    else:
+        console.print(
+            f"[green]preserved[/green] {result.pipeline_path} (all canonical gates referenced)"
         )
-        if expected != expected_rendered:
-            console.print(f"[red]drift:[/red] {result.path} differs from template")
-            raise click.exceptions.Exit(code=1)
-        console.print(f"[green]verify: clean[/green] ({result.path})")
-        return
-
-    console.print(f"[green]wrote[/green] {result.path} ({result.template})")
     if result.nightly_path and result.nightly_path.is_file():
         console.print(f"[green]wrote[/green] {result.nightly_path}")
-    gates = load_gates()
     console.print(f"expected gates: {', '.join(result.expected_gates)}")
-    _ = gates  # keep loader warm for the CLI run (caches across subcommands)
 
 
 @standardize_group.command("precommit")
