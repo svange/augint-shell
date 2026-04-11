@@ -1,0 +1,8 @@
+gate: Acceptance tests
+language: node
+repo_type: iac
+required_steps:
+  - kind: action
+    matches: actions/checkout
+  - kind: action
+    matches: aws-actions/configure-aws-credentials

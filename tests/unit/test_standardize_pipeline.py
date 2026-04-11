@@ -1,377 +1,529 @@
-"""Tests for ai_shell.standardize.pipeline merge-aware generator (T5-5)."""
+"""Tests for ai_shell.standardize.pipeline read-only validator (T5-7).
+
+T5-7 reverts T5-5's reusable workflow architecture. Pipeline standardization
+is now AI-mediated single-file merge: this Python module is read-only and
+provides the deterministic substrate (drift report + canonical job
+references) that the skill prose drives Claude through.
+"""
 
 from __future__ import annotations
 
+import textwrap
 from pathlib import Path
 
 import pytest
 
-from ai_shell.standardize.detection import Detection, Language, RepoType
-from ai_shell.standardize.gates import load_gates
+from ai_shell.standardize.detection import Language, RepoType
 from ai_shell.standardize.pipeline import (
-    _GATE_SLUG,
-    PipelineDriftError,
-    _gate_filename,
-    _referenced_gate_names,
-    _validate_existing_pipeline,
-    apply,
+    LEGACY_NAME_MAP,
+    LEGACY_PREFIX_PATTERNS,
+    DriftReport,
+    JobSpec,
+    StepMatcher,
+    _check_spec,
+    _guess_legacy_gate,
+    _step_matches,
+    canonical_jobs,
+    validate,
 )
 
+# ── Fixtures ────────────────────────────────────────────────────────────
 
-def _det(lang: Language, typ: RepoType) -> Detection:
-    return Detection(
-        language=lang,
-        repo_type=typ,
-        language_evidence=("pyproject.toml" if lang == Language.PYTHON else "package.json",),
-        repo_type_evidence=("samconfig.toml",) if typ == RepoType.IAC else (),
+
+def _write_python_library(tmp_path: Path) -> None:
+    """Make tmp_path look like a python library to detection."""
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "x"\nversion = "0.0.0"\n', encoding="utf-8"
     )
 
 
-# ── First-run (scaffold) behavior ───────────────────────────────────────
-
-
-class TestFirstRun:
-    @pytest.mark.parametrize(
-        ("lang", "typ"),
-        [
-            (Language.PYTHON, RepoType.LIBRARY),
-            (Language.PYTHON, RepoType.IAC),
-            (Language.NODE, RepoType.LIBRARY),
-            (Language.NODE, RepoType.IAC),
-        ],
+def _write_python_iac(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "x"\nversion = "0.0.0"\n', encoding="utf-8"
     )
-    def test_scaffolds_pipeline_yaml(self, tmp_path: Path, lang: Language, typ: RepoType):
-        result = apply(_det(lang, typ), tmp_path)
-        assert result.scaffold_written is True
-        assert result.pipeline_path.is_file()
-        content = result.pipeline_path.read_text(encoding="utf-8")
-        assert "name: CI/CD Pipeline" in content
-
-    @pytest.mark.parametrize(
-        ("lang", "typ"),
-        [
-            (Language.PYTHON, RepoType.LIBRARY),
-            (Language.NODE, RepoType.LIBRARY),
-        ],
-    )
-    def test_library_scaffold_references_5_gates(
-        self, tmp_path: Path, lang: Language, typ: RepoType
-    ):
-        result = apply(_det(lang, typ), tmp_path)
-        content = result.pipeline_path.read_text(encoding="utf-8")
-        gates = load_gates()
-        for gate in gates.pre_merge:
-            slug = _GATE_SLUG[gate]
-            assert f"uses: ./.github/workflows/_gate-{slug}.yaml" in content
-        # Library must NOT reference acceptance-tests
-        assert "_gate-acceptance-tests.yaml" not in content
-
-    @pytest.mark.parametrize(
-        ("lang", "typ"),
-        [
-            (Language.PYTHON, RepoType.IAC),
-            (Language.NODE, RepoType.IAC),
-        ],
-    )
-    def test_iac_scaffold_references_all_6_gates(
-        self, tmp_path: Path, lang: Language, typ: RepoType
-    ):
-        result = apply(_det(lang, typ), tmp_path)
-        content = result.pipeline_path.read_text(encoding="utf-8")
-        gates = load_gates()
-        for gate in gates.all_names():
-            slug = _GATE_SLUG[gate]
-            assert f"uses: ./.github/workflows/_gate-{slug}.yaml" in content
+    (tmp_path / "samconfig.toml").write_text("", encoding="utf-8")
 
 
-class TestGateFilesAlwaysRegenerated:
-    @pytest.mark.parametrize(
-        ("lang", "typ", "expected_count"),
-        [
-            (Language.PYTHON, RepoType.LIBRARY, 5),
-            (Language.PYTHON, RepoType.IAC, 6),
-            (Language.NODE, RepoType.LIBRARY, 5),
-            (Language.NODE, RepoType.IAC, 6),
-        ],
-    )
-    def test_gate_files_written(
-        self,
-        tmp_path: Path,
-        lang: Language,
-        typ: RepoType,
-        expected_count: int,
-    ):
-        result = apply(_det(lang, typ), tmp_path)
-        assert len(result.gate_files) == expected_count
-        for gate_file in result.gate_files:
-            assert gate_file.is_file()
-            content = gate_file.read_text(encoding="utf-8")
-            assert "on:" in content
-            assert "workflow_call:" in content
+def _write_pipeline(tmp_path: Path, content: str) -> Path:
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    pipeline = workflows / "pipeline.yaml"
+    pipeline.write_text(textwrap.dedent(content), encoding="utf-8")
+    return pipeline
 
-    def test_gate_file_names_match_canonical_slugs(self, tmp_path: Path):
-        result = apply(_det(Language.PYTHON, RepoType.IAC), tmp_path)
-        names = {gf.name for gf in result.gate_files}
-        expected = {
-            "_gate-code-quality.yaml",
-            "_gate-security.yaml",
-            "_gate-unit-tests.yaml",
-            "_gate-compliance.yaml",
-            "_gate-build-validation.yaml",
-            "_gate-acceptance-tests.yaml",
+
+# ── canonical_jobs() ────────────────────────────────────────────────────
+
+
+class TestCanonicalJobs:
+    def test_python_library_returns_5_gates(self):
+        refs = canonical_jobs(Language.PYTHON, RepoType.LIBRARY)
+        assert set(refs.keys()) == {
+            "Code quality",
+            "Security",
+            "Unit tests",
+            "Compliance",
+            "Build validation",
         }
-        assert names == expected
 
-    def test_python_iac_build_validation_has_sam_logic(self, tmp_path: Path):
-        """iac build-validation uses a different template from library."""
-        apply(_det(Language.PYTHON, RepoType.IAC), tmp_path)
-        bv = tmp_path / ".github" / "workflows" / "_gate-build-validation.yaml"
-        content = bv.read_text(encoding="utf-8")
-        assert "sam build" in content
-        assert "cdk synth" in content
-        assert "terraform" in content.lower()
+    def test_python_iac_returns_6_gates(self):
+        refs = canonical_jobs(Language.PYTHON, RepoType.IAC)
+        assert "Acceptance tests" in refs
+        assert len(refs) == 6
 
-    def test_python_library_build_validation_is_uv_build(self, tmp_path: Path):
-        apply(_det(Language.PYTHON, RepoType.LIBRARY), tmp_path)
-        bv = tmp_path / ".github" / "workflows" / "_gate-build-validation.yaml"
-        content = bv.read_text(encoding="utf-8")
-        assert "uv build" in content
-        assert "sam build" not in content
+    def test_node_library_returns_5_gates(self):
+        refs = canonical_jobs(Language.NODE, RepoType.LIBRARY)
+        assert "Acceptance tests" not in refs
+        assert len(refs) == 5
 
+    def test_node_iac_returns_6_gates(self):
+        refs = canonical_jobs(Language.NODE, RepoType.IAC)
+        assert "Acceptance tests" in refs
+        assert len(refs) == 6
 
-# ── Subsequent-run (preserve) behavior ──────────────────────────────────
+    def test_jobreference_template_text_loads(self):
+        refs = canonical_jobs(Language.PYTHON, RepoType.IAC)
+        ref = refs["Unit tests"]
+        text = ref.template_text()
+        # Inline job, NOT a reusable workflow
+        assert "unit-tests:" in text
+        assert "name: Unit tests" in text
+        assert "workflow_call" not in text
 
-
-class TestSecondRunPreservesPipeline:
-    def test_pipeline_yaml_preserved_verbatim(self, tmp_path: Path):
-        """User's pipeline.yaml must not be mutated on a second run."""
-        # First run: scaffold
-        apply(_det(Language.PYTHON, RepoType.LIBRARY), tmp_path)
-        pipeline_path = tmp_path / ".github" / "workflows" / "pipeline.yaml"
-        original = pipeline_path.read_text(encoding="utf-8")
-
-        # User adds a custom job that wires between build-validation and their own suite
-        customized = original.replace(
-            "  release:",
-            "  deploy-test-stack:\n"
-            "    name: Deploy test stack\n"
-            "    needs: [build-validation]\n"
-            "    runs-on: ubuntu-latest\n"
-            "    steps:\n"
-            "      - run: echo custom\n"
-            "\n"
-            "  release:",
-            1,
+    def test_jobreference_spec_loaded(self):
+        refs = canonical_jobs(Language.PYTHON, RepoType.IAC)
+        ref = refs["Unit tests"]
+        assert ref.spec.gate == "Unit tests"
+        assert ref.spec.language == Language.PYTHON
+        assert ref.spec.repo_type == RepoType.IAC
+        assert any(
+            m.kind == "action" and m.matches == "actions/checkout" for m in ref.spec.required_steps
         )
-        pipeline_path.write_text(customized, encoding="utf-8")
-
-        # Second run
-        result = apply(_det(Language.PYTHON, RepoType.LIBRARY), tmp_path)
-        assert result.scaffold_written is False
-        # The custom block must still be present after the run
-        after = pipeline_path.read_text(encoding="utf-8")
-        assert "deploy-test-stack" in after
-        assert "Deploy test stack" in after
-        assert after == customized
-
-    def test_second_run_refreshes_gate_files(self, tmp_path: Path):
-        """Gate files are tool-owned; user edits to them are overwritten."""
-        apply(_det(Language.PYTHON, RepoType.LIBRARY), tmp_path)
-        code_quality = tmp_path / ".github" / "workflows" / "_gate-code-quality.yaml"
-        code_quality.write_text("# user tampered\n", encoding="utf-8")
-
-        apply(_det(Language.PYTHON, RepoType.LIBRARY), tmp_path)
-        restored = code_quality.read_text(encoding="utf-8")
-        assert "name: Code quality" in restored
-        assert "# user tampered" not in restored
-
-    def test_custom_job_can_reference_acceptance_tests(self, tmp_path: Path):
-        """ai-lls-lib-like scenario: user wires custom post-deploy work then
-        the canonical Acceptance tests gate on an iac repo."""
-        apply(_det(Language.PYTHON, RepoType.IAC), tmp_path)
-        pipeline_path = tmp_path / ".github" / "workflows" / "pipeline.yaml"
-        original = pipeline_path.read_text(encoding="utf-8")
-
-        # Rewrite acceptance-tests to depend on a new custom job
-        customized = original.replace(
-            "  acceptance-tests:\n"
-            "    name: Acceptance tests\n"
-            "    needs: [code-quality, security, unit-tests, compliance, build-validation]\n",
-            "  integration-tests:\n"
-            "    name: Integration tests\n"
-            "    needs: [build-validation]\n"
-            "    runs-on: ubuntu-latest\n"
-            "    steps:\n"
-            "      - run: echo integration\n"
-            "\n"
-            "  acceptance-tests:\n"
-            "    name: Acceptance tests\n"
-            "    needs: [integration-tests]\n",
-        )
-        pipeline_path.write_text(customized, encoding="utf-8")
-
-        # Second run — acceptance-tests still references a canonical
-        # `uses:`, so the validator must accept it.
-        result = apply(_det(Language.PYTHON, RepoType.IAC), tmp_path)
-        assert result.scaffold_written is False
 
 
-class TestSecondRunValidation:
-    def test_raises_when_canonical_gate_removed(self, tmp_path: Path):
-        apply(_det(Language.PYTHON, RepoType.LIBRARY), tmp_path)
-        pipeline_path = tmp_path / ".github" / "workflows" / "pipeline.yaml"
-        content = pipeline_path.read_text(encoding="utf-8")
-        # Remove the build-validation job
-        stripped = content.replace(
-            "  build-validation:\n"
-            "    name: Build validation\n"
-            "    needs: [code-quality]\n"
-            "    uses: ./.github/workflows/_gate-build-validation.yaml\n"
-            "    secrets: inherit\n\n",
-            "",
-        )
-        pipeline_path.write_text(stripped, encoding="utf-8")
-        with pytest.raises(PipelineDriftError) as exc:
-            apply(_det(Language.PYTHON, RepoType.LIBRARY), tmp_path)
-        assert "Build validation" in str(exc.value)
-
-    def test_error_message_is_actionable(self, tmp_path: Path):
-        apply(_det(Language.PYTHON, RepoType.LIBRARY), tmp_path)
-        pipeline_path = tmp_path / ".github" / "workflows" / "pipeline.yaml"
-        pipeline_path.write_text("name: x\njobs: {}\n", encoding="utf-8")
-        with pytest.raises(PipelineDriftError) as exc:
-            apply(_det(Language.PYTHON, RepoType.LIBRARY), tmp_path)
-        msg = str(exc.value)
-        # All 5 canonical gates should be listed as missing
-        assert "Code quality" in msg
-        assert "Security" in msg
-        # And the error should give a copyable job block hint
-        assert "uses: ./.github/workflows/_gate-" in msg
+# ── validate() — empty / missing pipeline ──────────────────────────────
 
 
-# ── Nightly promotion ──────────────────────────────────────────────────
+class TestValidateEmpty:
+    def test_missing_pipeline_returns_not_present(self, tmp_path: Path):
+        _write_python_library(tmp_path)
+        report = validate(tmp_path)
+        assert report.pipeline_present is False
+        assert not report.is_clean()
+
+    def test_invalid_yaml_returns_present_but_not_clean(self, tmp_path: Path):
+        _write_python_library(tmp_path)
+        _write_pipeline(tmp_path, ":\n  - bad\n  not: real yaml: ::: ")
+        report = validate(tmp_path)
+        assert report.pipeline_present is True
 
 
-class TestNightlyPromotion:
-    @pytest.mark.parametrize(
-        ("lang", "typ"),
-        [
-            (Language.PYTHON, RepoType.IAC),
-            (Language.NODE, RepoType.IAC),
-        ],
-    )
-    def test_iac_writes_nightly(self, tmp_path: Path, lang: Language, typ: RepoType):
-        result = apply(_det(lang, typ), tmp_path)
-        assert result.nightly_path is not None
-        assert result.nightly_path.is_file()
-        content = result.nightly_path.read_text(encoding="utf-8")
-        assert "cron: '0 7 * * *'" in content
-        assert "workflow_dispatch" in content
-        assert "--merge" in content
-        assert "--squash" not in content
-
-    @pytest.mark.parametrize(
-        ("lang", "typ"),
-        [
-            (Language.PYTHON, RepoType.LIBRARY),
-            (Language.NODE, RepoType.LIBRARY),
-        ],
-    )
-    def test_library_does_not_write_nightly(self, tmp_path: Path, lang: Language, typ: RepoType):
-        result = apply(_det(lang, typ), tmp_path)
-        assert result.nightly_path is None
-        nightly = tmp_path / ".github" / "workflows" / "promote-dev-to-main.nightly.yml"
-        assert not nightly.exists()
+# ── validate() — canonical pipeline ────────────────────────────────────
 
 
-# ── Reference parser ───────────────────────────────────────────────────
+_CANONICAL_LIBRARY_PIPELINE = """\
+name: CI/CD Pipeline
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+jobs:
+  code-quality:
+    name: Code quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.12'
+      - name: Install UV
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57
+      - name: Install
+        run: uv sync --frozen --all-extras
+      - name: Pre-commit
+        run: uv run pre-commit run --all-files
+  security:
+    name: Security
+    needs: [code-quality]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57
+      - run: uv run bandit -r src/
+      - run: uv run pip-audit
+      - uses: semgrep/semgrep-action@v1
+  unit-tests:
+    name: Unit tests
+    needs: [code-quality]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57
+      - run: uv sync --frozen --all-extras
+      - run: |
+          uv run pytest \\
+            --cov=src --cov-fail-under=80
+      - uses: actions/upload-artifact@v7
+  compliance:
+    name: Compliance
+    needs: [code-quality]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57
+      - run: uv run pip-licenses --from=mixed --fail-on 'GPL;AGPL;LGPL' --summary
+  build-validation:
+    name: Build validation
+    needs: [code-quality]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+      - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57
+      - run: uv build
+"""
 
 
-class TestReferencedGateNames:
-    def test_extracts_canonical_references(self):
-        data = {
-            "jobs": {
-                "cq": {"uses": "./.github/workflows/_gate-code-quality.yaml"},
-                "sec": {"uses": "./.github/workflows/_gate-security.yaml"},
-                "custom": {"runs-on": "ubuntu-latest", "steps": []},
-            }
+class TestValidateCanonical:
+    def test_clean_canonical_pipeline_passes(self, tmp_path: Path):
+        _write_python_library(tmp_path)
+        _write_pipeline(tmp_path, _CANONICAL_LIBRARY_PIPELINE)
+        report = validate(tmp_path)
+        assert report.pipeline_present is True
+        assert set(report.present) == {
+            "Code quality",
+            "Security",
+            "Unit tests",
+            "Compliance",
+            "Build validation",
         }
-        names = _referenced_gate_names(data)
-        assert names == {"Code quality", "Security"}
+        assert report.missing == ()
+        assert report.legacy_candidates == ()
+        assert report.spec_failures == ()
+        assert report.is_clean() is True
 
-    def test_ignores_non_canonical_uses(self):
-        data = {
-            "jobs": {
-                "other": {"uses": "./.github/workflows/something-else.yaml"},
-                "external": {"uses": "org/repo/.github/workflows/x.yaml@main"},
-            }
-        }
-        assert _referenced_gate_names(data) == set()
-
-
-# ── Validator unit tests ───────────────────────────────────────────────
-
-
-class TestValidateExistingPipeline:
-    def test_accepts_all_gates_referenced(self, tmp_path: Path):
-        text = (
-            "name: p\njobs:\n"
-            "  cq:\n    uses: ./.github/workflows/_gate-code-quality.yaml\n"
-            "  sec:\n    uses: ./.github/workflows/_gate-security.yaml\n"
-            "  ut:\n    uses: ./.github/workflows/_gate-unit-tests.yaml\n"
-            "  comp:\n    uses: ./.github/workflows/_gate-compliance.yaml\n"
-            "  bv:\n    uses: ./.github/workflows/_gate-build-validation.yaml\n"
+    def test_canonical_with_extra_step_still_clean(self, tmp_path: Path):
+        """User can add `Set up test database` etc. anywhere; spec only
+        requires the canonical steps in declared order."""
+        _write_python_library(tmp_path)
+        with_extras = _CANONICAL_LIBRARY_PIPELINE.replace(
+            "      - run: uv sync --frozen --all-extras\n      - run: |",
+            "      - run: uv sync --frozen --all-extras\n"
+            "      - name: Set up test database\n        run: ./scripts/db-up.sh\n"
+            "      - run: |",
         )
-        # Library expected gates
-        _validate_existing_pipeline(
-            text,
-            (
-                "Code quality",
-                "Security",
-                "Unit tests",
-                "Compliance",
-                "Build validation",
-            ),
-            tmp_path / "pipeline.yaml",
+        _write_pipeline(tmp_path, with_extras)
+        report = validate(tmp_path)
+        assert report.is_clean() is True
+
+
+# ── validate() — legacy named pipeline ─────────────────────────────────
+
+
+class TestValidateLegacy:
+    def test_pre_commit_checks_is_legacy_for_code_quality(self, tmp_path: Path):
+        _write_python_library(tmp_path)
+        _write_pipeline(
+            tmp_path,
+            """\
+            name: x
+            on: { push: { branches: [main] } }
+            jobs:
+              pre-commit:
+                name: Pre-commit checks
+                runs-on: ubuntu-latest
+                steps:
+                  - run: echo
+            """,
         )
+        report = validate(tmp_path)
+        assert ("pre-commit", "Pre-commit checks", "Code quality") in report.legacy_candidates
+        assert "Code quality" in report.missing
 
-    def test_raises_on_invalid_yaml(self, tmp_path: Path):
-        with pytest.raises(PipelineDriftError):
-            _validate_existing_pipeline(
-                ":\n  - bad\nthis is: not, valid: yaml",
-                ("Code quality",),
-                tmp_path / "pipeline.yaml",
-            )
-
-    def test_raises_on_non_mapping_top_level(self, tmp_path: Path):
-        with pytest.raises(PipelineDriftError):
-            _validate_existing_pipeline(
-                "- item1\n- item2\n",
-                ("Code quality",),
-                tmp_path / "pipeline.yaml",
-            )
-
-
-# ── Ambiguous language ─────────────────────────────────────────────────
+    def test_security_scanning_is_legacy_for_security(self, tmp_path: Path):
+        _write_python_library(tmp_path)
+        _write_pipeline(
+            tmp_path,
+            """\
+            name: x
+            on: { push: { branches: [main] } }
+            jobs:
+              sec:
+                name: Security scanning
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+            """,
+        )
+        report = validate(tmp_path)
+        assert any(g == "Security" for _i, _n, g in report.legacy_candidates)
 
 
-class TestRaisesOnAmbiguous:
-    def test_ambiguous_language_raises(self, tmp_path: Path):
-        det = Detection(
-            language=Language.AMBIGUOUS,
+# ── validate() — parallel post-deploy pattern ──────────────────────────
+
+
+class TestParallelPostDeploy:
+    def test_multiple_e2e_jobs_all_map_to_acceptance_tests(self, tmp_path: Path):
+        _write_python_iac(tmp_path)
+        _write_pipeline(
+            tmp_path,
+            """\
+            name: x
+            on: { push: { branches: [main, dev] } }
+            jobs:
+              e2e-smoke:
+                name: E2E Smoke Tests
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+              e2e-payment:
+                name: E2E Payment Tests
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+              e2e-admin:
+                name: E2E Admin Tests
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+            """,
+        )
+        report = validate(tmp_path)
+        guesses = [g for _i, _n, g in report.legacy_candidates]
+        assert guesses.count("Acceptance tests") == 3
+        assert "Acceptance tests" in report.missing
+
+    def test_integration_and_smoke_both_map_to_acceptance(self, tmp_path: Path):
+        _write_python_iac(tmp_path)
+        _write_pipeline(
+            tmp_path,
+            """\
+            name: x
+            on: { push: { branches: [main, dev] } }
+            jobs:
+              int:
+                name: Integration tests
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+              smoke:
+                name: Smoke tests
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+            """,
+        )
+        report = validate(tmp_path)
+        names = [name for _i, name, _g in report.legacy_candidates]
+        assert "Integration tests" in names
+        assert "Smoke tests" in names
+
+
+# ── validate() — custom jobs ───────────────────────────────────────────
+
+
+class TestCustomJobs:
+    def test_custom_job_listed_for_preservation(self, tmp_path: Path):
+        _write_python_library(tmp_path)
+        _write_pipeline(
+            tmp_path,
+            """\
+            name: x
+            on: { push: { branches: [main] } }
+            jobs:
+              deploy-test-stack:
+                name: Deploy test stack
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+              release:
+                name: Semantic release
+                needs: [code-quality]
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+            """,
+        )
+        report = validate(tmp_path)
+        assert "deploy-test-stack" in report.custom_jobs
+        assert "release" in report.custom_jobs
+
+
+# ── Spec matching unit tests ───────────────────────────────────────────
+
+
+class TestStepMatches:
+    def test_action_substring_match(self):
+        step = {"uses": "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"}
+        m = StepMatcher(kind="action", matches="actions/checkout")
+        assert _step_matches(step, m)
+
+    def test_action_no_match(self):
+        step = {"uses": "actions/setup-node@v4"}
+        m = StepMatcher(kind="action", matches="actions/checkout")
+        assert not _step_matches(step, m)
+
+    def test_run_regex_match(self):
+        step = {"run": "uv run pytest --cov=src --cov-fail-under=80"}
+        m = StepMatcher(kind="run", matches_regex=r"uv run pytest .*--cov-fail-under=80")
+        assert _step_matches(step, m)
+
+    def test_run_regex_spans_continuation_lines(self):
+        """Multi-line run blocks like ``uv run pytest \\\\\\n --cov...`` must match."""
+        step = {"run": "uv run pytest \\\n  --cov=src --cov-fail-under=80\n"}
+        m = StepMatcher(kind="run", matches_regex=r"uv run pytest .*--cov-fail-under=80")
+        assert _step_matches(step, m)
+
+
+class TestCheckSpec:
+    @pytest.fixture
+    def py_unit_spec(self) -> JobSpec:
+        return JobSpec(
+            gate="Unit tests",
+            language=Language.PYTHON,
             repo_type=RepoType.LIBRARY,
-            language_evidence=("pyproject.toml", "package.json"),
-            repo_type_evidence=(),
+            required_steps=(
+                StepMatcher(kind="action", matches="actions/checkout"),
+                StepMatcher(kind="action", matches="actions/setup-python"),
+                StepMatcher(kind="run", matches_regex=r"uv run pytest .*--cov-fail-under=80"),
+            ),
         )
-        with pytest.raises(ValueError):
-            apply(det, tmp_path)
+
+    def test_minimum_spec_satisfied(self, py_unit_spec: JobSpec):
+        job = {
+            "steps": [
+                {"uses": "actions/checkout@v6"},
+                {"uses": "actions/setup-python@v6"},
+                {"run": "uv run pytest --cov-fail-under=80"},
+            ]
+        }
+        assert _check_spec(job, py_unit_spec) is None
+
+    def test_extras_allowed_anywhere(self, py_unit_spec: JobSpec):
+        job = {
+            "steps": [
+                {"uses": "actions/checkout@v6"},
+                {"name": "Set up test DB", "run": "./db-up.sh"},
+                {"uses": "actions/setup-python@v6"},
+                {"name": "Slack notify", "run": "curl ..."},
+                {"run": "uv run pytest --cov-fail-under=80"},
+            ]
+        }
+        assert _check_spec(job, py_unit_spec) is None
+
+    def test_missing_required_step(self, py_unit_spec: JobSpec):
+        job = {
+            "steps": [
+                {"uses": "actions/checkout@v6"},
+                {"uses": "actions/setup-python@v6"},
+                # missing pytest run
+            ]
+        }
+        result = _check_spec(job, py_unit_spec)
+        assert result is not None
+        assert "pytest" in result
+
+    def test_out_of_order_required_steps_fail(self, py_unit_spec: JobSpec):
+        job = {
+            "steps": [
+                {"uses": "actions/setup-python@v6"},
+                {"uses": "actions/checkout@v6"},  # after setup-python
+                {"run": "uv run pytest --cov-fail-under=80"},
+            ]
+        }
+        result = _check_spec(job, py_unit_spec)
+        assert result is not None  # checkout missing in declared order
 
 
-# ── Helpers ────────────────────────────────────────────────────────────
+# ── Legacy name guesser ────────────────────────────────────────────────
 
 
-class TestGateFilename:
-    def test_canonical_slug_mapping(self):
-        assert _gate_filename("Code quality") == "_gate-code-quality.yaml"
-        assert _gate_filename("Build validation") == "_gate-build-validation.yaml"
-        assert _gate_filename("Acceptance tests") == "_gate-acceptance-tests.yaml"
+class TestGuessLegacyGate:
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("Pre-commit checks", "Code quality"),
+            ("Quality checks", "Code quality"),
+            ("Security scanning", "Security"),
+            ("SAST scanning", "Security"),
+            ("License compliance", "Compliance"),
+            ("Validate SAM template", "Build validation"),
+            ("Integration tests", "Acceptance tests"),
+            ("Smoke tests", "Acceptance tests"),
+            ("E2E Smoke Tests", "Acceptance tests"),
+            ("E2E Payment Tests", "Acceptance tests"),
+        ],
+    )
+    def test_known_legacy_names(self, name: str, expected: str):
+        assert _guess_legacy_gate(name) == expected
+
+    def test_unknown_name_returns_none(self):
+        assert _guess_legacy_gate("My weird custom job") is None
+
+    def test_canonical_name_returns_none(self):
+        assert _guess_legacy_gate("Code quality") is None
+
+
+class TestLegacyMaps:
+    def test_legacy_name_map_has_eight_or_more_entries(self):
+        assert len(LEGACY_NAME_MAP) >= 8
+
+    def test_legacy_prefix_patterns_cover_e2e_and_smoke(self):
+        prefixes = [p for p, _g in LEGACY_PREFIX_PATTERNS]
+        assert any("e2e" in p for p in prefixes)
+        assert any("smoke" in p for p in prefixes)
+        assert any("integration" in p for p in prefixes)
+
+
+# ── DriftReport ────────────────────────────────────────────────────────
+
+
+class TestDriftReport:
+    def test_to_dict_round_trips(self, tmp_path: Path):
+        report = DriftReport(
+            pipeline_path=tmp_path / "pipeline.yaml",
+            pipeline_present=True,
+            present=("Code quality",),
+            missing=("Security",),
+            legacy_candidates=(("sec", "Security scanning", "Security"),),
+            custom_jobs=("release",),
+        )
+        d = report.to_dict()
+        assert d["present"] == ["Code quality"]
+        assert d["missing"] == ["Security"]
+        assert d["legacy_candidates"] == [
+            {"job_id": "sec", "current_name": "Security scanning", "gate_guess": "Security"}
+        ]
+        assert d["custom_jobs"] == ["release"]
+        assert d["is_clean"] is False
+
+    def test_is_clean_requires_no_drift(self, tmp_path: Path):
+        clean = DriftReport(
+            pipeline_path=tmp_path / "pipeline.yaml",
+            pipeline_present=True,
+            present=("Code quality", "Security"),
+        )
+        assert clean.is_clean()
+
+    def test_missing_means_not_clean(self, tmp_path: Path):
+        report = DriftReport(
+            pipeline_path=tmp_path / "pipeline.yaml",
+            pipeline_present=True,
+            missing=("Security",),
+        )
+        assert not report.is_clean()
+
+
+# ── Removed-API regression ────────────────────────────────────────────
+
+
+class TestRemovedApi:
+    """Regression: T5-7 removed the write-side API. Imports must fail."""
+
+    def test_apply_is_gone(self):
+        from ai_shell.standardize import pipeline as p
+
+        assert not hasattr(p, "apply")
+        assert not hasattr(p, "PipelineDriftError")
+        assert not hasattr(p, "_validate_existing_pipeline")
+        assert not hasattr(p, "_referenced_gate_names")
+        assert not hasattr(p, "_GATE_SLUG")
+        assert not hasattr(p, "_gate_filename")

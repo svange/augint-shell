@@ -1,0 +1,41 @@
+acceptance-tests:
+  name: Acceptance tests
+  runs-on: ubuntu-latest
+  if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+  permissions:
+    contents: read
+    id-token: write
+  steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+    - name: Set up Python
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+      with:
+        python-version: ${{ vars.PYTHON_VERSION || '3.12' }}
+    - name: Install UV
+      uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+    - name: Install dependencies
+      run: uv sync --frozen --all-extras
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502  # v4
+      with:
+        role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_STAGING }}
+        aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+    - name: Deploy to staging
+      run: |
+        if [ -f samconfig.toml ]; then
+          sam deploy --config-env staging --no-confirm-changeset --no-fail-on-empty-changeset
+        elif [ -f cdk.json ]; then
+          uv run cdk deploy --all --require-approval never
+        fi
+    - name: Run acceptance tests
+      run: uv run pytest tests/acceptance -v --html=acceptance-report.html --self-contained-html
+    - name: Upload acceptance report
+      if: always()
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+      with:
+        name: acceptance-report
+        path: acceptance-report.html

@@ -29,9 +29,20 @@ _SCAN_SUFFIXES: frozenset[str] = frozenset({".md", ".yaml", ".yml", ".toml", ".j
 _ALLOWED_SUBSTRINGS: tuple[str, ...] = (
     # Files that define / document the stale vocabulary as context
     "AI_SHELL_ISSUES.md",
+    "AI_SHELL_ROUND_2_ISSUES.md",
+    "AI_SHELL_ROUND_3_ISSUES.md",
+    "AI_SHELL_ROUND_4_ISSUES.md",
     "src/ai_shell/standardize/gates.py",
     "src/ai_shell/standardize/lint.py",
+    "src/ai_shell/standardize/pipeline.py",
     "CHANGELOG.md",
+    # The pipeline standardize skill MUST document the legacy-to-canonical
+    # rename mapping in its prose; that's its whole job. Same for the
+    # umbrella SKILL.md which references the pipeline skill's behavior.
+    "templates/claude/skills/ai-standardize-pipeline/SKILL.md",
+    "templates/agents/skills/ai-standardize-pipeline/SKILL.md",
+    "templates/claude/skills/ai-standardize-repo/SKILL.md",
+    "templates/agents/skills/ai-standardize-repo/SKILL.md",
     # External spec docs (not owned by the standardization system)
     "ai-tools.md",
     # Nested workspaces (linted by their own repo's tooling)

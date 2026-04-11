@@ -1,0 +1,12 @@
+gate: Compliance
+language: python
+repo_type: library
+required_steps:
+  - kind: action
+    matches: actions/checkout
+  - kind: action
+    matches: actions/setup-python
+  - kind: action
+    matches: astral-sh/setup-uv
+  - kind: run
+    matches_regex: 'pip-licenses .*--fail-on .*GPL'

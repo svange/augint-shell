@@ -20,15 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from ai_shell.standardize.detection import Detection, RepoType, detect
-from ai_shell.standardize.gates import load_gates
-from ai_shell.standardize.pipeline import (
-    PipelineDriftError,
-    _expected_gates_for,
-    _gate_filename,
-    _gate_template_name,
-    _load_template,
-    _validate_existing_pipeline,
-)
+from ai_shell.standardize.pipeline import validate as _pipeline_validate
 
 # Canonical repo settings per the one-page contract. These match what
 # ``ai-gh config --standardize`` writes (see augint-github 1.9.2's
@@ -82,69 +74,47 @@ def _diff(a: str, b: str, label_a: str, label_b: str) -> str:
     )
 
 
-def _verify_pipeline(root: Path, detection: Detection) -> VerifyFinding:
-    """Verify pipeline.yaml references canonical gates and gate files match templates.
+def _verify_pipeline(root: Path, _detection: Detection) -> VerifyFinding:
+    """Delegate to pipeline.validate() and translate the drift report.
 
-    This mirrors the two halves of `pipeline.apply()` contract:
-
-    1. For every expected gate, the ``_gate-<slug>.yaml`` file on disk must
-       match the corresponding template byte-for-byte.
-    2. The user-owned ``pipeline.yaml`` must exist and must reference every
-       canonical gate via ``uses: ./.github/workflows/_gate-<slug>.yaml``.
+    Pipeline standardization is AI-mediated under T5-7. The verify check
+    is a thin wrapper that asks the read-only validator and reports its
+    findings as a single line per category. The umbrella's `--verify`
+    sub-command calls this; the user's repair flow lives in the
+    ``/ai-standardize-pipeline`` skill prose.
     """
-    workflows_dir = root / ".github" / "workflows"
-    pipeline_path = workflows_dir / "pipeline.yaml"
-    gates = load_gates()
-    expected_gates = _expected_gates_for(detection, gates)
+    report = _pipeline_validate(root)
 
-    # Part 1: per-gate file drift
-    drifts: list[str] = []
-    missing_gate_files: list[str] = []
-    for gate_name in expected_gates:
-        gate_path = workflows_dir / _gate_filename(gate_name)
-        expected_content = _load_template(
-            _gate_template_name(detection.language, detection.repo_type, gate_name)
-        )
-        if not gate_path.is_file():
-            missing_gate_files.append(gate_path.name)
-            continue
-        actual = _read_or_empty(gate_path)
-        if actual != expected_content:
-            drifts.append(gate_path.name)
-
-    # Part 2: pipeline.yaml presence + canonical references
-    if not pipeline_path.is_file():
+    if not report.pipeline_present:
         return VerifyFinding(
             section="pipeline",
             status=VerifyStatus.FAIL,
-            message=f"{pipeline_path} missing (run `ai-shell standardize pipeline` to scaffold)",
-        )
-    pipeline_text = pipeline_path.read_text(encoding="utf-8")
-    try:
-        _validate_existing_pipeline(pipeline_text, expected_gates, pipeline_path)
-    except PipelineDriftError as exc:
-        return VerifyFinding(
-            section="pipeline",
-            status=VerifyStatus.FAIL,
-            message=str(exc).splitlines()[0],
+            message=(
+                f"{report.pipeline_path} missing -- "
+                "run `/ai-standardize-pipeline` to scaffold and merge"
+            ),
         )
 
-    if missing_gate_files:
+    if report.is_clean():
         return VerifyFinding(
             section="pipeline",
-            status=VerifyStatus.FAIL,
-            message="missing canonical gate file(s): " + ", ".join(missing_gate_files),
+            status=VerifyStatus.PASS,
+            message=f"{len(report.present)} canonical gate(s) present, all spec checks pass",
         )
-    if drifts:
-        return VerifyFinding(
-            section="pipeline",
-            status=VerifyStatus.DRIFT,
-            message="canonical gate file(s) differ from template: " + ", ".join(drifts),
-        )
+
+    parts: list[str] = []
+    if report.missing:
+        parts.append("missing: " + ", ".join(report.missing))
+    if report.legacy_candidates:
+        legacy_str = ", ".join(f"{name}->{guess}" for _id, name, guess in report.legacy_candidates)
+        parts.append(f"legacy: {legacy_str}")
+    if report.spec_failures:
+        spec_str = "; ".join(f"{g}: {r}" for g, r in report.spec_failures)
+        parts.append(f"spec: {spec_str}")
     return VerifyFinding(
         section="pipeline",
-        status=VerifyStatus.PASS,
-        message=f"{len(expected_gates)} canonical gates wired, files match templates",
+        status=VerifyStatus.DRIFT,
+        message="; ".join(parts) or "pipeline drift",
     )
 
 

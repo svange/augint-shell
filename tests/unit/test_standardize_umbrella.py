@@ -48,16 +48,32 @@ class TestRunAllPythonLibrary:
             "release",
         ]
 
-    def test_pipeline_yaml_written_on_disk(self, tmp_path: Path):
+    def test_python_content_files_written_on_disk(self, tmp_path: Path):
+        """Renovate + pre-commit are still Python-written; pipeline is now
+        AI-mediated (T5-7) and the umbrella only emits a SKIPPED hint."""
         _make_python_library(tmp_path)
         with patch("ai_shell.standardize.umbrella._run_gh") as mock_gh:
             mock_gh.return_value = (0, "", "")
             with patch("ai_shell.standardize.umbrella.verify.run") as mock_v:
                 mock_v.return_value = ()
                 run_all(tmp_path)
-        assert (tmp_path / ".github" / "workflows" / "pipeline.yaml").is_file()
         assert (tmp_path / "renovate.json5").is_file()
         assert (tmp_path / ".pre-commit-config.yaml").is_file()
+        # Pipeline.yaml is NOT written by Python under T5-7.
+        assert not (tmp_path / ".github" / "workflows" / "pipeline.yaml").is_file()
+
+    def test_pipeline_step_skipped_when_pipeline_missing(self, tmp_path: Path):
+        """T5-7: when pipeline.yaml is absent the umbrella reports SKIPPED
+        with a hint to invoke /ai-standardize-pipeline."""
+        _make_python_library(tmp_path)
+        with patch("ai_shell.standardize.umbrella._run_gh") as mock_gh:
+            mock_gh.return_value = (0, "", "")
+            with patch("ai_shell.standardize.umbrella.verify.run") as mock_v:
+                mock_v.return_value = ()
+                results = run_all(tmp_path)
+        pipeline_step = next(r for r in results if r.step == "pipeline")
+        assert pipeline_step.status == StepStatus.SKIPPED
+        assert "ai-standardize-pipeline" in pipeline_step.message
 
     def test_rulesets_step_calls_ai_gh_apply(self, tmp_path: Path):
         _make_python_library(tmp_path)
