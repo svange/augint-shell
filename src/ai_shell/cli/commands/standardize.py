@@ -16,6 +16,7 @@ from rich.console import Console
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.standardize.detection import Language, RepoType
 from ai_shell.standardize.detection import detect as _detect
+from ai_shell.standardize.dotfiles import apply as _dotfiles_apply
 from ai_shell.standardize.lint import scan
 from ai_shell.standardize.pipeline import canonical_jobs, validate
 from ai_shell.standardize.precommit import apply as _precommit_apply
@@ -208,8 +209,17 @@ def standardize_pipeline(
             console.print(f"  {job_id}: '{current}' -> {guess}")
     if report.spec_failures:
         console.print("[yellow]spec failures:[/yellow]")
+        # Resolve detected language/type once so we can embed concrete
+        # `--print-template` hints per failing gate (T8-4).
+        detection = _detect(path)
+        lang = detection.language.value
+        rtype = detection.repo_type.value
         for gate, reason in report.spec_failures:
             console.print(f"  {gate}: {reason}")
+            console.print(
+                f"    [dim]hint: ai-shell standardize pipeline --print-template "
+                f"'{gate}' --language {lang} --type {rtype}[/dim]"
+            )
     if report.custom_jobs:
         console.print(f"[blue]custom jobs (preserve):[/blue] {', '.join(report.custom_jobs)}")
 
@@ -245,6 +255,44 @@ def _job_spec_text(language: Language, repo_type: RepoType, gate: str) -> str:
     from ai_shell.standardize.pipeline import _job_spec_resource
 
     return _job_spec_resource(language, repo_type, gate).read_text(encoding="utf-8")
+
+
+@standardize_group.command("dotfiles")
+@click.argument(
+    "path",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path.cwd(),
+    required=False,
+)
+@click.option(
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    default=False,
+    help="Compute what would change without writing to disk.",
+)
+def standardize_dotfiles(path: Path, dry_run: bool) -> None:
+    """Write canonical `.editorconfig` and append canonical `.gitignore` entries.
+
+    Idempotent: running a second time is a no-op. The `.editorconfig` is a
+    full-file write; the `.gitignore` is append-only (existing user entries
+    are preserved). The `/ai-standardize-dotfiles` skill runs the
+    AskUserQuestion customization flow before invoking this CLI.
+    """
+    root = path.resolve()
+    result = _dotfiles_apply(root, dry_run=dry_run)
+    verb = "would write" if dry_run else "wrote"
+    if result.editorconfig_written:
+        console.print(f"[green]{verb}[/green] {result.editorconfig_path}")
+    else:
+        console.print(f"[dim].editorconfig unchanged[/dim] ({result.editorconfig_path})")
+    if result.gitignore_written:
+        console.print(
+            f"[green]{verb}[/green] {result.gitignore_path} "
+            f"(+{result.gitignore_lines_added} canonical entries)"
+        )
+    else:
+        console.print(f"[dim].gitignore unchanged[/dim] ({result.gitignore_path})")
 
 
 @standardize_group.command("precommit")
@@ -344,7 +392,10 @@ def standardize_release(path: Path, project_name: str | None) -> None:
     "as_json",
     is_flag=True,
     default=False,
-    help="Emit the plan as structured JSON (only meaningful with --all --dry-run).",
+    help=(
+        "Emit structured JSON. With --verify, emits per-section findings; "
+        "with --all --dry-run, emits the consolidated plan."
+    ),
 )
 @click.argument(
     "path",
@@ -363,7 +414,27 @@ def standardize_repo(
 
     if mode == "verify":
         findings = _verify_run(root)
-        any_drift = False
+        any_drift = any(not f.is_clean() for f in findings)
+
+        if as_json:
+            # T8-3: structured JSON so `ai-tools workspace standardize
+            # --verify` can parse each child's findings into a workspace
+            # aggregate. Every finding's is_clean flag is preserved so the
+            # workspace layer doesn't have to re-derive it.
+            click.echo(
+                _json.dumps(
+                    {
+                        "path": str(root),
+                        "overall": "clean" if not any_drift else "drift",
+                        "findings": [f.to_dict() for f in findings],
+                    },
+                    indent=2,
+                )
+            )
+            if any_drift:
+                raise click.exceptions.Exit(code=1)
+            return
+
         for f in findings:
             color = {
                 VerifyStatus.PASS: "green",
@@ -373,8 +444,6 @@ def standardize_repo(
             console.print(f"[{color}][{f.status.value}][/{color}] {f.section}: {f.message}")
             if f.diff:
                 console.print(f.diff)
-            if not f.is_clean():
-                any_drift = True
         if any_drift:
             raise click.exceptions.Exit(code=1)
         return

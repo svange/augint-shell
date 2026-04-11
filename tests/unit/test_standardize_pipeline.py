@@ -319,6 +319,97 @@ class TestParallelPostDeploy:
         assert "Smoke tests" in names
 
 
+# ── validate() — synthetic aggregator pattern (T8-1) ──────────────────
+
+
+class TestSyntheticAggregatorSuppression:
+    """T8-1: jobs that feed a present canonical gate via `needs:` must not
+    be flagged as legacy candidates for that same gate. They are preserved
+    as custom jobs instead.
+    """
+
+    def test_smoke_job_feeding_acceptance_tests_is_not_legacy(self, tmp_path: Path):
+        _write_python_iac(tmp_path)
+        _write_pipeline(
+            tmp_path,
+            """\
+            name: x
+            on: { push: { branches: [main, dev] } }
+            jobs:
+              post-deploy-smoke:
+                name: E2E Smoke Tests
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+              post-deploy-integration:
+                name: Integration tests
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+              acceptance-tests:
+                name: Acceptance tests
+                needs: [post-deploy-smoke, post-deploy-integration]
+                runs-on: ubuntu-latest
+                steps:
+                  - run: echo done
+            """,
+        )
+        report = validate(tmp_path)
+        # The aggregator is present.
+        assert "Acceptance tests" in report.present
+        # Neither feeding job is flagged as legacy.
+        legacy_ids = {jid for jid, _n, _g in report.legacy_candidates}
+        assert "post-deploy-smoke" not in legacy_ids
+        assert "post-deploy-integration" not in legacy_ids
+        # They are surfaced as custom jobs so the AI merges them verbatim.
+        assert "post-deploy-smoke" in report.custom_jobs
+        assert "post-deploy-integration" in report.custom_jobs
+
+    def test_suppression_only_applies_when_feeding_matching_gate(self, tmp_path: Path):
+        """A job whose name triggers 'Acceptance tests' but which feeds a
+        different canonical gate (e.g. Code quality) is still flagged as
+        legacy — the suppression is scoped to the matching gate only."""
+        _write_python_iac(tmp_path)
+        _write_pipeline(
+            tmp_path,
+            """\
+            name: x
+            on: { push: { branches: [main, dev] } }
+            jobs:
+              smoke-lint:
+                name: Smoke tests
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+              code-quality:
+                name: Code quality
+                needs: [smoke-lint]
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+            """,
+        )
+        report = validate(tmp_path)
+        legacy_ids = {jid for jid, _n, _g in report.legacy_candidates}
+        assert "smoke-lint" in legacy_ids
+
+    def test_aggregator_not_present_still_flags_legacy(self, tmp_path: Path):
+        """Without an explicit Acceptance tests aggregator, smoke/integration
+        jobs still surface as legacy candidates."""
+        _write_python_iac(tmp_path)
+        _write_pipeline(
+            tmp_path,
+            """\
+            name: x
+            on: { push: { branches: [main, dev] } }
+            jobs:
+              smoke:
+                name: Smoke tests
+                runs-on: ubuntu-latest
+                steps: [{ run: echo }]
+            """,
+        )
+        report = validate(tmp_path)
+        assert any(g == "Acceptance tests" for _i, _n, g in report.legacy_candidates)
+
+
 # ── validate() — custom jobs ───────────────────────────────────────────
 
 

@@ -54,6 +54,21 @@ class VerifyFinding:
     def is_clean(self) -> bool:
         return self.status == VerifyStatus.PASS
 
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-friendly shape for ``--verify --json`` (T8-3).
+
+        Downstream consumers (e.g. ``ai-tools workspace standardize --verify``)
+        parse this directly to aggregate per-repo verify results into a
+        workspace-level report.
+        """
+        return {
+            "section": self.section,
+            "status": self.status.value,
+            "message": self.message,
+            "diff": self.diff,
+            "is_clean": self.is_clean(),
+        }
+
 
 def _read_or_empty(path: Path) -> str:
     try:

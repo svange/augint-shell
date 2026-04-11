@@ -26,10 +26,17 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from enum import StrEnum
-from importlib import resources
 from pathlib import Path
 
-from ai_shell.standardize import pipeline, precommit, release, renovate, rulesets, verify
+from ai_shell.standardize import (
+    dotfiles,
+    pipeline,
+    precommit,
+    release,
+    renovate,
+    rulesets,
+    verify,
+)
 from ai_shell.standardize.detection import Detection, detect
 
 
@@ -59,42 +66,36 @@ class StepResult:
 
 
 def _write_dotfiles(root: Path, *, dry_run: bool = False) -> StepResult:
+    """Delegate to ``standardize.dotfiles.apply`` (T8-2).
+
+    The umbrella used to inline a partial editorconfig-only write; now
+    both ``.editorconfig`` and ``.gitignore`` flow through the shared
+    generator so ``ai-shell standardize dotfiles`` and the umbrella
+    stay in lockstep.
+    """
     try:
-        ref = resources.files("ai_shell.templates").joinpath(
-            "claude", "skills", "ai-standardize-repo", "editorconfig-template"
-        )
-        expected = ref.read_text(encoding="utf-8")
+        result = dotfiles.apply(root, dry_run=dry_run)
     except Exception as exc:  # noqa: BLE001
         return StepResult("dotfiles", StepStatus.FAILED, str(exc))
 
-    target = root / ".editorconfig"
-    if dry_run:
-        if target.is_file():
-            existing = target.read_text(encoding="utf-8")
-            if existing == expected:
-                return StepResult(
-                    "dotfiles",
-                    StepStatus.OK,
-                    ".editorconfig already matches canonical (no change)",
-                )
-            return StepResult(
-                "dotfiles",
-                StepStatus.OK,
-                ".editorconfig would be updated",
-                diff=f"would overwrite {target}",
-            )
-        return StepResult(
-            "dotfiles",
-            StepStatus.OK,
-            ".editorconfig would be created",
-            diff=f"would write new {target}",
+    parts: list[str] = []
+    diff_parts: list[str] = []
+    verb = "would write" if dry_run else "wrote"
+    if result.editorconfig_written:
+        parts.append(".editorconfig")
+        diff_parts.append(f"{verb} {result.editorconfig_path}")
+    if result.gitignore_written:
+        parts.append(f".gitignore (+{result.gitignore_lines_added} canonical entries)")
+        diff_parts.append(
+            f"{verb} {result.gitignore_path} (+{result.gitignore_lines_added} canonical entries)"
         )
 
-    try:
-        target.write_text(expected, encoding="utf-8")
-    except Exception as exc:  # noqa: BLE001
-        return StepResult("dotfiles", StepStatus.FAILED, str(exc))
-    return StepResult("dotfiles", StepStatus.OK, ".editorconfig written")
+    if not parts:
+        return StepResult("dotfiles", StepStatus.OK, "already match canonical (no change)")
+
+    message = f"{verb}: " + ", ".join(parts)
+    diff = "; ".join(diff_parts) if diff_parts else None
+    return StepResult("dotfiles", StepStatus.OK, message, diff=diff)
 
 
 def _run_ai_setup_oidc(root: Path, *, dry_run: bool = False) -> StepResult:

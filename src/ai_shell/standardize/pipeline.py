@@ -363,6 +363,24 @@ def validate(path: Path | str = ".") -> DriftReport:
 
     refs = canonical_jobs(detection.language, detection.repo_type)
 
+    # First pass: collect the `needs:` list of every canonical gate that is
+    # present by its display name. Used below to suppress legacy matches for
+    # jobs that already feed a canonical aggregator (T8-1).
+    canonical_needs: dict[str, set[str]] = {}
+    for _jid, _def in jobs.items():
+        if not isinstance(_def, dict):
+            continue
+        _name = str(_def.get("name") or "")
+        if _name not in canonical:
+            continue
+        raw_needs = _def.get("needs")
+        if isinstance(raw_needs, str):
+            canonical_needs[_name] = {raw_needs}
+        elif isinstance(raw_needs, list):
+            canonical_needs[_name] = {str(n) for n in raw_needs if isinstance(n, str)}
+        else:
+            canonical_needs[_name] = set()
+
     for job_id, job_def in jobs.items():
         if not isinstance(job_def, dict):
             continue
@@ -383,6 +401,15 @@ def validate(path: Path | str = ".") -> DriftReport:
         # 2) legacy candidate match
         guess = _guess_legacy_gate(name_str) if name_str else None
         if guess is not None and guess in canonical:
+            # T8-1: if this job already feeds the canonical aggregator gate
+            # via `needs:`, treat it as a preserved dependency (custom), not
+            # as a legacy rename candidate. This enables the synthetic
+            # acceptance-tests aggregator pattern documented in the plan
+            # without forcing the AI to invent awkward display names just
+            # to dodge the substring match.
+            if str(job_id) in canonical_needs.get(guess, set()):
+                custom.append(str(job_id))
+                continue
             legacy.append((str(job_id), name_str, guess))
             continue
 
