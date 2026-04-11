@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.49.0 (2026-04-11)
+
+### Features
+
+- Enhance legacy gate detection for publisher jobs and update tests
+  ([`fe8364c`](https://github.com/svange/augint-shell/commit/fe8364c3e66aa5cd000e0de0a2e4bab63a1fb96c))
+
+
 ## v0.48.0 (2026-04-11)
 
 ### Features
