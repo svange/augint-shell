@@ -1,5 +1,4 @@
 {
-  "_comment": "Semantic-release config for Node repos. ADAPT: branches (main-only for libraries, add dev prerelease for IaC if needed). For IaC repos, fix(deps): triggers patch releases for deploy versioning.",
   "branches": ["main"],
   "plugins": [
     ["@semantic-release/commit-analyzer", {

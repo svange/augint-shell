@@ -93,6 +93,22 @@ class TestNodeIac:
         assert data["tagFormat"] == "lls-web-v${version}"
 
 
+class TestNoAdaptProseInOutput:
+    """Regression for T5-3: release templates must not leak ADAPT prose."""
+
+    def test_python_pyproject_has_no_adapt_comments(self, tmp_path: Path):
+        _write_pyproject(tmp_path)
+        apply(_det(Language.PYTHON, RepoType.LIBRARY), tmp_path)
+        text = (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
+        assert "ADAPT before" not in text
+        assert "ADAPT: " not in text
+
+    def test_node_releaserc_has_no_adapt_comment_field(self, tmp_path: Path):
+        apply(_det(Language.NODE, RepoType.LIBRARY), tmp_path, project_name="mypkg")
+        data = json.loads((tmp_path / ".releaserc.json").read_text(encoding="utf-8"))
+        assert "_comment" not in data
+
+
 class TestCrossValidation:
     def test_raises_when_no_release_type_promoted(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

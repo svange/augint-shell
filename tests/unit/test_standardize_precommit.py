@@ -36,6 +36,52 @@ class TestPythonPath:
         apply(_det(Language.PYTHON), tmp_path)
         assert cfg.read_text(encoding="utf-8") == first
 
+    def test_no_adapt_prose_in_output(self, tmp_path: Path):
+        """Regression for T5-3: generator must not write ADAPT meta-comments."""
+        apply(_det(Language.PYTHON), tmp_path)
+        content = (tmp_path / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+        assert "ADAPT before writing" not in content
+        assert "Uncomment if repo has SAM" not in content
+        # The substitution marker itself must never end up on disk either.
+        assert "{{CHECK_YAML_EXCLUDE}}" not in content
+
+    def test_t5_4_union_includes_check_added_large_files(self, tmp_path: Path):
+        """Regression for T5-4: canonical template ships check-added-large-files."""
+        apply(_det(Language.PYTHON), tmp_path)
+        content = (tmp_path / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+        assert "check-added-large-files" in content
+
+    def test_t5_4_union_includes_gitleaks(self, tmp_path: Path):
+        """Regression for T5-4: canonical template ships gitleaks."""
+        apply(_det(Language.PYTHON), tmp_path)
+        content = (tmp_path / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+        assert "gitleaks/gitleaks" in content
+        assert "id: gitleaks" in content
+
+    def test_sam_exclude_rendered_when_template_yaml_exists(self, tmp_path: Path):
+        """Regression for T5-3: check-yaml exclude is rendered for SAM repos."""
+        (tmp_path / "template.yaml").write_text(
+            "AWSTemplateFormatVersion: '2010-09-09'\n", encoding="utf-8"
+        )
+        apply(_det(Language.PYTHON), tmp_path)
+        content = (tmp_path / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+        assert "exclude: '(^templates/.*\\.yaml$|.*template\\.yaml$)'" in content
+
+    def test_sam_exclude_absent_without_template_yaml(self, tmp_path: Path):
+        """Libraries without SAM test infra should have no SAM exclude."""
+        apply(_det(Language.PYTHON), tmp_path)
+        content = (tmp_path / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+        assert "template.yaml" not in content
+
+    def test_sam_exclude_detects_template_yml(self, tmp_path: Path):
+        """Also recognise ``template.yml`` (the other SAM convention)."""
+        (tmp_path / "template.yml").write_text(
+            "AWSTemplateFormatVersion: '2010-09-09'\n", encoding="utf-8"
+        )
+        apply(_det(Language.PYTHON), tmp_path)
+        content = (tmp_path / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+        assert "exclude: '(^templates/.*\\.yaml$|.*template\\.yaml$)'" in content
+
 
 class TestNodePath:
     def test_writes_husky_hook_and_lint_staged(self, tmp_path: Path):

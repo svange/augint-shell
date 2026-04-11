@@ -93,3 +93,91 @@ class TestRepoTypeDetection:
         )
         d = detect(tmp_path)
         assert d.repo_type == RepoType.IAC
+
+
+class TestPublishWinsOverDeploy:
+    """Regression tests for T5-1.
+
+    A Python library that uses SAM ``template.yaml`` for ephemeral test
+    infrastructure and publishes via ``pypa/gh-action-pypi-publish`` must
+    classify as library, not iac.
+    """
+
+    def test_template_yaml_alone_is_library(self, tmp_path: Path):
+        # template.yaml is NOT a deploy marker on its own. Libraries use it
+        # for ephemeral test infra (e.g. ai-lls-lib).
+        _write(tmp_path / "pyproject.toml", '[project]\nname = "x"\n')
+        _write(tmp_path / "template.yaml", "AWSTemplateFormatVersion: '2010-09-09'\n")
+        d = detect(tmp_path)
+        assert d.repo_type == RepoType.LIBRARY
+
+    def test_template_yaml_plus_publish_workflow_is_library(self, tmp_path: Path):
+        _write(tmp_path / "pyproject.toml", '[project]\nname = "x"\n')
+        _write(tmp_path / "template.yaml", "AWSTemplateFormatVersion: '2010-09-09'\n")
+        _write(
+            tmp_path / ".github" / "workflows" / "pipeline.yaml",
+            "jobs:\n  publish:\n    steps:\n      - uses: pypa/gh-action-pypi-publish@v1\n",
+        )
+        d = detect(tmp_path)
+        assert d.repo_type == RepoType.LIBRARY
+        assert "pypa/gh-action-pypi-publish" in d.repo_type_evidence
+
+    def test_template_yaml_plus_sam_deploy_workflow_is_iac(self, tmp_path: Path):
+        # ai-lls-api pattern: template.yaml, no samconfig.toml, workflow runs `sam deploy`.
+        _write(tmp_path / "pyproject.toml", '[project]\nname = "x"\n')
+        _write(tmp_path / "template.yaml", "AWSTemplateFormatVersion: '2010-09-09'\n")
+        _write(
+            tmp_path / ".github" / "workflows" / "ci.yml",
+            "jobs:\n  deploy:\n    steps:\n      - run: sam deploy --no-confirm-changeset\n",
+        )
+        d = detect(tmp_path)
+        assert d.repo_type == RepoType.IAC
+        assert "sam deploy" in d.repo_type_evidence
+
+    def test_publish_wins_over_sam_deploy(self, tmp_path: Path):
+        """A repo that publishes to PyPI and also deploys test infra => library."""
+        _write(tmp_path / "pyproject.toml", '[project]\nname = "x"\n')
+        _write(tmp_path / "template.yaml", "AWSTemplateFormatVersion: '2010-09-09'\n")
+        _write(
+            tmp_path / ".github" / "workflows" / "pipeline.yaml",
+            (
+                "jobs:\n"
+                "  deploy-test-infra:\n"
+                "    steps:\n"
+                "      - run: sam deploy --no-confirm-changeset\n"
+                "  publish:\n"
+                "    steps:\n"
+                "      - uses: pypa/gh-action-pypi-publish@v1\n"
+            ),
+        )
+        d = detect(tmp_path)
+        assert d.repo_type == RepoType.LIBRARY
+
+    def test_cdk_json_alone_still_is_iac(self, tmp_path: Path):
+        """No publish signal, real deploy marker on disk => iac."""
+        _write(tmp_path / "pyproject.toml", '[project]\nname = "x"\n')
+        _write(tmp_path / "cdk.json", "{}")
+        d = detect(tmp_path)
+        assert d.repo_type == RepoType.IAC
+
+    def test_aws_s3_sync_marks_iac(self, tmp_path: Path):
+        """Node web app that deploys to S3 but has no samconfig.toml."""
+        _write(tmp_path / "package.json", '{"name": "x"}')
+        _write(tmp_path / "vite.config.ts", "")
+        _write(
+            tmp_path / ".github" / "workflows" / "deploy.yml",
+            "jobs:\n  deploy:\n    steps:\n      - run: aws s3 sync dist/ s3://bucket/\n",
+        )
+        d = detect(tmp_path)
+        assert d.repo_type == RepoType.IAC
+        assert "aws s3 sync" in d.repo_type_evidence
+
+    def test_npm_publish_is_library(self, tmp_path: Path):
+        _write(tmp_path / "package.json", '{"name": "x"}')
+        _write(
+            tmp_path / ".github" / "workflows" / "pipeline.yaml",
+            "jobs:\n  publish:\n    steps:\n      - run: npm publish\n",
+        )
+        d = detect(tmp_path)
+        assert d.repo_type == RepoType.LIBRARY
+        assert "npm publish" in d.repo_type_evidence

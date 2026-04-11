@@ -50,8 +50,26 @@ def _load_precommit_template(name: str) -> str:
     return ref.read_text(encoding="utf-8")
 
 
-def _apply_python(root: Path, dry_run: bool) -> tuple[Path, ...]:
+# Substitution marker in python-template.pre-commit-config.yaml. The
+# generator replaces this placeholder based on detected repo state:
+#   - if a SAM ``template.yaml`` exists at the root, render the exclude line
+#     so check-yaml skips SAM templates (they contain invalid-YAML intrinsic
+#     functions like ``!Ref`` and ``!GetAtt``)
+#   - otherwise render as an empty string so the hook has no exclude
+_CHECK_YAML_EXCLUDE_MARKER = "{{CHECK_YAML_EXCLUDE}}"
+_CHECK_YAML_EXCLUDE_LINE = "\n        exclude: '(^templates/.*\\.yaml$|.*template\\.yaml$)'"
+
+
+def _render_python_precommit(root: Path) -> str:
+    """Load the python pre-commit template and apply substitutions."""
     content = _load_repo_template(_PY_TEMPLATE_NAME)
+    has_sam_template = (root / "template.yaml").is_file() or (root / "template.yml").is_file()
+    substitution = _CHECK_YAML_EXCLUDE_LINE if has_sam_template else ""
+    return content.replace(_CHECK_YAML_EXCLUDE_MARKER, substitution)
+
+
+def _apply_python(root: Path, dry_run: bool) -> tuple[Path, ...]:
+    content = _render_python_precommit(root)
     target = root / _PY_CONFIG
     if not dry_run:
         target.write_text(content, encoding="utf-8", newline="\n")

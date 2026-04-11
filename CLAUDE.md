@@ -36,7 +36,7 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 
 - **Commits**: Conventional commits required. `fix:` = patch, `feat:` = minor, `feat!:` / `BREAKING CHANGE` = major.
 - **Branches**: `{type}/issue-N-description` where type is one of: feat, fix, docs, refactor, test, chore, ci, build, style, revert, perf.
-- **PRs**: Target the default development branch. Enable automerge.
+- **PRs**: Target the default development branch. Enable automerge. For service/IaC repos, use merge commits (do not squash).
 - **Pre-commit**: Run `uv run pre-commit run --all-files` explicitly before committing (no automatic git hooks -- they break across Windows/WSL). If checks fail, fix the issue and create a NEW commit (do not amend).
 - **Tests**: Write tests for all new functionality. Bug fixes require regression tests.
 
@@ -67,9 +67,13 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 
 ## ai-tools
 
-- Normal repo commands: `ai-tools <command>`
-- Workspace commands: `ai-tools workspace <command>`
-- Prefer machine-readable output when available for agent consumption.
+`augint-tools` is the project/repository name; `ai-tools` is the CLI command.
+
+- Single-repo commands: `uv run ai-tools repo <command>`
+- Workspace commands: `uv run ai-tools workspace <command>`
+- Standardization commands: `uv run ai-tools standardize <command>`
+- Use repo-local skills as thin wrappers for `ai-tools` commands.
+- Prefer machine-readable output (`--json`) and summarize actionable results.
 - Branch, PR target, and validation policy should come from repo or workspace config, not guesswork.
 
 ## Key Commands

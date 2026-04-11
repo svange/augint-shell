@@ -1,12 +1,9 @@
 // Renovate Bot Configuration — Library (main-only, publishes)
 // Docs: https://docs.renovatebot.com/configuration-options/
 //
-// ADAPT before writing:
-//   - enabledManagers: include only detected managers (pep621, npm, pre-commit, github-actions)
-//   - matchManagers/matchDepTypes: use pep621 values for Python, npm values for Node
-//     Python: matchDepTypes "project.dependencies" (prod), "project.optional-dependencies"/"dependency-groups" (dev)
-//     Node:   matchDepTypes "dependencies" (prod), "devDependencies" (dev)
-//   - matchPackageNames: "python-semantic-release" for Python, "semantic-release" for Node
+// Canonical template written by `ai-shell standardize renovate`. The
+// generator substitutes manager/dep-type strings for Node when the
+// detected language is Node. Do not hand-edit; regenerate instead.
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
 

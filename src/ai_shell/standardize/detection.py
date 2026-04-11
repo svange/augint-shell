@@ -55,9 +55,15 @@ class Detection:
 
 
 # Marker files / globs that imply an iac deploy target.
+#
+# NOTE: ``template.yaml`` is deliberately NOT included here. Libraries
+# legitimately use SAM/CloudFormation templates for ephemeral test
+# infrastructure (e.g. ai-lls-lib). To classify as iac, a repo needs either
+# a real deploy-config marker (``samconfig.toml``, ``cdk.json``,
+# ``serverless.yml``) or a deploy workflow step (see
+# ``_has_deploy_workflow``).
 _IAC_DEPLOY_MARKERS: tuple[str, ...] = (
     "samconfig.toml",
-    "template.yaml",
     "cdk.json",
     "serverless.yml",
     "serverless.yaml",
@@ -68,6 +74,27 @@ _VITE_CONFIG_CANDIDATES: tuple[str, ...] = (
     "vite.config.js",
     "vite.config.mjs",
     "vite.config.cjs",
+)
+
+# Substrings inside .github/workflows/*.y*ml files that indicate a real
+# deploy step (vs ephemeral test infrastructure).
+_DEPLOY_WORKFLOW_MARKERS: tuple[str, ...] = (
+    "aws-actions/configure-aws-credentials",
+    "aws s3 sync",
+    "aws s3 cp",
+    "cdk deploy",
+    "sam deploy",
+    "terraform apply",
+)
+
+# Substrings inside .github/workflows/*.y*ml that indicate a publish step
+# (library intent). If any of these are present the repo is a library even
+# if it also deploys test infrastructure.
+_PUBLISH_WORKFLOW_MARKERS: tuple[str, ...] = (
+    "pypa/gh-action-pypi-publish",
+    "twine upload",
+    "uv publish",
+    "npm publish",
 )
 
 
@@ -102,47 +129,58 @@ def _detect_language(root: Path) -> tuple[Language, tuple[str, ...]]:
     return Language.UNKNOWN, tuple(evidence)
 
 
-def _has_deploy_workflow(root: Path) -> bool:
+def _workflow_marker_hits(root: Path, markers: tuple[str, ...]) -> list[str]:
+    """Return the subset of *markers* present in any `.github/workflows/*.y*ml`."""
     workflows = root / ".github" / "workflows"
     if not workflows.is_dir():
-        return False
+        return []
+    hits: set[str] = set()
     for wf in workflows.glob("*.y*ml"):
         try:
             text = wf.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
         lowered = text.lower()
-        if any(
-            marker in lowered
-            for marker in (
-                "aws-actions/configure-aws-credentials",
-                "aws s3 sync",
-                "aws s3 cp",
-                "cdk deploy",
-            )
-        ):
-            return True
-    return False
+        for marker in markers:
+            if marker.lower() in lowered:
+                hits.add(marker)
+    return sorted(hits)
+
+
+def _has_deploy_workflow(root: Path) -> list[str]:
+    return _workflow_marker_hits(root, _DEPLOY_WORKFLOW_MARKERS)
+
+
+def _has_publish_workflow(root: Path) -> list[str]:
+    return _workflow_marker_hits(root, _PUBLISH_WORKFLOW_MARKERS)
 
 
 def _detect_repo_type(root: Path) -> tuple[RepoType, tuple[str, ...]]:
-    evidence: list[str] = []
+    # Publish-wins-over-deploy: a repo that ships a package (to PyPI, npm,
+    # etc.) is a library, even if it also runs `sam deploy` or similar for
+    # ephemeral test infrastructure. This is what distinguishes ai-lls-lib
+    # (publishes, has template.yaml for tests) from ai-lls-api (deploys,
+    # has samconfig.toml).
+    publish_markers = _has_publish_workflow(root)
+    if publish_markers:
+        return RepoType.LIBRARY, tuple(publish_markers)
 
+    evidence: list[str] = []
     for marker in _IAC_DEPLOY_MARKERS:
         if (root / marker).is_file():
             evidence.append(marker)
 
-    if any((root / "main.tf").is_file() for _ in (0,)) or list(root.glob("*.tf")):
+    if list(root.glob("*.tf")):
         evidence.append("*.tf")
+
+    deploy_markers = _has_deploy_workflow(root)
+    if deploy_markers:
+        evidence.extend(deploy_markers)
 
     if evidence:
         return RepoType.IAC, tuple(evidence)
 
-    # Vite SPA with a deploy workflow = iac (web deploys to S3/CloudFront/etc)
-    vite_found = [name for name in _VITE_CONFIG_CANDIDATES if (root / name).is_file()]
-    if vite_found and _has_deploy_workflow(root):
-        return RepoType.IAC, tuple(vite_found + ["deploy workflow"])
-
+    # Vite SPA without any deploy signals stays as library.
     return RepoType.LIBRARY, ()
 
 

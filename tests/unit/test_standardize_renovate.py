@@ -119,6 +119,25 @@ class TestApplyEachCombination:
         assert "python-semantic-release" not in pkg_names
 
 
+class TestNoAdaptProseInOutput:
+    """Regression for T5-3: renovate templates must not leak ADAPT prose."""
+
+    @pytest.mark.parametrize(
+        ("lang", "typ"),
+        [
+            (Language.PYTHON, RepoType.LIBRARY),
+            (Language.PYTHON, RepoType.IAC),
+            (Language.NODE, RepoType.LIBRARY),
+            (Language.NODE, RepoType.IAC),
+        ],
+    )
+    def test_no_adapt_comments_on_disk(self, tmp_path: Path, lang: Language, typ: RepoType):
+        result = apply(_det(lang, typ), tmp_path)
+        content = result.path.read_text(encoding="utf-8")
+        assert "ADAPT before writing" not in content
+        assert "ADAPT: " not in content
+
+
 class TestCrossValidation:
     def test_raises_on_unknown_commit_prefix(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """If the rendered template uses a commit prefix missing from
