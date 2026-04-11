@@ -632,6 +632,16 @@ class TestSkillsForConfig:
         assert "ai-workspace-init" in skills
         assert "ai-workspace-health" in skills
         assert "ai-workspace-foreach" in skills
+        # T5-8: workspace-level standardization entry point
+        assert "ai-workspace-standardize" in skills
+
+    def test_workspace_standardize_not_in_single_repo_configs(self):
+        """ai-workspace-standardize is a workspace-only orchestrator;
+        single-repo types should never receive it."""
+        for repo_type in (RepoType.LIBRARY, RepoType.SERVICE):
+            for branch_strategy in BranchStrategy:
+                skills = skills_for_config(repo_type, branch_strategy)
+                assert "ai-workspace-standardize" not in skills
 
     def test_workspace_excludes_service_skills(self):
         skills = skills_for_config(RepoType.WORKSPACE, BranchStrategy.MAIN)

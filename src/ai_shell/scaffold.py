@@ -213,6 +213,7 @@ _WORKSPACE_SKILLS = [
     "ai-workspace-lint",
     "ai-workspace-submit",
     "ai-workspace-update",
+    "ai-workspace-standardize",
 ]
 
 # Skills fully removed (no longer shipped, cleaned from existing repos).
