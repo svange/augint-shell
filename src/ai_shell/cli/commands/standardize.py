@@ -331,13 +331,33 @@ def standardize_release(path: Path, project_name: str | None) -> None:
     flag_value="verify",
     help="Read-only verify; exits non-zero on drift.",
 )
+@click.option(
+    "--dry-run",
+    "--plan",
+    "dry_run",
+    is_flag=True,
+    default=False,
+    help="Run every step in compute-but-don't-write mode; emits a consolidated plan. Use with --all.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Emit the plan as structured JSON (only meaningful with --all --dry-run).",
+)
 @click.argument(
     "path",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     default=Path.cwd(),
     required=False,
 )
-def standardize_repo(mode: str | None, path: Path) -> None:
+def standardize_repo(
+    mode: str | None,
+    dry_run: bool,
+    as_json: bool,
+    path: Path,
+) -> None:
     """Umbrella: run or verify the full repo standardization sequence."""
     root = path.resolve()
 
@@ -360,17 +380,54 @@ def standardize_repo(mode: str | None, path: Path) -> None:
         return
 
     if mode == "all":
-        results = run_all(root)
+        results = run_all(root, dry_run=dry_run)
+
+        if as_json and dry_run:
+            click.echo(
+                _json.dumps(
+                    {
+                        "dry_run": True,
+                        "path": str(root),
+                        "steps": [
+                            {
+                                "step": r.step,
+                                "status": r.status.value,
+                                "message": r.message,
+                                "diff": r.diff,
+                            }
+                            for r in results
+                        ],
+                    },
+                    indent=2,
+                )
+            )
+            any_failed = any(r.status == StepStatus.FAILED for r in results)
+            if any_failed:
+                raise click.exceptions.Exit(code=1)
+            return
+
+        if dry_run:
+            console.print(
+                f"[bold]Dry-run plan for {root}[/bold] "
+                "(no files written; no GitHub state mutated)\n"
+            )
         any_failed = False
         for r in results:
             color = {
                 StepStatus.OK: "green",
                 StepStatus.SKIPPED: "yellow",
+                StepStatus.NEEDS_ACTION: "yellow",
                 StepStatus.FAILED: "red",
             }[r.status]
             console.print(f"[{color}][{r.status.value}][/{color}] {r.step}: {r.message}")
+            if r.diff:
+                console.print(f"  [dim]{r.diff}[/dim]")
             if r.status == StepStatus.FAILED:
                 any_failed = True
+        if dry_run:
+            console.print(
+                "\n[bold]No files have been written.[/bold] Re-run without --dry-run to apply."
+            )
         if any_failed:
             raise click.exceptions.Exit(code=1)
         return

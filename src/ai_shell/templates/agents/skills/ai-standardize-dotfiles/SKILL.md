@@ -1,100 +1,144 @@
 ---
 name: ai-standardize-dotfiles
-description: Audit and fix project config files (.editorconfig, .gitignore, pyproject.toml tool sections). Ensures consistent development experience across repos.
-argument-hint: "[--validate] [--generate] [--fix]"
+description: Detect-and-ask before writing `.editorconfig` and `.gitignore` from the canonical templates. Surfaces custom entries via AskUserQuestion before any overwrite so repo-specific patterns (language overrides, extra ignores) are preserved.
+argument-hint: "[<repo path>]"
 ---
 
-Audit and fix project-level configuration files for this repository: $ARGUMENTS
+Standardize project config dotfiles at $ARGUMENTS (defaults to cwd).
 
-Validates `.editorconfig`, `.gitignore` patterns, and tool configuration sections for consistency.
+## Core principle: ask before acting
 
-## Usage Examples
+The canonical `.editorconfig` and `.gitignore` templates cover the
+common cases, but every repo has legitimate repo-specific additions
+(language-specific editorconfig overrides, project-specific gitignore
+entries, generated data paths, etc.). Never silently overwrite them.
+Detect, classify, ask via `AskUserQuestion`, then write. If the user
+aborts, exit with `Standardization aborted by user. No files were
+modified.`
 
-- `/ai-standardize-dotfiles` — Full audit with recommendations
-- `/ai-standardize-dotfiles --validate` — Report issues only
-- `/ai-standardize-dotfiles --generate` — Generate missing config files
-- `/ai-standardize-dotfiles --fix` — Auto-fix detected issues
+## Process
 
-## 1. Detect Ecosystem
+### Step 1 -- detect ecosystem
 
 ```bash
-[ -f "pyproject.toml" ] && echo "python"
-[ -f "package.json" ] && echo "node"
+uv run ai-shell standardize detect --json <repo>
 ```
 
-## 2. EditorConfig
+Note the language (python/node). Multiple ecosystems are allowed --
+check both sets.
 
-If `.editorconfig` is missing or `--generate`, read `editorconfig-template` from `${CLAUDE_SKILL_DIR}` and write as `.editorconfig`.
+### Step 2 -- read existing dotfiles (if present)
 
-If it exists, verify:
-- `root = true` (prevents inheriting from parent dirs)
-- `end_of_line = lf` (cross-platform consistency)
-- `insert_final_newline = true` (matches pre-commit end-of-file-fixer)
-- Python indent: 4 spaces
-- JS/TS/YAML/JSON indent: 2 spaces
-- Markdown: `trim_trailing_whitespace = false`
+- `Read <repo>/.editorconfig`
+- `Read <repo>/.gitignore`
 
-## 3. Gitignore
+If either is absent, skip that file's ask-loop and note it for Step 4
+as "missing, will scaffold".
 
-If `.gitignore` is missing or `--generate`, read `gitignore-template` from `${CLAUDE_SKILL_DIR}` and write as `.gitignore`.
+### Step 3 -- diff against canonical and classify
 
-Check `.gitignore` for required patterns:
+Parse each file and categorize every entry into three groups:
 
-### Safety (ERROR if missing)
-- `.env` / `.env.*` (with `!.env.example` exception)
-- `*.pem` / `*.key` / `*.crt`
-- `.claude/settings.local.json`
-- `.ai-shell.toml` (may contain OpenAI API keys in [codex] section)
+1. **Canonical entries that match** -- no action.
+2. **Canonical entries that drifted** (e.g. python `indent_size = 2` in
+   `.editorconfig` when canonical is `4`) -- plan to rewrite.
+3. **Custom entries** -- authored by the user, not in the canonical
+   template.
 
-### Build artifacts (WARNING if missing)
-- Python: `*.pyc`, `__pycache__`, `dist/`, `*.egg-info`, `build/`, `.aws-sam/`
-- Node: `node_modules/`, `dist/`
-- Both: `.coverage`, `htmlcov/`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`
+**`.editorconfig` custom content to detect:**
 
-### Anti-patterns (flag if present)
-- `*.lock` / `uv.lock` / `package-lock.json` — lock files SHOULD be committed
-- `tests/` — test code should be tracked
+- Custom file-type sections (`[*.rs]`, `[*.go]`, etc.) that aren't in
+  the canonical template
+- Custom `indent_style` / `indent_size` overrides for specific paths
+- Custom `max_line_length` overrides (the canonical template doesn't
+  set this; user may have added one)
+- Custom `charset` overrides
 
-## 4. Python Tool Config (pyproject.toml)
+**`.gitignore` custom content to detect:**
 
-### Ruff
-```bash
-grep -A10 '\[tool.ruff\]' pyproject.toml
-```
-- `line-length = 100` (not 79 or 120) — **WARNING** if different
-- `select` must include at minimum `["E", "F", "I"]`. Full recommended set: `["E", "F", "I", "W", "B", "C4", "UP", "DTZ"]` — **ERROR** if `select` missing entirely
+- Entries beyond the canonical set. Canonical includes common python /
+  node artifacts (`__pycache__/`, `*.pyc`, `dist/`, `build/`,
+  `.coverage`, `htmlcov/`, `node_modules/`, `.env`, `.env.*`, `*.pem`,
+  `*.key`, `.claude/settings.local.json`, `.ai-shell.toml`, etc.)
+- Repo-specific generated data paths (e.g. `local-data/`, `fixtures/generated/`)
+- Project-specific build outputs (e.g. `public/`, `out/`)
+- Language-specific patterns the canonical template doesn't cover
+  (e.g. Rust `target/`, Go `vendor/`)
 
-### MyPy
-- `strict = true` recommended — **WARNING** if missing
-- Per-module overrides acceptable (e.g., `allow_untyped_defs` for CLI)
+**Anti-patterns to flag** (present when they shouldn't be):
 
-### Coverage
-- `source = ["src"]` and `omit = ["*/tests/*"]` should be configured
+- `uv.lock`, `package-lock.json`, or similar lock files in `.gitignore`
+  -- lock files MUST be committed
+- `tests/` in `.gitignore` -- test code must be tracked
 
-### Build system
-- Standard: `uv_build`. If using `hatchling`/`setuptools`/`poetry-core`: **WARNING** recommending migration
+### Step 4 -- ask before acting
 
-## 5. Node Tool Config (package.json)
+> Your existing `.editorconfig` has 2 custom sections beyond the
+> canonical template:
+>
+> 1. `[*.rs]` with `indent_size = 4` (Rust files)
+> 2. `[Makefile]` with `indent_style = tab` (required for Makefiles)
+>
+> Options:
+> [a] Preserve both (recommended).
+> [b] Preserve some.
+> [c] Discard and use canonical only.
+> [d] Abort.
 
-- Required scripts: `dev`, `build`, `test`, `lint`, `format`
-- ESLint: flat config (`eslint.config.js`) preferred, must integrate with Prettier
-- Prettier: `printWidth: 100` to match ruff's `line-length`
-- TypeScript: `strict: true` recommended — **WARNING** if `false`
+> Your existing `.gitignore` has 5 custom entries beyond the canonical
+> template:
+>
+> 1. `local-data/` -- looks like a generated data path
+> 2. `*.tfstate*` -- Terraform state files
+> 3. `.venv-*/` -- multiple virtualenv directories (canonical only
+>    includes `.venv/`)
+> 4. `temp/` -- temporary scratch directory
+> 5. `site/` -- mkdocs build output
+>
+> Options:
+> [a] Preserve all 5 (recommended).
+> [b] Preserve some.
+> [c] Discard and use canonical only.
+> [d] Abort.
 
-## Error Handling
+**Anti-pattern flagging** -- if the existing `.gitignore` contains
+`uv.lock` or similar, ALWAYS flag it:
+> **Warning:** your `.gitignore` has `uv.lock` -- this is almost
+> certainly wrong. Lock files must be committed so CI and contributors
+> reproduce the same dependency graph. [a] Remove `uv.lock` from
+> .gitignore (recommended). [b] Leave it (you are intentionally
+> abandoning reproducibility). [c] Abort.
 
-- **No ecosystem detected**: only check .editorconfig and .gitignore
-- **Multiple ecosystems**: check both Python and Node configs
+### Step 5 -- write the merged file
 
-## Final Output
+Only after every question is answered, write each file using the
+canonical templates as the base and appending / preserving user-
+approved custom entries at the end.
 
-```
-=== Dotfiles Standardization Report ===
-Ecosystem: Python | Action: [Generated | Validated | Fixed]
+- `.editorconfig`: `Write` the canonical template, then `Edit` to
+  append preserved custom sections
+- `.gitignore`: `Write` the canonical template, then `Edit` to append
+  preserved custom entries under a clearly-labeled comment like `#
+  Custom (preserved from previous version)`
 
-EditorConfig: [PASS] present and correct | [FAIL] MISSING
-Gitignore: [PASS] .env protected | [WARN] missing .ai-shell.toml
-Tool Config: [PASS] ruff configured | [WARN] mypy strict not enabled
+### Step 6 -- verify
 
-Next steps: /ai-standardize-repo
-```
+Re-run `Read` on each written file and confirm:
+
+- Canonical entries are present
+- Preserved-custom entries are present
+- Anti-patterns the user agreed to remove are gone
+
+Report counts: canonical entries, custom entries preserved, custom
+entries discarded, anti-patterns removed.
+
+## Constraints
+
+- **Zero writes before every question is answered.**
+- **Lock files in .gitignore are always wrong.** Always flag them.
+- **Safety patterns are non-negotiable.** `.env`, `.env.*`, `*.pem`,
+  `*.key`, `.claude/settings.local.json`, `.ai-shell.toml` must be in
+  `.gitignore`. If any are missing, add them without asking (with a
+  note in the report) -- this is a security floor.
+- **Multi-ecosystem support.** A repo with both `pyproject.toml` and
+  `package.json` gets both python and node gitignore sections merged.

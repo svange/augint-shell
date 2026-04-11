@@ -13,7 +13,7 @@ wheels = [
 
 [[package]]
 name = "augint-github"
-version = "1.6.0"
+version = "1.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -22,9 +22,9 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a4/8a/09b09b2a83a08f8efd4b9dfbe61ec101b921303767bf6a6f14164a2327e2/augint_github-1.6.0.tar.gz", hash = "sha256:cbc425b9656405724fd538f0a48af7c3ade8bde672e3f8090c9397d1e5bd7fb2", size = 15477, upload-time = "2026-04-05T04:40:44.723Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/80/c983aec89225436814df9172250b096583b755b98ee19f46e8e934896a33/augint_github-1.10.0.tar.gz", hash = "sha256:789d964bac39bf98043ac9ba528cf46881b085527d85926a99c448e470fc4bd5", size = 12951, upload-time = "2026-04-11T14:44:09.17Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/80/3e/2e7da9bffa73ba00c7c603ca4aff0eba9f3effae86d47b54c09fef675e22/augint_github-1.6.0-py3-none-any.whl", hash = "sha256:598db16bcd0490f67ed5630b6c21923e61604d416ced9295e9fd6302ec1fb632", size = 24301, upload-time = "2026-04-05T04:40:43.224Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/7a/3505bd595b786c43b0c2cc586242c1383646e2b16e46ce1d9514ee7f5bea/augint_github-1.10.0-py3-none-any.whl", hash = "sha256:9ec233df0cca9341bdb793798ebe5e97264860a4f08b97b9fbc8628fa3e1a560", size = 17186, upload-time = "2026-04-11T14:44:07.635Z" },
 ]
 
 [[package]]
@@ -95,7 +95,7 @@ dev = [
 
 [[package]]
 name = "augint-tools"
-version = "3.0.1"
+version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -103,9 +103,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "tomli-w" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/25/1c/eb974c54c456064e78e397856a4b5b2ceb5b2a63eedd9825f3aac9580d70/augint_tools-3.0.1.tar.gz", hash = "sha256:336e3686e1651d0bb9651675f9397806920ba5db5a8f1eb65fe6fd1253842d66", size = 27807, upload-time = "2026-04-11T01:26:51.539Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/15/c8240c7116e7625774171f8c3e4c124020d6a25aaa058b02ab203e08b48f/augint_tools-3.1.0.tar.gz", hash = "sha256:17add7efcfab8a739160b585c0e23069ec07b38d789940e332e8d47cfaa68b6a", size = 32289, upload-time = "2026-04-11T17:28:13.873Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/15/5a115653d66db7829f25f46763743bbb5f329c7b14b212277e775b6f599c/augint_tools-3.0.1-py3-none-any.whl", hash = "sha256:43351ddfb0ac95332cbf659c91f5b5b74073c8a2a64ad6864a002f599d6f0324", size = 40962, upload-time = "2026-04-11T01:26:50.078Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/30/4e3081795582fc634751440731a1897f6d5110a7fc7b0d5a26a1db4fe7e5/augint_tools-3.1.0-py3-none-any.whl", hash = "sha256:ed98d5e6ac0197843d15b4f71d85d21e16b46d79503253467affa08b0c82b218", size = 46052, upload-time = "2026-04-11T17:28:12.353Z" },
 ]
 
 [[package]]
@@ -1452,15 +1452,15 @@ wheels = [
 
 [[package]]
 name = "rich"
-version = "14.3.3"
+version = "14.3.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markdown-it-py" },
     { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b3/c6/f3b320c27991c46f43ee9d856302c70dc2d0fb2dba4842ff739d5f46b393/rich-14.3.3.tar.gz", hash = "sha256:b8daa0b9e4eef54dd8cf7c86c03713f53241884e814f4e2f5fb342fe520f639b", size = 230582, upload-time = "2026-02-19T17:23:12.474Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/67/cae617f1351490c25a4b8ac3b8b63a4dda609295d8222bad12242dfdc629/rich-14.3.4.tar.gz", hash = "sha256:817e02727f2b25b40ef56f5aa2217f400c8489f79ca8f46ea2b70dd5e14558a9", size = 230524, upload-time = "2026-04-11T02:57:45.419Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/14/25/b208c5683343959b670dc001595f2f3737e051da617f66c31f7c4fa93abc/rich-14.3.3-py3-none-any.whl", hash = "sha256:793431c1f8619afa7d3b52b2cdec859562b950ea0d4b6b505397612db8d5362d", size = 310458, upload-time = "2026-02-19T17:23:13.732Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/76/6d163cfac87b632216f71879e6b2cf17163f773ff59c00b5ff4900a80fa3/rich-14.3.4-py3-none-any.whl", hash = "sha256:07e7adb4690f68864777b1450859253bed81a99a31ac321ac1817b2313558952", size = 310480, upload-time = "2026-04-11T02:57:47.484Z" },
 ]
 
 [[package]]

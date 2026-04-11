@@ -1,16 +1,9 @@
-# Standard pre-commit config for Python (uv-based) repos
-#
-# ADAPT before writing:
-#   - check-yaml exclude: uncomment SAM exclusion if template.yaml exists
-#   - ruff paths: adjust if source layout differs from src/ + tests/
-
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
-      - id: check-yaml
-        # Uncomment if repo has SAM/CloudFormation templates:
-        # exclude: '(^templates/.*\.yaml$|.*template\.yaml$)'
+      - id: check-yaml{{CHECK_YAML_EXCLUDE}}
+      - id: check-added-large-files
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
@@ -49,3 +42,8 @@ repos:
         language: system
         files: 'pyproject\.toml$'
         pass_filenames: false
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.0
+    hooks:
+      - id: gitleaks
