@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-04-11T19:00:50Z",
+  "generated_at": "2026-04-11T20:59:28Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 30,
@@ -11,7 +11,7 @@
       "SEVERITY.LOW": 31,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 4762,
+      "loc": 4997,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -102,7 +102,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 393,
+      "loc": 451,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -236,6 +236,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "src/ai_shell/standardize/dotfiles.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 148,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "src/ai_shell/standardize/gates.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -271,7 +284,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 313,
+      "loc": 330,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -336,7 +349,7 @@
       "SEVERITY.LOW": 3,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 269,
+      "loc": 268,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -349,7 +362,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 375,
+      "loc": 388,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -468,7 +481,7 @@
       "test_name": "try_except_pass"
     },
     {
-      "code": "168         gate = print_template or print_spec\n169         assert gate is not None\n170         language, repo_type = _resolve_language_type(path, language_override, type_override)\n",
+      "code": "169         gate = print_template or print_spec\n170         assert gate is not None\n171         language, repo_type = _resolve_language_type(path, language_override, type_override)\n",
       "col_offset": 8,
       "end_col_offset": 31,
       "filename": "src/ai_shell/cli/commands/standardize.py",
@@ -479,9 +492,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
-      "line_number": 169,
+      "line_number": 170,
       "line_range": [
-        169
+        170
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html",
       "test_id": "B101",
@@ -1136,7 +1149,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "126         return (127, \"\", \"ai-gh not installed\")\n127     proc = subprocess.run([\"ai-gh\", *args], capture_output=True, text=True, cwd=cwd, check=False)\n128     return proc.returncode, proc.stdout, proc.stderr\n",
+      "code": "127         return (127, \"\", \"ai-gh not installed\")\n128     proc = subprocess.run([\"ai-gh\", *args], capture_output=True, text=True, cwd=cwd, check=False)\n129     return proc.returncode, proc.stdout, proc.stderr\n",
       "col_offset": 11,
       "end_col_offset": 97,
       "filename": "src/ai_shell/standardize/umbrella.py",
@@ -1147,16 +1160,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 127,
+      "line_number": 128,
       "line_range": [
-        127
+        128
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "126         return (127, \"\", \"ai-gh not installed\")\n127     proc = subprocess.run([\"ai-gh\", *args], capture_output=True, text=True, cwd=cwd, check=False)\n128     return proc.returncode, proc.stdout, proc.stderr\n",
+      "code": "127         return (127, \"\", \"ai-gh not installed\")\n128     proc = subprocess.run([\"ai-gh\", *args], capture_output=True, text=True, cwd=cwd, check=False)\n129     return proc.returncode, proc.stdout, proc.stderr\n",
       "col_offset": 11,
       "end_col_offset": 97,
       "filename": "src/ai_shell/standardize/umbrella.py",
@@ -1167,9 +1180,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 127,
+      "line_number": 128,
       "line_range": [
-        127
+        128
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
