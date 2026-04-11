@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.41.0 (2026-04-11)
+
+### Features
+
+- Initialize woxom-ecosystem with standard templates and configurations
+  ([`cc21259`](https://github.com/svange/augint-shell/commit/cc2125990a8dfe5caa3cd55834d2d8576558bad6))
+
+
 ## v0.40.0 (2026-04-09)
 
 ### Features
