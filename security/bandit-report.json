@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-04-11T02:04:42Z",
+  "generated_at": "2026-04-11T05:14:43Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 34,
+      "CONFIDENCE.HIGH": 29,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 1,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 35,
+      "SEVERITY.LOW": 30,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 4182,
+      "loc": 4301,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -232,7 +232,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 121,
+      "loc": 136,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -284,7 +284,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 92,
+      "loc": 100,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -341,15 +341,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/standardize/verify.py": {
-      "CONFIDENCE.HIGH": 5,
+      "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 1,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 6,
+      "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 254,
+      "loc": 350,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1156,27 +1156,7 @@
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "14 import difflib\n15 import subprocess\n16 from dataclasses import dataclass\n",
-      "col_offset": 0,
-      "end_col_offset": 17,
-      "filename": "src/ai_shell/standardize/verify.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Consider possible security implications associated with the subprocess module.",
-      "line_number": 15,
-      "line_range": [
-        15
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess",
-      "test_id": "B404",
-      "test_name": "blacklist"
-    },
-    {
-      "code": "25 class VerifyStatus(StrEnum):\n26     PASS = \"PASS\"\n27     DRIFT = \"DRIFT\"\n",
+      "code": "42 class VerifyStatus(StrEnum):\n43     PASS = \"PASS\"\n44     DRIFT = \"DRIFT\"\n",
       "col_offset": 11,
       "end_col_offset": 17,
       "filename": "src/ai_shell/standardize/verify.py",
@@ -1187,117 +1167,13 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Possible hardcoded password: 'PASS'",
-      "line_number": 26,
+      "line_number": 43,
       "line_range": [
-        26
+        43
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html",
       "test_id": "B105",
       "test_name": "hardcoded_password_string"
-    },
-    {
-      "code": "191     try:\n192         out = subprocess.run(\n193             [\"ai-gh\", \"rulesets\", \"view\", \"--json\"],\n194             capture_output=True,\n195             text=True,\n196             cwd=root,\n197             check=False,\n198         )\n199     except FileNotFoundError:\n",
-      "col_offset": 14,
-      "end_col_offset": 9,
-      "filename": "src/ai_shell/standardize/verify.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Starting a process with a partial executable path",
-      "line_number": 192,
-      "line_range": [
-        192,
-        193,
-        194,
-        195,
-        196,
-        197,
-        198
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
-      "test_id": "B607",
-      "test_name": "start_process_with_partial_path"
-    },
-    {
-      "code": "191     try:\n192         out = subprocess.run(\n193             [\"ai-gh\", \"rulesets\", \"view\", \"--json\"],\n194             capture_output=True,\n195             text=True,\n196             cwd=root,\n197             check=False,\n198         )\n199     except FileNotFoundError:\n",
-      "col_offset": 14,
-      "end_col_offset": 9,
-      "filename": "src/ai_shell/standardize/verify.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 192,
-      "line_range": [
-        192,
-        193,
-        194,
-        195,
-        196,
-        197,
-        198
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
-      "test_id": "B603",
-      "test_name": "subprocess_without_shell_equals_true"
-    },
-    {
-      "code": "244     try:\n245         out = subprocess.run(\n246             [\"ai-gh\", \"config\", \"--status\", \"--json\"],\n247             capture_output=True,\n248             text=True,\n249             cwd=root,\n250             check=False,\n251         )\n252     except FileNotFoundError:\n",
-      "col_offset": 14,
-      "end_col_offset": 9,
-      "filename": "src/ai_shell/standardize/verify.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Starting a process with a partial executable path",
-      "line_number": 245,
-      "line_range": [
-        245,
-        246,
-        247,
-        248,
-        249,
-        250,
-        251
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
-      "test_id": "B607",
-      "test_name": "start_process_with_partial_path"
-    },
-    {
-      "code": "244     try:\n245         out = subprocess.run(\n246             [\"ai-gh\", \"config\", \"--status\", \"--json\"],\n247             capture_output=True,\n248             text=True,\n249             cwd=root,\n250             check=False,\n251         )\n252     except FileNotFoundError:\n",
-      "col_offset": 14,
-      "end_col_offset": 9,
-      "filename": "src/ai_shell/standardize/verify.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 245,
-      "line_range": [
-        245,
-        246,
-        247,
-        248,
-        249,
-        250,
-        251
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
-      "test_id": "B603",
-      "test_name": "subprocess_without_shell_equals_true"
     }
   ]
 }
