@@ -93,3 +93,9 @@ All gate names come from `gates.json` in this skill directory:
 - **Post-deploy gate (iac only):** `Acceptance tests`
 
 Commit prefixes and semantic-release alignment come from `commit-scheme.json` in this directory. Never hardcode gate names or commit prefixes in skill prose or template files -- they drift. The `ai-shell standardize lint` command scans for drift and is wired into pre-commit.
+
+## Cross-cutting constraints
+
+- **S10-6: Format generated files for Node repos.** After writing any file (pipeline YAML, `renovate.json5`, `.releaserc.json`, `.pre-commit-config.yaml`, etc.) to a Node repo, run `npx prettier --write <file>` so it passes `format:check` in CI. Alternatively, run `npm run format` once before committing.
+- **S12-1: No CI control keywords in generated text.** Never include `[skip ci]`, `[ci skip]`, `[no ci]`, `[skip actions]`, or `[actions skip]` in any generated PR body, commit message, or workflow template text -- even inside backticks or explanatory prose. GitHub scans the full merge commit message and will skip all workflows.
+- **S12-2: Promote workflow token split.** In the promote-to-production nightly workflow, use `github.token` (the built-in Actions token, with `checks: read` permission) for monitoring and check-runs API calls. Use `secrets.GH_TOKEN` (fine-grained PAT) only for PR creation and auto-merge, since the built-in token cannot trigger downstream workflows.

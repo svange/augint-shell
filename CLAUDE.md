@@ -31,6 +31,7 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 - **No lock file edits**: NEVER directly write text into lock files (uv.lock, package-lock.json, poetry.lock, yarn.lock). Always use package manager commands (`uv lock`, `uv add`, `npm install`) to regenerate them. When a package manager command updates a lock file, ALWAYS stage and include it in the commit -- lock file changes must never be left uncommitted.
 - **No .env commits**: NEVER commit .env files. Use .env.example for templates.
 - **No force push to main**: NEVER use `git push --force` on main or the default branch.
+- **No CI control keywords**: NEVER include GitHub Actions CI control keywords in commit messages, PR titles, PR descriptions, or any text that becomes part of a merge commit. The forbidden strings are: `[skip ci]`, `[ci skip]`, `[no ci]`, `[skip actions]`, `[actions skip]`. GitHub scans the full commit message (title + body, including merge commit bodies derived from PR descriptions) and will skip all workflows if any of these strings appear anywhere -- even inside backticks, quotes, or explanatory text. Only `semantic-release` is authorized to emit these keywords in its automated release commits.
 
 ## Conventions
 

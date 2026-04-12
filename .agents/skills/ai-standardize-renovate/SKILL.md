@@ -25,10 +25,39 @@ uv run ai-tools standardize <path> --verify --json
 The drift report includes python/node and library/iac. On ambiguous,
 ask and stop.
 
+### Step 1.5 -- check for duplicate Renovate config files (S12-4)
+
+Renovate evaluates config files in a strict precedence order:
+`renovate.json` > `renovate.json5` > `.renovaterc` > `.renovaterc.json`.
+If a higher-precedence file exists alongside the canonical
+`renovate.json5`, the canonical config is silently ignored.
+
+Check all four names:
+
+```bash
+ls <repo>/renovate.json <repo>/renovate.json5 <repo>/.renovaterc <repo>/.renovaterc.json 2>/dev/null
+```
+
+If more than one exists, surface via `AskUserQuestion`:
+
+> Found both `renovate.json` (higher precedence) and `renovate.json5`
+> in the repo root. Renovate reads `renovate.json` and ignores
+> `renovate.json5`. [a] Delete `renovate.json` and keep the canonical
+> `renovate.json5` (recommended). [b] Merge content from
+> `renovate.json` into `renovate.json5`, then delete `renovate.json`.
+> [c] Abort.
+
+Also verify the **default branch** has the same state -- Renovate
+reads config from the default branch, not the working branch. If the
+working branch has `renovate.json5` but `main` still has
+`renovate.json`, the canonical config won't take effect until the PR
+merges.
+
 ### Step 2 -- read the existing config (if present)
 
 `Read <repo>/renovate.json5` (or `renovate.json` if that's what the
-repo uses). If absent, skip to Step 4 with one question:
+repo uses, after Step 1.5 resolves any duplicates). If absent, skip to
+Step 4 with one question:
 > No existing `renovate.json5`. Scaffold the canonical template for
 > `<language>/<type>`? [a] Yes. [b] Abort.
 

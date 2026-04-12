@@ -262,6 +262,32 @@ than a reference read until every question is answered.
          run: echo "all post-deploy tests passed"
    ```
 
+   **S10-4: Inspect the repo's credential pattern before writing.**
+   The example above defaults to `secrets.AWS_DEPLOY_ROLE_STAGING`, but
+   many repos use a different pattern:
+
+   - `${{ env.PIPELINE_EXECUTION_ROLE }}` set via a "Set AWS environment
+     variables" step that reads from `${{ vars.STAGING_PIPELINE_EXECUTION_ROLE }}`
+   - `${{ secrets.AWS_DEPLOY_ROLE_STAGING }}` (direct secret reference)
+   - `${{ vars.AWS_DEPLOY_ROLE }}` (variable, not secret)
+
+   **Before generating the aggregator, `Read` the existing pipeline's
+   `configure-aws-credentials` steps and mirror the same pattern.** If
+   the repo uses `env.PIPELINE_EXECUTION_ROLE`, add a preceding step
+   that writes it to `$GITHUB_ENV` (copy from the repo's deploy job).
+   If neither exists (new repo with no deploy history), use the
+   `secrets.AWS_DEPLOY_ROLE_STAGING` default above.
+
+   **S10-5: Handle dynamic AWS_REGION the same way.** Some repos set
+   `AWS_REGION` at workflow scope; others (with staging vs production
+   regions) define `STAGING_AWS_REGION` / `PROD_AWS_REGION` and write
+   `AWS_REGION` to `$GITHUB_ENV` in a per-job setup step. If the
+   acceptance-tests aggregator uses the per-job pattern, include
+   `echo "AWS_REGION=${{ env.STAGING_AWS_REGION }}" >> $GITHUB_ENV`
+   in the env-setup step. **Mirror the full env-setup block from the
+   deploy job the aggregator follows** rather than inventing a
+   simplified subset.
+
 6. **Top-level customizations to preserve.** Read the existing file's
    top-level keys (`name`, `on`, `env`, `concurrency`, `permissions`)
    and ask:
@@ -361,6 +387,20 @@ No reusable workflow files (`_gate-*.yaml`).
 
 If Step 2.5 question 2 confirmed a rename (e.g. `ci.yml` -> `pipeline.yaml`),
 delete the old file via `Bash rm` after the new one is written.
+
+**S10-6: For Node repos, run Prettier on every written file.** Node
+repos enforce `format:check` in CI. Tool-generated YAML, JSON, and
+JSON5 files will fail Prettier unless formatted after writing:
+
+```bash
+npx prettier --write <repo>/.github/workflows/pipeline.yaml
+```
+
+Run this immediately after the `Write` step. If the repo has a
+`format` script in `package.json`, running `npm run format` once
+across all written files at the commit step also works. The key
+constraint is: **no file written by any standardization skill should
+reach CI without having been formatted by the repo's own formatter.**
 
 ### Step 6 -- re-validate and iterate
 

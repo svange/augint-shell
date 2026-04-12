@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  checks: read
   contents: write
   pull-requests: write
   actions: write
@@ -51,7 +52,10 @@ jobs:
       - name: Wait for acceptance tests
         if: steps.check.outputs.ahead != '0'
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          # S12-2: use the built-in token for monitoring/checks API calls.
+          # Fine-grained PATs (secrets.GH_TOKEN) cannot access the Checks
+          # API; the built-in GITHUB_TOKEN can with checks:read permission.
+          GH_TOKEN: ${{ github.token }}
         timeout-minutes: 30
         run: |
           gh run watch ${{ steps.dispatch.outputs.run_id }} --exit-status
