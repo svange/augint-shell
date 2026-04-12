@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.50.0 (2026-04-12)
+
+### Features
+
+- Update CLAUDE.md and SKILL.md with new guidelines for CI control keywords and AWS credential
+  patterns
+  ([`c770155`](https://github.com/svange/augint-shell/commit/c770155c03c1840a5a3075927cbeb6a9e707383d))
+
+
 ## v0.49.0 (2026-04-11)
 
 ### Features
