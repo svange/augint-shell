@@ -322,8 +322,9 @@ class TestBuildDevEnvironmentGhToken:
         gh_dir = tmp_path / ".config" / "gh"
         gh_dir.mkdir(parents=True)
         (gh_dir / "hosts.yml").write_text("github.com:\n  oauth_token: ghp_from_hosts\n")
-        with patch("ai_shell.defaults.Path.home", return_value=tmp_path), patch.dict(
-            "os.environ", {}, clear=True
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
         ):
             env = build_dev_environment()
         assert env["GH_TOKEN"] == "ghp_from_hosts"
@@ -334,8 +335,9 @@ class TestBuildDevEnvironmentGhToken:
         gh_dir.mkdir(parents=True)
         (gh_dir / "hosts.yml").write_text("github.com:\n  oauth_token: ghp_from_hosts\n")
         (tmp_path / ".env").write_text("GH_TOKEN=ghp_from_dotenv\n")
-        with patch("ai_shell.defaults.Path.home", return_value=tmp_path), patch.dict(
-            "os.environ", {}, clear=True
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
         ):
             env = build_dev_environment(project_dir=tmp_path)
         assert env["GH_TOKEN"] == "ghp_from_dotenv"
@@ -344,15 +346,17 @@ class TestBuildDevEnvironmentGhToken:
         gh_dir = tmp_path / ".config" / "gh"
         gh_dir.mkdir(parents=True)
         (gh_dir / "hosts.yml").write_text("github.com:\n  oauth_token: ghp_from_hosts\n")
-        with patch("ai_shell.defaults.Path.home", return_value=tmp_path), patch.dict(
-            "os.environ", {"GH_TOKEN": "ghp_from_env"}
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {"GH_TOKEN": "ghp_from_env"}),
         ):
             env = build_dev_environment()
         assert env["GH_TOKEN"] == "ghp_from_env"
 
     def test_missing_hosts_yml_returns_empty(self, tmp_path):
-        with patch("ai_shell.defaults.Path.home", return_value=tmp_path), patch.dict(
-            "os.environ", {}, clear=True
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
         ):
             env = build_dev_environment()
         assert env["GH_TOKEN"] == ""
@@ -361,8 +365,9 @@ class TestBuildDevEnvironmentGhToken:
         gh_dir = tmp_path / ".config" / "gh"
         gh_dir.mkdir(parents=True)
         (gh_dir / "hosts.yml").write_text("not: valid: yaml: [")
-        with patch("ai_shell.defaults.Path.home", return_value=tmp_path), patch.dict(
-            "os.environ", {}, clear=True
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
         ):
             env = build_dev_environment()
         assert env["GH_TOKEN"] == ""
