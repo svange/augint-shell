@@ -121,6 +121,7 @@ class TestBuildDevMounts:
         # Optional mounts should NOT be present since paths don't exist
         assert "/root/.ssh" not in targets
         assert "/root/.claude" not in targets
+        assert "/root/.config/gh" not in targets
 
     def test_includes_existing_optional_paths(self, tmp_path):
         project_dir = tmp_path / "test-project"
@@ -131,6 +132,7 @@ class TestBuildDevMounts:
         (fake_home / ".ssh").mkdir()
         (fake_home / ".claude").mkdir()
         (fake_home / ".aws").mkdir()
+        (fake_home / ".config" / "gh").mkdir(parents=True)
 
         with patch("ai_shell.defaults.Path.home", return_value=fake_home):
             mounts = build_dev_mounts(project_dir, "test-project")
@@ -139,6 +141,7 @@ class TestBuildDevMounts:
         assert "/root/.ssh" in targets
         assert "/root/.claude" in targets
         assert "/root/.aws" in targets
+        assert "/root/.config/gh" in targets
 
 
 class TestBuildDevEnvironment:
@@ -312,3 +315,59 @@ class TestBuildDevEnvironmentTeamMode:
     def test_team_mode_false_no_agent_teams_env(self):
         env = build_dev_environment(team_mode=False)
         assert "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" not in env
+
+
+class TestBuildDevEnvironmentGhToken:
+    def test_falls_back_to_hosts_yml_when_no_token(self, tmp_path):
+        gh_dir = tmp_path / ".config" / "gh"
+        gh_dir.mkdir(parents=True)
+        (gh_dir / "hosts.yml").write_text("github.com:\n  oauth_token: ghp_from_hosts\n")
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            env = build_dev_environment()
+        assert env["GH_TOKEN"] == "ghp_from_hosts"
+        assert env["GITHUB_TOKEN"] == "ghp_from_hosts"
+
+    def test_dotenv_takes_precedence_over_hosts_yml(self, tmp_path):
+        gh_dir = tmp_path / ".config" / "gh"
+        gh_dir.mkdir(parents=True)
+        (gh_dir / "hosts.yml").write_text("github.com:\n  oauth_token: ghp_from_hosts\n")
+        (tmp_path / ".env").write_text("GH_TOKEN=ghp_from_dotenv\n")
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            env = build_dev_environment(project_dir=tmp_path)
+        assert env["GH_TOKEN"] == "ghp_from_dotenv"
+
+    def test_os_environ_takes_precedence_over_hosts_yml(self, tmp_path):
+        gh_dir = tmp_path / ".config" / "gh"
+        gh_dir.mkdir(parents=True)
+        (gh_dir / "hosts.yml").write_text("github.com:\n  oauth_token: ghp_from_hosts\n")
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {"GH_TOKEN": "ghp_from_env"}),
+        ):
+            env = build_dev_environment()
+        assert env["GH_TOKEN"] == "ghp_from_env"
+
+    def test_missing_hosts_yml_returns_empty(self, tmp_path):
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            env = build_dev_environment()
+        assert env["GH_TOKEN"] == ""
+
+    def test_malformed_hosts_yml_returns_empty(self, tmp_path):
+        gh_dir = tmp_path / ".config" / "gh"
+        gh_dir.mkdir(parents=True)
+        (gh_dir / "hosts.yml").write_text("not: valid: yaml: [")
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            env = build_dev_environment()
+        assert env["GH_TOKEN"] == ""
