@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-04-13T03:35:47Z",
+  "generated_at": "2026-04-13T03:41:37Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 32,
@@ -11,7 +11,7 @@
       "SEVERITY.LOW": 33,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 5423,
+      "loc": 5420,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -362,7 +362,7 @@
       "SEVERITY.LOW": 3,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 268,
+      "loc": 265,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1215,7 +1215,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "127         return (127, \"\", \"ai-gh not installed\")\n128     proc = subprocess.run([\"ai-gh\", *args], capture_output=True, text=True, cwd=cwd, check=False)\n129     return proc.returncode, proc.stdout, proc.stderr\n",
+      "code": "124         return (127, \"\", \"ai-gh not installed\")\n125     proc = subprocess.run([\"ai-gh\", *args], capture_output=True, text=True, cwd=cwd, check=False)\n126     return proc.returncode, proc.stdout, proc.stderr\n",
       "col_offset": 11,
       "end_col_offset": 97,
       "filename": "src/ai_shell/standardize/umbrella.py",
@@ -1226,16 +1226,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 128,
+      "line_number": 125,
       "line_range": [
-        128
+        125
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "127         return (127, \"\", \"ai-gh not installed\")\n128     proc = subprocess.run([\"ai-gh\", *args], capture_output=True, text=True, cwd=cwd, check=False)\n129     return proc.returncode, proc.stdout, proc.stderr\n",
+      "code": "124         return (127, \"\", \"ai-gh not installed\")\n125     proc = subprocess.run([\"ai-gh\", *args], capture_output=True, text=True, cwd=cwd, check=False)\n126     return proc.returncode, proc.stdout, proc.stderr\n",
       "col_offset": 11,
       "end_col_offset": 97,
       "filename": "src/ai_shell/standardize/umbrella.py",
@@ -1246,9 +1246,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 128,
+      "line_number": 125,
       "line_range": [
-        128
+        125
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
