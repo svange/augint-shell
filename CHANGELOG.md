@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.52.1 (2026-04-13)
+
+### Refactoring
+
+- Improve OIDC setup messaging and formatting in _run_ai_setup_oidc function
+  ([`a6792ca`](https://github.com/svange/augint-shell/commit/a6792ca4baa3e33ba72f2331a8a37beddcdfef87))
+
+
 ## v0.52.0 (2026-04-13)
 
 ### Features
