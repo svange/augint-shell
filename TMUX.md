@@ -181,14 +181,15 @@ set-option -t claude-multi history-limit 50000
 # Claude Code detects focus gain/loss for auto-refresh.
 set-option -t claude-multi focus-events on
 
-# ── Pane borders: blue active, gray inactive ───────────────────────
+# ── Pane borders: blue active, dim-cyan inactive ──────────────────
 # Heavy (thick) Unicode box-drawing borders for visibility.
+# Dim cyan (colour73) avoids blending with Claude Code's gray horizontal rules.
 set-option -t claude-multi pane-border-status top
 set-option -t claude-multi pane-border-lines heavy
-# Title text color matches border: blue for active, gray for inactive.
+# Title text color matches border: blue for active, dim cyan for inactive.
 set-option -t claude-multi pane-border-format \
-  "#{?pane_active,#[fg=colour75 bold] #{pane_title} ,#[fg=colour240] #{pane_title} }"
-set-option -t claude-multi pane-border-style "fg=colour240"
+  "#{?pane_active,#[fg=colour75 bold] #{pane_title} ,#[fg=colour73] #{pane_title} }"
+set-option -t claude-multi pane-border-style "fg=colour73"
 set-option -t claude-multi pane-active-border-style "fg=colour75,bold"
 # Arrow indicators on the active pane border.
 set-option -t claude-multi pane-border-indicators arrows

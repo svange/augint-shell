@@ -169,21 +169,21 @@ def build_tmux_commands(
             _exec("tmux", "send-keys", "-t", f"{session_name}:0.{i}", pane.command, "Enter")
         )
 
-    # 7. Configure session options -- blue active / gray inactive borders
+    # 7. Configure session options -- blue active / dim-cyan inactive borders
     session_options: list[tuple[str, str]] = [
         # Mouse & responsiveness
         ("mouse", "on"),
         ("escape-time", "10"),
         ("history-limit", "50000"),
         ("focus-events", "on"),
-        # Pane borders: blue active, gray inactive, heavy lines
+        # Pane borders: blue active, dim cyan inactive, heavy lines
         ("pane-border-status", "top"),
         ("pane-border-lines", "heavy"),
         (
             "pane-border-format",
-            "#{?pane_active,#[fg=colour75 bold] #{pane_title} ,#[fg=colour240] #{pane_title} }",
+            "#{?pane_active,#[fg=colour75 bold] #{pane_title} ,#[fg=colour73] #{pane_title} }",
         ),
-        ("pane-border-style", "fg=colour240"),
+        ("pane-border-style", "fg=colour73"),
         ("pane-active-border-style", "fg=colour75,bold"),
         ("pane-border-indicators", "arrows"),
         # Status bar
