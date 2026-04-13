@@ -62,12 +62,12 @@
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.52.1"
+    "Version": "0.53.0"
   },
   {
     "License": "UNKNOWN",
     "Name": "augint-tools",
-    "Version": "3.5.0"
+    "Version": "3.8.0"
   },
   {
     "License": "Apache-2.0",
@@ -212,7 +212,7 @@
   {
     "License": "MIT",
     "Name": "mypy",
-    "Version": "1.20.0"
+    "Version": "1.20.1"
   },
   {
     "License": "MIT",
@@ -287,12 +287,12 @@
   {
     "License": "MIT",
     "Name": "pydantic",
-    "Version": "2.12.5"
+    "Version": "2.13.0"
   },
   {
     "License": "MIT",
     "Name": "pydantic_core",
-    "Version": "2.41.5"
+    "Version": "2.46.0"
   },
   {
     "License": "MIT",
@@ -337,7 +337,7 @@
   {
     "License": "MIT",
     "Name": "python-semantic-release",
-    "Version": "10.4.1"
+    "Version": "10.5.3"
   },
   {
     "License": "Apache Software License",
@@ -392,7 +392,7 @@
   {
     "License": "MIT License",
     "Name": "tomlkit",
-    "Version": "0.14.0"
+    "Version": "0.13.3"
   },
   {
     "License": "Apache-2.0",
