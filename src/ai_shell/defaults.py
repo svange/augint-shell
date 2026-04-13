@@ -148,6 +148,7 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
         (home / ".ssh", "/root/.ssh", True),
         (home / ".gitconfig", "/root/.gitconfig.windows", True),
         (home / ".aws", "/root/.aws", False),
+        (home / ".config" / "gh", "/root/.config/gh", False),
     ]
 
     for source, target, read_only in optional_binds:
@@ -196,6 +197,25 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
     return mounts
 
 
+def _read_gh_hosts_token(gh_config_dir: Path) -> str:
+    """Read oauth_token for github.com from ~/.config/gh/hosts.yml.
+
+    Returns empty string if the file is missing, unreadable, or malformed.
+    """
+    import yaml
+
+    hosts_file = gh_config_dir / "hosts.yml"
+    if not hosts_file.exists():
+        return ""
+    try:
+        with hosts_file.open() as f:
+            data = yaml.safe_load(f)
+        return str(data.get("github.com", {}).get("oauth_token", "")) or ""
+    except Exception:  # noqa: BLE001
+        logger.debug("Could not read GH token from %s", hosts_file)
+        return ""
+
+
 def build_dev_environment(
     extra_env: dict[str, str] | None = None,
     project_dir: Path | None = None,
@@ -235,12 +255,13 @@ def build_dev_environment(
             return dotenv_val
         return os.environ.get(key, default)
 
+    gh_token = _resolve("GH_TOKEN") or _read_gh_hosts_token(Path.home() / ".config" / "gh")
     env: dict[str, str] = {
         "AWS_PROFILE": aws_profile or _resolve("AWS_PROFILE"),
         "AWS_REGION": aws_region or _resolve("AWS_REGION", "us-east-1"),
         "AWS_PAGER": "",
-        "GH_TOKEN": _resolve("GH_TOKEN"),
-        "GITHUB_TOKEN": _resolve("GH_TOKEN"),
+        "GH_TOKEN": gh_token,
+        "GITHUB_TOKEN": gh_token,
         "HUSKY": "0",
         "IS_SANDBOX": "1",
     }
