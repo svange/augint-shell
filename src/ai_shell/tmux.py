@@ -104,7 +104,7 @@ def select_layout(pane_count: int) -> str:
     """Return the tmux layout name for the given pane count.
 
     2 panes: even-vertical   (top / bottom)
-    3 panes: main-horizontal (1 large top, 2 split bottom)
+    3 panes: main-horizontal (1 large top, 2 split bottom -- first pane ~65%)
     4 panes: tiled           (even quarters)
     """
     layouts = {
@@ -152,6 +152,12 @@ def build_tmux_commands(
     # 4. Apply layout
     layout = select_layout(len(panes))
     cmds.append(_exec("tmux", "select-layout", "-t", f"{session_name}:0", layout))
+
+    # 4b. For 3-pane main-horizontal: give the first pane ~65% of height
+    if len(panes) == 3:
+        cmds.append(_exec("tmux", "set-option", "-t", session_name, "main-pane-height", "65%"))
+        # Re-apply layout so the new main-pane-height takes effect
+        cmds.append(_exec("tmux", "select-layout", "-t", f"{session_name}:0", layout))
 
     # 5. Set pane titles
     for i, pane in enumerate(panes):

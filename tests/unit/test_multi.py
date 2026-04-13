@@ -161,9 +161,30 @@ class TestBuildTmuxCommands:
 
         layout_cmds = [c for c in cmds if "select-layout" in c]
         assert "main-horizontal" in layout_cmds[0]
+        # Layout applied twice: once initially, once after main-pane-height
+        assert len(layout_cmds) == 2
 
         split_cmds = [c for c in cmds if "split-window" in c]
         assert len(split_cmds) == 2
+
+    def test_3_panes_sets_main_pane_height(self):
+        panes = [
+            PaneSpec(name=f"repo-{i}", command=f"cmd-{i}", working_dir=f"/d/{i}") for i in range(3)
+        ]
+        cmds = build_tmux_commands("container", "session", panes)
+
+        height_cmds = [c for c in cmds if "main-pane-height" in c]
+        assert len(height_cmds) == 1
+        assert "65%" in height_cmds[0]
+
+    def test_2_panes_no_main_pane_height(self):
+        panes = [
+            PaneSpec(name=f"repo-{i}", command=f"cmd-{i}", working_dir=f"/d/{i}") for i in range(2)
+        ]
+        cmds = build_tmux_commands("container", "session", panes)
+
+        height_cmds = [c for c in cmds if "main-pane-height" in c]
+        assert len(height_cmds) == 0
 
     def test_4_panes_uses_tiled(self):
         panes = [

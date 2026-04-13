@@ -135,7 +135,7 @@ tmux select-layout -t claude-multi:0 {layout}
 | Panes | Layout | tmux name | Visual |
 |-------|--------|-----------|--------|
 | 2 | Horizontal split | `even-vertical` | top / bottom |
-| 3 | 1 top, 2 bottom | `main-horizontal` | wide top, split bottom |
+| 3 | 1 top, 2 bottom | `main-horizontal` | top pane ~65%, two smaller bottom |
 | 4 | Even quarters | `tiled` | 2x2 grid |
 
 **Set pane titles:**
