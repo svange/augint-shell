@@ -1,17 +1,13 @@
 // Renovate Bot Configuration — service (dev/main, deploys infrastructure)
 // Docs: https://docs.renovatebot.com/configuration-options/
 //
-// KEY DIFFERENCE from library template:
-//   - baseBranchPatterns targets the dev branch (staging)
-//   - Production deps use fix(deps): prefix (triggers patch release at promotion time)
-//
-// ADAPT before writing:
-//   - baseBranchPatterns: use detected DEV_BRANCH name
-//   - enabledManagers: include only detected managers
-//   - matchManagers/matchDepTypes: use pep621 values for Python, npm values for Node
-//     Python: matchDepTypes "project.dependencies" (prod), "project.optional-dependencies"/"dependency-groups" (dev)
-//     Node:   matchDepTypes "dependencies" (prod), "devDependencies" (dev)
-//   - matchPackageNames: "python-semantic-release" for Python, "semantic-release" for Node
+// Canonical template written by `ai-shell standardize renovate`. Differs
+// from the library template in two ways:
+//   - `baseBranchPatterns: ["dev"]` so Renovate targets the staging branch
+//   - Production deps use `fix(deps):` prefix to trigger patch releases
+//     at dev->main promotion time
+// The generator substitutes manager/dep-type strings for Node when
+// detected. Do not hand-edit; regenerate instead.
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
 
