@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.63.0 (2026-04-13)
+
+### Features
+
+- Remove standardize engine and templates
+  ([`d319bc6`](https://github.com/svange/augint-shell/commit/d319bc607a4af45d243d93a9c835f42692ef139f))
+
+
 ## v0.62.0 (2026-04-13)
 
 ### Features
