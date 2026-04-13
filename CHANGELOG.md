@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.60.0 (2026-04-13)
+
+### Features
+
+- Update workspace context handling in Claude command execution
+  ([`97bbaee`](https://github.com/svange/augint-shell/commit/97bbaeea167b31ba1057bb3d887734fb42613820))
+
+
 ## v0.59.0 (2026-04-13)
 
 ### Features
