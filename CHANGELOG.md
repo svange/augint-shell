@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.54.0 (2026-04-13)
+
+### Features
+
+- Enhance tmux configuration with improved pane borders and terminal options
+  ([`d541aa9`](https://github.com/svange/augint-shell/commit/d541aa90e1772870e0ba1756ac0ad21c16564278))
+
+
 ## v0.53.0 (2026-04-13)
 
 ### Features
