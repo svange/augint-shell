@@ -101,23 +101,20 @@ def _write_dotfiles(root: Path, *, dry_run: bool = False) -> StepResult:
 def _run_ai_setup_oidc(root: Path, *, dry_run: bool = False) -> StepResult:
     """Surface OIDC as a NEEDS_ACTION step, not a silent skip (T5-12).
 
-    The Python umbrella never touches AWS IAM trust policies. The
-    /ai-setup-oidc skill handles reasoning about current state and
-    asking the user before changes. This function returns
-    ``NEEDS_ACTION`` so the umbrella's final report shows the step as a
-    yellow warning rather than a silent pass, and so non-AI callers (e.g.
-    ``ai-tools workspace standardize --apply`` in a future round) know
-    to run the sub-skill separately.
+    The umbrella never touches AWS IAM trust policies. The /ai-setup-oidc
+    skill handles reasoning about current state and asking the user before
+    changes. This function returns ``NEEDS_ACTION`` so the umbrella's
+    final report shows the step as a yellow warning rather than a silent
+    pass, and so non-AI callers (e.g. ``ai-tools workspace standardize
+    --apply`` in a future round) know to run the sub-skill separately.
     """
-    message = (
-        "OIDC trust setup is not auto-configured by the Python umbrella. "
-        "Invoke `/ai-setup-oidc` as a sub-skill to check and configure "
-        "(or, if already correct, confirm via `ai-gh oidc view`)."
-    )
     if dry_run:
+        message = "[dry-run] OIDC step would delegate to `/ai-setup-oidc` sub-skill."
+    else:
         message = (
-            "[dry-run] OIDC step would delegate to `/ai-setup-oidc` "
-            "sub-skill. Python performs no AWS IAM changes regardless."
+            "OIDC trust setup is not auto-configured by the umbrella. "
+            "Invoke `/ai-setup-oidc` as a sub-skill to check and configure "
+            "(or, if already correct, confirm via `ai-gh oidc view`)."
         )
     return StepResult("oidc", StepStatus.NEEDS_ACTION, message)
 
