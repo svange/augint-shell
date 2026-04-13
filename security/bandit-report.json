@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-04-12T15:20:28Z",
+  "generated_at": "2026-04-13T02:08:36Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 30,
@@ -11,7 +11,7 @@
       "SEVERITY.LOW": 31,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 5018,
+      "loc": 5040,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -115,7 +115,7 @@
       "SEVERITY.LOW": 7,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 851,
+      "loc": 848,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -141,7 +141,7 @@
       "SEVERITY.LOW": 3,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 374,
+      "loc": 382,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -258,7 +258,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 57,
+      "loc": 65,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -284,7 +284,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 350,
+      "loc": 352,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -323,7 +323,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 124,
+      "loc": 131,
       "nosec": 0,
       "skipped_tests": 0
     },
