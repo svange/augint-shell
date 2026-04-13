@@ -342,6 +342,79 @@ def _load_workspace_repos(workspace_yaml: Path) -> tuple[str, list[dict[str, Any
     return workspace_name, repos
 
 
+def _launch_team(
+    ctx: click.Context,
+    *,
+    safe: bool,
+    use_aws: bool,
+    cli_profile: str | None,
+    skip_preflight: bool,
+    extra_args: tuple[str, ...],
+) -> None:
+    """Launch Claude Code in Agent Teams mode.
+
+    Creates a single Claude Code instance with Agent Teams enabled.  The lead
+    agent receives workspace context (repo list from ``workspace.yaml``) and
+    manages its own tmux pane splitting for teammates.
+    """
+    # Gather workspace context if available
+    workspace_yaml = Path.cwd() / "workspace.yaml"
+    workspace_context = ""
+    if workspace_yaml.exists():
+        workspace_name, repos = _load_workspace_repos(workspace_yaml)
+        repo_lines = "\n".join(
+            f"  - {r['name']} ({r.get('repo_type', 'unknown')}): "
+            f"/root/projects/{workspace_name}/{r.get('path', './' + r['name']).lstrip('./')}"
+            for r in repos
+        )
+        workspace_context = (
+            f"Workspace: {workspace_name}\n"
+            f"Repos:\n{repo_lines}\n\n"
+            "Spawn teammates for each repo.  Tell each teammate to work in "
+            "the directory listed above for their assigned repo."
+        )
+
+    # Load config and create container
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    use_bedrock = use_aws or config.claude_provider == "aws"
+
+    manager = ContainerManager(config)
+    container_name = manager.ensure_dev_container()
+    exec_env = build_dev_environment(
+        config.extra_env,
+        config.project_dir,
+        project_name=config.project_name,
+        bedrock=use_bedrock,
+        aws_profile=config.ai_profile,
+        aws_region=config.aws_region,
+        bedrock_profile=cli_profile or config.bedrock_profile,
+        team_mode=True,
+    )
+
+    if use_bedrock and not skip_preflight:
+        _check_bedrock_access(container_name, exec_env)
+
+    workdir = f"/root/projects/{config.project_name}"
+
+    # Build the claude command -- Agent Teams manages its own tmux panes
+    cmd: list[str] = ["claude"]
+    if not safe:
+        cmd.append("--dangerously-skip-permissions")
+
+    # Pass workspace context as the initial prompt if available
+    if workspace_context:
+        cmd.extend(["-p", workspace_context])
+
+    cmd.extend(extra_args)
+
+    console.print("[bold]Launching Claude Code in Agent Teams mode (experimental)...[/bold]")
+    if workspace_context:
+        console.print("[dim]Workspace context provided to team lead[/dim]")
+
+    manager.exec_interactive(container_name, cmd, extra_env=exec_env, workdir=workdir)
+
+
 def _launch_multi(
     ctx: click.Context,
     *,
@@ -350,6 +423,7 @@ def _launch_multi(
     cli_profile: str | None,
     skip_preflight: bool,
     extra_args: tuple[str, ...],
+    worktree_name: str | None = None,
 ) -> None:
     """Workspace multi-pane Claude launcher.
 
@@ -503,6 +577,11 @@ def _launch_multi(
     if use_bedrock and not skip_preflight:
         _check_bedrock_access(container_name, exec_env)
 
+    # Resolve worktree name (auto-generate if flag given without value)
+    wt_name = worktree_name
+    if wt_name is not None and wt_name == "":
+        wt_name = _generate_worktree_name()
+
     # Build PaneSpecs
     container_project_root = f"/root/projects/{config.project_name}"
     panes: list[PaneSpec] = []
@@ -516,10 +595,16 @@ def _launch_multi(
             rel = sel.value.lstrip("./")
             working_dir = f"{container_project_root}/{rel}"
 
+        # Create a worktree for this repo if --worktree was given
+        if wt_name is not None:
+            worktree_dir = _setup_worktree(container_name, working_dir, wt_name)
+            working_dir = worktree_dir
+
         pane_cmd = build_claude_pane_command(
             repo_name=repo_name,
             safe=safe,
             extra_args=extra_args,
+            worktree_name=wt_name,
         )
         panes.append(PaneSpec(name=repo_name, command=pane_cmd, working_dir=working_dir))
 
@@ -618,6 +703,18 @@ def _launch_multi(
     default=False,
     help="Launch Claude Code in multiple workspace repos via tmux.",
 )
+@click.option(
+    "--team",
+    "do_team",
+    is_flag=True,
+    default=False,
+    help=(
+        "Launch Claude Code in Agent Teams mode (experimental).  "
+        "A single Claude instance acts as team lead and spawns teammates, "
+        "each working in a different workspace repo.  Requires tmux inside "
+        "the container.  Reads workspace.yaml for repo context."
+    ),
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def claude(
@@ -634,14 +731,17 @@ def claude(
     repo_type_flag,
     worktree_name,
     do_multi,
+    do_team,
     extra_args,
 ):
     """Launch Claude Code in the dev container."""
-    # Incompatibility check: --multi cannot combine with scaffold or worktree flags
+    # Incompatibility checks
     if do_multi and any([do_init, do_update, do_reset, do_clean]):
         raise click.ClickException("--multi is incompatible with --init/--update/--reset/--clean.")
-    if do_multi and worktree_name is not None:
-        raise click.ClickException("--multi is incompatible with --worktree.")
+    if do_team and do_multi:
+        raise click.ClickException("--team and --multi are incompatible (both manage tmux).")
+    if do_team and any([do_init, do_update, do_reset, do_clean]):
+        raise click.ClickException("--team is incompatible with --init/--update/--reset/--clean.")
 
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_claude as _scaffold_claude
@@ -667,6 +767,18 @@ def claude(
 
     if do_multi:
         _launch_multi(
+            ctx,
+            safe=safe,
+            use_aws=use_aws,
+            cli_profile=cli_profile,
+            skip_preflight=skip_preflight,
+            extra_args=extra_args,
+            worktree_name=worktree_name,
+        )
+        return
+
+    if do_team:
+        _launch_team(
             ctx,
             safe=safe,
             use_aws=use_aws,

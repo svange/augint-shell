@@ -247,34 +247,80 @@ Found existing tmux session 'claude-multi-my-workspace'.
 - **fresh**: kills the old session and shows the repo selector to start over
 - **cancel**: exits without doing anything
 
-## UV venv isolation
+## Dependency isolation
 
-### The problem
+### Python venv isolation
 
 The Dockerfile sets `UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/project`
-globally. All projects in the container would share one venv, so `uv sync` in
-repo A overwrites repo B's dependencies.
+globally. Without per-pane overrides, all projects would share one venv.
 
-### The fix
+**How it works:**
 
-1. The multi container's environment **unsets** `UV_PROJECT_ENVIRONMENT` (set to
-   empty string, overriding the Dockerfile default).
-2. Each tmux pane's command **exports** a per-project path before running claude:
+1. Each tmux pane **exports** a per-project path before running claude:
    ```
    export UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/{project_name}
    ```
-3. Claude Code and all subprocesses it spawns (pre-commit, pytest, uv sync)
+2. Each pane runs `uv sync` (if `pyproject.toml` exists) to initialise the
+   per-repo venv before Claude starts.
+3. Claude Code and all subprocesses it spawns (pre-commit, pytest, uv run)
    inherit the pane's environment, so each project uses its own venv.
 
 The UV **download cache** (`/root/.cache/uv/` excluding venvs) is safely shared --
 uv uses file locks for concurrent access.
 
-### Also fix for single-container mode
+### Node.js npm isolation
 
-Even without `--multi`, the fixed `UV_PROJECT_ENVIRONMENT` path is wrong if a
-user switches projects. Add `project_name` parameter to `build_dev_environment()`
-and set `UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/{project_name}` in all
-cases. This is backwards-compatible (existing containers just get a longer path).
+Each pane also runs `npm ci` (or `npm install`) when `package-lock.json`
+(or `package.json`) is detected. The npm download cache is stored in a shared
+Docker named volume (`augint-shell-npm-cache` at `/root/.npm`), so packages
+are not re-downloaded across containers.
+
+### Per-pane startup command
+
+The full pane startup sequence (non-safe mode):
+
+```bash
+export UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/{repo_name}; \
+  if [ -f pyproject.toml ]; then uv sync 2>&1 | tail -3; fi; \
+  if [ -f package-lock.json ]; then npm ci --loglevel=warn 2>&1 | tail -3; \
+  elif [ -f package.json ]; then npm install --loglevel=warn 2>&1 | tail -3; fi; \
+  claude --dangerously-skip-permissions -c -n {repo} || \
+  claude --dangerously-skip-permissions -n {repo}
+```
+
+## Worktree support
+
+`--multi --worktree <name>` creates a git worktree for each selected repo, so
+agents work on branches (`worktree-<name>`) rather than directly on the default
+branch.
+
+- Worktrees are placed at `.claude/worktrees/<name>/` inside each repo
+- Each worktree gets its own venv at `/root/.cache/uv/venvs/{repo}-wt-{name}`
+- Agents can make changes without affecting each other's working state
+- When `--worktree` is given without a value, a random name is generated
+
+## Agent Teams mode (`--team`)
+
+`ai-shell claude --team` launches Claude Code with the experimental Agent Teams
+feature enabled (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`).
+
+Unlike `--multi` (which creates independent Claude instances, each in its own
+tmux pane), `--team` launches a single Claude instance that acts as team lead.
+Agent Teams manages its own tmux pane splitting for teammates.
+
+When `workspace.yaml` is present, the lead agent receives workspace context
+(repo names, types, and container paths) and can spawn teammates for each repo.
+
+**Key differences from `--multi`:**
+
+| | `--multi` | `--team` |
+|------|-----------|----------|
+| Agents | Independent, no communication | Coordinated via lead + messaging |
+| tmux | Our custom session | Agent Teams manages its own |
+| Directory control | Deterministic (per-pane working dir) | Natural-language (lead tells teammates) |
+| Stability | Stable | Experimental |
+
+`--team` and `--multi` are mutually exclusive (both manage tmux differently).
 
 ## Files to create/modify
 

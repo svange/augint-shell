@@ -34,5 +34,23 @@ if [ -f "uv.lock" ]; then
     # Commands should be run with "uv run" prefix or use the activated venv
 fi
 
+if [ -f "package-lock.json" ]; then
+    echo "===================================="
+    echo "Installing Node.js dependencies..."
+    echo "===================================="
+    npm ci --loglevel=warn
+    echo "===================================="
+    echo "Node.js dependencies installed!"
+    echo "===================================="
+elif [ -f "package.json" ]; then
+    echo "===================================="
+    echo "Installing Node.js dependencies..."
+    echo "===================================="
+    npm install --loglevel=warn
+    echo "===================================="
+    echo "Node.js dependencies installed!"
+    echo "===================================="
+fi
+
 # Note: No cd command - Docker Compose working_dir handles the directory
 exec "$@"

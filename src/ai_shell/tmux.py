@@ -27,11 +27,29 @@ class PaneSpec:
 # ── Command builders ─────────────────────────────────────────────────
 
 
+def _build_dep_sync_prefix() -> str:
+    """Build shell commands to sync project dependencies before launching Claude.
+
+    Handles both Python (uv) and Node.js (npm) projects.  Runs in the pane's
+    working directory (set by tmux ``-c``), so it detects the project type from
+    the files present there.
+
+    Output is intentionally terse -- ``tail -3`` keeps only the summary line(s).
+    """
+    return (
+        "if [ -f pyproject.toml ]; then uv sync 2>&1 | tail -3; fi; "
+        "if [ -f package-lock.json ]; then npm ci --loglevel=warn 2>&1 | tail -3; "
+        "elif [ -f package.json ]; then npm install --loglevel=warn 2>&1 | tail -3; fi; "
+    )
+
+
 def build_claude_pane_command(
     *,
     repo_name: str,
     safe: bool = False,
     extra_args: tuple[str, ...] = (),
+    worktree_name: str | None = None,
+    sync_deps: bool = True,
 ) -> str:
     """Build the claude invocation string for a single tmux pane.
 
@@ -39,11 +57,22 @@ def build_claude_pane_command(
     so each repo gets an isolated virtualenv within the shared UV cache volume.
     Uses Claude Code's ``-n`` flag for session naming.
 
+    When *worktree_name* is set, appends ``-wt-{worktree_name}`` to the venv
+    path so each worktree gets its own isolated virtualenv.
+
+    When *sync_deps* is True (default), prepends ``uv sync`` / ``npm ci``
+    commands so the per-repo venv is initialised before Claude starts.
+
     In non-safe mode, tries ``claude -c`` (continue previous conversation)
     first; falls back to a fresh session if that fails (e.g. no prior
     conversation exists).
     """
-    uv_env = f"UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/{repo_name}"
+    venv_suffix = repo_name
+    if worktree_name:
+        venv_suffix = f"{repo_name}-wt-{worktree_name}"
+    uv_env = f"UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/{venv_suffix}"
+
+    dep_prefix = _build_dep_sync_prefix() if sync_deps else ""
 
     if safe:
         parts: list[str] = ["claude", "-n", repo_name]
@@ -51,7 +80,7 @@ def build_claude_pane_command(
             parts.append("--")
             parts.extend(extra_args)
         cmd = " ".join(shlex.quote(p) for p in parts)
-        return f"{uv_env} {cmd}"
+        return f"export {uv_env}; {dep_prefix}{cmd}"
 
     # Non-safe: build two commands -- continue attempt and fresh fallback
     base_parts: list[str] = ["claude", "--dangerously-skip-permissions", "-n", repo_name]
@@ -70,7 +99,7 @@ def build_claude_pane_command(
     continue_cmd = " ".join(shlex.quote(p) for p in continue_parts) + extra_suffix
     fresh_cmd = " ".join(shlex.quote(p) for p in base_parts) + extra_suffix
 
-    return f"export {uv_env}; {continue_cmd} || {fresh_cmd}"
+    return f"export {uv_env}; {dep_prefix}{continue_cmd} || {fresh_cmd}"
 
 
 def build_check_session_command(container_name: str, session_name: str) -> list[str]:

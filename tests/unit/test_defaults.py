@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from ai_shell.defaults import (
     CONTAINER_PREFIX,
+    NPM_CACHE_VOLUME,
     UV_CACHE_VOLUME,
     build_dev_environment,
     build_dev_mounts,
@@ -87,6 +88,21 @@ class TestBuildDevMounts:
         assert uv_mount is not None
         assert uv_mount.get("Source") == UV_CACHE_VOLUME
 
+    def test_includes_npm_cache_volume(self, tmp_path):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+
+        mounts = build_dev_mounts(project_dir, "test-project")
+
+        npm_mount = None
+        for m in mounts:
+            if m.get("Target") == "/root/.npm":
+                npm_mount = m
+                break
+
+        assert npm_mount is not None
+        assert npm_mount.get("Source") == NPM_CACHE_VOLUME
+
     def test_skips_missing_optional_paths(self, tmp_path):
         project_dir = tmp_path / "test-project"
         project_dir.mkdir()
@@ -96,10 +112,11 @@ class TestBuildDevMounts:
             (tmp_path / "fakehome").mkdir()
             mounts = build_dev_mounts(project_dir, "test-project")
 
-        # Should have project dir + uv-cache volume, but no optional mounts
+        # Should have project dir + cache volumes, but no optional mounts
         targets = [m.get("Target") for m in mounts]
         assert "/root/projects/test-project" in targets
         assert "/root/.cache/uv" in targets
+        assert "/root/.npm" in targets
         # Optional mounts should NOT be present since paths don't exist
         assert "/root/.ssh" not in targets
         assert "/root/.claude" not in targets
@@ -262,3 +279,17 @@ class TestBuildDevEnvironmentBedrock:
             env = build_dev_environment()
         assert env["AWS_DEFAULT_REGION"] == "us-east-1"
         assert env["AWS_DEFAULT_REGION"] == env["AWS_REGION"]
+
+
+class TestBuildDevEnvironmentTeamMode:
+    def test_team_mode_sets_agent_teams_env(self):
+        env = build_dev_environment(team_mode=True)
+        assert env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] == "1"
+
+    def test_no_team_mode_no_agent_teams_env(self):
+        env = build_dev_environment()
+        assert "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" not in env
+
+    def test_team_mode_false_no_agent_teams_env(self):
+        env = build_dev_environment(team_mode=False)
+        assert "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" not in env

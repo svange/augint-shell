@@ -90,9 +90,43 @@ class TestBuildClaudePaneCommand:
         cmd = build_claude_pane_command(repo_name="woxom-crm")
         assert "export UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/woxom-crm" in cmd
 
-    def test_safe_uv_env_prefix(self):
+    def test_safe_uv_env_exported(self):
         cmd = build_claude_pane_command(repo_name="woxom-crm", safe=True)
-        assert cmd.startswith("UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/woxom-crm ")
+        assert "export UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/woxom-crm" in cmd
+
+    def test_default_includes_uv_sync(self):
+        cmd = build_claude_pane_command(repo_name="my-repo")
+        assert "uv sync" in cmd
+        assert "npm" in cmd
+
+    def test_safe_includes_uv_sync(self):
+        cmd = build_claude_pane_command(repo_name="my-repo", safe=True)
+        assert "uv sync" in cmd
+
+    def test_dep_sync_before_claude(self):
+        cmd = build_claude_pane_command(repo_name="my-repo")
+        uv_pos = cmd.index("uv sync")
+        claude_pos = cmd.index("claude")
+        assert uv_pos < claude_pos
+
+    def test_npm_install_in_command(self):
+        cmd = build_claude_pane_command(repo_name="my-repo")
+        assert "npm ci" in cmd
+        assert "npm install" in cmd
+
+    def test_sync_deps_false_omits_sync(self):
+        cmd = build_claude_pane_command(repo_name="my-repo", sync_deps=False)
+        assert "uv sync" not in cmd
+        assert "npm" not in cmd
+
+    def test_worktree_name_in_uv_env(self):
+        cmd = build_claude_pane_command(repo_name="my-repo", worktree_name="feat-1")
+        assert "UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/my-repo-wt-feat-1" in cmd
+
+    def test_worktree_name_none_no_suffix(self):
+        cmd = build_claude_pane_command(repo_name="my-repo", worktree_name=None)
+        assert "UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/my-repo;" in cmd
+        assert "-wt-" not in cmd
 
 
 class TestPaneSpec:
@@ -526,16 +560,54 @@ class TestClaudeMultiCLI:
         assert result.exit_code != 0
         assert "--multi is incompatible" in result.output
 
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
     @patch("ai_shell.cli.commands.tools._check_bedrock_access")
     @patch("ai_shell.cli.commands.tools.build_dev_environment")
     @patch("ai_shell.cli.commands.tools.ContainerManager")
     @patch("ai_shell.cli.commands.tools.load_config")
-    def test_multi_incompatible_with_worktree(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    @patch("ai_shell.selector.interactive_multi_select")
+    def test_multi_with_worktree_creates_worktrees(
+        self,
+        mock_select,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+        mock_dev_name,
+        mock_subprocess,
     ):
-        result = self.runner.invoke(cli, ["claude", "--multi", "--worktree", "feat-1"])
-        assert result.exit_code != 0
-        assert "--multi is incompatible" in result.output
+        """--multi --worktree creates worktrees for each selected repo."""
+        mock_config.return_value = _make_config_mock()
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
+
+        mock_select.return_value = [
+            SelectionItem(label="repo-a", value="./repo-a", description="service"),
+            SelectionItem(label="repo-b", value="./repo-b", description="library"),
+        ]
+
+        mock_subprocess.side_effect = _no_existing_session
+
+        with self.runner.isolated_filesystem():
+            with open("workspace.yaml", "w") as f:
+                f.write(WORKSPACE_YAML)
+            import os
+
+            os.makedirs("repo-a")
+            os.makedirs("repo-b")
+
+            self.runner.invoke(cli, ["claude", "--multi", "--worktree", "feat-1"])
+
+        # Verify _setup_worktree was called via subprocess (git worktree add commands)
+        worktree_calls = [
+            call
+            for call in mock_subprocess.call_args_list
+            if any("worktree" in str(a) for a in call[0])
+        ]
+        assert len(worktree_calls) >= 2  # one per selected repo
 
     @patch("ai_shell.cli.commands.tools.subprocess.run")
     @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
@@ -868,3 +940,55 @@ class TestLoadWorkspaceRepos:
 
         with pytest.raises(click.ClickException, match="Failed to parse"):
             _load_workspace_repos(yaml_path)
+
+
+# ── --team CLI tests ───────────────────────────────────────────────
+
+
+class TestClaudeTeamCLI:
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    def test_team_incompatible_with_multi(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        result = self.runner.invoke(cli, ["claude", "--team", "--multi"])
+        assert result.exit_code != 0
+        assert "--team and --multi are incompatible" in result.output
+
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    def test_team_incompatible_with_init(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        result = self.runner.invoke(cli, ["claude", "--team", "--init"])
+        assert result.exit_code != 0
+        assert "--team is incompatible" in result.output
+
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    def test_team_sets_agent_teams_env(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        """--team passes team_mode=True to build_dev_environment."""
+        mock_config.return_value = _make_config_mock()
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+
+        with self.runner.isolated_filesystem():
+            self.runner.invoke(cli, ["claude", "--team"])
+
+        # Verify build_dev_environment was called with team_mode=True
+        mock_build_env.assert_called_once()
+        call_kwargs = mock_build_env.call_args
+        assert call_kwargs.kwargs.get("team_mode") is True

@@ -28,6 +28,7 @@ SHM_SIZE = "2g"
 # Volume names (prefixed to avoid collisions)
 # =============================================================================
 UV_CACHE_VOLUME = "augint-shell-uv-cache"
+NPM_CACHE_VOLUME = "augint-shell-npm-cache"
 OLLAMA_DATA_VOLUME = "augint-shell-ollama-data"
 WEBUI_DATA_VOLUME = "augint-shell-webui-data"
 
@@ -168,6 +169,15 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
         )
     )
 
+    # Named volume: npm cache (shared across all projects)
+    mounts.append(
+        Mount(
+            target="/root/.npm",
+            source=NPM_CACHE_VOLUME,
+            type="volume",
+        )
+    )
+
     return mounts
 
 
@@ -180,6 +190,7 @@ def build_dev_environment(
     aws_profile: str = "",
     aws_region: str = "",
     bedrock_profile: str = "",
+    team_mode: bool = False,
 ) -> dict[str, str]:
     """Build environment variables matching docker-compose.yml dev service.
 
@@ -191,6 +202,9 @@ def build_dev_environment(
     When *bedrock* is True, ``CLAUDE_CODE_USE_BEDROCK=1`` is injected and
     *bedrock_profile* (if set) overrides ``AWS_PROFILE`` so the LLM provider
     authenticates with the correct AWS account.
+
+    When *team_mode* is True, ``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` is
+    injected to enable Claude Code's Agent Teams feature.
     """
     from dotenv import dotenv_values
 
@@ -228,6 +242,9 @@ def build_dev_environment(
         env["CLAUDE_CODE_USE_BEDROCK"] = "1"
         if bedrock_profile:
             env["AWS_PROFILE"] = bedrock_profile
+
+    if team_mode:
+        env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
 
     if extra_env:
         env.update(extra_env)
