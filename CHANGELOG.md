@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.57.0 (2026-04-13)
+
+### Features
+
+- Update tmux pane border colors to use dim cyan for inactive state
+  ([`f3a22db`](https://github.com/svange/augint-shell/commit/f3a22db489bd78a13e2a0f3e3e9d105996129f92))
+
+
 ## v0.56.0 (2026-04-13)
 
 ### Features
