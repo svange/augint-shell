@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.61.0 (2026-04-13)
+
+### Features
+
+- Implement per-repo UV_PROJECT_ENVIRONMENT path handling and update git settings in entrypoint
+  ([`5a54a8e`](https://github.com/svange/augint-shell/commit/5a54a8ea4e2fda15f1dbab54a33096546b9bd1e6))
+
+
 ## v0.60.0 (2026-04-13)
 
 ### Features
