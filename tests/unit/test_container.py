@@ -21,6 +21,57 @@ class TestContainerManagerInit:
                 ContainerManager(AiShellConfig())
 
 
+class TestResolveDevContainer:
+    def test_returns_current_name_when_found(self, mock_container_manager):
+        container = MagicMock()
+        mock_container_manager._get_container = MagicMock(return_value=container)
+
+        name, result = mock_container_manager.resolve_dev_container()
+
+        assert name.startswith("augint-shell-test-project-")
+        assert name.endswith("-dev")
+        assert name != "augint-shell-test-project-dev"  # has hash
+        assert result is container
+
+    def test_falls_back_to_legacy_when_mount_matches(self, mock_container_manager):
+        legacy_container = MagicMock()
+        legacy_container.attrs = {
+            "Mounts": [{"Source": str(mock_container_manager.config.project_dir.resolve())}]
+        }
+
+        def get_container(name):
+            if name == "augint-shell-test-project-dev":
+                return legacy_container
+            return None
+
+        mock_container_manager._get_container = MagicMock(side_effect=get_container)
+
+        name, result = mock_container_manager.resolve_dev_container()
+
+        assert name == "augint-shell-test-project-dev"
+        assert result is legacy_container
+
+    def test_ignores_legacy_when_mount_mismatches(self, mock_container_manager):
+        legacy_container = MagicMock()
+        legacy_container.attrs = {"Mounts": [{"Source": "/other/path"}]}
+        mock_container_manager._get_container = MagicMock(side_effect=[None, legacy_container])
+
+        name, result = mock_container_manager.resolve_dev_container()
+
+        assert name.startswith("augint-shell-test-project-")
+        assert name != "augint-shell-test-project-dev"
+        assert result is None
+
+    def test_returns_none_when_neither_exists(self, mock_container_manager):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+
+        name, result = mock_container_manager.resolve_dev_container()
+
+        assert name.startswith("augint-shell-test-project-")
+        assert name.endswith("-dev")
+        assert result is None
+
+
 class TestEnsureDevContainer:
     def test_creates_new_container(self, mock_container_manager, mock_docker_client):
         mock_docker_client.containers.get.side_effect = Exception("not found")

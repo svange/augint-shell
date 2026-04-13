@@ -8,7 +8,7 @@ from rich.console import Console
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import load_config
 from ai_shell.container import ContainerManager
-from ai_shell.defaults import build_dev_environment, dev_container_name
+from ai_shell.defaults import build_dev_environment
 from ai_shell.exceptions import ContainerNotFoundError
 
 console = Console(stderr=True)
@@ -32,7 +32,7 @@ def manage_group(ctx):
 def manage_status(ctx):
     """Show dev container status for current project."""
     manager = _get_manager(ctx)
-    name = dev_container_name(manager.config.project_name, manager.config.project_dir)
+    name, _ = manager.resolve_dev_container()
     status = manager.container_status(name)
 
     if status is None:
@@ -55,7 +55,7 @@ def manage_status(ctx):
 def manage_stop(ctx):
     """Stop the dev container for current project."""
     manager = _get_manager(ctx)
-    name = dev_container_name(manager.config.project_name, manager.config.project_dir)
+    name, _ = manager.resolve_dev_container()
 
     try:
         manager.stop_container(name)
@@ -69,7 +69,7 @@ def manage_stop(ctx):
 def manage_clean(ctx):
     """Remove the dev container for current project."""
     manager = _get_manager(ctx)
-    name = dev_container_name(manager.config.project_name, manager.config.project_dir)
+    name, _ = manager.resolve_dev_container()
 
     try:
         manager.remove_container(name)
@@ -84,7 +84,7 @@ def manage_clean(ctx):
 def manage_logs(ctx, follow):
     """Tail dev container logs."""
     manager = _get_manager(ctx)
-    name = dev_container_name(manager.config.project_name, manager.config.project_dir)
+    name, _ = manager.resolve_dev_container()
 
     try:
         manager.container_logs(name, follow=follow)

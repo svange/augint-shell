@@ -94,6 +94,28 @@ class ContainerManager:
     # Dev container (per-project)
     # =========================================================================
 
+    def resolve_dev_container(self) -> tuple[str, Container | None]:
+        """Resolve the dev container, checking both current and legacy names.
+
+        Returns ``(name, container)`` where *container* is ``None`` when no
+        matching container exists.  When no container is found under either
+        name, the current hash-based name is returned so callers can use it
+        for creation.
+        """
+        name = dev_container_name(self.config.project_name, self.config.project_dir)
+        container = self._get_container(name)
+        if container is not None:
+            return name, container
+
+        legacy_name = dev_container_name(self.config.project_name)
+        legacy_container = self._get_container(legacy_name)
+        if legacy_container is not None and self._container_matches_project(
+            legacy_container, self.config.project_dir
+        ):
+            return legacy_name, legacy_container
+
+        return name, None
+
     def ensure_dev_container(self) -> str:
         """Get or create the dev container for the current project.
 
@@ -102,24 +124,13 @@ class ContainerManager:
 
         Returns the container name.
         """
-        name = dev_container_name(self.config.project_name, self.config.project_dir)
-        container = self._get_container(name)
+        name, container = self.resolve_dev_container()
 
         if container is not None:
             if container.status != "running":
                 logger.info("Starting existing container: %s", name)
                 container.start()
             return name
-
-        legacy_name = dev_container_name(self.config.project_name)
-        legacy_container = self._get_container(legacy_name)
-        if legacy_container is not None and self._container_matches_project(
-            legacy_container, self.config.project_dir
-        ):
-            if legacy_container.status != "running":
-                logger.info("Starting legacy container: %s", legacy_name)
-                legacy_container.start()
-            return legacy_name
 
         logger.info("Creating dev container: %s", name)
         self._pull_image_if_needed(self.config.full_image)
