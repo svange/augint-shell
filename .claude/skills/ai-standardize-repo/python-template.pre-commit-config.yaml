@@ -4,16 +4,23 @@ repos:
     hooks:
       - id: check-yaml{{CHECK_YAML_EXCLUDE}}
       - id: check-added-large-files
+      - id: check-ast
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: debug-statements
+      - id: detect-private-key
       - id: end-of-file-fixer
+      - id: no-commit-to-branch
+        args: ['--branch', 'main', '--branch', 'dev']
       - id: trailing-whitespace
 
   - repo: local
     hooks:
       - id: forbid-env-commit
-        name: Block committed .env files
-        entry: python -c "import subprocess, sys; files = subprocess.run(['git', 'ls-files'], capture_output=True, text=True).stdout; sys.exit(1 if any(f.endswith('/.env') or f == '.env' for f in files.splitlines()) else 0)"
-        language: system
-        pass_filenames: false
+        name: Block .env files
+        entry: ".env files must not be committed"
+        language: fail
+        files: '(^|/)\.env($|\.)'
 
       - id: ruff-format
         name: Ruff format
@@ -31,7 +38,7 @@ repos:
 
       - id: mypy
         name: MyPy type checking
-        entry: uv run --no-sync mypy src/
+        entry: uv run --no-sync mypy src/ tests/
         language: system
         files: '\.py$'
         pass_filenames: false

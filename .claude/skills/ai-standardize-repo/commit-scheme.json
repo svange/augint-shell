@@ -1,7 +1,14 @@
 {
+  "major_triggers": [
+    "feat!"
+  ],
+  "minor_triggers": [
+    "feat"
+  ],
   "patch_triggers": [
     "fix(deps):",
-    "fix"
+    "fix",
+    "perf"
   ],
   "no_release": [
     "chore(deps):",
