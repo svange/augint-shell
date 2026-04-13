@@ -11,8 +11,6 @@ dependencies = [
     "rich>=14.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0",
-    "tomlkit>=0.13",
-    "PyGithub>=2.9",
 ]
 
 [project.optional-dependencies]
