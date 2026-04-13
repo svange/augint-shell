@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.56.0 (2026-04-13)
+
+### Features
+
+- Enhance tmux layout handling for 3 panes with main pane height adjustment
+  ([`c50b06b`](https://github.com/svange/augint-shell/commit/c50b06bac7bf1cf21a85b05b9cb6b2a9fbe49505))
+
+
 ## v0.55.0 (2026-04-13)
 
 ### Features
