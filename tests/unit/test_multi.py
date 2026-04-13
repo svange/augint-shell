@@ -214,7 +214,7 @@ class TestBuildTmuxCommands:
         assert "pane-border-lines" in joined
         assert "pane-border-indicators" in joined
 
-    def test_blue_active_cyan_inactive_borders(self):
+    def test_amber_active_mauve_inactive_borders(self):
         panes = [
             PaneSpec(name="repo-a", command="cmd-a", working_dir="/d/a"),
             PaneSpec(name="repo-b", command="cmd-b", working_dir="/d/b"),
@@ -223,9 +223,9 @@ class TestBuildTmuxCommands:
         all_args = [" ".join(c) for c in cmds]
         joined = "\n".join(all_args)
 
-        # Active = blue (colour75), inactive = dim cyan (colour73)
-        assert "colour75" in joined
-        assert "colour73" in joined
+        # Active = amber (colour172), inactive = dusty mauve (colour95)
+        assert "colour172" in joined
+        assert "colour95" in joined
 
     def test_status_bar_has_help_hints(self):
         panes = [
