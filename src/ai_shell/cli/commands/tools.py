@@ -8,6 +8,7 @@ import sys
 import tomllib
 import uuid
 from pathlib import Path
+from typing import Any
 
 import click
 from rich.console import Console
@@ -314,12 +315,206 @@ def _get_manager(
     exec_env = build_dev_environment(
         config.extra_env,
         config.project_dir,
+        project_name=config.project_name,
         bedrock=bedrock,
         aws_profile=config.ai_profile,
         aws_region=config.aws_region,
         bedrock_profile=bedrock_profile or config.bedrock_profile,
     )
     return manager, container_name, exec_env, config
+
+
+def _load_workspace_repos(workspace_yaml: Path) -> tuple[str, list[dict[str, Any]]]:
+    """Parse workspace.yaml and return (workspace_name, repos_list).
+
+    Each repo dict has at least ``name`` and ``path`` keys.
+    Raises :class:`click.ClickException` on parse errors.
+    """
+    import yaml
+
+    try:
+        data = yaml.safe_load(workspace_yaml.read_text())
+    except Exception as exc:
+        raise click.ClickException(f"Failed to parse {workspace_yaml}: {exc}") from exc
+
+    workspace_name: str = data.get("workspace", {}).get("name", workspace_yaml.parent.name)
+    repos: list[dict[str, Any]] = data.get("repos", [])
+    return workspace_name, repos
+
+
+def _launch_multi(
+    ctx: click.Context,
+    *,
+    safe: bool,
+    use_aws: bool,
+    cli_profile: str | None,
+    skip_preflight: bool,
+    extra_args: tuple[str, ...],
+) -> None:
+    """Workspace multi-pane Claude launcher.
+
+    Validates workspace.yaml, presents an interactive selector, then launches
+    a tmux session inside the dev container with one pane per selected repo.
+    """
+    from ai_shell.selector import SelectionItem, interactive_multi_select
+    from ai_shell.tmux import (
+        TMUX_SESSION_PREFIX,
+        PaneSpec,
+        build_claude_pane_command,
+        build_tmux_commands,
+    )
+
+    workspace_yaml = Path.cwd() / "workspace.yaml"
+    if not workspace_yaml.exists():
+        raise click.ClickException("No workspace.yaml found. --multi requires a workspace repo.")
+
+    workspace_name, repos = _load_workspace_repos(workspace_yaml)
+
+    # Build selection items: workspace root first, then each child repo
+    items: list[SelectionItem] = [
+        SelectionItem(
+            label=workspace_name,
+            value=".",
+            description="workspace root",
+        ),
+    ]
+    for repo in repos:
+        items.append(
+            SelectionItem(
+                label=repo["name"],
+                value=repo.get("path", f"./{repo['name']}"),
+                description=repo.get("repo_type", ""),
+            )
+        )
+
+    # Run interactive selector on the host
+    selected = interactive_multi_select(items, title="Select repos (up to 4)")
+
+    if not selected:
+        console.print("[dim]No repos selected.[/dim]")
+        return
+
+    # For a single selection, fall through to normal claude flow
+    if len(selected) == 1:
+        sel = selected[0]
+        sel_path = Path.cwd() / sel.value
+        if not sel_path.exists():
+            raise click.ClickException(
+                f"Repo directory not found: {sel_path}\n"
+                "  Run /ai-workspace-sync to clone workspace repos first."
+            )
+        console.print(f"[dim]Single selection -- launching Claude in {sel.label}[/dim]")
+        # Re-derive config from the selected repo's directory
+        project = ctx.obj.get("project") if ctx.obj else None
+        config = load_config(project_override=project, project_dir=sel_path)
+        use_bedrock = use_aws or config.claude_provider == "aws"
+        manager = ContainerManager(config)
+        container_name = manager.ensure_dev_container()
+        exec_env = build_dev_environment(
+            config.extra_env,
+            config.project_dir,
+            project_name=config.project_name,
+            bedrock=use_bedrock,
+            aws_profile=config.ai_profile,
+            aws_region=config.aws_region,
+            bedrock_profile=cli_profile or config.bedrock_profile,
+        )
+
+        if use_bedrock and not skip_preflight:
+            _check_bedrock_access(container_name, exec_env)
+
+        workdir = f"/root/projects/{config.project_name}"
+        if safe:
+            cmd = ["claude", *extra_args]
+            manager.exec_interactive(container_name, cmd, extra_env=exec_env, workdir=workdir)
+        else:
+            cmd_c = ["claude", "--dangerously-skip-permissions", "-c", *extra_args]
+            exit_code, elapsed = manager.run_interactive(
+                container_name, cmd_c, extra_env=exec_env, workdir=workdir
+            )
+            if exit_code != 0 and elapsed < FAST_FAILURE_THRESHOLD:
+                cmd_fresh = ["claude", "--dangerously-skip-permissions", *extra_args]
+                manager.exec_interactive(
+                    container_name, cmd_fresh, extra_env=exec_env, workdir=workdir
+                )
+            else:
+                sys.exit(exit_code)
+        return
+
+    # Multi selection (2-4 repos): validate dirs, build tmux session
+    missing: list[str] = []
+    for sel in selected:
+        sel_path = Path.cwd() / sel.value
+        if not sel_path.exists():
+            missing.append(str(sel_path))
+    if missing:
+        raise click.ClickException(
+            "Repo directories not found:\n"
+            + "\n".join(f"  - {p}" for p in missing)
+            + "\n\nRun /ai-workspace-sync to clone workspace repos first."
+        )
+
+    # Use workspace root config for the container
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    use_bedrock = use_aws or config.claude_provider == "aws"
+    manager = ContainerManager(config)
+    container_name = manager.ensure_dev_container()
+    exec_env = build_dev_environment(
+        config.extra_env,
+        config.project_dir,
+        project_name=config.project_name,
+        bedrock=use_bedrock,
+        aws_profile=config.ai_profile,
+        aws_region=config.aws_region,
+        bedrock_profile=cli_profile or config.bedrock_profile,
+    )
+
+    if use_bedrock and not skip_preflight:
+        _check_bedrock_access(container_name, exec_env)
+
+    # Build PaneSpecs
+    container_project_root = f"/root/projects/{config.project_name}"
+    panes: list[PaneSpec] = []
+    for sel in selected:
+        if sel.value == ".":
+            repo_name = config.project_name
+            working_dir = container_project_root
+        else:
+            repo_name = sel.label
+            # Normalize path: strip leading "./"
+            rel = sel.value.lstrip("./")
+            working_dir = f"{container_project_root}/{rel}"
+
+        pane_cmd = build_claude_pane_command(
+            repo_name=repo_name,
+            safe=safe,
+            extra_args=extra_args,
+        )
+        panes.append(PaneSpec(name=repo_name, command=pane_cmd, working_dir=working_dir))
+
+    session_name = f"{TMUX_SESSION_PREFIX}-{config.project_name}"
+    cmds = build_tmux_commands(container_name, session_name, panes)
+
+    # Execute all setup commands (non-interactive), then attach
+    console.print(
+        f"[bold]Launching {len(panes)} Claude Code instances in tmux session "
+        f"'{session_name}'...[/bold]"
+    )
+
+    for cmd_args in cmds[:-1]:
+        result = subprocess.run(cmd_args, capture_output=True, text=True)
+        # kill-session may fail (no existing session) -- that's fine
+        if result.returncode != 0 and "kill-session" not in " ".join(cmd_args):
+            logger.debug("tmux setup command failed: %s\n%s", cmd_args, result.stderr)
+
+    # Final command: interactive attach (replaces process)
+    final_cmd = cmds[-1]
+    logger.debug("tmux attach: %s", " ".join(final_cmd))
+    sys.stdout.flush()
+    sys.stderr.flush()
+    attach = subprocess.run(final_cmd)
+    sys.exit(attach.returncode)
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
@@ -387,6 +582,13 @@ def _get_manager(
         "bind mount so they remain visible on the host."
     ),
 )
+@click.option(
+    "--multi",
+    "do_multi",
+    is_flag=True,
+    default=False,
+    help="Launch Claude Code in multiple workspace repos via tmux.",
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def claude(
@@ -402,9 +604,16 @@ def claude(
     skip_preflight,
     repo_type_flag,
     worktree_name,
+    do_multi,
     extra_args,
 ):
     """Launch Claude Code in the dev container."""
+    # Incompatibility check: --multi cannot combine with scaffold or worktree flags
+    if do_multi and any([do_init, do_update, do_reset, do_clean]):
+        raise click.ClickException("--multi is incompatible with --init/--update/--reset/--clean.")
+    if do_multi and worktree_name is not None:
+        raise click.ClickException("--multi is incompatible with --worktree.")
+
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_claude as _scaffold_claude
 
@@ -425,6 +634,17 @@ def claude(
             from ai_shell.notes_merge import merge_notes_into_context
 
             merge_notes_into_context(Path.cwd(), "claude", background=True)
+        return
+
+    if do_multi:
+        _launch_multi(
+            ctx,
+            safe=safe,
+            use_aws=use_aws,
+            cli_profile=cli_profile,
+            skip_preflight=skip_preflight,
+            extra_args=extra_args,
+        )
         return
 
     # Auto-init if .claude/ is missing

@@ -175,6 +175,7 @@ def build_dev_environment(
     extra_env: dict[str, str] | None = None,
     project_dir: Path | None = None,
     *,
+    project_name: str = "",
     bedrock: bool = False,
     aws_profile: str = "",
     aws_region: str = "",
@@ -217,6 +218,11 @@ def build_dev_environment(
 
     # Mirror AWS_REGION to AWS_DEFAULT_REGION so both Node.js SDK paths resolve
     env["AWS_DEFAULT_REGION"] = env["AWS_REGION"]
+
+    # Isolate UV venvs per-project within the shared cache volume.
+    # Overrides Dockerfile default of /root/.cache/uv/venvs/project.
+    if project_name:
+        env["UV_PROJECT_ENVIRONMENT"] = f"/root/.cache/uv/venvs/{project_name}"
 
     if bedrock:
         env["CLAUDE_CODE_USE_BEDROCK"] = "1"

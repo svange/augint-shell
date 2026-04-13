@@ -143,6 +143,7 @@ class ContainerManager:
         environment = build_dev_environment(
             self.config.extra_env,
             self.config.project_dir,
+            project_name=self.config.project_name,
             aws_profile=self.config.ai_profile,
             aws_region=self.config.aws_region,
         )
