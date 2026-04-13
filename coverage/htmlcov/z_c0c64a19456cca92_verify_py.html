@@ -62,10 +62,10 @@
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_c0c64a19456cca92_umbrella_py.html">&#xab; prev</a> &nbsp; &nbsp;
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
-            <a id="nextFileLink" class="nav" href="z_19d92babd3f4126b___init___py.html">&#xbb; next</a>
+            <a id="nextFileLink" class="nav" href="z_ff5a015d6a148584___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-13 03:41 +0000
+            created at 2026-04-13 15:04 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -275,7 +275,7 @@
     <p class="mis mis2 show_mis"><span class="n"><a id="t193" href="#t193">193</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t194" href="#t194">194</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t195" href="#t195">195</a></span><span class="t">    <span class="key">if</span> <span class="nam">detection</span><span class="op">.</span><span class="nam">language</span><span class="op">.</span><span class="nam">value</span> <span class="op">==</span> <span class="str">"node"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t196" href="#t196">196</a></span><span class="t">        <span class="nam">hook_expected</span> <span class="op">=</span> <span class="nam">pc</span><span class="op">.</span><span class="nam">_load_precommit_template</span><span class="op">(</span><span class="nam">pc</span><span class="op">.</span><span class="nam">_HUSKY_TEMPLATE_NAME</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t196" href="#t196">196</a></span><span class="t">        <span class="nam">hook_expected</span> <span class="op">=</span> <span class="nam">pc</span><span class="op">.</span><span class="nam">_load_template</span><span class="op">(</span><span class="nam">pc</span><span class="op">.</span><span class="nam">_HUSKY_TEMPLATE_NAME</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t197" href="#t197">197</a></span><span class="t">        <span class="nam">hook_actual</span> <span class="op">=</span> <span class="nam">_read_or_empty</span><span class="op">(</span><span class="nam">root</span> <span class="op">/</span> <span class="nam">pc</span><span class="op">.</span><span class="nam">_HUSKY_HOOK</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t198" href="#t198">198</a></span><span class="t">        <span class="key">if</span> <span class="nam">hook_actual</span> <span class="op">!=</span> <span class="nam">hook_expected</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t199" href="#t199">199</a></span><span class="t">            <span class="key">return</span> <span class="nam">VerifyFinding</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -283,7 +283,7 @@
     <p class="mis mis2 show_mis"><span class="n"><a id="t201" href="#t201">201</a></span><span class="t">                <span class="nam">status</span><span class="op">=</span><span class="nam">VerifyStatus</span><span class="op">.</span><span class="nam">DRIFT</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t202" href="#t202">202</a></span><span class="t">                <span class="nam">message</span><span class="op">=</span><span class="str">".husky/pre-commit differs"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t203" href="#t203">203</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t204" href="#t204">204</a></span><span class="t">        <span class="nam">lint_expected</span> <span class="op">=</span> <span class="nam">pc</span><span class="op">.</span><span class="nam">_load_precommit_template</span><span class="op">(</span><span class="nam">pc</span><span class="op">.</span><span class="nam">_LINT_STAGED_TEMPLATE_NAME</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t204" href="#t204">204</a></span><span class="t">        <span class="nam">lint_expected</span> <span class="op">=</span> <span class="nam">pc</span><span class="op">.</span><span class="nam">_load_template</span><span class="op">(</span><span class="nam">pc</span><span class="op">.</span><span class="nam">_LINT_STAGED_TEMPLATE_NAME</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t205" href="#t205">205</a></span><span class="t">        <span class="nam">lint_actual</span> <span class="op">=</span> <span class="nam">_read_or_empty</span><span class="op">(</span><span class="nam">root</span> <span class="op">/</span> <span class="nam">pc</span><span class="op">.</span><span class="nam">_LINT_STAGED</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t206" href="#t206">206</a></span><span class="t">        <span class="key">if</span> <span class="nam">lint_actual</span> <span class="op">!=</span> <span class="nam">lint_expected</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t207" href="#t207">207</a></span><span class="t">            <span class="key">return</span> <span class="nam">VerifyFinding</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -555,10 +555,10 @@
         <p>
             <a class="nav" href="z_c0c64a19456cca92_umbrella_py.html">&#xab; prev</a> &nbsp; &nbsp;
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
-            <a class="nav" href="z_19d92babd3f4126b___init___py.html">&#xbb; next</a>
+            <a class="nav" href="z_ff5a015d6a148584___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-13 03:41 +0000
+            created at 2026-04-13 15:04 +0000
         </p>
     </div>
 </footer>
