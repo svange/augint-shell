@@ -45,9 +45,7 @@ class ReleaseResult:
 
 
 def _load_repo_template(name: str) -> str:
-    ref = resources.files("ai_shell.templates").joinpath(
-        "claude", "skills", "ai-standardize-repo", name
-    )
+    ref = resources.files("ai_shell.standardize_data").joinpath(name)
     return ref.read_text(encoding="utf-8")
 
 

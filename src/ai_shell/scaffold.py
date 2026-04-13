@@ -228,7 +228,7 @@ def skills_for_config(
 ) -> list[str]:
     """Return the skill list for a given repo type and branch strategy."""
     if repo_type is None:
-        return list(CLAUDE_SKILL_DIRS)
+        return list(AGENTS_SKILL_DIRS)
 
     skills = list(_UNIVERSAL_SKILLS)
 
@@ -258,7 +258,41 @@ _NOTES_TEMPLATE: dict[RepoType | None, str] = {
 
 # ── Public API ──────────────────────────────────────────────────────
 
-CLAUDE_SKILL_DIRS = [
+
+def scaffold_claude(
+    target_dir: Path,
+    *,
+    overwrite: bool = False,
+    clean: bool = False,
+    merge: bool = False,
+    repo_type: RepoType | None = None,
+    branch_strategy: BranchStrategy | None = None,
+) -> None:
+    """Create ``.claude/`` directory with settings.
+
+    Skills are delivered via the ``augint-workflow`` plugin from ``ai-cc-tools``
+    and no longer scaffolded here.
+    """
+    if clean:
+        _clean_paths(target_dir, _CLAUDE_DIRS, _CLAUDE_FILES)
+        overwrite = True
+    claude_dir = target_dir / ".claude"
+
+    # settings.json
+    settings_template = _read_template("claude", "settings.json")
+    if merge:
+        _merge_json_file(claude_dir / "settings.json", settings_template)
+    else:
+        _write_file(
+            claude_dir / "settings.json",
+            settings_template,
+            overwrite=overwrite,
+        )
+
+    console.print("[bold green]Claude configuration ready.[/bold green]")
+
+
+AGENTS_SKILL_DIRS = [
     "ai-init",
     "ai-pick-issue",
     "ai-prepare-branch",
@@ -279,49 +313,6 @@ CLAUDE_SKILL_DIRS = [
     "ai-new-project",
     "ai-setup-oidc",
 ]
-
-
-def scaffold_claude(
-    target_dir: Path,
-    *,
-    overwrite: bool = False,
-    clean: bool = False,
-    merge: bool = False,
-    repo_type: RepoType | None = None,
-    branch_strategy: BranchStrategy | None = None,
-) -> None:
-    """Create ``.claude/`` directory with settings and skills."""
-    if clean:
-        _clean_paths(target_dir, _CLAUDE_DIRS, _CLAUDE_FILES)
-        overwrite = True
-    effective_overwrite = overwrite or merge
-    claude_dir = target_dir / ".claude"
-    skills_dir = claude_dir / "skills"
-
-    # settings.json
-    settings_template = _read_template("claude", "settings.json")
-    if merge:
-        _merge_json_file(claude_dir / "settings.json", settings_template)
-    else:
-        _write_file(
-            claude_dir / "settings.json",
-            settings_template,
-            overwrite=overwrite,
-        )
-
-    # skill files
-    active_skills = skills_for_config(repo_type, branch_strategy)
-    for skill_name in active_skills:
-        _write_skill_dir(skills_dir, "claude", skill_name, overwrite=effective_overwrite)
-
-    # Remove skills that no longer apply (e.g. after repo type change)
-    if repo_type is not None:
-        _remove_stale_skills(skills_dir, active_skills)
-
-    console.print("[bold green]Claude configuration ready.[/bold green]")
-
-
-AGENTS_SKILL_DIRS = list(CLAUDE_SKILL_DIRS)  # Mirrored to .agents/skills/
 
 
 def _build_toml_content(

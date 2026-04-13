@@ -36,17 +36,8 @@ class PrecommitResult:
     files: tuple[Path, ...]
 
 
-def _load_repo_template(name: str) -> str:
-    ref = resources.files("ai_shell.templates").joinpath(
-        "claude", "skills", "ai-standardize-repo", name
-    )
-    return ref.read_text(encoding="utf-8")
-
-
-def _load_precommit_template(name: str) -> str:
-    ref = resources.files("ai_shell.templates").joinpath(
-        "claude", "skills", "ai-standardize-precommit", name
-    )
+def _load_template(name: str) -> str:
+    ref = resources.files("ai_shell.standardize_data").joinpath(name)
     return ref.read_text(encoding="utf-8")
 
 
@@ -62,7 +53,7 @@ _CHECK_YAML_EXCLUDE_LINE = "\n        exclude: '(^templates/.*\\.yaml$|.*templat
 
 def _render_python_precommit(root: Path) -> str:
     """Load the python pre-commit template and apply substitutions."""
-    content = _load_repo_template(_PY_TEMPLATE_NAME)
+    content = _load_template(_PY_TEMPLATE_NAME)
     has_sam_template = (root / "template.yaml").is_file() or (root / "template.yml").is_file()
     substitution = _CHECK_YAML_EXCLUDE_LINE if has_sam_template else ""
     return content.replace(_CHECK_YAML_EXCLUDE_MARKER, substitution)
@@ -95,8 +86,8 @@ def _merge_prepare_script(package_json: Path) -> bool:
 
 
 def _apply_node(root: Path, dry_run: bool) -> tuple[Path, ...]:
-    hook_content = _load_precommit_template(_HUSKY_TEMPLATE_NAME)
-    lint_staged_content = _load_precommit_template(_LINT_STAGED_TEMPLATE_NAME)
+    hook_content = _load_template(_HUSKY_TEMPLATE_NAME)
+    lint_staged_content = _load_template(_LINT_STAGED_TEMPLATE_NAME)
 
     hook_path = root / _HUSKY_HOOK
     lint_staged_path = root / _LINT_STAGED

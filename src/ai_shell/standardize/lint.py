@@ -43,15 +43,16 @@ _ALLOWED_SUBSTRINGS: tuple[str, ...] = (
     # rename mapping in its prose; that's its whole job. Same for the
     # umbrella SKILL.md which references the pipeline skill's behavior.
     # README.md and CLAUDE.md document the same rename table per T5-9.
-    "templates/claude/skills/ai-standardize-pipeline/SKILL.md",
+    # Claude skill templates now live in the ai-cc-tools plugin repo;
+    # only the agents copies remain here.
     "templates/agents/skills/ai-standardize-pipeline/SKILL.md",
-    "templates/claude/skills/ai-standardize-repo/SKILL.md",
     "templates/agents/skills/ai-standardize-repo/SKILL.md",
     "README.md",
     # External spec docs (not owned by the standardization system)
     "ai-tools.md",
-    # Nested workspaces (linted by their own repo's tooling)
+    # Nested workspaces and plugin repos (linted by their own repo's tooling)
     "woxom-ecosystem/",
+    "ai-cc-tools/",
     # Memory dirs, venvs, caches, node_modules, build artifacts
     ".venv/",
     "venv/",

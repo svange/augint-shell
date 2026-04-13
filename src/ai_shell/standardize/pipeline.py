@@ -193,9 +193,7 @@ _NIGHTLY_FILE = Path(".github/workflows/promote-dev-to-main.nightly.yml")
 
 
 def _skill_root() -> Traversable:
-    return resources.files("ai_shell.templates").joinpath(
-        "claude", "skills", "ai-standardize-pipeline"
-    )
+    return resources.files("ai_shell.standardize_data")
 
 
 def _gate_basename(gate: str) -> str:

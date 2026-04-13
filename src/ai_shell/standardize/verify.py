@@ -193,7 +193,7 @@ def _verify_precommit(root: Path, detection: Detection) -> VerifyFinding:
         )
 
     if detection.language.value == "node":
-        hook_expected = pc._load_precommit_template(pc._HUSKY_TEMPLATE_NAME)
+        hook_expected = pc._load_template(pc._HUSKY_TEMPLATE_NAME)
         hook_actual = _read_or_empty(root / pc._HUSKY_HOOK)
         if hook_actual != hook_expected:
             return VerifyFinding(
@@ -201,7 +201,7 @@ def _verify_precommit(root: Path, detection: Detection) -> VerifyFinding:
                 status=VerifyStatus.DRIFT,
                 message=".husky/pre-commit differs",
             )
-        lint_expected = pc._load_precommit_template(pc._LINT_STAGED_TEMPLATE_NAME)
+        lint_expected = pc._load_template(pc._LINT_STAGED_TEMPLATE_NAME)
         lint_actual = _read_or_empty(root / pc._LINT_STAGED)
         if lint_actual != lint_expected:
             return VerifyFinding(

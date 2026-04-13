@@ -85,13 +85,14 @@ Follow these steps to create a well-structured skill:
    ```
 
 7. **Register in scaffold.py**:
-   Add the skill name to `CLAUDE_SKILL_DIRS` in `src/ai_shell/scaffold.py`:
+   Add the skill name to `AGENTS_SKILL_DIRS` in `src/ai_shell/scaffold.py`:
    ```python
-   CLAUDE_SKILL_DIRS = [
+   AGENTS_SKILL_DIRS = [
        # ... existing skills ...
        "{skill-name}",
    ]
    ```
+   For Claude Code, also add the skill to the `augint-workflow` plugin in the `ai-cc-tools` repo under `plugins/augint-workflow/skills/{skill-name}/SKILL.md`.
 
 8. **Best practices**:
    - Keep skills focused on one primary task

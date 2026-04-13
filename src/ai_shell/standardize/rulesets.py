@@ -34,12 +34,7 @@ from typing import Any
 from ai_shell.standardize.detection import Detection, RepoType
 from ai_shell.standardize.gates import load_gates
 
-_BYPASS_ACTORS_RESOURCE = (
-    "claude",
-    "skills",
-    "ai-standardize-repo",
-    "ruleset-bypass-actors.json",
-)
+_BYPASS_ACTORS_RESOURCE = ("ruleset-bypass-actors.json",)
 
 
 @dataclass(frozen=True)
@@ -54,7 +49,7 @@ class RulesetSpec:
 
 
 def _load_bypass_actors() -> list[dict[str, Any]]:
-    ref = resources.files("ai_shell.templates").joinpath(*_BYPASS_ACTORS_RESOURCE)
+    ref = resources.files("ai_shell.standardize_data").joinpath(*_BYPASS_ACTORS_RESOURCE)
     data: list[dict[str, Any]] = json.loads(ref.read_text(encoding="utf-8"))
     return data
 

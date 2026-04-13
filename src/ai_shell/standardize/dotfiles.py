@@ -38,9 +38,7 @@ class DotfilesResult:
 
 
 def _skill_resource(name: str) -> Traversable:
-    return resources.files("ai_shell.templates").joinpath(
-        "claude", "skills", "ai-standardize-dotfiles", name
-    )
+    return resources.files("ai_shell.standardize_data").joinpath(name)
 
 
 def _load_editorconfig() -> str:

@@ -141,6 +141,8 @@ Default: runs with `-c` (continue previous conversation). If it fails fast (< 5 
 
 `ai-shell init` and per-tool `--init`/`--update`/`--reset`/`--clean` flags write tool config files (`.claude/`, `.codex/`, `.agents/`, etc.) into the project. `--update` merges settings (preserves user customizations) and overwrites managed skills. `--reset` force-overwrites all managed files. `--clean` removes all managed paths then recreates them fresh.
 
+**Claude Code skills** are delivered via the `augint-workflow` plugin in the `ai-cc-tools` repo, not scaffolded by `ai-shell`. `ai-shell claude --init` only writes `settings.json`. Skills for agents/opencode/codex are still scaffolded from `src/ai_shell/templates/agents/skills/`.
+
 ### Branch Detection Algorithm (Shared Across Skills)
 
 All workflow skills (ai-prepare-branch, ai-submit-work, ai-monitor-pipeline, ai-promote, ai-status, ai-rollback) use this same logic. Update here and propagate to skills when changed.
@@ -204,7 +206,7 @@ Lessons learned across five rounds of iteration. Violating any of these will bre
 - **Do not** call `ai-shell standardize ...` directly from skill prose (except the low-level `pipeline --print-template` / `pipeline --print-spec` introspection commands). The stable contract is `ai-tools standardize <path> [--verify|--all|--area <area>]`; the `ai-shell` commands are the implementation layer underneath. Calling `ai-shell` directly bypasses the wrapper's path/argument handling.
 - **Do not** introduce hard `==` version pins in any generated config or template. Floor-only `>=X.Y.Z` pins are fine; Renovate-managed SHA pins (`@<sha> # vX.Y.Z`) in workflow `uses:` lines are fine. Hard exact pins break dependency resolution across the monorepo shared venv.
 - **Do not** `cd` into a child repo when orchestrating workspace-level commands. Always pass the child path as an argument. Reason: the workspace shares a single venv and `uv run` re-solves against the child's `pyproject.toml` floor, downgrading the venv for every subsequent child. Fix: always invoke from the workspace root with `<child-path>` args. Documented in `/ai-workspace-standardize`.
-- **Do not** hand-edit files under `.claude/skills/` or `.agents/skills/`. Those are scaffolded from `src/ai_shell/templates/`. Edit the templates and re-run scaffold (or run `/ai-init --reset` in the consumer repo).
+- **Do not** hand-edit files under `.agents/skills/`. Those are scaffolded from `src/ai_shell/templates/agents/skills/`. Edit the templates and re-run scaffold (or run `/ai-init --reset` in the consumer repo). Claude Code skills live in the `augint-workflow` plugin in the `ai-cc-tools` repo.
 
 ## Testing Patterns
 

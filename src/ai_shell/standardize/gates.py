@@ -1,7 +1,7 @@
 """Canonical gate vocabulary loader.
 
-`gates.json` and `commit-scheme.json` live in the `ai-standardize-repo` skill
-template directory as the single source of truth for gate names and the
+`gates.json` and `commit-scheme.json` live in the `ai_shell.standardize_data`
+package as the single source of truth for gate names and the
 Renovate <-> semantic-release commit-prefix alignment. Every generator in this
 package reads from here; no other module is allowed to hardcode gate names.
 """
@@ -14,8 +14,8 @@ from functools import lru_cache
 from importlib import resources
 from typing import Any
 
-_GATES_RESOURCE = ("claude", "skills", "ai-standardize-repo", "gates.json")
-_COMMIT_SCHEME_RESOURCE = ("claude", "skills", "ai-standardize-repo", "commit-scheme.json")
+_GATES_RESOURCE = ("gates.json",)
+_COMMIT_SCHEME_RESOURCE = ("commit-scheme.json",)
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,7 @@ class CommitScheme:
 
 
 def _load_resource_json(parts: tuple[str, ...]) -> dict[str, Any]:
-    ref = resources.files("ai_shell.templates").joinpath(*parts)
+    ref = resources.files("ai_shell.standardize_data").joinpath(*parts)
     data: dict[str, Any] = json.loads(ref.read_text(encoding="utf-8"))
     return data
 

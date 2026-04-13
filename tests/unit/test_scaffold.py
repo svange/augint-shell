@@ -6,7 +6,6 @@ import yaml
 
 from ai_shell.scaffold import (
     AGENTS_SKILL_DIRS,
-    CLAUDE_SKILL_DIRS,
     BranchStrategy,
     RepoType,
     _deep_merge_settings,
@@ -88,31 +87,10 @@ class TestScaffoldClaude:
         scaffold_claude(tmp_path)
         assert (tmp_path / ".claude" / "settings.json").is_file()
 
-    def test_creates_all_skill_dirs(self, tmp_path):
+    def test_does_not_create_skills(self, tmp_path):
+        """Skills are now delivered via the augint-workflow plugin."""
         scaffold_claude(tmp_path)
-        skills_dir = tmp_path / ".claude" / "skills"
-        for skill_name in CLAUDE_SKILL_DIRS:
-            assert (skills_dir / skill_name / "SKILL.md").is_file(), f"Missing skill: {skill_name}"
-
-    def test_skill_count_matches(self, tmp_path):
-        scaffold_claude(tmp_path)
-        skills_dir = tmp_path / ".claude" / "skills"
-        actual = sorted(d.name for d in skills_dir.iterdir() if d.is_dir())
-        assert actual == sorted(CLAUDE_SKILL_DIRS)
-
-    def test_skill_files_have_frontmatter(self, tmp_path):
-        scaffold_claude(tmp_path)
-        skills_dir = tmp_path / ".claude" / "skills"
-        for skill_name in CLAUDE_SKILL_DIRS:
-            content = (skills_dir / skill_name / "SKILL.md").read_text()
-            assert content.startswith("---"), f"{skill_name}/SKILL.md missing YAML frontmatter"
-            # Verify frontmatter closes
-            second_marker = content.index("---", 3)
-            frontmatter = content[3:second_marker]
-            assert "name:" in frontmatter, f"{skill_name}/SKILL.md missing 'name' in frontmatter"
-            assert "description:" in frontmatter, (
-                f"{skill_name}/SKILL.md missing 'description' in frontmatter"
-            )
+        assert not (tmp_path / ".claude" / "skills").exists()
 
     def test_settings_json_is_valid(self, tmp_path):
         scaffold_claude(tmp_path)
@@ -172,8 +150,6 @@ class TestScaffoldClaude:
     def test_clean_works_on_empty_dir(self, tmp_path):
         scaffold_claude(tmp_path, clean=True)
         assert (tmp_path / ".claude" / "settings.json").is_file()
-        for skill_name in CLAUDE_SKILL_DIRS:
-            assert (tmp_path / ".claude" / "skills" / skill_name / "SKILL.md").is_file()
 
     def test_does_not_create_notes_md(self, tmp_path):
         scaffold_claude(tmp_path)
@@ -264,24 +240,6 @@ class TestScaffoldClaude:
         assert (tmp_path / ".claude" / "settings.json").is_file()
         data = json.loads((tmp_path / ".claude" / "settings.json").read_text())
         assert "permissions" in data
-
-    def test_update_overwrites_managed_skills(self, tmp_path):
-        scaffold_claude(tmp_path)
-        skill_path = tmp_path / ".claude" / "skills" / "ai-pick-issue" / "SKILL.md"
-        skill_path.write_text("modified content")
-
-        scaffold_claude(tmp_path, merge=True)
-        assert skill_path.read_text() != "modified content"
-        assert skill_path.read_text().startswith("---")
-
-    def test_update_preserves_user_skills(self, tmp_path):
-        scaffold_claude(tmp_path)
-        custom_skill = tmp_path / ".claude" / "skills" / "my-custom-skill" / "SKILL.md"
-        custom_skill.parent.mkdir(parents=True)
-        custom_skill.write_text("my custom skill content")
-
-        scaffold_claude(tmp_path, merge=True)
-        assert custom_skill.read_text() == "my custom skill content"
 
 
 class TestScaffoldProject:
@@ -600,7 +558,7 @@ class TestNotesFile:
 class TestSkillsForConfig:
     def test_none_returns_all_skills(self):
         skills = skills_for_config(None, None)
-        assert skills == CLAUDE_SKILL_DIRS
+        assert skills == AGENTS_SKILL_DIRS
 
     def test_library_main_excludes_promote_and_service_skills(self):
         skills = skills_for_config(RepoType.LIBRARY, BranchStrategy.MAIN)
@@ -708,87 +666,16 @@ class TestSkillsForConfig:
             assert "ai-init" in skills
             assert "ai-new-project" in skills
 
-    def test_ai_standardize_dotfiles_deploys_companion_files(self, tmp_path):
-        scaffold_claude(tmp_path)
-        skill_dir = tmp_path / ".claude" / "skills" / "ai-standardize-dotfiles"
-        assert (skill_dir / "SKILL.md").is_file()
-        assert (skill_dir / "gitignore-template").is_file()
-        assert (skill_dir / "editorconfig-template").is_file()
-
 
 class TestScaffoldWithRepoType:
-    def test_claude_library_main_skills(self, tmp_path):
+    def test_claude_no_skills_regardless_of_type(self, tmp_path):
+        """Claude skills are delivered via plugin, not scaffold."""
         scaffold_claude(
             tmp_path,
             repo_type=RepoType.LIBRARY,
             branch_strategy=BranchStrategy.MAIN,
         )
-        skills_dir = tmp_path / ".claude" / "skills"
-        assert not (skills_dir / "ai-promote").exists()
-        assert not (skills_dir / "ai-setup-oidc").exists()
-        assert not (skills_dir / "ai-workspace-status").exists()
-        assert (skills_dir / "ai-init" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-pick-issue" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-standardize-repo" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-new-project" / "SKILL.md").is_file()
-        # Sub-skills must ship alongside the umbrella
-        assert (skills_dir / "ai-standardize-pipeline" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-standardize-precommit" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-standardize-renovate" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-standardize-release" / "SKILL.md").is_file()
-        # The old monolith must not be deployed
-        assert not (skills_dir / "ai-fix-repo-standards").exists()
-
-    def test_claude_service_dev_skills(self, tmp_path):
-        scaffold_claude(
-            tmp_path,
-            repo_type=RepoType.SERVICE,
-            branch_strategy=BranchStrategy.DEV,
-        )
-        skills_dir = tmp_path / ".claude" / "skills"
-        assert (skills_dir / "ai-promote" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-setup-oidc" / "SKILL.md").is_file()
-        assert not (skills_dir / "ai-workspace-status").exists()
-
-    def test_claude_workspace_skills(self, tmp_path):
-        scaffold_claude(
-            tmp_path,
-            repo_type=RepoType.WORKSPACE,
-            branch_strategy=BranchStrategy.MAIN,
-        )
-        skills_dir = tmp_path / ".claude" / "skills"
-        assert (skills_dir / "ai-workspace-status" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-workspace-sync" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-workspace-init" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-workspace-health" / "SKILL.md").is_file()
-        assert (skills_dir / "ai-workspace-foreach" / "SKILL.md").is_file()
-        assert not (skills_dir / "ai-promote").exists()
-
-    def test_claude_none_delivers_all_original_skills(self, tmp_path):
-        scaffold_claude(tmp_path, repo_type=None, branch_strategy=None)
-        skills_dir = tmp_path / ".claude" / "skills"
-        for skill_name in CLAUDE_SKILL_DIRS:
-            assert (skills_dir / skill_name / "SKILL.md").is_file()
-
-    def test_stale_skills_removed_on_type_change(self, tmp_path):
-        # First scaffold with all skills
-        scaffold_claude(
-            tmp_path,
-            repo_type=RepoType.SERVICE,
-            branch_strategy=BranchStrategy.DEV,
-        )
-        skills_dir = tmp_path / ".claude" / "skills"
-        assert (skills_dir / "ai-promote" / "SKILL.md").is_file()
-
-        # Switch to workspace -- ai-promote should be removed
-        scaffold_claude(
-            tmp_path,
-            overwrite=True,
-            repo_type=RepoType.WORKSPACE,
-            branch_strategy=BranchStrategy.MAIN,
-        )
-        assert not (skills_dir / "ai-promote").exists()
-        assert (skills_dir / "ai-workspace-status" / "SKILL.md").is_file()
+        assert not (tmp_path / ".claude" / "skills").exists()
 
     def test_opencode_workspace_skills(self, tmp_path):
         scaffold_opencode(
