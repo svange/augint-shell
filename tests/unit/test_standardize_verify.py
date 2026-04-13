@@ -26,10 +26,10 @@ def _det_library() -> Detection:
     )
 
 
-def _det_iac() -> Detection:
+def _det_service() -> Detection:
     return Detection(
         language=Language.PYTHON,
-        repo_type=RepoType.IAC,
+        repo_type=RepoType.SERVICE,
         language_evidence=(),
         repo_type_evidence=(),
     )
@@ -181,14 +181,14 @@ class TestVerifyRulesets:
         assert finding.status == VerifyStatus.DRIFT
         assert "missing contexts: Compliance" in finding.message
 
-    def test_iac_requires_two_rulesets(self, tmp_path: Path, monkeypatch):
+    def test_service_requires_two_rulesets(self, tmp_path: Path, monkeypatch):
         monkeypatch.setenv("GH_REPO", "x")
         monkeypatch.setenv("GH_ACCOUNT", "y")
         monkeypatch.setenv("GH_TOKEN", "z")
-        # Only iac_dev exists, iac_production missing
+        # Only service_dev exists, service_production missing
         live = [
             _make_ruleset(
-                "iac_dev",
+                "service_dev",
                 [
                     "Code quality",
                     "Security",
@@ -200,9 +200,9 @@ class TestVerifyRulesets:
         ]
         repo = _mock_repo_with_rulesets(live)
         with patch("ai_shell.standardize.verify._open_github_repo", return_value=repo):
-            finding = _verify_rulesets(tmp_path, _det_iac())
+            finding = _verify_rulesets(tmp_path, _det_service())
         assert finding.status == VerifyStatus.DRIFT
-        assert "iac_production" in finding.message
+        assert "service_production" in finding.message
 
     def test_github_api_error_is_fail(self, tmp_path: Path, monkeypatch):
         monkeypatch.setenv("GH_REPO", "x")

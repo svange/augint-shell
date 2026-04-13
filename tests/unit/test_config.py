@@ -180,16 +180,16 @@ branch_strategy = "main"
         assert config.repo_type == "library"
         assert config.branch_strategy == "main"
 
-    def test_project_section_iac_maps_to_service(self, tmp_path):
+    def test_project_section_service_maps_to_service(self, tmp_path):
         toml_content = b"""
 [project]
-repo_type = "iac"
+repo_type = "service"
 branch_strategy = "dev"
 dev_branch = "staging"
 """
         (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
         config = load_config(project_dir=tmp_path)
-        assert config.repo_type == "service"  # "iac" backward compat -> "service"
+        assert config.repo_type == "service"  # "service" backward compat -> "service"
         assert config.branch_strategy == "dev"
         assert config.dev_branch == "staging"
 

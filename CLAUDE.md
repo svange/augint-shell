@@ -37,7 +37,7 @@ Hooks run automatically: YAML check, trailing whitespace, end-of-file newline, `
 
 - **Commits**: Conventional commits required. `fix:` = patch, `feat:` = minor, `feat!:` / `BREAKING CHANGE` = major.
 - **Branches**: `{type}/issue-N-description` where type is one of: feat, fix, docs, refactor, test, chore, ci, build, style, revert, perf.
-- **PRs**: Target the default development branch. Enable automerge. For service/IaC repos, use merge commits (do not squash).
+- **PRs**: Target the default development branch. Enable automerge. For service/service repos, use merge commits (do not squash).
 - **Pre-commit**: Run `uv run pre-commit run --all-files` explicitly before committing (no automatic git hooks -- they break across Windows/WSL). If checks fail, fix the issue and create a NEW commit (do not amend).
 - **Tests**: Write tests for all new functionality. Bug fixes require regression tests.
 
@@ -147,7 +147,7 @@ All workflow skills (ai-prepare-branch, ai-submit-work, ai-monitor-pipeline, ai-
 
 1. Check `ai-shell.toml` for `[workflow] dev_branch` override (wins if set)
 2. Check remote branches (priority order): `origin/dev` > `origin/develop` > `origin/staging`
-3. First match = dev branch. Repo is a "service" (deploy pattern: IaC/web/backend/frontend).
+3. First match = dev branch. Repo is a "service" (deploy pattern: service/web/backend/frontend).
 4. No match = "library" repo (publish pattern, main-only).
 5. Default branch = `git symbolic-ref refs/remotes/origin/HEAD` or fallback `main`
 6. Base branch for new work = dev branch if found, else default branch
@@ -176,7 +176,7 @@ Canonical vocabulary from `gates.json` in `ai-standardize-repo` skill:
 4. **Compliance** - GPL/AGPL license blocking
 5. **Build validation** - `uv build` / `sam build` / `cdk synth` / `vite build` / `terraform validate`
 
-### 1 Post-Deploy Gate (service/iac repos only)
+### 1 Post-Deploy Gate (service/service repos only)
 
 6. **Acceptance tests** - runs against staging after dev deploy; required on main ruleset only
 

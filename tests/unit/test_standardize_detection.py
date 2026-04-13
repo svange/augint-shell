@@ -52,25 +52,25 @@ class TestLanguageDetection:
 
 
 class TestRepoTypeDetection:
-    def test_samconfig_marks_iac(self, tmp_path: Path):
+    def test_samconfig_marks_service(self, tmp_path: Path):
         _write(tmp_path / "pyproject.toml", '[project]\nname = "x"\n')
         _write(tmp_path / "samconfig.toml", "")
         d = detect(tmp_path)
-        assert d.repo_type == RepoType.IAC
+        assert d.repo_type == RepoType.SERVICE
         assert "samconfig.toml" in d.repo_type_evidence
 
-    def test_cdk_json_marks_iac(self, tmp_path: Path):
+    def test_cdk_json_marks_service(self, tmp_path: Path):
         _write(tmp_path / "pyproject.toml", '[project]\nname = "x"\n')
         _write(tmp_path / "cdk.json", "{}")
         d = detect(tmp_path)
-        assert d.repo_type == RepoType.IAC
+        assert d.repo_type == RepoType.SERVICE
         assert "cdk.json" in d.repo_type_evidence
 
-    def test_terraform_marks_iac(self, tmp_path: Path):
+    def test_terraform_marks_service(self, tmp_path: Path):
         _write(tmp_path / "pyproject.toml", '[project]\nname = "x"\n')
         _write(tmp_path / "main.tf", "")
         d = detect(tmp_path)
-        assert d.repo_type == RepoType.IAC
+        assert d.repo_type == RepoType.SERVICE
 
     def test_library_when_no_deploy_markers(self, tmp_path: Path):
         _write(tmp_path / "pyproject.toml", '[project]\nname = "x"\n')
@@ -84,7 +84,7 @@ class TestRepoTypeDetection:
         d = detect(tmp_path)
         assert d.repo_type == RepoType.LIBRARY
 
-    def test_vite_with_deploy_workflow_is_iac(self, tmp_path: Path):
+    def test_vite_with_deploy_workflow_is_service(self, tmp_path: Path):
         _write(tmp_path / "package.json", '{"name": "x"}')
         _write(tmp_path / "vite.config.ts", "")
         _write(
@@ -92,7 +92,7 @@ class TestRepoTypeDetection:
             "jobs:\n  deploy:\n    steps:\n      - uses: aws-actions/configure-aws-credentials@v4\n",
         )
         d = detect(tmp_path)
-        assert d.repo_type == RepoType.IAC
+        assert d.repo_type == RepoType.SERVICE
 
 
 class TestPublishWinsOverDeploy:
@@ -100,7 +100,7 @@ class TestPublishWinsOverDeploy:
 
     A Python library that uses SAM ``template.yaml`` for ephemeral test
     infrastructure and publishes via ``pypa/gh-action-pypi-publish`` must
-    classify as library, not iac.
+    classify as library, not service.
     """
 
     def test_template_yaml_alone_is_library(self, tmp_path: Path):
@@ -122,7 +122,7 @@ class TestPublishWinsOverDeploy:
         assert d.repo_type == RepoType.LIBRARY
         assert "pypa/gh-action-pypi-publish" in d.repo_type_evidence
 
-    def test_template_yaml_plus_sam_deploy_workflow_is_iac(self, tmp_path: Path):
+    def test_template_yaml_plus_sam_deploy_workflow_is_service(self, tmp_path: Path):
         # ai-lls-api pattern: template.yaml, no samconfig.toml, workflow runs `sam deploy`.
         _write(tmp_path / "pyproject.toml", '[project]\nname = "x"\n')
         _write(tmp_path / "template.yaml", "AWSTemplateFormatVersion: '2010-09-09'\n")
@@ -131,7 +131,7 @@ class TestPublishWinsOverDeploy:
             "jobs:\n  deploy:\n    steps:\n      - run: sam deploy --no-confirm-changeset\n",
         )
         d = detect(tmp_path)
-        assert d.repo_type == RepoType.IAC
+        assert d.repo_type == RepoType.SERVICE
         assert "sam deploy" in d.repo_type_evidence
 
     def test_publish_wins_over_sam_deploy(self, tmp_path: Path):
@@ -153,14 +153,14 @@ class TestPublishWinsOverDeploy:
         d = detect(tmp_path)
         assert d.repo_type == RepoType.LIBRARY
 
-    def test_cdk_json_alone_still_is_iac(self, tmp_path: Path):
-        """No publish signal, real deploy marker on disk => iac."""
+    def test_cdk_json_alone_still_is_service(self, tmp_path: Path):
+        """No publish signal, real deploy marker on disk => service."""
         _write(tmp_path / "pyproject.toml", '[project]\nname = "x"\n')
         _write(tmp_path / "cdk.json", "{}")
         d = detect(tmp_path)
-        assert d.repo_type == RepoType.IAC
+        assert d.repo_type == RepoType.SERVICE
 
-    def test_aws_s3_sync_marks_iac(self, tmp_path: Path):
+    def test_aws_s3_sync_marks_service(self, tmp_path: Path):
         """Node web app that deploys to S3 but has no samconfig.toml."""
         _write(tmp_path / "package.json", '{"name": "x"}')
         _write(tmp_path / "vite.config.ts", "")
@@ -169,7 +169,7 @@ class TestPublishWinsOverDeploy:
             "jobs:\n  deploy:\n    steps:\n      - run: aws s3 sync dist/ s3://bucket/\n",
         )
         d = detect(tmp_path)
-        assert d.repo_type == RepoType.IAC
+        assert d.repo_type == RepoType.SERVICE
         assert "aws s3 sync" in d.repo_type_evidence
 
     def test_npm_publish_is_library(self, tmp_path: Path):

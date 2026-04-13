@@ -12,12 +12,12 @@
 # repo_type:
 #   "library"  - PyPI/npm packages, main-only branching
 #   "service"  - Deployable app/service repo, dev -> main promotion
-#   "iac"      - Backward-compatible alias for service
+#   "service"      - Backward-compatible alias for service
 #   "workspace" - Coordination repo for multiple related child repos
 #
 # branch_strategy:
 #   "main" - Feature branches merge directly to main (library pattern)
-#   "dev"  - Feature branches merge to dev, dev promotes to main (iac/web pattern)
+#   "dev"  - Feature branches merge to dev, dev promotes to main (service/web pattern)
 #
 # dev_branch: Name of the development branch (only used when branch_strategy = "dev")
 #

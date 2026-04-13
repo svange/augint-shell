@@ -1,6 +1,6 @@
 gate: Acceptance tests
-language: python
-repo_type: iac
+language: node
+repo_type: service
 required_steps:
   - kind: action
     matches: actions/checkout

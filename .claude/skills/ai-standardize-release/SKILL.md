@@ -24,7 +24,7 @@ by user. No files were modified.`
 uv run ai-tools standardize <path> --verify --json
 ```
 
-The drift report includes python/node and library/iac. On ambiguous,
+The drift report includes python/node and library/service. On ambiguous,
 ask and stop.
 
 ### Step 2 -- read the existing config (if present)
@@ -55,9 +55,9 @@ groups:
 **Python custom content to detect:**
 
 - Custom `branches` entries beyond `main` (library) or `main`+`dev`
-  (iac)
+  (service)
 - Custom `build_command` -- the canonical is `uv lock && uv build` for
-  libraries, `""` for iac
+  libraries, `""` for service
 - Custom `commit_parser` / `commit_parser_options` (especially
   `patch_tags` additions)
 - Custom `exclude_commit_patterns` entries beyond the canonical set
@@ -95,8 +95,8 @@ groups:
 
 For the branches case specifically, ask:
 > You have a dev prerelease branch configured. The library canonical is
-> main-only; dev prereleases are an iac pattern. Is this repo actually
-> iac and the detection was wrong? [a] Yes, it's iac -- re-run
+> main-only; dev prereleases are an service pattern. Is this repo actually
+> service and the detection was wrong? [a] Yes, it's service -- re-run
 > detection. [b] It's library but I want dev prereleases anyway
 > (preserve). [c] Discard the dev branch entry and use canonical. [d]
 > Abort.
@@ -132,7 +132,7 @@ Re-run `Read` on the written file and confirm:
 - `tag_format` is `<short-name>-v{version}` (python) or
   `<short-name>-v${version}` (node)
 - `branches` matches the detected repo type (main-only library vs
-  main+dev iac)
+  main+dev service)
 
 Report the count of canonical fields written, custom fields preserved,
 the tag format, and the branches configured.
@@ -147,6 +147,6 @@ the tag format, and the branches configured.
 - **Commit prefix cross-validation** with `commit-scheme.json` is
   non-negotiable. Surface alignment failures to the user; do not
   silently skip them.
-- **Library vs iac branches.** Library is main-only; iac is main+dev.
+- **Library vs service branches.** Library is main-only; service is main+dev.
   If the existing config disagrees with detection, surface it as a
   question (it may indicate a detection error).

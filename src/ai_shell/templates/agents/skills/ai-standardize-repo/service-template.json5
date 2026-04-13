@@ -1,4 +1,4 @@
-// Renovate Bot Configuration — IaC (dev/main, deploys infrastructure)
+// Renovate Bot Configuration — service (dev/main, deploys infrastructure)
 // Docs: https://docs.renovatebot.com/configuration-options/
 //
 // Canonical template written by `ai-shell standardize renovate`. Differs

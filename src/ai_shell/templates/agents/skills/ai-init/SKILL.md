@@ -13,7 +13,7 @@ The goal is to choose the right repo type, install only the relevant skills, and
 
 Choose one:
 - `library` - package/published artifact, usually `main` branching
-- `service` - deployable app/API/web/IaC repo, usually `dev` -> `main`
+- `service` - deployable app/API/web/service repo, usually `dev` -> `main`
 - `workspace` - coordination repo for multiple child repos
 
 If the user does not specify a kind, ask once and persist it via `ai-shell.toml`.
@@ -79,4 +79,4 @@ For `workspace` repos:
 
 - If repo kind is unclear, stop and ask once.
 - If wrong skills are already installed, use `--update` or `--reset`.
-- If the repo was initialized with an older alias like `iac`, explain the current equivalent (`service`).
+- If the repo was initialized with an older alias like `service`, explain the current equivalent (`service`).

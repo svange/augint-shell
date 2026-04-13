@@ -8,7 +8,7 @@ Audit and remediate GitHub repository standards using ai-gh: $ARGUMENTS
 
 > **Workflow automation:** This skill is part of an automated workflow. It makes autonomous decisions for safe, reversible fixes (enabling auto-merge, applying rulesets). For destructive operations (regenerating pipelines), it shows a diff and asks for confirmation.
 
-Detects repo type (IaC vs library), runs `ai-gh status` to identify mismatches in rulesets, pipelines, and settings, then applies targeted fixes for each failure. Re-verifies after fixes and reports results.
+Detects repo type (service vs library), runs `ai-gh status` to identify mismatches in rulesets, pipelines, and settings, then applies targeted fixes for each failure. Re-verifies after fixes and reports results.
 
 ## Usage Examples
 
@@ -48,14 +48,14 @@ If prerequisites fail, stop and tell the user what is missing.
 
 ## 1. Detect Repo Type
 
-Auto-detect whether this is an IaC or library repo. The `ai-gh` CLI does this internally, but we need the type for targeted fixes.
+Auto-detect whether this is an service or library repo. The `ai-gh` CLI does this internally, but we need the type for targeted fixes.
 
 ```bash
-# Check for IaC indicators
+# Check for service indicators
 REPO_TYPE="library"
 for indicator in template.yaml template.yml samconfig.toml cdk.json main.tf; do
     if [ -f "$indicator" ]; then
-        REPO_TYPE="iac"
+        REPO_TYPE="service"
         break
     fi
 done
@@ -63,11 +63,11 @@ done
 # Check pipeline content as fallback
 if [ -f ".github/workflows/pipeline.yaml" ]; then
     if grep -qiE "sam|cdk|terraform" .github/workflows/pipeline.yaml 2>/dev/null; then
-        REPO_TYPE="iac"
+        REPO_TYPE="service"
     fi
 fi
 
-# Check for dev branch (IaC repos typically have one)
+# Check for dev branch (service repos typically have one)
 DEV_BRANCH=""
 for candidate in dev develop staging; do
     if git show-ref --verify --quiet "refs/remotes/origin/$candidate" 2>/dev/null; then
@@ -75,7 +75,7 @@ for candidate in dev develop staging; do
         break
     fi
 done
-[ -n "$DEV_BRANCH" ] && REPO_TYPE="iac"
+[ -n "$DEV_BRANCH" ] && REPO_TYPE="service"
 ```
 
 Report: "Detected repo type: **$REPO_TYPE**"
@@ -91,7 +91,7 @@ ai-gh status --type $REPO_TYPE --verbose
 Capture the output. The status command reports checks in a table with PASS/FAIL/WARN status:
 
 - **Auto-merge**: whether auto-merge is enabled on the repo
-- **Rulesets**: whether rulesets match the expected template (iac or library)
+- **Rulesets**: whether rulesets match the expected template (service or library)
 - **Pipeline file**: whether `.github/workflows/pipeline.yaml` exists
 - **Status checks alignment**: whether ruleset-required checks match actual pipeline job names
 
@@ -201,7 +201,7 @@ Remaining: Z issues requiring manual intervention
 
 Manual action needed:
   - Status check "build-validation" is in rulesets but has no matching pipeline job.
-    This is expected for IaC repos -- add a build-validation step to your pipeline
+    This is expected for service repos -- add a build-validation step to your pipeline
     or remove it from the ruleset if not needed.
 ```
 
@@ -216,4 +216,4 @@ If issues remain, list each one with a brief explanation of why it could not be 
 - **GitHub API errors (401/403)**: Token is invalid or lacks permissions. Tell user to check GH_TOKEN has `repo` and `admin:org` scopes.
 - **Rate limiting**: Wait and retry once. If still failing, report and suggest trying later.
 - **Partial failure**: If some fixes succeed and others fail, report what worked and what did not. Do not roll back successful fixes.
-- **Unknown repo type**: Default to library. Warn the user to verify with `--type iac` if this is an IaC repo.
+- **Unknown repo type**: Default to library. Warn the user to verify with `--type service` if this is an service repo.

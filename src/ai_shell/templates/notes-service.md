@@ -1,13 +1,13 @@
 # Institutional Notes: Service Repos
 
-These notes extend the shared institutional notes for service, web, API, and IaC repositories.
+These notes extend the shared institutional notes for service, web, API, and service repositories.
 Merge them lightly and only when they add net-new guidance.
 
 ## Branch and Merge Policy
 
 - Service-style repos usually branch from and target a development branch first.
 - Promotion from the development branch to `main` should use merge commits.
-- If the repo is treated as IaC, merge-commit-only policy applies; do not squash promotions.
+- If the repo is treated as service, merge-commit-only policy applies; do not squash promotions.
 - Do not rebase the default branch.
 
 ## Development Flow

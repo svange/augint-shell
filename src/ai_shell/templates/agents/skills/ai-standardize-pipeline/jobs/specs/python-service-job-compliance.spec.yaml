@@ -1,6 +1,6 @@
-gate: Code quality
+gate: Compliance
 language: python
-repo_type: iac
+repo_type: service
 required_steps:
   - kind: action
     matches: actions/checkout
@@ -9,6 +9,4 @@ required_steps:
   - kind: action
     matches: astral-sh/setup-uv
   - kind: run
-    matches_regex: '^uv sync\b'
-  - kind: run
-    matches_regex: 'uv run pre-commit run'
+    matches_regex: 'pip-licenses .*--fail-on .*GPL'

@@ -47,34 +47,34 @@ class TestLibrarySpec:
 
 class TestIacSpecs:
     def test_emits_two_specs(self):
-        specs = generate(_det(RepoType.IAC))
+        specs = generate(_det(RepoType.SERVICE))
         assert len(specs) == 2
 
     def test_dev_and_production_names(self):
-        specs = generate(_det(RepoType.IAC))
+        specs = generate(_det(RepoType.SERVICE))
         names = {s.name for s in specs}
-        assert names == {"iac_dev", "iac_production"}
+        assert names == {"service_dev", "service_production"}
 
     def test_dev_targets_dev_branch(self):
-        specs = generate(_det(RepoType.IAC))
-        dev = next(s for s in specs if s.name == "iac_dev")
+        specs = generate(_det(RepoType.SERVICE))
+        dev = next(s for s in specs if s.name == "service_dev")
         assert dev.includes == ("refs/heads/dev",)
 
     def test_production_targets_default_branch(self):
-        specs = generate(_det(RepoType.IAC))
-        prod = next(s for s in specs if s.name == "iac_production")
+        specs = generate(_det(RepoType.SERVICE))
+        prod = next(s for s in specs if s.name == "service_production")
         assert prod.includes == ("~DEFAULT_BRANCH",)
 
     def test_dev_has_only_5_pre_merge_gates(self):
-        specs = generate(_det(RepoType.IAC))
-        dev = next(s for s in specs if s.name == "iac_dev")
+        specs = generate(_det(RepoType.SERVICE))
+        dev = next(s for s in specs if s.name == "service_dev")
         gates = load_gates()
         assert set(dev.required_contexts) == set(gates.pre_merge)
         assert "Acceptance tests" not in dev.required_contexts
 
     def test_production_has_all_6_gates(self):
-        specs = generate(_det(RepoType.IAC))
-        prod = next(s for s in specs if s.name == "iac_production")
+        specs = generate(_det(RepoType.SERVICE))
+        prod = next(s for s in specs if s.name == "service_production")
         gates = load_gates()
         assert set(prod.required_contexts) == set(gates.all_names())
         assert "Acceptance tests" in prod.required_contexts

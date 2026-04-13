@@ -105,9 +105,9 @@ class TestRunAllPythonLibrary:
         apply_calls = [c for c in calls if c[:2] == ["rulesets", "apply"]]
         assert len(apply_calls) == 1
 
-    def test_rulesets_step_applies_two_for_iac(self, tmp_path: Path):
+    def test_rulesets_step_applies_two_for_service(self, tmp_path: Path):
         _make_python_library(tmp_path)
-        # Mark as iac
+        # Mark as service
         (tmp_path / "samconfig.toml").write_text("", encoding="utf-8")
         calls = []
 
@@ -120,7 +120,7 @@ class TestRunAllPythonLibrary:
                 mock_v.return_value = ()
                 run_all(tmp_path)
         apply_calls = [c for c in calls if c[:2] == ["rulesets", "apply"]]
-        # iac => iac_dev + iac_production
+        # service => service_dev + service_production
         assert len(apply_calls) == 2
 
     def test_verify_step_reports_drift(self, tmp_path: Path):

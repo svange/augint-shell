@@ -58,9 +58,9 @@ class TestApplyEachCombination:
         ("lang", "typ"),
         [
             (Language.PYTHON, RepoType.LIBRARY),
-            (Language.PYTHON, RepoType.IAC),
+            (Language.PYTHON, RepoType.SERVICE),
             (Language.NODE, RepoType.LIBRARY),
-            (Language.NODE, RepoType.IAC),
+            (Language.NODE, RepoType.SERVICE),
         ],
     )
     def test_writes_file(self, tmp_path: Path, lang: Language, typ: RepoType):
@@ -83,15 +83,15 @@ class TestApplyEachCombination:
         assert '"pep621"' not in text
         assert '"project.dependencies"' not in text
 
-    def test_node_iac_forces_merge_automerge_strategy(self, tmp_path: Path):
-        """node/iac MUST use automergeStrategy: merge (never squash)."""
-        result = apply(_det(Language.NODE, RepoType.IAC), tmp_path)
+    def test_node_service_forces_merge_automerge_strategy(self, tmp_path: Path):
+        """node/service MUST use automergeStrategy: merge (never squash)."""
+        result = apply(_det(Language.NODE, RepoType.SERVICE), tmp_path)
         text = result.path.read_text(encoding="utf-8")
         parsed = json.loads(_strip_jsonc_comments(text))
         assert parsed.get("automergeStrategy") == "merge"
 
-    def test_iac_targets_dev_branch(self, tmp_path: Path):
-        result = apply(_det(Language.PYTHON, RepoType.IAC), tmp_path)
+    def test_service_targets_dev_branch(self, tmp_path: Path):
+        result = apply(_det(Language.PYTHON, RepoType.SERVICE), tmp_path)
         text = result.path.read_text(encoding="utf-8")
         parsed = json.loads(_strip_jsonc_comments(text))
         assert parsed.get("baseBranchPatterns") == ["dev"]
@@ -126,9 +126,9 @@ class TestNoAdaptProseInOutput:
         ("lang", "typ"),
         [
             (Language.PYTHON, RepoType.LIBRARY),
-            (Language.PYTHON, RepoType.IAC),
+            (Language.PYTHON, RepoType.SERVICE),
             (Language.NODE, RepoType.LIBRARY),
-            (Language.NODE, RepoType.IAC),
+            (Language.NODE, RepoType.SERVICE),
         ],
     )
     def test_no_adapt_comments_on_disk(self, tmp_path: Path, lang: Language, typ: RepoType):
