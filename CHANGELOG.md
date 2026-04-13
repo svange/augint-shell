@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.53.0 (2026-04-13)
+
+### Features
+
+- Add standardization data files and update resource loading for improved structure
+  ([`29f7710`](https://github.com/svange/augint-shell/commit/29f7710ce43270885f7fd93e28aa3b508ad91dcc))
+
+
 ## v0.52.1 (2026-04-13)
 
 ### Refactoring
