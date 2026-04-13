@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.52.0 (2026-04-13)
+
+### Features
+
+- Add multi-repo support with interactive selection in tmux
+  ([`288ee3b`](https://github.com/svange/augint-shell/commit/288ee3bffe1646b3359957d0c752a3847bc9a9fa))
+
+### Refactoring
+
+- Remove duplicate service option from click command line arguments
+  ([`4cba41c`](https://github.com/svange/augint-shell/commit/4cba41c8fb3d145b32dbcce06ed31023f8656df4))
+
+
 ## v0.51.0 (2026-04-13)
 
 ### Features
