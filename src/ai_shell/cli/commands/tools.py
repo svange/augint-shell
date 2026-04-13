@@ -401,12 +401,12 @@ def _launch_team(
     cmd: list[str] = ["claude"]
     if not safe:
         cmd.append("--dangerously-skip-permissions")
-
-    # Pass workspace context as the initial prompt if available
-    if workspace_context:
-        cmd.extend(["-p", workspace_context])
-
     cmd.extend(extra_args)
+
+    # Pass workspace context as the positional prompt argument (NOT -p,
+    # which enables non-interactive print mode and would hang).
+    if workspace_context:
+        cmd.append(workspace_context)
 
     console.print("[bold]Launching Claude Code in Agent Teams mode (experimental)...[/bold]")
     if workspace_context:
