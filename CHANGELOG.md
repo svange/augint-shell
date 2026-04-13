@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.62.0 (2026-04-13)
+
+### Features
+
+- Migrate configuration from TOML to YAML format and remove deprecated sections
+  ([`b5c31f9`](https://github.com/svange/augint-shell/commit/b5c31f928b6b57e61624fa6c51e74ab68aef3902))
+
+
 ## v0.61.0 (2026-04-13)
 
 ### Features
