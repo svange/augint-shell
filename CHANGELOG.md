@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.59.0 (2026-04-13)
+
+### Features
+
+- Add npm cache volume and dependency installation for Node.js projects
+  ([`b15668c`](https://github.com/svange/augint-shell/commit/b15668ccd36031200c1acd9bc35cac6e366e1f0f))
+
+
 ## v0.58.0 (2026-04-13)
 
 ### Features
