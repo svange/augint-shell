@@ -114,7 +114,12 @@ def _cross_validate_commit_scheme(rendered: str, scheme: CommitScheme) -> None:
     """
     import re
 
-    known: set[str] = set(scheme.patch_triggers) | set(scheme.no_release)
+    known: set[str] = (
+        set(scheme.major_triggers)
+        | set(scheme.minor_triggers)
+        | set(scheme.patch_triggers)
+        | set(scheme.no_release)
+    )
     unknown: list[str] = []
     for match in re.finditer(r'"commitMessagePrefix"\s*:\s*"([^"]+)"', rendered):
         prefix = match.group(1).rstrip()

@@ -31,8 +31,15 @@ class Gates:
 
 @dataclass(frozen=True)
 class CommitScheme:
-    """Commit-prefix alignment between Renovate and semantic-release."""
+    """Full conventional commit -> release behavior mapping.
 
+    Single source of truth for Renovate commit prefixes and
+    semantic-release rules. All four categories must be kept in sync
+    with commit-scheme.json.
+    """
+
+    major_triggers: tuple[str, ...]
+    minor_triggers: tuple[str, ...]
     patch_triggers: tuple[str, ...]
     no_release: tuple[str, ...]
 
@@ -58,6 +65,8 @@ def load_commit_scheme() -> CommitScheme:
     """Load and cache the Renovate/semantic-release commit prefix alignment."""
     data = _load_resource_json(_COMMIT_SCHEME_RESOURCE)
     return CommitScheme(
+        major_triggers=tuple(data.get("major_triggers", ())),
+        minor_triggers=tuple(data.get("minor_triggers", ())),
         patch_triggers=tuple(data["patch_triggers"]),
         no_release=tuple(data["no_release"]),
     )
