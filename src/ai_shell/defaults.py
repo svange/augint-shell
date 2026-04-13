@@ -28,6 +28,21 @@ SHM_SIZE = "2g"
 # Volume names (prefixed to avoid collisions)
 # =============================================================================
 UV_CACHE_VOLUME = "augint-shell-uv-cache"
+
+
+def uv_venv_path(repo_name: str, worktree_name: str | None = None) -> str:
+    """Return the ``UV_PROJECT_ENVIRONMENT`` path for a repo.
+
+    Matches the venv isolation scheme used by both ``--multi`` and ``--team``
+    modes.  When *worktree_name* is set, appends ``-wt-{worktree_name}`` to
+    isolate worktree venvs.
+    """
+    suffix = repo_name
+    if worktree_name:
+        suffix = f"{repo_name}-wt-{worktree_name}"
+    return f"/root/.cache/uv/venvs/{suffix}"
+
+
 NPM_CACHE_VOLUME = "augint-shell-npm-cache"
 OLLAMA_DATA_VOLUME = "augint-shell-ollama-data"
 WEBUI_DATA_VOLUME = "augint-shell-webui-data"
@@ -236,7 +251,7 @@ def build_dev_environment(
     # Isolate UV venvs per-project within the shared cache volume.
     # Overrides Dockerfile default of /root/.cache/uv/venvs/project.
     if project_name:
-        env["UV_PROJECT_ENVIRONMENT"] = f"/root/.cache/uv/venvs/{project_name}"
+        env["UV_PROJECT_ENVIRONMENT"] = uv_venv_path(project_name)
 
     if bedrock:
         env["CLAUDE_CODE_USE_BEDROCK"] = "1"

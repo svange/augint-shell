@@ -992,3 +992,32 @@ class TestClaudeTeamCLI:
         mock_build_env.assert_called_once()
         call_kwargs = mock_build_env.call_args
         assert call_kwargs.kwargs.get("team_mode") is True
+
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    def test_team_workspace_context_includes_uv_env_per_repo(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        """--team with workspace.yaml includes per-repo UV_PROJECT_ENVIRONMENT."""
+        mock_config.return_value = _make_config_mock()
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+
+        with self.runner.isolated_filesystem():
+            with open("workspace.yaml", "w") as f:
+                f.write(WORKSPACE_YAML)
+
+            self.runner.invoke(cli, ["claude", "--team"])
+
+        # The workspace context is the last positional arg to exec_interactive
+        call_args = mock_manager.exec_interactive.call_args
+        cmd = call_args.args[1] if call_args.args else call_args[0][1]
+        workspace_context = cmd[-1]
+
+        assert "UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/repo-a" in workspace_context
+        assert "UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/repo-b" in workspace_context
+        assert "MUST run the following" in workspace_context

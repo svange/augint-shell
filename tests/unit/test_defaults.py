@@ -12,6 +12,7 @@ from ai_shell.defaults import (
     dev_container_name,
     sanitize_project_name,
     unique_project_name,
+    uv_venv_path,
 )
 
 
@@ -279,6 +280,24 @@ class TestBuildDevEnvironmentBedrock:
             env = build_dev_environment()
         assert env["AWS_DEFAULT_REGION"] == "us-east-1"
         assert env["AWS_DEFAULT_REGION"] == env["AWS_REGION"]
+
+
+class TestUvVenvPath:
+    def test_basic_repo_name(self):
+        assert uv_venv_path("my-project") == "/root/.cache/uv/venvs/my-project"
+
+    def test_with_worktree(self):
+        assert (
+            uv_venv_path("my-project", worktree_name="feat-1")
+            == "/root/.cache/uv/venvs/my-project-wt-feat-1"
+        )
+
+    def test_worktree_none(self):
+        assert uv_venv_path("repo", worktree_name=None) == "/root/.cache/uv/venvs/repo"
+
+    def test_used_by_build_dev_environment(self):
+        env = build_dev_environment(project_name="test-proj")
+        assert env["UV_PROJECT_ENVIRONMENT"] == uv_venv_path("test-proj")
 
 
 class TestBuildDevEnvironmentTeamMode:

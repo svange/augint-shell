@@ -16,7 +16,7 @@ from rich.console import Console
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import AiShellConfig, load_config
 from ai_shell.container import ContainerManager
-from ai_shell.defaults import build_dev_environment, dev_container_name
+from ai_shell.defaults import build_dev_environment, dev_container_name, uv_venv_path
 from ai_shell.scaffold import BranchStrategy, RepoType
 
 logger = logging.getLogger(__name__)
@@ -367,11 +367,19 @@ def _launch_team(
             f"/root/projects/{workspace_name}/{r.get('path', './' + r['name']).lstrip('./')}"
             for r in repos
         )
+        # Per-repo UV_PROJECT_ENVIRONMENT lines (same scheme as tmux.py)
+        env_lines = "\n".join(
+            f"  {r['name']}: export UV_PROJECT_ENVIRONMENT={uv_venv_path(r['name'])}" for r in repos
+        )
         workspace_context = (
             f"Workspace: {workspace_name}\n"
             f"Repos:\n{repo_lines}\n\n"
             "Spawn teammates for each repo.  Tell each teammate to work in "
-            "the directory listed above for their assigned repo."
+            "the directory listed above for their assigned repo.\n\n"
+            "IMPORTANT: Each teammate MUST run the following as their first "
+            "command before running any uv or python commands:\n"
+            f"{env_lines}\n"
+            "This isolates each repo's Python virtual environment."
         )
 
     # Load config and create container

@@ -10,6 +10,8 @@ from __future__ import annotations
 import shlex
 from dataclasses import dataclass
 
+from ai_shell.defaults import uv_venv_path
+
 # ── Data ─────────────────────────────────────────────────────────────
 
 TMUX_SESSION_PREFIX = "claude-multi"
@@ -67,10 +69,7 @@ def build_claude_pane_command(
     first; falls back to a fresh session if that fails (e.g. no prior
     conversation exists).
     """
-    venv_suffix = repo_name
-    if worktree_name:
-        venv_suffix = f"{repo_name}-wt-{worktree_name}"
-    uv_env = f"UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/{venv_suffix}"
+    uv_env = f"UV_PROJECT_ENVIRONMENT={uv_venv_path(repo_name, worktree_name)}"
 
     dep_prefix = _build_dep_sync_prefix() if sync_deps else ""
 

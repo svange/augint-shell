@@ -7,6 +7,15 @@ if [ -f /root/.gitconfig.windows ]; then
     grep -v "sslbackend" /root/.gitconfig.windows > /root/.gitconfig || true
 fi
 
+# Re-apply container-critical git settings that the Windows gitconfig copy
+# above may have overwritten (mirrors Dockerfile lines 206-214).
+git config --global --add safe.directory '*'
+git config --global core.filemode false
+git config --global core.hooksPath /dev/null
+git config --global init.defaultBranch main
+git config --global color.ui auto
+git config --global core.editor vim
+
 # Configure Git to use GitHub CLI for authentication if token is present
 if [ -n "$GH_TOKEN" ]; then
     git config --global credential.https://github.com.helper "!gh auth git-credential"
