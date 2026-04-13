@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.51.0 (2026-04-13)
+
+### Features
+
+- Update templates and configs for standards polish
+  ([`1f7b1e6`](https://github.com/svange/augint-shell/commit/1f7b1e6786f3c9561bf935014d4881974b307013))
+
+### Refactoring
+
+- Enhance commit scheme and pre-commit configuration for improved standards
+  ([`1117b89`](https://github.com/svange/augint-shell/commit/1117b8959af3343ccdc585aa756e56b7542f9af3))
+
+- Implement resolve_dev_container method for improved container name resolution
+  ([`cb08fae`](https://github.com/svange/augint-shell/commit/cb08fae754a35d220c11d4968f53d4968c8265b1))
+
+- Rename IaC repo type to service across entire codebase
+  ([`da0254e`](https://github.com/svange/augint-shell/commit/da0254e6c35a4d8eca4da7cca62bda4d74378abb))
+
+
 ## v0.50.0 (2026-04-12)
 
 ### Features
