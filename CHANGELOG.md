@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.55.0 (2026-04-13)
+
+### Features
+
+- Add session management for tmux with reconnect prompt and command enhancements
+  ([`e87f6fd`](https://github.com/svange/augint-shell/commit/e87f6fdcb3ae23242ef31479753ed5072dfcebd9))
+
+
 ## v0.54.0 (2026-04-13)
 
 ### Features
