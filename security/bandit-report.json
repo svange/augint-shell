@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-04-13T20:35:53Z",
+  "generated_at": "2026-04-13T21:50:42Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 34,
+      "CONFIDENCE.HIGH": 30,
       "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 35,
+      "SEVERITY.LOW": 30,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 5669,
+      "loc": 3148,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -50,7 +50,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 39,
+      "loc": 37,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -93,19 +93,6 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "src/ai_shell/cli/commands/standardize.py": {
-      "CONFIDENCE.HIGH": 1,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 1,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 451,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
     "src/ai_shell/cli/commands/tools.py": {
       "CONFIDENCE.HIGH": 11,
       "CONFIDENCE.LOW": 0,
@@ -115,7 +102,7 @@
       "SEVERITY.LOW": 11,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1144,
+      "loc": 1125,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -128,7 +115,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 174,
+      "loc": 173,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -193,7 +180,7 @@
       "SEVERITY.LOW": 4,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 107,
+      "loc": 97,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -206,7 +193,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 361,
+      "loc": 337,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -220,175 +207,6 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 167,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/__init__.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 7,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/detection.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 136,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/dotfiles.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 146,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/gates.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 65,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/lint.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 96,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/pipeline.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 350,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/precommit.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 93,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/release.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 211,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/renovate.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 129,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/rulesets.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 126,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/umbrella.py": {
-      "CONFIDENCE.HIGH": 3,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 3,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 265,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize/verify.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 1,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 1,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 389,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "src/ai_shell/standardize_data/__init__.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 1,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -520,26 +338,6 @@
       "test_name": "try_except_pass"
     },
     {
-      "code": "169         gate = print_template or print_spec\n170         assert gate is not None\n171         language, repo_type = _resolve_language_type(path, language_override, type_override)\n",
-      "col_offset": 8,
-      "end_col_offset": 31,
-      "filename": "src/ai_shell/cli/commands/standardize.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 703,
-        "link": "https://cwe.mitre.org/data/definitions/703.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
-      "line_number": 170,
-      "line_range": [
-        170
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html",
-      "test_id": "B101",
-      "test_name": "assert_used"
-    },
-    {
       "code": "5 import logging\n6 import subprocess\n7 import sys\n",
       "col_offset": 0,
       "end_col_offset": 17,
@@ -560,7 +358,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "54     # First attempt: create new worktree + new branch\n55     result = subprocess.run(\n56         [\n57             \"docker\",\n58             \"exec\",\n59             \"-w\",\n60             container_project_dir,\n61             container_name,\n62             \"git\",\n63             \"worktree\",\n64             \"add\",\n65             worktree_rel,\n66             \"-b\",\n67             branch,\n68         ],\n69         capture_output=True,\n70         text=True,\n71     )\n72 \n",
+      "code": "53     # First attempt: create new worktree + new branch\n54     result = subprocess.run(\n55         [\n56             \"docker\",\n57             \"exec\",\n58             \"-w\",\n59             container_project_dir,\n60             container_name,\n61             \"git\",\n62             \"worktree\",\n63             \"add\",\n64             worktree_rel,\n65             \"-b\",\n66             branch,\n67         ],\n68         capture_output=True,\n69         text=True,\n70     )\n71 \n",
       "col_offset": 13,
       "end_col_offset": 5,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -571,8 +369,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 55,
+      "line_number": 54,
       "line_range": [
+        54,
         55,
         56,
         57,
@@ -588,15 +387,14 @@
         67,
         68,
         69,
-        70,
-        71
+        70
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "54     # First attempt: create new worktree + new branch\n55     result = subprocess.run(\n56         [\n57             \"docker\",\n58             \"exec\",\n59             \"-w\",\n60             container_project_dir,\n61             container_name,\n62             \"git\",\n63             \"worktree\",\n64             \"add\",\n65             worktree_rel,\n66             \"-b\",\n67             branch,\n68         ],\n69         capture_output=True,\n70         text=True,\n71     )\n72 \n",
+      "code": "53     # First attempt: create new worktree + new branch\n54     result = subprocess.run(\n55         [\n56             \"docker\",\n57             \"exec\",\n58             \"-w\",\n59             container_project_dir,\n60             container_name,\n61             \"git\",\n62             \"worktree\",\n63             \"add\",\n64             worktree_rel,\n65             \"-b\",\n66             branch,\n67         ],\n68         capture_output=True,\n69         text=True,\n70     )\n71 \n",
       "col_offset": 13,
       "end_col_offset": 5,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -607,8 +405,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 55,
+      "line_number": 54,
       "line_range": [
+        54,
         55,
         56,
         57,
@@ -624,15 +423,14 @@
         67,
         68,
         69,
-        70,
-        71
+        70
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "76         if \"already exists\" in stderr or \"already checked out\" in stderr:\n77             result2 = subprocess.run(\n78                 [\n79                     \"docker\",\n80                     \"exec\",\n81                     \"-w\",\n82                     container_project_dir,\n83                     container_name,\n84                     \"git\",\n85                     \"worktree\",\n86                     \"add\",\n87                     worktree_rel,\n88                     branch,\n89                 ],\n90                 capture_output=True,\n91                 text=True,\n92             )\n93             stderr2 = result2.stderr.strip()\n",
+      "code": "75         if \"already exists\" in stderr or \"already checked out\" in stderr:\n76             result2 = subprocess.run(\n77                 [\n78                     \"docker\",\n79                     \"exec\",\n80                     \"-w\",\n81                     container_project_dir,\n82                     container_name,\n83                     \"git\",\n84                     \"worktree\",\n85                     \"add\",\n86                     worktree_rel,\n87                     branch,\n88                 ],\n89                 capture_output=True,\n90                 text=True,\n91             )\n92             stderr2 = result2.stderr.strip()\n",
       "col_offset": 22,
       "end_col_offset": 13,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -643,8 +441,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 77,
+      "line_number": 76,
       "line_range": [
+        76,
         77,
         78,
         79,
@@ -659,15 +458,14 @@
         88,
         89,
         90,
-        91,
-        92
+        91
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "76         if \"already exists\" in stderr or \"already checked out\" in stderr:\n77             result2 = subprocess.run(\n78                 [\n79                     \"docker\",\n80                     \"exec\",\n81                     \"-w\",\n82                     container_project_dir,\n83                     container_name,\n84                     \"git\",\n85                     \"worktree\",\n86                     \"add\",\n87                     worktree_rel,\n88                     branch,\n89                 ],\n90                 capture_output=True,\n91                 text=True,\n92             )\n93             stderr2 = result2.stderr.strip()\n",
+      "code": "75         if \"already exists\" in stderr or \"already checked out\" in stderr:\n76             result2 = subprocess.run(\n77                 [\n78                     \"docker\",\n79                     \"exec\",\n80                     \"-w\",\n81                     container_project_dir,\n82                     container_name,\n83                     \"git\",\n84                     \"worktree\",\n85                     \"add\",\n86                     worktree_rel,\n87                     branch,\n88                 ],\n89                 capture_output=True,\n90                 text=True,\n91             )\n92             stderr2 = result2.stderr.strip()\n",
       "col_offset": 22,
       "end_col_offset": 13,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -678,8 +476,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 77,
+      "line_number": 76,
       "line_range": [
+        76,
         77,
         78,
         79,
@@ -694,15 +493,14 @@
         88,
         89,
         90,
-        91,
-        92
+        91
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "133     logger.debug(\"codex api key inject: docker exec %s python3 -c ...\", container_name)\n134     result = subprocess.run(args, capture_output=True, text=True, timeout=10)\n135     if result.returncode != 0:\n",
+      "code": "132     logger.debug(\"codex api key inject: docker exec %s python3 -c ...\", container_name)\n133     result = subprocess.run(args, capture_output=True, text=True, timeout=10)\n134     if result.returncode != 0:\n",
       "col_offset": 13,
       "end_col_offset": 77,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -713,16 +511,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 134,
+      "line_number": 133,
       "line_range": [
-        134
+        133
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "185     logger.debug(\"bedrock preflight: %s\", \" \".join(args))\n186     result = subprocess.run(args, capture_output=True, text=True, timeout=30)\n187 \n",
+      "code": "184     logger.debug(\"bedrock preflight: %s\", \" \".join(args))\n185     result = subprocess.run(args, capture_output=True, text=True, timeout=30)\n186 \n",
       "col_offset": 13,
       "end_col_offset": 77,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -733,16 +531,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 186,
+      "line_number": 185,
       "line_range": [
-        186
+        185
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "466     check_cmd = build_check_session_command(container_name, session_name)\n467     has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0\n468 \n",
+      "code": "413     check_cmd = build_check_session_command(container_name, session_name)\n414     has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0\n415 \n",
       "col_offset": 18,
       "end_col_offset": 64,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -753,16 +551,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 467,
+      "line_number": 414,
       "line_range": [
-        467
+        414
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "480             sys.stderr.flush()\n481             attach = subprocess.run(attach_cmd)\n482             sys.exit(attach.returncode)\n",
+      "code": "427             sys.stderr.flush()\n428             attach = subprocess.run(attach_cmd)\n429             sys.exit(attach.returncode)\n",
       "col_offset": 21,
       "end_col_offset": 47,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -773,16 +571,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 481,
+      "line_number": 428,
       "line_range": [
-        481
+        428
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "627     for cmd_args in cmds[:-1]:\n628         result = subprocess.run(cmd_args, capture_output=True, text=True)\n629         # kill-session may fail (no existing session) -- that's fine\n",
+      "code": "574     for cmd_args in cmds[:-1]:\n575         result = subprocess.run(cmd_args, capture_output=True, text=True)\n576         # kill-session may fail (no existing session) -- that's fine\n",
       "col_offset": 17,
       "end_col_offset": 73,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -793,16 +591,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 628,
+      "line_number": 575,
       "line_range": [
-        628
+        575
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "637     sys.stderr.flush()\n638     attach = subprocess.run(final_cmd)\n639     sys.exit(attach.returncode)\n",
+      "code": "584     sys.stderr.flush()\n585     attach = subprocess.run(final_cmd)\n586     sys.exit(attach.returncode)\n",
       "col_offset": 13,
       "end_col_offset": 38,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -813,9 +611,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 638,
+      "line_number": 585,
       "line_range": [
-        638
+        585
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
@@ -1168,7 +966,7 @@
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "10 import shutil\n11 import subprocess\n12 import tomllib\n",
+      "code": "10 import shutil\n11 import subprocess\n12 from importlib import resources\n",
       "col_offset": 0,
       "end_col_offset": 17,
       "filename": "src/ai_shell/notes_merge.py",
@@ -1188,7 +986,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "14 from pathlib import Path\n15 from subprocess import DEVNULL\n16 \n",
+      "code": "13 from pathlib import Path\n14 from subprocess import DEVNULL\n15 \n",
       "col_offset": 0,
       "end_col_offset": 30,
       "filename": "src/ai_shell/notes_merge.py",
@@ -1199,16 +997,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Consider possible security implications associated with the subprocess module.",
-      "line_number": 15,
+      "line_number": 14,
       "line_range": [
-        15
+        14
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess",
       "test_id": "B404",
       "test_name": "blacklist"
     },
     {
-      "code": "112         )\n113         subprocess.Popen(cmd, cwd=target_dir, stdout=DEVNULL, stderr=DEVNULL)  # noqa: S603\n114         return True\n",
+      "code": "100         )\n101         subprocess.Popen(cmd, cwd=target_dir, stdout=DEVNULL, stderr=DEVNULL)  # noqa: S603\n102         return True\n",
       "col_offset": 8,
       "end_col_offset": 77,
       "filename": "src/ai_shell/notes_merge.py",
@@ -1219,16 +1017,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 113,
+      "line_number": 101,
       "line_range": [
-        113
+        101
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "117     try:\n118         result = subprocess.run(cmd, cwd=target_dir, timeout=_MERGE_TIMEOUT)  # noqa: S603\n119         if result.returncode != 0:\n",
+      "code": "105     try:\n106         result = subprocess.run(cmd, cwd=target_dir, timeout=_MERGE_TIMEOUT)  # noqa: S603\n107         if result.returncode != 0:\n",
       "col_offset": 17,
       "end_col_offset": 76,
       "filename": "src/ai_shell/notes_merge.py",
@@ -1239,93 +1037,13 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 118,
+      "line_number": 106,
       "line_range": [
-        118
+        106
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
-    },
-    {
-      "code": "25 import shutil\n26 import subprocess\n27 from dataclasses import dataclass\n",
-      "col_offset": 0,
-      "end_col_offset": 17,
-      "filename": "src/ai_shell/standardize/umbrella.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Consider possible security implications associated with the subprocess module.",
-      "line_number": 26,
-      "line_range": [
-        26
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess",
-      "test_id": "B404",
-      "test_name": "blacklist"
-    },
-    {
-      "code": "124         return (127, \"\", \"ai-gh not installed\")\n125     proc = subprocess.run([\"ai-gh\", *args], capture_output=True, text=True, cwd=cwd, check=False)\n126     return proc.returncode, proc.stdout, proc.stderr\n",
-      "col_offset": 11,
-      "end_col_offset": 97,
-      "filename": "src/ai_shell/standardize/umbrella.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Starting a process with a partial executable path",
-      "line_number": 125,
-      "line_range": [
-        125
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
-      "test_id": "B607",
-      "test_name": "start_process_with_partial_path"
-    },
-    {
-      "code": "124         return (127, \"\", \"ai-gh not installed\")\n125     proc = subprocess.run([\"ai-gh\", *args], capture_output=True, text=True, cwd=cwd, check=False)\n126     return proc.returncode, proc.stdout, proc.stderr\n",
-      "col_offset": 11,
-      "end_col_offset": 97,
-      "filename": "src/ai_shell/standardize/umbrella.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 78,
-        "link": "https://cwe.mitre.org/data/definitions/78.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 125,
-      "line_range": [
-        125
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
-      "test_id": "B603",
-      "test_name": "subprocess_without_shell_equals_true"
-    },
-    {
-      "code": "41 class VerifyStatus(StrEnum):\n42     PASS = \"PASS\"\n43     DRIFT = \"DRIFT\"\n",
-      "col_offset": 11,
-      "end_col_offset": 17,
-      "filename": "src/ai_shell/standardize/verify.py",
-      "issue_confidence": "MEDIUM",
-      "issue_cwe": {
-        "id": 259,
-        "link": "https://cwe.mitre.org/data/definitions/259.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Possible hardcoded password: 'PASS'",
-      "line_number": 42,
-      "line_range": [
-        42
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html",
-      "test_id": "B105",
-      "test_name": "hardcoded_password_string"
     }
   ]
 }
