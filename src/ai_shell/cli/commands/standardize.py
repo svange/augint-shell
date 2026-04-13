@@ -126,7 +126,7 @@ def standardize_detect(path: Path, as_json: bool) -> None:
 @click.option(
     "--type",
     "type_override",
-    type=click.Choice(["library", "iac"]),
+    type=click.Choice(["library", "service"]),
     default=None,
     help="Override detected repo type (used with --print-template / --print-spec).",
 )

@@ -22,7 +22,7 @@ modified.`
 uv run ai-tools standardize <path> --verify --json
 ```
 
-The drift report includes python/node and library/iac. On ambiguous,
+The drift report includes python/node and library/service. On ambiguous,
 ask and stop.
 
 ### Step 1.5 -- check for duplicate Renovate config files (S12-4)
@@ -79,11 +79,11 @@ entry in `packageRules` into three groups:
 - **Custom `matchPackageNames`** entries -- specific packages pinned,
   grouped, or held at a particular major version
 - **Custom `commitMessagePrefix` values** -- deviations from the
-  canonical scheme (`fix(deps):` for iac prod, `chore(deps):` for
+  canonical scheme (`fix(deps):` for service prod, `chore(deps):` for
   library prod, `chore(deps-dev):` for dev deps, `ci(deps):` for GitHub
   Actions and pre-commit)
 - **Custom `automergeStrategy`** overrides -- especially dangerous on
-  node/iac where squash drops semantic-release `[skip ci]` markers
+  node/service where squash drops semantic-release `[skip ci]` markers
 - **Custom `enabledManagers`** additions (e.g. `dockerfile`, `nix`)
 - **Custom top-level fields** like `ignorePaths`, `extends`, `schedule`,
   `timezone`, `labels`
@@ -116,13 +116,13 @@ for python deps is `fix(deps):` when the library template expects
 > Your python prod deps rule uses `commitMessagePrefix: "fix(deps):"`.
 > For library repos the canonical prefix is `chore(deps):` (no release
 > for library dep bumps) -- `fix(deps):` would trigger a patch release.
-> This is the iac pattern. [a] Rewrite to `chore(deps):` (library
+> This is the service pattern. [a] Rewrite to `chore(deps):` (library
 > canonical). [b] Leave as `fix(deps):` (the repo may have been
 > miscategorized as library). [c] Abort.
 
-For critical drift (node/iac `automergeStrategy: squash`):
+For critical drift (node/service `automergeStrategy: squash`):
 
-> **Critical:** your node/iac config has `automergeStrategy: squash`.
+> **Critical:** your node/service config has `automergeStrategy: squash`.
 > Squash drops the `[skip ci]` marker semantic-release emits on the
 > dev->main promotion merge, which breaks the release cycle. The
 > canonical value is `merge`. [a] Rewrite to `merge` (strongly
@@ -143,8 +143,8 @@ custom content, you (the AI) re-insert it into the generated file via
 `Read` + `Edit` after the generator runs.
 
 The generator handles the deterministic pieces: template selection
-(library vs iac), python-to-node string substitution (`pep621` ->
-`npm`, `project.dependencies` -> `dependencies`, etc.), node/iac
+(library vs service), python-to-node string substitution (`pep621` ->
+`npm`, `project.dependencies` -> `dependencies`, etc.), node/service
 `automergeStrategy: merge` enforcement, and cross-validation of commit
 prefixes against `commit-scheme.json`.
 
@@ -154,21 +154,21 @@ Re-run `Read` on `renovate.json5` and confirm:
 
 - Canonical packageRules are present with canonical config
 - Preserved-custom rules are present
-- `automergeStrategy` is `merge` for node/iac (non-negotiable)
+- `automergeStrategy` is `merge` for node/service (non-negotiable)
 - Commit prefixes align with `commit-scheme.json`
 
 Report the count of canonical rules written, custom rules preserved,
-and the final `automergeStrategy` value for node/iac repos.
+and the final `automergeStrategy` value for node/service repos.
 
 ## Constraints
 
 - **Zero writes before every question is answered.**
-- **node/iac `automergeStrategy: merge` is non-negotiable.** If the user
+- **node/service `automergeStrategy: merge` is non-negotiable.** If the user
   picks "leave as squash", emit a loud warning but still preserve their
   choice. Do NOT silently rewrite.
 - **Commit prefix cross-validation.** The Python generator rejects
   writes if `commit-scheme.json` alignment fails. Surface that error to
   the user and offer to fix.
-- **`library-template.json5` and `iac-template.json5`** are in the
+- **`library-template.json5` and `service-template.json5`** are in the
   `ai-standardize-repo` skill directory, not in this one. That is
   intentional -- they are shared between this skill and the umbrella.

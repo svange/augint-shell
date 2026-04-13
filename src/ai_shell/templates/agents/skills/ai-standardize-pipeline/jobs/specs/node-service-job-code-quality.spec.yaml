@@ -1,6 +1,6 @@
-gate: Unit tests
+gate: Code quality
 language: node
-repo_type: iac
+repo_type: service
 required_steps:
   - kind: action
     matches: actions/checkout
@@ -9,6 +9,6 @@ required_steps:
   - kind: run
     matches_regex: '^npm ci\b'
   - kind: run
-    matches_regex: '(vitest|jest).* (run|--coverage)|run.*test.*--coverage'
-  - kind: action
-    matches: actions/upload-artifact
+    matches_regex: 'npm run lint'
+  - kind: run
+    matches_regex: 'type-check|tsc'

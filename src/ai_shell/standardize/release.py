@@ -1,13 +1,13 @@
 """Semantic-release config generator.
 
-Four code paths, one per ``{python,node} x {library,iac}`` combination:
+Four code paths, one per ``{python,node} x {library,service}`` combination:
 
 - ``python/library``: rewrite ``[tool.semantic_release]`` in ``pyproject.toml``
   from ``python-template.toml``. Branches = ``["main"]``.
-- ``python/iac``: same template, branches = ``["main", "dev"]``.
+- ``python/service``: same template, branches = ``["main", "dev"]``.
 - ``node/library``: write ``.releaserc.json`` from ``node-template.releaserc.json``
   with plugins including ``@semantic-release/npm`` (publishes to npm).
-- ``node/iac``: write ``.releaserc.json`` with plugins MINUS
+- ``node/service``: write ``.releaserc.json`` with plugins MINUS
   ``@semantic-release/npm`` (deploys, doesn't publish).
 
 All variants cross-validate against ``commit-scheme.json`` to keep Renovate
@@ -61,7 +61,7 @@ def _render_python_semantic_release_block(
     """Render the python-template.toml substitutions into a TOMLDocument.
 
     The template contains `{project-name}` and `{package_name}` placeholders
-    plus the `[tool.semantic_release.branches.main]` section that iac needs
+    plus the `[tool.semantic_release.branches.main]` section that service needs
     extended for the `dev` branch.
     """
     # Simple placeholder substitution BEFORE parsing, because tomlkit will
@@ -75,7 +75,7 @@ def _render_python_semantic_release_block(
     if "dev" in branches:
         # python-semantic-release has no "dev" prerelease config in the base
         # template. Add [tool.semantic_release.branches.dev] matching dev as
-        # a non-prerelease so iac repos version on both branches.
+        # a non-prerelease so service repos version on both branches.
         tool = doc.setdefault("tool", tomlkit.table())
         sr = tool.setdefault("semantic_release", tomlkit.table())
         branches_tbl = sr.setdefault("branches", tomlkit.table())
@@ -136,7 +136,7 @@ def _render_node_releaserc(
             else:
                 plugins.append("@semantic-release/npm")
     else:
-        # iac path: ensure @semantic-release/npm is NOT present.
+        # service path: ensure @semantic-release/npm is NOT present.
         plugins = [
             entry
             for entry in plugins
@@ -221,7 +221,7 @@ def apply(
             project_name = _detect_python_project_name(pyproject_path)
         package_name = _guess_python_package_name(root_path, project_name)
         template_text = _load_repo_template(_PYTHON_TEMPLATE)
-        branches = ("main", "dev") if detection.repo_type == RepoType.IAC else ("main",)
+        branches = ("main", "dev") if detection.repo_type == RepoType.SERVICE else ("main",)
         generated = _render_python_semantic_release_block(
             template_text,
             branches=branches,
@@ -242,7 +242,7 @@ def apply(
     # Node path
     template_text = _load_repo_template(_NODE_TEMPLATE)
     tag_format = f"{project_name}-v${{version}}" if project_name else "v${version}"
-    branches = ("main",) if detection.repo_type == RepoType.IAC else ("main",)
+    branches = ("main",) if detection.repo_type == RepoType.SERVICE else ("main",)
     data, plugin_names = _render_node_releaserc(
         template_text,
         include_npm_plugin=(detection.repo_type == RepoType.LIBRARY),

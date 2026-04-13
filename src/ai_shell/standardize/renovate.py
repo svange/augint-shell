@@ -1,13 +1,13 @@
 """Renovate config generator with ecosystem substitution.
 
-Picks the library or iac base template from the `ai-standardize-repo` skill
+Picks the library or service base template from the `ai-standardize-repo` skill
 directory, substitutes manager names and dep-type strings for the detected
 language, and writes `renovate.json5` to the repo root. Cross-validates
 commit prefixes against `commit-scheme.json`.
 
 Key rules:
 
-- node/iac MUST use ``automergeStrategy: merge`` (not squash). Squash drops
+- node/service MUST use ``automergeStrategy: merge`` (not squash). Squash drops
   the `[skip ci]` marker semantic-release emits on the promotion merge,
   which breaks the dev->main release cycle. This is explicitly asserted in
   tests.
@@ -30,10 +30,10 @@ from ai_shell.standardize.gates import CommitScheme, load_commit_scheme
 _RENOVATE_PATH = Path("renovate.json5")
 
 _LIBRARY_TEMPLATE = "library-template.json5"
-_IAC_TEMPLATE = "iac-template.json5"
+_SERVICE_TEMPLATE = "service-template.json5"
 
 # Replacement rules. Each entry is (needle, replacement) applied to the
-# library/iac template text when the language is node. Python is the default
+# library/service template text when the language is node. Python is the default
 # (templates are written in the python idiom to minimize churn for existing
 # python repos).
 _PYTHON_TO_NODE_SUBS: tuple[tuple[str, str], ...] = (
@@ -79,8 +79,8 @@ def _substitute_for_node(template_text: str) -> tuple[str, int]:
     return out, count
 
 
-def _enforce_node_iac_automerge_strategy(text: str) -> str:
-    """Ensure node/iac renovate config forces `automergeStrategy: merge`.
+def _enforce_node_service_automerge_strategy(text: str) -> str:
+    """Ensure node/service renovate config forces `automergeStrategy: merge`.
 
     If an `automergeStrategy` key already exists we force-set it; otherwise
     we inject one alongside `platformAutomerge`.
@@ -137,14 +137,16 @@ def apply(
     if detection.language in (Language.AMBIGUOUS, Language.UNKNOWN):
         raise ValueError(f"cannot render renovate: language is {detection.language}")
 
-    template_name = _IAC_TEMPLATE if detection.repo_type == RepoType.IAC else _LIBRARY_TEMPLATE
+    template_name = (
+        _SERVICE_TEMPLATE if detection.repo_type == RepoType.SERVICE else _LIBRARY_TEMPLATE
+    )
     rendered = _load_template(template_name)
 
     substitutions = 0
     if detection.language == Language.NODE:
         rendered, substitutions = _substitute_for_node(rendered)
-        if detection.repo_type == RepoType.IAC:
-            rendered = _enforce_node_iac_automerge_strategy(rendered)
+        if detection.repo_type == RepoType.SERVICE:
+            rendered = _enforce_node_service_automerge_strategy(rendered)
 
     scheme = load_commit_scheme()
     _cross_validate_commit_scheme(rendered, scheme)

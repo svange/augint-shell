@@ -8,9 +8,9 @@ Shapes:
 
 - **library** => one spec (``library`` ruleset on ``~DEFAULT_BRANCH``) with
   the 5 pre-merge gates as required contexts.
-- **iac** => two specs:
-  - ``iac_dev`` on ``refs/heads/dev`` with the 5 pre-merge gates only.
-  - ``iac_production`` on ``~DEFAULT_BRANCH`` with the 5 pre-merge gates +
+- **service** => two specs:
+  - ``service_dev`` on ``refs/heads/dev`` with the 5 pre-merge gates only.
+  - ``service_production`` on ``~DEFAULT_BRANCH`` with the 5 pre-merge gates +
     ``Acceptance tests``.
 
 Both enforce ``deletion``, ``non_fast_forward``, and
@@ -103,7 +103,7 @@ def _write_temp(name: str, body: dict[str, Any]) -> Path:
 def generate(detection: Detection) -> tuple[RulesetSpec, ...]:
     """Generate the ruleset spec(s) for *detection*.
 
-    Returns one spec for library repos, two for iac repos.
+    Returns one spec for library repos, two for service repos.
     """
     gates = load_gates()
     pre_merge = gates.pre_merge
@@ -125,31 +125,31 @@ def generate(detection: Detection) -> tuple[RulesetSpec, ...]:
             ),
         )
 
-    # iac: two rulesets
+    # service: two rulesets
     dev_body = _build_spec_body(
-        "iac_dev",
+        "service_dev",
         includes=("refs/heads/dev",),
         required_contexts=pre_merge,
     )
     prod_contexts = pre_merge + post_deploy
     prod_body = _build_spec_body(
-        "iac_production",
+        "service_production",
         includes=("~DEFAULT_BRANCH",),
         required_contexts=prod_contexts,
     )
     return (
         RulesetSpec(
-            name="iac_dev",
+            name="service_dev",
             includes=("refs/heads/dev",),
             required_contexts=pre_merge,
             body=dev_body,
-            temp_path=_write_temp("iac-dev", dev_body),
+            temp_path=_write_temp("service-dev", dev_body),
         ),
         RulesetSpec(
-            name="iac_production",
+            name="service_production",
             includes=("~DEFAULT_BRANCH",),
             required_contexts=prod_contexts,
             body=prod_body,
-            temp_path=_write_temp("iac-production", prod_body),
+            temp_path=_write_temp("service-production", prod_body),
         ),
     )

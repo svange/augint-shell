@@ -37,7 +37,7 @@ def _write_python_library(tmp_path: Path) -> None:
     )
 
 
-def _write_python_iac(tmp_path: Path) -> None:
+def _write_python_service(tmp_path: Path) -> None:
     (tmp_path / "pyproject.toml").write_text(
         '[project]\nname = "x"\nversion = "0.0.0"\n', encoding="utf-8"
     )
@@ -66,8 +66,8 @@ class TestCanonicalJobs:
             "Build validation",
         }
 
-    def test_python_iac_returns_6_gates(self):
-        refs = canonical_jobs(Language.PYTHON, RepoType.IAC)
+    def test_python_service_returns_6_gates(self):
+        refs = canonical_jobs(Language.PYTHON, RepoType.SERVICE)
         assert "Acceptance tests" in refs
         assert len(refs) == 6
 
@@ -76,13 +76,13 @@ class TestCanonicalJobs:
         assert "Acceptance tests" not in refs
         assert len(refs) == 5
 
-    def test_node_iac_returns_6_gates(self):
-        refs = canonical_jobs(Language.NODE, RepoType.IAC)
+    def test_node_service_returns_6_gates(self):
+        refs = canonical_jobs(Language.NODE, RepoType.SERVICE)
         assert "Acceptance tests" in refs
         assert len(refs) == 6
 
     def test_jobreference_template_text_loads(self):
-        refs = canonical_jobs(Language.PYTHON, RepoType.IAC)
+        refs = canonical_jobs(Language.PYTHON, RepoType.SERVICE)
         ref = refs["Unit tests"]
         text = ref.template_text()
         # Inline job, NOT a reusable workflow
@@ -91,11 +91,11 @@ class TestCanonicalJobs:
         assert "workflow_call" not in text
 
     def test_jobreference_spec_loaded(self):
-        refs = canonical_jobs(Language.PYTHON, RepoType.IAC)
+        refs = canonical_jobs(Language.PYTHON, RepoType.SERVICE)
         ref = refs["Unit tests"]
         assert ref.spec.gate == "Unit tests"
         assert ref.spec.language == Language.PYTHON
-        assert ref.spec.repo_type == RepoType.IAC
+        assert ref.spec.repo_type == RepoType.SERVICE
         assert any(
             m.kind == "action" and m.matches == "actions/checkout" for m in ref.spec.required_steps
         )
@@ -269,7 +269,7 @@ class TestValidateLegacy:
 
 class TestParallelPostDeploy:
     def test_multiple_e2e_jobs_all_map_to_acceptance_tests(self, tmp_path: Path):
-        _write_python_iac(tmp_path)
+        _write_python_service(tmp_path)
         _write_pipeline(
             tmp_path,
             """\
@@ -296,7 +296,7 @@ class TestParallelPostDeploy:
         assert "Acceptance tests" in report.missing
 
     def test_integration_and_smoke_both_map_to_acceptance(self, tmp_path: Path):
-        _write_python_iac(tmp_path)
+        _write_python_service(tmp_path)
         _write_pipeline(
             tmp_path,
             """\
@@ -329,7 +329,7 @@ class TestSyntheticAggregatorSuppression:
     """
 
     def test_smoke_job_feeding_acceptance_tests_is_not_legacy(self, tmp_path: Path):
-        _write_python_iac(tmp_path)
+        _write_python_service(tmp_path)
         _write_pipeline(
             tmp_path,
             """\
@@ -367,7 +367,7 @@ class TestSyntheticAggregatorSuppression:
         """A job whose name triggers 'Acceptance tests' but which feeds a
         different canonical gate (e.g. Code quality) is still flagged as
         legacy — the suppression is scoped to the matching gate only."""
-        _write_python_iac(tmp_path)
+        _write_python_service(tmp_path)
         _write_pipeline(
             tmp_path,
             """\
@@ -393,7 +393,7 @@ class TestSyntheticAggregatorSuppression:
     def test_aggregator_not_present_still_flags_legacy(self, tmp_path: Path):
         """Without an explicit Acceptance tests aggregator, smoke/integration
         jobs still surface as legacy candidates."""
-        _write_python_iac(tmp_path)
+        _write_python_service(tmp_path)
         _write_pipeline(
             tmp_path,
             """\

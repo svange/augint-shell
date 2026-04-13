@@ -370,7 +370,7 @@ def _get_manager(
 )
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
 @click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
-@click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
+@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
 @click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.option(
     "--worktree",
@@ -545,7 +545,7 @@ def claude(
 )
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
 @click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
-@click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
+@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
 @click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
@@ -689,7 +689,7 @@ def codex(
 )
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
 @click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
-@click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
+@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
 @click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.pass_context
 def opencode(
@@ -804,7 +804,7 @@ def opencode(
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
 @click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
-@click.option("--iac", "repo_type_flag", flag_value="iac", hidden=True)
+@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
 @click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
@@ -902,10 +902,7 @@ def shell(ctx):
     "--service",
     "repo_type_flag",
     flag_value="service",
-    help="Scaffold for a service / app repo.",
-)
-@click.option(
-    "--iac", "repo_type_flag", flag_value="iac", help="Scaffold for an IaC / web / backend repo."
+    help="Scaffold for a service / web / backend repo.",
 )
 @click.option(
     "--workspace",

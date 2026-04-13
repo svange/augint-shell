@@ -1,6 +1,6 @@
 gate: Security
 language: node
-repo_type: iac
+repo_type: service
 required_steps:
   - kind: action
     matches: actions/checkout

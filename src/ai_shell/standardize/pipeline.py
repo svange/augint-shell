@@ -242,7 +242,9 @@ def _load_spec(language: Language, repo_type: RepoType, gate: str) -> JobSpec:
 def canonical_jobs(language: Language, repo_type: RepoType) -> dict[str, JobReference]:
     """Return canonical gate name -> JobReference for the language x type."""
     gates = load_gates()
-    expected = gates.pre_merge + gates.post_deploy if repo_type == RepoType.IAC else gates.pre_merge
+    expected = (
+        gates.pre_merge + gates.post_deploy if repo_type == RepoType.SERVICE else gates.pre_merge
+    )
     out: dict[str, JobReference] = {}
     for gate in expected:
         out[gate] = JobReference(
@@ -370,7 +372,7 @@ def validate(path: Path | str = ".") -> DriftReport:
     gates = load_gates()
     expected = (
         gates.pre_merge + gates.post_deploy
-        if detection.repo_type == RepoType.IAC
+        if detection.repo_type == RepoType.SERVICE
         else gates.pre_merge
     )
 

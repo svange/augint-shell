@@ -6,7 +6,7 @@ Language detection:
     - both => ambiguous (caller asks the user)
 
 Repo type detection:
-    - any of the following deploy markers => iac:
+    - any of the following deploy markers => service:
         samconfig.toml, cdk.json, *.tf, serverless.yml,
         vite.config.{ts,js,mjs,cjs} + a deploy workflow step
     - otherwise => library
@@ -36,7 +36,7 @@ class Language(StrEnum):
 
 class RepoType(StrEnum):
     LIBRARY = "library"
-    IAC = "iac"
+    SERVICE = "service"
 
 
 @dataclass(frozen=True)
@@ -54,15 +54,15 @@ class Detection:
         return self.language == Language.AMBIGUOUS
 
 
-# Marker files / globs that imply an iac deploy target.
+# Marker files / globs that imply a service (deployable) repo.
 #
 # NOTE: ``template.yaml`` is deliberately NOT included here. Libraries
 # legitimately use SAM/CloudFormation templates for ephemeral test
-# infrastructure (e.g. ai-lls-lib). To classify as iac, a repo needs either
-# a real deploy-config marker (``samconfig.toml``, ``cdk.json``,
+# infrastructure (e.g. ai-lls-lib). To classify as service, a repo needs
+# either a real deploy-config marker (``samconfig.toml``, ``cdk.json``,
 # ``serverless.yml``) or a deploy workflow step (see
 # ``_has_deploy_workflow``).
-_IAC_DEPLOY_MARKERS: tuple[str, ...] = (
+_SERVICE_DEPLOY_MARKERS: tuple[str, ...] = (
     "samconfig.toml",
     "cdk.json",
     "serverless.yml",
@@ -166,7 +166,7 @@ def _detect_repo_type(root: Path) -> tuple[RepoType, tuple[str, ...]]:
         return RepoType.LIBRARY, tuple(publish_markers)
 
     evidence: list[str] = []
-    for marker in _IAC_DEPLOY_MARKERS:
+    for marker in _SERVICE_DEPLOY_MARKERS:
         if (root / marker).is_file():
             evidence.append(marker)
 
@@ -178,7 +178,7 @@ def _detect_repo_type(root: Path) -> tuple[RepoType, tuple[str, ...]]:
         evidence.extend(deploy_markers)
 
     if evidence:
-        return RepoType.IAC, tuple(evidence)
+        return RepoType.SERVICE, tuple(evidence)
 
     # Vite SPA without any deploy signals stays as library.
     return RepoType.LIBRARY, ()

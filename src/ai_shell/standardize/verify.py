@@ -138,15 +138,15 @@ def _verify_renovate(root: Path, detection: Detection) -> VerifyFinding:
     from ai_shell.standardize import renovate as rv
 
     expected_template = (
-        rv._IAC_TEMPLATE if detection.repo_type == RepoType.IAC else rv._LIBRARY_TEMPLATE
+        rv._SERVICE_TEMPLATE if detection.repo_type == RepoType.SERVICE else rv._LIBRARY_TEMPLATE
     )
     result = rv.apply(detection, root, dry_run=True)
     # We need the rendered content; re-render manually.
     rendered = rv._load_template(expected_template)
     if detection.language.value == "node":
         rendered, _ = rv._substitute_for_node(rendered)
-        if detection.repo_type == RepoType.IAC:
-            rendered = rv._enforce_node_iac_automerge_strategy(rendered)
+        if detection.repo_type == RepoType.SERVICE:
+            rendered = rv._enforce_node_service_automerge_strategy(rendered)
     actual = _read_or_empty(result.path)
     if actual == rendered:
         return VerifyFinding(

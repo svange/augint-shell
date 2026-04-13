@@ -31,7 +31,7 @@ Every sub-skill the umbrella invokes has its own ask-before-acting contract (T5-
    - Surfaces every ambiguity via `AskUserQuestion` BEFORE writing anything -- filename disambiguation, multi-candidate pre-merge pipelines, custom job preservation, parallel post-deploy test aggregation
    - Merges canonical gates in place, preserves custom jobs verbatim, and writes one `pipeline.yaml` containing all gates inline as a single workflow
 
-   The Python layer (`ai-shell standardize pipeline --validate`) is read-only and provides only the drift report plus canonical job snippets (`--print-template <Gate>`). Do NOT call `ai-shell standardize pipeline --write` -- that flag does not exist. `promote-dev-to-main.nightly.yml` is the only template file that ships separately (iac repos only).
+   The Python layer (`ai-shell standardize pipeline --validate`) is read-only and provides only the drift report plus canonical job snippets (`--print-template <Gate>`). Do NOT call `ai-shell standardize pipeline --write` -- that flag does not exist. `promote-dev-to-main.nightly.yml` is the only template file that ships separately (service repos only).
 
 5. **Renovate** -- `uv run ai-tools standardize <path> --area renovate`. The renovate sub-skill detects custom `packageRules` / `matchPackageNames` / `commitMessagePrefix` overrides and asks before rewriting (T5-13).
 
@@ -39,15 +39,15 @@ Every sub-skill the umbrella invokes has its own ask-before-acting contract (T5-
 
 7. **OIDC** -- invoke the `/ai-setup-oidc` skill as a sub-skill. The Python umbrella returns `NEEDS_ACTION` for this step because it does not touch AWS IAM trust policies directly (T5-12). Before invoking the sub-skill, do a quick read-only check of current OIDC trust state:
 
-   - If the repo already has trust policies matching the expected pattern (main branch + dev branch for iac, main only for library): emit `[PASS] oidc: trust already configured for <refs>. Skipping sub-skill.` and continue.
-   - If partially configured (e.g. trust exists but the dev branch ref is missing for iac): ask via `AskUserQuestion` -- "Current OIDC trust allows `<refs>`. I'd add `<missing ref>`. OK?"
+   - If the repo already has trust policies matching the expected pattern (main branch + dev branch for service, main only for library): emit `[PASS] oidc: trust already configured for <refs>. Skipping sub-skill.` and continue.
+   - If partially configured (e.g. trust exists but the dev branch ref is missing for service): ask via `AskUserQuestion` -- "Current OIDC trust allows `<refs>`. I'd add `<missing ref>`. OK?"
    - If missing entirely: ask via `AskUserQuestion` -- "This repo has no OIDC trust policy. I'll invoke `/ai-setup-oidc` to create one. OK? Cancel to skip."
 
    Only after the user confirms does the sub-skill run. Runs before rulesets so deploy jobs have credentials the first time gates enforce.
 
 8. **Repo settings** -- `ai-gh config --standardize` (sets `allow_auto_merge`, `delete_branch_on_merge`, `merge_commit_title=PR_TITLE`; always disables squash merge because it drops semantic-release `[skip ci]` markers on promotion merges).
 
-9. **Rulesets** -- the generator emits one spec file for library repos (single `library` ruleset on the default branch) or two spec files for iac repos (`iac_dev` on `refs/heads/dev` with 5 pre-merge gates, `iac_production` on the default branch with 5 + `Acceptance tests`). For each spec, call `ai-gh rulesets apply <tempfile>`.
+9. **Rulesets** -- the generator emits one spec file for library repos (single `library` ruleset on the default branch) or two spec files for service repos (`service_dev` on `refs/heads/dev` with 5 pre-merge gates, `service_production` on the default branch with 5 + `Acceptance tests`). For each spec, call `ai-gh rulesets apply <tempfile>`.
 
 10. **Verify** -- `uv run ai-tools standardize <path> --verify`. Reports per-section PASS/DRIFT/FAIL and exits non-zero on any drift.
 
@@ -90,7 +90,7 @@ Use `--json` with `--dry-run` to emit the plan as structured JSON for CI consume
 All gate names come from `gates.json` in this skill directory:
 
 - **Pre-merge gates (all repos):** `Code quality`, `Security`, `Unit tests`, `Compliance`, `Build validation`
-- **Post-deploy gate (iac only):** `Acceptance tests`
+- **Post-deploy gate (service only):** `Acceptance tests`
 
 Commit prefixes and semantic-release alignment come from `commit-scheme.json` in this directory. Never hardcode gate names or commit prefixes in skill prose or template files -- they drift. The `ai-shell standardize lint` command scans for drift and is wired into pre-commit.
 

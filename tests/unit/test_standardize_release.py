@@ -54,7 +54,7 @@ class TestPythonLibrary:
 class TestPythonIac:
     def test_adds_dev_branch(self, tmp_path: Path):
         _write_pyproject(tmp_path)
-        apply(_det(Language.PYTHON, RepoType.IAC), tmp_path)
+        apply(_det(Language.PYTHON, RepoType.SERVICE), tmp_path)
         doc = tomlkit.parse((tmp_path / "pyproject.toml").read_text(encoding="utf-8"))
         branches = doc["tool"]["semantic_release"]["branches"]
         assert "main" in branches
@@ -77,18 +77,18 @@ class TestNodeLibrary:
 
 class TestNodeIac:
     def test_excludes_npm_plugin(self, tmp_path: Path):
-        apply(_det(Language.NODE, RepoType.IAC), tmp_path, project_name="lls-web")
+        apply(_det(Language.NODE, RepoType.SERVICE), tmp_path, project_name="lls-web")
         data = json.loads((tmp_path / ".releaserc.json").read_text(encoding="utf-8"))
         plugin_names = [entry[0] if isinstance(entry, list) else entry for entry in data["plugins"]]
         assert "@semantic-release/npm" not in plugin_names
 
     def test_main_only_branches(self, tmp_path: Path):
-        apply(_det(Language.NODE, RepoType.IAC), tmp_path, project_name="lls-web")
+        apply(_det(Language.NODE, RepoType.SERVICE), tmp_path, project_name="lls-web")
         data = json.loads((tmp_path / ".releaserc.json").read_text(encoding="utf-8"))
         assert data["branches"] == ["main"]
 
     def test_tag_format_for_lls_web(self, tmp_path: Path):
-        apply(_det(Language.NODE, RepoType.IAC), tmp_path, project_name="lls-web")
+        apply(_det(Language.NODE, RepoType.SERVICE), tmp_path, project_name="lls-web")
         data = json.loads((tmp_path / ".releaserc.json").read_text(encoding="utf-8"))
         assert data["tagFormat"] == "lls-web-v${version}"
 

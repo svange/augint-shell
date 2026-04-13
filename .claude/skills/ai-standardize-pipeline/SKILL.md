@@ -57,7 +57,7 @@ uv run ai-tools standardize <path> --verify --json
 ```
 
 The drift report includes the detected language (python/node) and repo
-type (library/iac). On ambiguous, ask the user via `AskUserQuestion`
+type (library/service). On ambiguous, ask the user via `AskUserQuestion`
 and stop until they choose. Persist their answer to `ai-shell.toml`
 under `[standardize]`.
 
@@ -215,9 +215,9 @@ than a reference read until every question is answered.
    > `integration-tests` -- runs `pytest -m integration` against the
    > ephemeral test stack. For library repos this is unusual but
    > legitimate (ephemeral test infra, not production deploy).
-   > Canonical `Acceptance tests` lives on iac repos only. [a] Preserve
+   > Canonical `Acceptance tests` lives on service repos only. [a] Preserve
    > as custom, no Acceptance tests gate (recommended for library). [b]
-   > Rename to `Acceptance tests` (treat as iac). [c] Abort.
+   > Rename to `Acceptance tests` (treat as service). [c] Abort.
 
 5. **Parallelized post-deploy test patterns.** When multiple custom jobs
    all depend on a deploy job and run Playwright/pytest/etc. against the
@@ -226,11 +226,11 @@ than a reference read until every question is answered.
    > that all depend on `build-and-deploy` and run Playwright against
    > the deployed environment. Options: [a] Insert a synthetic
    > `Acceptance tests` aggregator that depends on all 4 and satisfies
-   > the iac_production ruleset's required check (recommended --
+   > the service_production ruleset's required check (recommended --
    > preserves your parallel structure). [b] Rename one of them to
    > `Acceptance tests` and wire the others as its deps. [c] Leave them
    > alone and skip the canonical `Acceptance tests` gate (the
-   > iac_production ruleset will fail). [d] Abort.
+   > service_production ruleset will fail). [d] Abort.
 
    The synthetic aggregator pattern. **The body must include
    `actions/checkout` and `aws-actions/configure-aws-credentials` even
@@ -321,7 +321,7 @@ aborts at any question, exit with `Standardization aborted by user at
 contains no workflow files, ask one question before proceeding:
 > No existing pipeline found in `.github/workflows/`. Scaffold a fresh
 > canonical `pipeline.yaml` with all gates (Code quality, Security,
-> Unit tests, Compliance, Build validation, Acceptance tests iac only)?
+> Unit tests, Compliance, Build validation, Acceptance tests service only)?
 > [a] Yes, scaffold from canonical templates. [b] Abort.
 
 ### Step 3 -- run validate (structural drift report)
@@ -461,7 +461,7 @@ Missing canonical gates: Compliance (legacy candidate exists), Build validation
 > gate (libraries don't require one). Is that correct? [a] Preserve as
 > custom, no Acceptance tests (recommended for library). [b] Preserve
 > AND also insert a synthetic `Acceptance tests` gate. [c] Rename
-> `integration-tests` -> `Acceptance tests` (treat as iac). [d] Abort.
+> `integration-tests` -> `Acceptance tests` (treat as service). [d] Abort.
 
 > Question 3 of 4: Found `release`, `publish-to-pypi`, `docs` jobs that
 > handle semantic-release, PyPI publish, and pdoc deploy. I'll preserve
@@ -469,7 +469,7 @@ Missing canonical gates: Compliance (legacy candidate exists), Build validation
 
 > Question 4 of 4: Top-level customizations to preserve:
 > `env.TEST_STACK_NAME`, `concurrency.cancel-in-progress: false` (safe
-> for iac test infra), `permissions.id-token: write`. OK to preserve
+> for service test infra), `permissions.id-token: write`. OK to preserve
 > all?
 
 Only after all four questions are answered does the merge run and the
@@ -555,9 +555,9 @@ The 4 E2E jobs are left untouched.
 - **Step `name:` fields are free text.** The minimum spec only checks
   `uses:` (action repo path substring) and `run:` (regex). You can
   rename steps freely.
-- **iac repos must include `Acceptance tests`.** Library repos must NOT
+- **service repos must include `Acceptance tests`.** Library repos must NOT
   include `Acceptance tests`.
-- **iac `Acceptance tests` jobs must be guarded** by
+- **service `Acceptance tests` jobs must be guarded** by
   `if: github.event_name == 'push' && github.ref == 'refs/heads/dev'`
   so they only run after a dev push (not on PRs against main).
 - **Zero files are modified** until every question from Step 2.5 is

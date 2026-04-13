@@ -177,7 +177,7 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - name: Install dependencies
         run: uv sync --frozen --all-extras
-      - name: Detect IaC toolchain
+      - name: Detect service toolchain
         id: detect
         run: |
           if [ -f samconfig.toml ] || [ -f template.yaml ]; then
