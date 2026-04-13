@@ -35,21 +35,69 @@ def build_claude_pane_command(
 ) -> str:
     """Build the claude invocation string for a single tmux pane.
 
-    Runs directly inside the container.  Prefixes ``UV_PROJECT_ENVIRONMENT``
+    Runs directly inside the container.  Exports ``UV_PROJECT_ENVIRONMENT``
     so each repo gets an isolated virtualenv within the shared UV cache volume.
     Uses Claude Code's ``-n`` flag for session naming.
+
+    In non-safe mode, tries ``claude -c`` (continue previous conversation)
+    first; falls back to a fresh session if that fails (e.g. no prior
+    conversation exists).
     """
     uv_env = f"UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/{repo_name}"
-    parts: list[str] = ["claude"]
-    if not safe:
-        parts.append("--dangerously-skip-permissions")
-        parts.append("-c")
-    parts.extend(["-n", repo_name])
+
+    if safe:
+        parts: list[str] = ["claude", "-n", repo_name]
+        if extra_args:
+            parts.append("--")
+            parts.extend(extra_args)
+        cmd = " ".join(shlex.quote(p) for p in parts)
+        return f"{uv_env} {cmd}"
+
+    # Non-safe: build two commands -- continue attempt and fresh fallback
+    base_parts: list[str] = ["claude", "--dangerously-skip-permissions", "-n", repo_name]
+    continue_parts: list[str] = [
+        "claude",
+        "--dangerously-skip-permissions",
+        "-c",
+        "-n",
+        repo_name,
+    ]
+
+    extra_suffix = ""
     if extra_args:
-        parts.append("--")
-        parts.extend(extra_args)
-    cmd = " ".join(shlex.quote(p) for p in parts)
-    return f"{uv_env} {cmd}"
+        extra_suffix = " -- " + " ".join(shlex.quote(a) for a in extra_args)
+
+    continue_cmd = " ".join(shlex.quote(p) for p in continue_parts) + extra_suffix
+    fresh_cmd = " ".join(shlex.quote(p) for p in base_parts) + extra_suffix
+
+    return f"export {uv_env}; {continue_cmd} || {fresh_cmd}"
+
+
+def build_check_session_command(container_name: str, session_name: str) -> list[str]:
+    """Build a command to check whether a tmux session exists in a container.
+
+    Returns an arg list for ``subprocess.run()``.  Exit code 0 means the
+    session exists; non-zero means it does not.
+    """
+    return ["docker", "exec", container_name, "tmux", "has-session", "-t", session_name]
+
+
+def build_attach_command(container_name: str, session_name: str) -> list[str]:
+    """Build an interactive ``docker exec`` command to attach to a tmux session.
+
+    Intended to be the final command the host process runs (via
+    ``subprocess.run`` or ``os.execvp``).
+    """
+    return [
+        "docker",
+        "exec",
+        "-it",
+        container_name,
+        "tmux",
+        "attach-session",
+        "-t",
+        session_name,
+    ]
 
 
 def select_layout(pane_count: int) -> str:
@@ -115,26 +163,26 @@ def build_tmux_commands(
             _exec("tmux", "send-keys", "-t", f"{session_name}:0.{i}", pane.command, "Enter")
         )
 
-    # 7. Configure session options -- red active / green inactive borders
+    # 7. Configure session options -- blue active / gray inactive borders
     session_options: list[tuple[str, str]] = [
         # Mouse & responsiveness
         ("mouse", "on"),
         ("escape-time", "10"),
         ("history-limit", "50000"),
         ("focus-events", "on"),
-        # Pane borders: red active, green inactive, heavy lines
+        # Pane borders: blue active, gray inactive, heavy lines
         ("pane-border-status", "top"),
         ("pane-border-lines", "heavy"),
         (
             "pane-border-format",
-            "#{?pane_active,#[fg=colour196 bold] #{pane_title} ,#[fg=colour34] #{pane_title} }",
+            "#{?pane_active,#[fg=colour75 bold] #{pane_title} ,#[fg=colour240] #{pane_title} }",
         ),
-        ("pane-border-style", "fg=colour34"),
-        ("pane-active-border-style", "fg=colour196,bold"),
+        ("pane-border-style", "fg=colour240"),
+        ("pane-active-border-style", "fg=colour75,bold"),
         ("pane-border-indicators", "arrows"),
         # Status bar
         ("status-style", "bg=colour235 fg=colour248"),
-        ("status-left", "#[fg=colour196,bold] #S #[fg=colour248]| "),
+        ("status-left", "#[fg=colour75,bold] #S #[fg=colour248]| "),
         ("status-right", "#[fg=colour240] C-b z=zoom  C-b d=detach "),
         ("status-left-length", "40"),
         ("status-right-length", "40"),

@@ -12,6 +12,8 @@ from ai_shell.cli.__main__ import cli
 from ai_shell.selector import SelectionItem
 from ai_shell.tmux import (
     PaneSpec,
+    build_attach_command,
+    build_check_session_command,
     build_claude_pane_command,
     build_tmux_commands,
     select_layout,
@@ -49,18 +51,28 @@ class TestSelectLayout:
 
 
 class TestBuildClaudePaneCommand:
-    def test_default_includes_permissive_flags(self):
+    def test_default_includes_permissive_flags_with_retry(self):
         cmd = build_claude_pane_command(repo_name="my-repo")
         assert "--dangerously-skip-permissions" in cmd
-        assert "-c" in cmd
         assert "-n" in cmd
         assert "my-repo" in cmd
-        assert "UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/my-repo" in cmd
+        # Should try -c first, then fall back without it
+        assert "-c" in cmd
+        assert "||" in cmd
 
-    def test_safe_omits_permissive_flags(self):
+    def test_retry_tries_continue_first(self):
+        cmd = build_claude_pane_command(repo_name="my-repo")
+        # The -c version should come before the || fallback
+        parts = cmd.split("||")
+        assert len(parts) == 2
+        assert "-c" in parts[0]
+        assert "-c" not in parts[1]
+
+    def test_safe_omits_permissive_flags_and_retry(self):
         cmd = build_claude_pane_command(repo_name="my-repo", safe=True)
         assert "--dangerously-skip-permissions" not in cmd
         assert "-c" not in cmd
+        assert "||" not in cmd
         assert "-n" in cmd
         assert "my-repo" in cmd
 
@@ -68,8 +80,18 @@ class TestBuildClaudePaneCommand:
         cmd = build_claude_pane_command(repo_name="my-repo", extra_args=("--debug", "--verbose"))
         assert "-- --debug --verbose" in cmd
 
-    def test_uv_env_prefix(self):
+    def test_extra_args_in_both_retry_branches(self):
+        cmd = build_claude_pane_command(repo_name="my-repo", extra_args=("--debug",))
+        parts = cmd.split("||")
+        assert "-- --debug" in parts[0]
+        assert "-- --debug" in parts[1]
+
+    def test_uv_env_exported(self):
         cmd = build_claude_pane_command(repo_name="woxom-crm")
+        assert "export UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/woxom-crm" in cmd
+
+    def test_safe_uv_env_prefix(self):
+        cmd = build_claude_pane_command(repo_name="woxom-crm", safe=True)
         assert cmd.startswith("UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/woxom-crm ")
 
 
@@ -171,7 +193,7 @@ class TestBuildTmuxCommands:
         assert "pane-border-lines" in joined
         assert "pane-border-indicators" in joined
 
-    def test_red_active_green_inactive_borders(self):
+    def test_blue_active_gray_inactive_borders(self):
         panes = [
             PaneSpec(name="repo-a", command="cmd-a", working_dir="/d/a"),
             PaneSpec(name="repo-b", command="cmd-b", working_dir="/d/b"),
@@ -180,9 +202,9 @@ class TestBuildTmuxCommands:
         all_args = [" ".join(c) for c in cmds]
         joined = "\n".join(all_args)
 
-        # Active = red (colour196), inactive = green (colour34)
-        assert "colour196" in joined
-        assert "colour34" in joined
+        # Active = blue (colour75), inactive = gray (colour240)
+        assert "colour75" in joined
+        assert "colour240" in joined
 
     def test_status_bar_has_help_hints(self):
         panes = [
@@ -237,6 +259,35 @@ class TestBuildTmuxCommands:
         assert len(send_cmds) == 2
         assert "cmd-a" in send_cmds[0]
         assert "cmd-b" in send_cmds[1]
+
+
+class TestBuildCheckSessionCommand:
+    def test_returns_docker_exec_has_session(self):
+        cmd = build_check_session_command("my-container", "my-session")
+        assert cmd == [
+            "docker",
+            "exec",
+            "my-container",
+            "tmux",
+            "has-session",
+            "-t",
+            "my-session",
+        ]
+
+
+class TestBuildAttachCommand:
+    def test_returns_interactive_docker_exec(self):
+        cmd = build_attach_command("my-container", "my-session")
+        assert cmd == [
+            "docker",
+            "exec",
+            "-it",
+            "my-container",
+            "tmux",
+            "attach-session",
+            "-t",
+            "my-session",
+        ]
 
 
 # ── Selector tests ──────────────────────────────────────────────────
@@ -401,6 +452,30 @@ repos:
 """
 
 
+def _no_existing_session(*args, **kwargs):
+    """subprocess.run side_effect: session check returns 1, everything else 0."""
+    result = MagicMock()
+    cmd = args[0] if args else kwargs.get("args", [])
+    if isinstance(cmd, list) and "has-session" in cmd:
+        result.returncode = 1  # no existing session
+    else:
+        result.returncode = 0
+    return result
+
+
+def _make_config_mock(project_name="test-workspace"):
+    """Create a properly-configured config mock for CLI tests."""
+    config = MagicMock()
+    config.project_name = project_name
+    config.claude_provider = ""
+    config.bedrock_profile = ""
+    config.ai_profile = ""
+    config.aws_region = ""
+    config.extra_env = {}
+    config.project_dir = MagicMock()
+    return config
+
+
 class TestClaudeMultiCLI:
     def setup_method(self):
         self.runner = CliRunner()
@@ -441,16 +516,27 @@ class TestClaudeMultiCLI:
         assert result.exit_code != 0
         assert "--multi is incompatible" in result.output
 
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
     @patch("ai_shell.cli.commands.tools._check_bedrock_access")
     @patch("ai_shell.cli.commands.tools.build_dev_environment")
     @patch("ai_shell.cli.commands.tools.ContainerManager")
     @patch("ai_shell.cli.commands.tools.load_config")
     @patch("ai_shell.selector.interactive_multi_select")
     def test_multi_zero_selections_aborts(
-        self, mock_select, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+        self,
+        mock_select,
+        mock_config,
+        mock_dev_name,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+        mock_subprocess,
     ):
         """Cancelling the selector exits cleanly."""
+        mock_config.return_value = _make_config_mock()
         mock_select.return_value = []
+        mock_subprocess.side_effect = _no_existing_session
 
         with self.runner.isolated_filesystem():
             with open("workspace.yaml", "w") as f:
@@ -463,6 +549,7 @@ class TestClaudeMultiCLI:
         mock_manager_cls.assert_not_called()
 
     @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
     @patch("ai_shell.cli.commands.tools._check_bedrock_access")
     @patch("ai_shell.cli.commands.tools.build_dev_environment")
     @patch("ai_shell.cli.commands.tools.ContainerManager")
@@ -475,18 +562,11 @@ class TestClaudeMultiCLI:
         mock_manager_cls,
         mock_build_env,
         mock_check_bedrock,
+        mock_dev_name,
         mock_subprocess,
     ):
         """Selecting 2 repos builds and runs tmux commands."""
-        config = MagicMock()
-        config.project_name = "test-workspace"
-        config.claude_provider = ""
-        config.bedrock_profile = ""
-        config.ai_profile = ""
-        config.aws_region = ""
-        config.extra_env = {}
-        config.project_dir = MagicMock()
-        mock_config.return_value = config
+        mock_config.return_value = _make_config_mock()
 
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
@@ -498,8 +578,8 @@ class TestClaudeMultiCLI:
             SelectionItem(label="repo-b", value="./repo-b", description="library"),
         ]
 
-        # subprocess.run returns success for setup, then sys.exit for attach
-        mock_subprocess.return_value = MagicMock(returncode=0)
+        # Session check returns 1 (no session), everything else returns 0
+        mock_subprocess.side_effect = _no_existing_session
 
         with self.runner.isolated_filesystem():
             with open("workspace.yaml", "w") as f:
@@ -512,8 +592,8 @@ class TestClaudeMultiCLI:
 
             self.runner.invoke(cli, ["claude", "--multi"])
 
-        # Verify subprocess.run was called multiple times (tmux setup + attach)
-        assert mock_subprocess.call_count > 1
+        # Verify subprocess.run was called multiple times (session check + tmux setup + attach)
+        assert mock_subprocess.call_count > 2
 
         # Last call should be the interactive attach
         last_call_args = mock_subprocess.call_args_list[-1][0][0]
@@ -521,6 +601,7 @@ class TestClaudeMultiCLI:
         assert "-it" in last_call_args
 
     @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
     @patch("ai_shell.cli.commands.tools._check_bedrock_access")
     @patch("ai_shell.cli.commands.tools.build_dev_environment")
     @patch("ai_shell.cli.commands.tools.ContainerManager")
@@ -533,18 +614,11 @@ class TestClaudeMultiCLI:
         mock_manager_cls,
         mock_build_env,
         mock_check_bedrock,
+        mock_dev_name,
         mock_subprocess,
     ):
         """--safe omits --dangerously-skip-permissions from pane commands."""
-        config = MagicMock()
-        config.project_name = "test-workspace"
-        config.claude_provider = ""
-        config.bedrock_profile = ""
-        config.ai_profile = ""
-        config.aws_region = ""
-        config.extra_env = {}
-        config.project_dir = MagicMock()
-        mock_config.return_value = config
+        mock_config.return_value = _make_config_mock()
 
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
@@ -556,7 +630,7 @@ class TestClaudeMultiCLI:
             SelectionItem(label="repo-b", value="./repo-b", description="library"),
         ]
 
-        mock_subprocess.return_value = MagicMock(returncode=0)
+        mock_subprocess.side_effect = _no_existing_session
 
         with self.runner.isolated_filesystem():
             with open("workspace.yaml", "w") as f:
@@ -578,6 +652,8 @@ class TestClaudeMultiCLI:
             cmd_str = " ".join(str(a) for a in call[0][0])
             assert "--dangerously-skip-permissions" not in cmd_str
 
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
     @patch("ai_shell.cli.commands.tools._check_bedrock_access")
     @patch("ai_shell.cli.commands.tools.build_dev_environment")
     @patch("ai_shell.cli.commands.tools.ContainerManager")
@@ -590,17 +666,11 @@ class TestClaudeMultiCLI:
         mock_manager_cls,
         mock_build_env,
         mock_check_bedrock,
+        mock_dev_name,
+        mock_subprocess,
     ):
         """Single selection falls back to normal Claude launch (no tmux)."""
-        config = MagicMock()
-        config.project_name = "repo-a"
-        config.claude_provider = ""
-        config.bedrock_profile = ""
-        config.ai_profile = ""
-        config.aws_region = ""
-        config.extra_env = {}
-        config.project_dir = MagicMock()
-        mock_config.return_value = config
+        mock_config.return_value = _make_config_mock(project_name="repo-a")
 
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
@@ -611,6 +681,8 @@ class TestClaudeMultiCLI:
         mock_select.return_value = [
             SelectionItem(label="repo-a", value="./repo-a", description="service"),
         ]
+
+        mock_subprocess.side_effect = _no_existing_session
 
         with self.runner.isolated_filesystem():
             with open("workspace.yaml", "w") as f:
@@ -627,6 +699,8 @@ class TestClaudeMultiCLI:
         assert "claude" in cmd
         assert "--dangerously-skip-permissions" in cmd
 
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
     @patch("ai_shell.cli.commands.tools._check_bedrock_access")
     @patch("ai_shell.cli.commands.tools.build_dev_environment")
     @patch("ai_shell.cli.commands.tools.ContainerManager")
@@ -639,8 +713,13 @@ class TestClaudeMultiCLI:
         mock_manager_cls,
         mock_build_env,
         mock_check_bedrock,
+        mock_dev_name,
+        mock_subprocess,
     ):
         """Missing repo directories produce a clear error."""
+        mock_config.return_value = _make_config_mock()
+        mock_subprocess.side_effect = _no_existing_session
+
         mock_select.return_value = [
             SelectionItem(label="repo-a", value="./repo-a", description="service"),
             SelectionItem(label="repo-b", value="./repo-b", description="library"),
@@ -655,6 +734,69 @@ class TestClaudeMultiCLI:
 
         assert result.exit_code != 0
         assert "not found" in result.output
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    def test_multi_reconnect_to_existing_session(
+        self,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+        mock_dev_name,
+        mock_subprocess,
+    ):
+        """Existing tmux session triggers reconnect prompt; default reconnects."""
+        mock_config.return_value = _make_config_mock()
+
+        # Session check returns 0 (session exists), attach returns 0
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        with self.runner.isolated_filesystem():
+            with open("workspace.yaml", "w") as f:
+                f.write(WORKSPACE_YAML)
+
+            # Default prompt answer is "reconnect"
+            self.runner.invoke(cli, ["claude", "--multi"], input="reconnect\n")
+
+        # Should have called subprocess exactly twice: session check + attach
+        assert mock_subprocess.call_count == 2
+        attach_call = mock_subprocess.call_args_list[-1][0][0]
+        assert "attach-session" in attach_call
+        assert "-it" in attach_call
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    def test_multi_reconnect_cancel(
+        self,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+        mock_dev_name,
+        mock_subprocess,
+    ):
+        """Choosing 'cancel' at the reconnect prompt exits cleanly."""
+        mock_config.return_value = _make_config_mock()
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        with self.runner.isolated_filesystem():
+            with open("workspace.yaml", "w") as f:
+                f.write(WORKSPACE_YAML)
+
+            result = self.runner.invoke(cli, ["claude", "--multi"], input="cancel\n")
+
+        assert result.exit_code == 0
+        # Only the session check should have been called, not attach
+        assert mock_subprocess.call_count == 1
 
 
 # ── Defaults UV isolation test ──────────────────────────────────────

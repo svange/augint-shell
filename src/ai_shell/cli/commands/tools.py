@@ -16,7 +16,7 @@ from rich.console import Console
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import AiShellConfig, load_config
 from ai_shell.container import ContainerManager
-from ai_shell.defaults import build_dev_environment
+from ai_shell.defaults import build_dev_environment, dev_container_name
 from ai_shell.scaffold import BranchStrategy, RepoType
 
 logger = logging.getLogger(__name__)
@@ -360,6 +360,8 @@ def _launch_multi(
     from ai_shell.tmux import (
         TMUX_SESSION_PREFIX,
         PaneSpec,
+        build_attach_command,
+        build_check_session_command,
         build_claude_pane_command,
         build_tmux_commands,
     )
@@ -369,6 +371,36 @@ def _launch_multi(
         raise click.ClickException("No workspace.yaml found. --multi requires a workspace repo.")
 
     workspace_name, repos = _load_workspace_repos(workspace_yaml)
+
+    # Check for existing tmux session before presenting the selector.
+    # The container and session might still be running from a previous
+    # invocation (e.g. after the user detached with C-b d or closed
+    # the terminal).
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    session_name = f"{TMUX_SESSION_PREFIX}-{config.project_name}"
+    container_name = dev_container_name(config.project_name, config.project_dir)
+
+    check_cmd = build_check_session_command(container_name, session_name)
+    has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0
+
+    if has_session:
+        console.print(f"[bold]Found existing tmux session '[cyan]{session_name}[/cyan]'.[/bold]")
+        choice = click.prompt(
+            "  Reconnect, start fresh, or cancel?",
+            type=click.Choice(["reconnect", "fresh", "cancel"], case_sensitive=False),
+            default="reconnect",
+        )
+        if choice == "reconnect":
+            attach_cmd = build_attach_command(container_name, session_name)
+            logger.debug("tmux reattach: %s", " ".join(attach_cmd))
+            sys.stdout.flush()
+            sys.stderr.flush()
+            attach = subprocess.run(attach_cmd)
+            sys.exit(attach.returncode)
+        elif choice == "cancel":
+            return
+        # choice == "fresh": fall through to selector and recreate
 
     # Build selection items: workspace root first, then each child repo
     items: list[SelectionItem] = [
@@ -454,9 +486,7 @@ def _launch_multi(
             + "\n\nRun /ai-workspace-sync to clone workspace repos first."
         )
 
-    # Use workspace root config for the container
-    project = ctx.obj.get("project") if ctx.obj else None
-    config = load_config(project_override=project, project_dir=Path.cwd())
+    # config was loaded earlier for the session check; reuse it here
     use_bedrock = use_aws or config.claude_provider == "aws"
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
@@ -493,7 +523,6 @@ def _launch_multi(
         )
         panes.append(PaneSpec(name=repo_name, command=pane_cmd, working_dir=working_dir))
 
-    session_name = f"{TMUX_SESSION_PREFIX}-{config.project_name}"
     cmds = build_tmux_commands(container_name, session_name, panes)
 
     # Execute all setup commands (non-interactive), then attach

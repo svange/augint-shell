@@ -148,19 +148,21 @@ tmux select-pane -t claude-multi:0.1 -T "woxom-infra"
 
 **Send commands to each pane:**
 
-Each pane gets a per-project UV venv path and runs claude with retry logic:
+Each pane gets a per-project UV venv path and runs claude with retry logic.
+Tries `-c` (continue previous conversation) first; falls back to a fresh
+session if no prior conversation exists:
 
 ```bash
 tmux send-keys -t claude-multi:0.0 \
-  'export UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/woxom-crm && claude --dangerously-skip-permissions -c || claude --dangerously-skip-permissions' \
+  'export UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/woxom-crm; claude --dangerously-skip-permissions -c -n woxom-crm || claude --dangerously-skip-permissions -n woxom-crm' \
   Enter
 ```
 
-For `--safe` mode:
+For `--safe` mode (no retry, no permissive flags):
 
 ```bash
 tmux send-keys -t claude-multi:0.0 \
-  'export UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/woxom-crm && claude' \
+  'UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/woxom-crm claude -n woxom-crm' \
   Enter
 ```
 
@@ -179,22 +181,22 @@ set-option -t claude-multi history-limit 50000
 # Claude Code detects focus gain/loss for auto-refresh.
 set-option -t claude-multi focus-events on
 
-# ── Pane borders: red active, green inactive ───────────────────────
+# ── Pane borders: blue active, gray inactive ───────────────────────
 # Heavy (thick) Unicode box-drawing borders for visibility.
 set-option -t claude-multi pane-border-status top
 set-option -t claude-multi pane-border-lines heavy
-# Title text color matches border: red for active, green for inactive.
+# Title text color matches border: blue for active, gray for inactive.
 set-option -t claude-multi pane-border-format \
-  "#{?pane_active,#[fg=colour196 bold] #{pane_title} ,#[fg=colour34] #{pane_title} }"
-set-option -t claude-multi pane-border-style "fg=colour34"
-set-option -t claude-multi pane-active-border-style "fg=colour196,bold"
+  "#{?pane_active,#[fg=colour75 bold] #{pane_title} ,#[fg=colour240] #{pane_title} }"
+set-option -t claude-multi pane-border-style "fg=colour240"
+set-option -t claude-multi pane-active-border-style "fg=colour75,bold"
 # Arrow indicators on the active pane border.
 set-option -t claude-multi pane-border-indicators arrows
 
 # ── Status bar ─────────────────────────────────────────────────────
-# Session name in red (matches active border), help hints on the right.
+# Session name in blue (matches active border), help hints on the right.
 set-option -t claude-multi status-style "bg=colour235 fg=colour248"
-set-option -t claude-multi status-left "#[fg=colour196,bold] #S #[fg=colour248]| "
+set-option -t claude-multi status-left "#[fg=colour75,bold] #S #[fg=colour248]| "
 set-option -t claude-multi status-right "#[fg=colour240] C-b z=zoom  C-b d=detach "
 set-option -t claude-multi status-left-length 40
 set-option -t claude-multi status-right-length 40
@@ -223,6 +225,25 @@ The user is now inside the tmux session. They can:
 - Use `Ctrl-b z` to zoom/unzoom a single pane (fullscreen toggle)
 - Use `Ctrl-b arrow` to move between panes via keyboard
 - Use `Ctrl-b d` to detach (container stays running, re-attach later)
+
+**Important**: Use `Ctrl-b d` to detach, NOT `Ctrl-d`. `Ctrl-d` sends EOF to
+the active pane's shell and may close the terminal window without properly
+detaching. The tmux session and all Claude instances continue running in the
+container either way.
+
+### 6. Host: reconnect to existing session
+
+Running `ai-shell claude --multi` again checks for an existing tmux session
+in the container before showing the repo selector. If found, it prompts:
+
+```
+Found existing tmux session 'claude-multi-my-workspace'.
+  Reconnect, start fresh, or cancel? [reconnect]:
+```
+
+- **reconnect** (default): immediately re-attaches to the running session
+- **fresh**: kills the old session and shows the repo selector to start over
+- **cancel**: exits without doing anything
 
 ## UV venv isolation
 
@@ -419,8 +440,8 @@ Incompatibility: `--multi` + `--init/--update/--reset/--clean/--worktree` raises
 
 | User flag | Effect in pane command |
 |-----------|----------------------|
-| (default) | `claude --dangerously-skip-permissions -c \|\| claude --dangerously-skip-permissions` |
-| `--safe` | `claude` (no permissive flags, no retry) |
+| (default) | `claude --dangerously-skip-permissions -c -n {repo} \|\| claude --dangerously-skip-permissions -n {repo}` |
+| `--safe` | `claude -n {repo}` (no permissive flags, no retry) |
 | `--aws` | Container env gets `CLAUDE_CODE_USE_BEDROCK=1` |
 | `--profile X` | Container env gets `AWS_PROFILE=X` for bedrock |
 | `-- --debug` | Appended to claude command in each pane |
@@ -433,7 +454,7 @@ Incompatibility: `--multi` + `--init/--update/--reset/--clean/--worktree` raises
 | 0 selections | Print "No repos selected" and exit cleanly |
 | 1 selection | Skip tmux, run claude directly for that repo |
 | Repo dir doesn't exist | Error: "woxom-crm not found. Run /ai-workspace-sync first" |
-| Existing tmux session in container | Kill and recreate |
+| Existing tmux session in container | Prompt: reconnect / fresh / cancel |
 | `--multi --init` | Error: "--multi is incompatible with --init/--update/--reset/--clean/--worktree" |
 | stdin not a TTY | Error: "--multi requires an interactive terminal" |
 | Container already running | Reuse it (same as single-project behavior) |
