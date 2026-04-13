@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
-import tomllib
 import uuid
 from pathlib import Path
 from typing import Any
@@ -201,37 +200,13 @@ def _check_bedrock_access(
 # ── Repo-type resolution helpers ──────────────────────────────────
 
 
-def _read_persisted_project(target_dir: Path) -> dict[str, str]:
-    """Read [project] section from existing .ai-shell.toml, if any."""
-    try:
-        toml_path = target_dir / ".ai-shell.toml"
-        if not toml_path.exists():
-            toml_path = target_dir / "ai-shell.toml"
-        if not toml_path.exists():
-            return {}
-        with open(toml_path, "rb") as f:
-            data = tomllib.load(f)
-        result: dict[str, str] = data.get("project", {})
-        return result
-    except (OSError, tomllib.TOMLDecodeError, TypeError):
-        return {}
-
-
-def _prompt_repo_config() -> tuple[RepoType, BranchStrategy, str]:
-    """Interactively ask user for repo type and branch strategy."""
+def _prompt_repo_type() -> RepoType:
+    """Interactively ask user for repo type."""
     repo_type_val = click.prompt(
         "Repo type",
         type=click.Choice(["library", "service", "workspace"], case_sensitive=False),
     )
-    branch_val = click.prompt(
-        "Branch strategy",
-        type=click.Choice(["main", "dev"], case_sensitive=False),
-        default="main",
-    )
-    dev_branch = "dev"
-    if branch_val == "dev":
-        dev_branch = click.prompt("Dev branch name", default="dev")
-    return _normalize_repo_type_value(repo_type_val), BranchStrategy(branch_val), dev_branch
+    return _normalize_repo_type_value(repo_type_val)
 
 
 def _normalize_repo_type_value(value: str) -> RepoType:
@@ -247,48 +222,20 @@ def _resolve_repo_config(
     *,
     prompt_if_missing: bool = False,
 ) -> tuple[RepoType | None, BranchStrategy | None, str]:
-    """Resolve repo type / branch strategy from flag, config, or prompt.
+    """Resolve repo type / branch strategy from flag or prompt.
 
     Returns (repo_type, branch_strategy, dev_branch).
+    Branch strategy and dev_branch are kept for API compat but always None/"dev".
     """
     # 1. CLI flag wins
     if flag:
-        repo_type = _normalize_repo_type_value(flag)
-        # When flag is given without existing config, prompt for branch strategy
-        persisted = _read_persisted_project(target_dir)
-        if "branch_strategy" in persisted:
-            branch_strategy = BranchStrategy(persisted["branch_strategy"])
-            dev_branch = persisted.get("dev_branch", "dev")
-        elif prompt_if_missing:
-            branch_val = click.prompt(
-                "Branch strategy",
-                type=click.Choice(["main", "dev"], case_sensitive=False),
-                default="main",
-            )
-            branch_strategy = BranchStrategy(branch_val)
-            dev_branch = "dev"
-            if branch_strategy == BranchStrategy.DEV:
-                dev_branch = click.prompt("Dev branch name", default="dev")
-        else:
-            branch_strategy = None
-            dev_branch = "dev"
-        return repo_type, branch_strategy, dev_branch
+        return _normalize_repo_type_value(flag), None, "dev"
 
-    # 2. Existing ai-shell.toml [project] section
-    persisted = _read_persisted_project(target_dir)
-    if "repo_type" in persisted:
-        repo_type = _normalize_repo_type_value(persisted["repo_type"])
-        branch_strategy = (
-            BranchStrategy(persisted["branch_strategy"]) if "branch_strategy" in persisted else None
-        )
-        dev_branch = persisted.get("dev_branch", "dev")
-        return repo_type, branch_strategy, dev_branch
-
-    # 3. Interactive prompt (only for init, not for update/reset without flag)
+    # 2. Interactive prompt (only for init)
     if prompt_if_missing:
-        return _prompt_repo_config()
+        return _prompt_repo_type(), None, "dev"
 
-    # 4. No config available
+    # 3. No config available
     return None, None, "dev"
 
 
@@ -770,7 +717,12 @@ def claude(
         if (do_init or do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(Path.cwd(), "claude", background=True)
+            merge_notes_into_context(
+                Path.cwd(),
+                "claude",
+                background=True,
+                repo_type=repo_type.value if repo_type else None,
+            )
         return
 
     if do_multi:
@@ -810,7 +762,12 @@ def claude(
         if not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(Path.cwd(), "claude", background=True)
+            merge_notes_into_context(
+                Path.cwd(),
+                "claude",
+                background=True,
+                repo_type=_auto_repo_type.value if _auto_repo_type else None,
+            )
 
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
@@ -950,7 +907,12 @@ def codex(
         if (do_init or do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(Path.cwd(), "codex", background=True)
+            merge_notes_into_context(
+                Path.cwd(),
+                "codex",
+                background=True,
+                repo_type=repo_type.value if repo_type else None,
+            )
         return
 
     # Auto-init if .codex/ is missing
@@ -967,7 +929,12 @@ def codex(
         if not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(Path.cwd(), "codex", background=True)
+            merge_notes_into_context(
+                Path.cwd(),
+                "codex",
+                background=True,
+                repo_type=_auto_repo_type.value if _auto_repo_type else None,
+            )
 
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
@@ -1091,7 +1058,12 @@ def opencode(
         if (do_init or do_update or do_reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(Path.cwd(), "opencode", background=True)
+            merge_notes_into_context(
+                Path.cwd(),
+                "opencode",
+                background=True,
+                repo_type=repo_type.value if repo_type else None,
+            )
         return
 
     # Auto-init if opencode.json is missing
@@ -1108,7 +1080,12 @@ def opencode(
         if not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(Path.cwd(), "opencode", background=True)
+            merge_notes_into_context(
+                Path.cwd(),
+                "opencode",
+                background=True,
+                repo_type=_auto_repo_type.value if _auto_repo_type else None,
+            )
 
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
@@ -1302,8 +1279,6 @@ def init(update, reset, clean, scaffold_all, skip_merge, repo_type_flag):
         clean=clean,
         merge=merge,
         repo_type=repo_type,
-        branch_strategy=branch_strategy,
-        dev_branch=dev_branch,
     )
     if scaffold_all:
         _scaffold_claude(
@@ -1340,5 +1315,6 @@ def init(update, reset, clean, scaffold_all, skip_merge, repo_type_flag):
         if (update or reset) and not skip_merge:
             from ai_shell.notes_merge import merge_notes_into_context
 
-            merge_notes_into_context(target_dir, "claude", background=True)
-            merge_notes_into_context(target_dir, "codex", background=True)
+            _rt = repo_type.value if repo_type else None
+            merge_notes_into_context(target_dir, "claude", background=True, repo_type=_rt)
+            merge_notes_into_context(target_dir, "codex", background=True, repo_type=_rt)

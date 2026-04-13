@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import shutil
 import subprocess
-import tomllib
 from importlib import resources
 from pathlib import Path
 from subprocess import DEVNULL
@@ -35,26 +34,9 @@ _NOTES_TEMPLATE_BY_REPO_TYPE = {
 }
 
 
-def _read_persisted_project(target_dir: Path) -> dict[str, str]:
-    """Read [project] section from existing .ai-shell.toml, if any."""
-    try:
-        toml_path = target_dir / ".ai-shell.toml"
-        if not toml_path.exists():
-            toml_path = target_dir / "ai-shell.toml"
-        if not toml_path.exists():
-            return {}
-        with open(toml_path, "rb") as handle:
-            data = tomllib.load(handle)
-        result: dict[str, str] = data.get("project", {})
-        return result
-    except (OSError, tomllib.TOMLDecodeError, TypeError):
-        return {}
-
-
-def _read_notes_template(target_dir: Path) -> str:
+def _read_notes_template(repo_type: str | None = None) -> str:
     """Load the generic or repo-specific institutional notes template."""
-    project = _read_persisted_project(target_dir)
-    template_name = _NOTES_TEMPLATE_BY_REPO_TYPE.get(project.get("repo_type") or "", "notes.md")
+    template_name = _NOTES_TEMPLATE_BY_REPO_TYPE.get(repo_type or "", "notes.md")
     ref = _TEMPLATES.joinpath(template_name)
     return ref.read_text(encoding="utf-8")
 
@@ -82,7 +64,13 @@ def _build_command(binary: str, prompt: str) -> list[str]:
     return []
 
 
-def merge_notes_into_context(target_dir: Path, tool: str, *, background: bool = False) -> bool:
+def merge_notes_into_context(
+    target_dir: Path,
+    tool: str,
+    *,
+    background: bool = False,
+    repo_type: str | None = None,
+) -> bool:
     """Merge notes template into the tool's context file using the AI tool."""
     config = _TOOL_CONFIG.get(tool)
     if config is None:
@@ -102,7 +90,7 @@ def merge_notes_into_context(target_dir: Path, tool: str, *, background: bool = 
         console.print(f"[yellow]{binary} not found on PATH, skipping {context_file} merge[/yellow]")
         return False
 
-    notes_content = _read_notes_template(target_dir)
+    notes_content = _read_notes_template(repo_type)
     prompt = _build_prompt(context_file, notes_content)
     cmd = _build_command(binary, prompt)
 
