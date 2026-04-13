@@ -169,46 +169,29 @@ ports = [9000, 9229]
         # Should load defaults without error
         assert config.image == "svange/augint-shell"
 
-    def test_project_section_repo_type(self, tmp_path):
-        toml_content = b"""
-[project]
-repo_type = "library"
-branch_strategy = "main"
-"""
+    def test_yaml_config_loaded(self, tmp_path):
+        yaml_content = "container:\n  image: yaml/image\n  image_tag: '3.0.0'\n"
+        (tmp_path / ".ai-shell.yaml").write_text(yaml_content)
+        config = load_config(project_dir=tmp_path)
+        assert config.image == "yaml/image"
+        assert config.image_tag == "3.0.0"
+
+    def test_yaml_takes_precedence_over_toml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("container:\n  image: yaml/wins\n")
+        (tmp_path / ".ai-shell.toml").write_bytes(b'[container]\nimage = "toml/loses"\n')
+        config = load_config(project_dir=tmp_path)
+        assert config.image == "yaml/wins"
+
+    def test_toml_still_loads_when_no_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.toml").write_bytes(b'[container]\nimage = "toml/fallback"\n')
+        config = load_config(project_dir=tmp_path)
+        assert config.image == "toml/fallback"
+
+    def test_project_section_ignored(self, tmp_path):
+        toml_content = b'[project]\nrepo_type = "library"\n'
         (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
         config = load_config(project_dir=tmp_path)
-        assert config.repo_type == "library"
-        assert config.branch_strategy == "main"
-
-    def test_project_section_service_maps_to_service(self, tmp_path):
-        toml_content = b"""
-[project]
-repo_type = "service"
-branch_strategy = "dev"
-dev_branch = "staging"
-"""
-        (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
-        config = load_config(project_dir=tmp_path)
-        assert config.repo_type == "service"  # "service" backward compat -> "service"
-        assert config.branch_strategy == "dev"
-        assert config.dev_branch == "staging"
-
-    def test_project_section_defaults(self, tmp_path):
-        config = load_config(project_dir=tmp_path)
-        assert config.repo_type is None
-        assert config.branch_strategy is None
-        assert config.dev_branch == "dev"
-
-    def test_project_section_workspace(self, tmp_path):
-        toml_content = b"""
-[project]
-repo_type = "workspace"
-branch_strategy = "main"
-"""
-        (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
-        config = load_config(project_dir=tmp_path)
-        assert config.repo_type == "workspace"
-        assert config.branch_strategy == "main"
+        assert not hasattr(config, "repo_type")
 
     def test_legacy_toml_name_still_loaded(self, tmp_path):
         (tmp_path / "ai-shell.toml").write_bytes(b"""

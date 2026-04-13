@@ -1,6 +1,9 @@
 """Configuration loading for ai-shell.
 
-Priority (highest wins): CLI flags > env vars > project ai-shell.toml > global config > defaults.
+Priority (highest wins): CLI flags > env vars > project config > global config > defaults.
+
+Config file lookup order (first match wins):
+  .ai-shell.yaml > .ai-shell.yml > .ai-shell.toml > ai-shell.toml
 """
 
 from __future__ import annotations
@@ -10,6 +13,8 @@ import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import yaml
 
 from ai_shell import __version__
 from ai_shell.defaults import (
@@ -62,11 +67,6 @@ class AiShellConfig:
     codex_openai_api_key: str = ""  # OpenAI API key (if set, overrides mounted SSO auth)
     codex_profile: str = ""  # AWS profile for Bedrock auth (when provider = "aws")
 
-    # Project workflow
-    repo_type: str | None = None  # "library" | "service" | "workspace"
-    branch_strategy: str | None = None  # "main" | "dev"
-    dev_branch: str = "dev"
-
     @property
     def full_image(self) -> str:
         """Return the full image reference with tag."""
@@ -92,16 +92,19 @@ def load_config(
         config.project_dir = project_dir
 
     # Load global config
-    global_config_path = Path.home() / ".config" / "ai-shell" / "config.toml"
-    if global_config_path.exists():
-        _apply_toml(config, global_config_path)
+    global_config_dir = Path.home() / ".config" / "ai-shell"
+    for name in ("config.yaml", "config.yml", "config.toml"):
+        candidate = global_config_dir / name
+        if candidate.exists():
+            _apply_config(config, candidate)
+            break
 
-    # Load project config — prefer hidden file, fall back to legacy name
-    project_config_path = config.project_dir / ".ai-shell.toml"
-    if not project_config_path.exists():
-        project_config_path = config.project_dir / "ai-shell.toml"
-    if project_config_path.exists():
-        _apply_toml(config, project_config_path)
+    # Load project config (first match wins)
+    for name in (".ai-shell.yaml", ".ai-shell.yml", ".ai-shell.toml", "ai-shell.toml"):
+        candidate = config.project_dir / name
+        if candidate.exists():
+            _apply_config(config, candidate)
+            break
 
     # Apply environment variable overrides
     _apply_env_vars(config)
@@ -119,12 +122,21 @@ def load_config(
     return config
 
 
-def _apply_toml(config: AiShellConfig, path: Path) -> None:
-    """Apply settings from a TOML config file."""
+def _load_config_file(path: Path) -> dict:
+    """Load a YAML or TOML config file and return the parsed dict."""
+    suffix = path.suffix.lower()
+    if suffix in (".yaml", ".yml"):
+        with open(path, encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    with open(path, "rb") as f:
+        return tomllib.load(f)
+
+
+def _apply_config(config: AiShellConfig, path: Path) -> None:
+    """Apply settings from a YAML or TOML config file."""
     try:
-        with open(path, "rb") as f:
-            data = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError) as e:
+        data = _load_config_file(path)
+    except (OSError, tomllib.TOMLDecodeError, yaml.YAMLError) as e:
         logger.warning("Failed to load config from %s: %s", path, e)
         return
 
@@ -188,19 +200,6 @@ def _apply_toml(config: AiShellConfig, path: Path) -> None:
         config.codex_openai_api_key = codex_sec["openai_api_key"]
     if "profile" in codex_sec:
         config.codex_profile = codex_sec["profile"]
-
-    # [project] section
-    project = data.get("project", {})
-    if "repo_type" in project:
-        value = project["repo_type"]
-        if value == "iac":
-            config.repo_type = "service"
-        else:
-            config.repo_type = value
-    if "branch_strategy" in project:
-        config.branch_strategy = project["branch_strategy"]
-    if "dev_branch" in project:
-        config.dev_branch = project["dev_branch"]
 
 
 def _apply_env_vars(config: AiShellConfig) -> None:

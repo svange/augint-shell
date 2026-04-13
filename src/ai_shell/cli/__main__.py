@@ -9,7 +9,6 @@ from ai_shell import __version__
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.cli.commands.llm import llm_group
 from ai_shell.cli.commands.manage import manage_group
-from ai_shell.cli.commands.standardize import standardize_group
 from ai_shell.cli.commands.tools import aider, claude, codex, init, opencode, shell
 
 
@@ -37,7 +36,6 @@ cli.add_command(init)
 # Command groups
 cli.add_command(llm_group, "llm")
 cli.add_command(manage_group, "manage")
-cli.add_command(standardize_group, "standardize")
 
 
 def main():

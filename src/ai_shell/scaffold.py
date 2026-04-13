@@ -59,7 +59,7 @@ _AIDER_DIRS: list[str] = []
 _AIDER_FILES = [".aider.conf.yml", ".aiderignore"]
 
 _PROJECT_DIRS: list[str] = []
-_PROJECT_FILES = [".ai-shell.toml", "ai-shell.toml"]
+_PROJECT_FILES = [".ai-shell.yaml", ".ai-shell.yml", ".ai-shell.toml", "ai-shell.toml"]
 
 _NOTES_FILE = "INSTITUTIONAL_KNOWLEDGE.md"
 
@@ -190,12 +190,6 @@ _UNIVERSAL_SKILLS = [
     "ai-repo-health",
     "ai-create-cmd",
     "ai-web-dev",
-    "ai-standardize-repo",
-    "ai-standardize-dotfiles",
-    "ai-standardize-pipeline",
-    "ai-standardize-precommit",
-    "ai-standardize-renovate",
-    "ai-standardize-release",
     "ai-new-project",
 ]
 
@@ -213,12 +207,18 @@ _WORKSPACE_SKILLS = [
     "ai-workspace-lint",
     "ai-workspace-submit",
     "ai-workspace-update",
-    "ai-workspace-standardize",
 ]
 
 # Skills fully removed (no longer shipped, cleaned from existing repos).
 _DELETED_SKILLS = [
     "ai-fix-repo-standards",
+    "ai-standardize-repo",
+    "ai-standardize-dotfiles",
+    "ai-standardize-pipeline",
+    "ai-standardize-precommit",
+    "ai-standardize-renovate",
+    "ai-standardize-release",
+    "ai-workspace-standardize",
 ]
 
 
@@ -304,35 +304,9 @@ AGENTS_SKILL_DIRS = [
     "ai-rollback",
     "ai-status",
     "ai-web-dev",
-    "ai-standardize-repo",
-    "ai-standardize-dotfiles",
-    "ai-standardize-pipeline",
-    "ai-standardize-precommit",
-    "ai-standardize-renovate",
-    "ai-standardize-release",
     "ai-new-project",
     "ai-setup-oidc",
 ]
-
-
-def _build_toml_content(
-    repo_type: RepoType | None,
-    branch_strategy: BranchStrategy | None,
-    dev_branch: str = "dev",
-) -> str:
-    """Build ai-shell.toml content, prepending [project] section if configured."""
-    base = _read_template("ai-shell.toml")
-    if repo_type is None:
-        return base
-
-    lines = ["[project]", f'repo_type = "{repo_type.value}"']
-    if branch_strategy is not None:
-        lines.append(f'branch_strategy = "{branch_strategy.value}"')
-    if branch_strategy == BranchStrategy.DEV:
-        lines.append(f'dev_branch = "{dev_branch}"')
-    lines.append("")  # blank separator
-
-    return "\n".join(lines) + "\n" + base
 
 
 def scaffold_project(
@@ -342,17 +316,15 @@ def scaffold_project(
     clean: bool = False,
     merge: bool = False,
     repo_type: RepoType | None = None,
-    branch_strategy: BranchStrategy | None = None,
-    dev_branch: str = "dev",
 ) -> None:
-    """Create ``.ai-shell.toml`` in *target_dir*."""
+    """Create ``.ai-shell.yaml`` in *target_dir*."""
     if clean:
         _clean_paths(target_dir, _PROJECT_DIRS, _PROJECT_FILES)
         overwrite = True
     effective_overwrite = overwrite or merge
     _write_file(
-        target_dir / ".ai-shell.toml",
-        _build_toml_content(repo_type, branch_strategy, dev_branch),
+        target_dir / ".ai-shell.yaml",
+        _read_template("ai-shell.yaml"),
         overwrite=effective_overwrite,
     )
 

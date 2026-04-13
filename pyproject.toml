@@ -11,8 +11,6 @@ dependencies = [
     "rich>=14.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0",
-    "tomlkit>=0.13",
-    "PyGithub>=2.9",
 ]
 
 [project.optional-dependencies]
@@ -87,7 +85,7 @@ logging_use_named_masks = false
 major_on_zero = false
 allow_zero_version = true
 no_git_verify = false
-tag_format = "augint-shell-v{version}"
+tag_format = "v{version}"
 version_toml = ["pyproject.toml:project.version"]
 version_variables = ["src/ai_shell/__init__.py:__version__"]
 build_command = "uv lock && uv build"

@@ -1,8 +1,0 @@
-gate: Acceptance tests
-language: python
-repo_type: service
-required_steps:
-  - kind: action
-    matches: actions/checkout
-  - kind: action
-    matches: aws-actions/configure-aws-credentials
