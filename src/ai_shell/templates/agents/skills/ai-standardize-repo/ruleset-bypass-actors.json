@@ -1,12 +1,8 @@
 [
   {
-    "actor_id": 1,
-    "actor_type": "DeployKey",
-    "bypass_mode": "always"
-  },
-  {
     "actor_id": 4,
     "actor_type": "RepositoryRole",
-    "bypass_mode": "always"
+    "bypass_mode": "always",
+    "_comment": "RepositoryRole id 4 is the Maintain role. Allows semantic-release (via PAT) to push release commits to protected branches."
   }
 ]
