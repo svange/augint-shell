@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.58.0 (2026-04-13)
+
+### Features
+
+- Update tmux pane border colors to amber for active and dusty mauve for inactive
+  ([`3b5f182`](https://github.com/svange/augint-shell/commit/3b5f182ef6f5228e07aa485ad62dcccbbe9fb76c))
+
+
 ## v0.57.0 (2026-04-13)
 
 ### Features
