@@ -115,28 +115,41 @@ def build_tmux_commands(
             _exec("tmux", "send-keys", "-t", f"{session_name}:0.{i}", pane.command, "Enter")
         )
 
-    # 7. Configure session options for modern IDE feel
+    # 7. Configure session options -- red active / green inactive borders
     session_options: list[tuple[str, str]] = [
+        # Mouse & responsiveness
         ("mouse", "on"),
-        ("pane-border-status", "top"),
-        ("pane-border-format", " #{pane_title} "),
-        ("pane-border-style", "fg=colour240"),
-        ("pane-active-border-style", "fg=colour75"),
         ("escape-time", "10"),
         ("history-limit", "50000"),
         ("focus-events", "on"),
+        # Pane borders: red active, green inactive, heavy lines
+        ("pane-border-status", "top"),
+        ("pane-border-lines", "heavy"),
+        (
+            "pane-border-format",
+            "#{?pane_active,#[fg=colour196 bold] #{pane_title} ,#[fg=colour34] #{pane_title} }",
+        ),
+        ("pane-border-style", "fg=colour34"),
+        ("pane-active-border-style", "fg=colour196,bold"),
+        ("pane-border-indicators", "arrows"),
+        # Status bar
         ("status-style", "bg=colour235 fg=colour248"),
-        ("status-left", "#[fg=colour75,bold] #S "),
-        ("status-right", ""),
-        ("status-left-length", "30"),
+        ("status-left", "#[fg=colour196,bold] #S #[fg=colour248]| "),
+        ("status-right", "#[fg=colour240] C-b z=zoom  C-b d=detach "),
+        ("status-left-length", "40"),
+        ("status-right-length", "40"),
     ]
     for key, value in session_options:
         cmds.append(_exec("tmux", "set-option", "-t", session_name, key, value))
 
-    # 8. Select first pane
+    # 8. Server-level terminal options for true-color support
+    cmds.append(_exec("tmux", "set-option", "-s", "default-terminal", "tmux-256color"))
+    cmds.append(_exec("tmux", "set-option", "-sa", "terminal-overrides", ",xterm*:Tc"))
+
+    # 9. Select first pane
     cmds.append(_exec("tmux", "select-pane", "-t", f"{session_name}:0.0"))
 
-    # 9. Final: interactive attach (caller should execvp this one)
+    # 10. Final: interactive attach (caller should execvp this one)
     cmds.append(
         ["docker", "exec", "-it", container_name, "tmux", "attach-session", "-t", session_name]
     )

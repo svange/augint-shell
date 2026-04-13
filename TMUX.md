@@ -169,44 +169,38 @@ tmux send-keys -t claude-multi:0.0 \
 Applied via `docker exec <container> tmux set-option ...` after session creation.
 
 ```
-# ── Mouse ──────────────────────────────────────────────────────────
+# ── Mouse & responsiveness ─────────────────────────────────────────
 # Click to select pane, drag to resize, scroll within pane.
-# Mouse events inside a focused pane are forwarded to the running
-# application (Claude Code TUI handles its own mouse input).
 set-option -t claude-multi mouse on
-
-# ── Pane titles ────────────────────────────────────────────────────
-# Repo name displayed at the top of each pane border.
-set-option -t claude-multi pane-border-status top
-set-option -t claude-multi pane-border-format " #{pane_title} "
-set-option -t claude-multi pane-border-style "fg=colour240"
-set-option -t claude-multi pane-active-border-style "fg=colour75"
-
-# ── Responsiveness ─────────────────────────────────────────────────
-# Near-zero escape delay. Claude Code's TUI responds instantly to
-# arrow keys and escape sequences. Default 500ms is painful.
+# Near-zero escape delay so Claude Code's TUI responds instantly.
 set-option -t claude-multi escape-time 10
-
-# ── Scrollback ─────────────────────────────────────────────────────
-# Generous buffer so you can scroll back through Claude's output.
+# Generous scrollback buffer.
 set-option -t claude-multi history-limit 50000
-
-# ── Focus events ───────────────────────────────────────────────────
-# Claude Code detects when it gains/loses focus. Required for
-# features like auto-refresh on focus.
+# Claude Code detects focus gain/loss for auto-refresh.
 set-option -t claude-multi focus-events on
 
-# ── Status bar ─────────────────────────────────────────────────────
-# Minimal, non-distracting. Shows session name only.
-set-option -t claude-multi status-style "bg=colour235 fg=colour248"
-set-option -t claude-multi status-left "#[fg=colour75,bold] #S "
-set-option -t claude-multi status-right ""
-set-option -t claude-multi status-left-length 30
+# ── Pane borders: red active, green inactive ───────────────────────
+# Heavy (thick) Unicode box-drawing borders for visibility.
+set-option -t claude-multi pane-border-status top
+set-option -t claude-multi pane-border-lines heavy
+# Title text color matches border: red for active, green for inactive.
+set-option -t claude-multi pane-border-format \
+  "#{?pane_active,#[fg=colour196 bold] #{pane_title} ,#[fg=colour34] #{pane_title} }"
+set-option -t claude-multi pane-border-style "fg=colour34"
+set-option -t claude-multi pane-active-border-style "fg=colour196,bold"
+# Arrow indicators on the active pane border.
+set-option -t claude-multi pane-border-indicators arrows
 
-# ── Terminal ───────────────────────────────────────────────────────
+# ── Status bar ─────────────────────────────────────────────────────
+# Session name in red (matches active border), help hints on the right.
+set-option -t claude-multi status-style "bg=colour235 fg=colour248"
+set-option -t claude-multi status-left "#[fg=colour196,bold] #S #[fg=colour248]| "
+set-option -t claude-multi status-right "#[fg=colour240] C-b z=zoom  C-b d=detach "
+set-option -t claude-multi status-left-length 40
+set-option -t claude-multi status-right-length 40
+
+# ── Terminal (server-level) ────────────────────────────────────────
 # True color support for Claude Code's syntax highlighting.
-# The container's TERM is usually xterm-256color; this ensures
-# tmux also advertises 256-color + true color.
 set-option -s default-terminal "tmux-256color"
 set-option -sa terminal-overrides ",xterm*:Tc"
 ```

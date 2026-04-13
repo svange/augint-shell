@@ -1,12 +1,27 @@
-"""Interactive terminal multi-select widget using curses."""
+"""Interactive terminal multi-select widget.
+
+Uses curses on Unix/WSL.  Falls back to a Rich numbered-prompt selector on
+Windows or anywhere ``_curses`` is unavailable.
+"""
 
 from __future__ import annotations
 
-import curses
 import sys
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import click
+
+if TYPE_CHECKING:
+    import curses as _curses_mod
+
+try:
+    import curses
+
+    _CURSES_AVAILABLE = True
+except ImportError:
+    curses = None  # type: ignore[assignment]
+    _CURSES_AVAILABLE = False
 
 MAX_SELECTIONS = 4
 
@@ -26,7 +41,10 @@ def interactive_multi_select(
     title: str = "Select repos (up to 4)",
     max_selections: int = MAX_SELECTIONS,
 ) -> list[SelectionItem]:
-    """Show a curses multi-select menu and return chosen items.
+    """Show a multi-select menu and return chosen items.
+
+    Uses curses when available (Linux/macOS/WSL), otherwise falls back to a
+    Rich numbered-prompt selector (Windows).
 
     Raises ``click.ClickException`` when stdin is not a TTY.
     Returns an empty list if the user cancels (q / Ctrl-C).
@@ -34,12 +52,80 @@ def interactive_multi_select(
     if not sys.stdin.isatty():
         raise click.ClickException("--multi requires an interactive terminal (TTY).")
 
-    selected_indices = curses.wrapper(_curses_main, items, title, max_selections)
-    return [items[i] for i in sorted(selected_indices)]
+    if _CURSES_AVAILABLE:
+        selected_indices = curses.wrapper(_curses_main, items, title, max_selections)
+        return [items[i] for i in sorted(selected_indices)]
+
+    return _rich_multi_select(items, title=title, max_selections=max_selections)
+
+
+# ── Rich fallback (Windows) ───────────────────────────────────────────
+
+
+def _rich_multi_select(
+    items: list[SelectionItem],
+    *,
+    title: str,
+    max_selections: int,
+) -> list[SelectionItem]:
+    """Numbered-prompt selector using Rich.  Works on all platforms."""
+    from rich.console import Console
+
+    console = Console()
+    console.print()
+    console.print(f"  [bold]{title}[/bold]")
+    console.print()
+    for i, item in enumerate(items, 1):
+        desc = f"  [dim]({item.description})[/dim]" if item.description else ""
+        console.print(f"    {i}. {item.label}{desc}")
+    console.print()
+
+    while True:
+        try:
+            raw = console.input(
+                f"  [dim]Enter numbers separated by commas (max {max_selections}), "
+                "or 'q' to cancel:[/dim] "
+            )
+        except (EOFError, KeyboardInterrupt):
+            return []
+
+        raw = raw.strip()
+        if not raw or raw.lower() == "q":
+            return []
+
+        parts = [p.strip() for p in raw.split(",") if p.strip()]
+        indices: list[int] = []
+        valid = True
+        for part in parts:
+            if not part.isdigit():
+                console.print(f"  [red]'{part}' is not a number.[/red]")
+                valid = False
+                break
+            num = int(part)
+            if num < 1 or num > len(items):
+                console.print(f"  [red]{num} is out of range (1-{len(items)}).[/red]")
+                valid = False
+                break
+            idx = num - 1
+            if idx not in indices:
+                indices.append(idx)
+
+        if not valid:
+            continue
+        if len(indices) > max_selections:
+            console.print(f"  [red]Max {max_selections} selections.[/red]")
+            continue
+        if not indices:
+            continue
+
+        return [items[i] for i in sorted(indices)]
+
+
+# ── Curses interactive selector (Unix/WSL) ─────────────────────────────
 
 
 def _curses_main(
-    stdscr: curses.window,
+    stdscr: _curses_mod.window,
     items: list[SelectionItem],
     title: str,
     max_selections: int,
@@ -116,7 +202,7 @@ def _curses_main(
 
 
 def _safe_addstr(
-    stdscr: curses.window,
+    stdscr: _curses_mod.window,
     y: int,
     x: int,
     text: str,

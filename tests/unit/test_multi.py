@@ -168,6 +168,50 @@ class TestBuildTmuxCommands:
         assert "pane-border-status" in joined
         assert "escape-time" in joined
         assert "focus-events" in joined
+        assert "pane-border-lines" in joined
+        assert "pane-border-indicators" in joined
+
+    def test_red_active_green_inactive_borders(self):
+        panes = [
+            PaneSpec(name="repo-a", command="cmd-a", working_dir="/d/a"),
+            PaneSpec(name="repo-b", command="cmd-b", working_dir="/d/b"),
+        ]
+        cmds = build_tmux_commands("container", "session", panes)
+        all_args = [" ".join(c) for c in cmds]
+        joined = "\n".join(all_args)
+
+        # Active = red (colour196), inactive = green (colour34)
+        assert "colour196" in joined
+        assert "colour34" in joined
+
+    def test_status_bar_has_help_hints(self):
+        panes = [
+            PaneSpec(name="repo-a", command="cmd-a", working_dir="/d/a"),
+            PaneSpec(name="repo-b", command="cmd-b", working_dir="/d/b"),
+        ]
+        cmds = build_tmux_commands("container", "session", panes)
+        all_args = [" ".join(c) for c in cmds]
+        joined = "\n".join(all_args)
+
+        assert "C-b z=zoom" in joined
+        assert "C-b d=detach" in joined
+
+    def test_server_level_terminal_options(self):
+        panes = [
+            PaneSpec(name="repo-a", command="cmd-a", working_dir="/d/a"),
+            PaneSpec(name="repo-b", command="cmd-b", working_dir="/d/b"),
+        ]
+        cmds = build_tmux_commands("container", "session", panes)
+
+        # Find server-level options (use -s or -sa, NOT -t session_name)
+        default_term_cmds = [
+            c for c in cmds if "default-terminal" in c and "-s" in c and "session" not in c
+        ]
+        assert len(default_term_cmds) == 1
+        assert "tmux-256color" in default_term_cmds[0]
+
+        term_override_cmds = [c for c in cmds if "terminal-overrides" in c and "-sa" in c]
+        assert len(term_override_cmds) == 1
 
     def test_pane_titles_set(self):
         panes = [
@@ -220,6 +264,123 @@ class TestInteractiveSelectNotTTY:
 
         with pytest.raises(click.ClickException, match="--multi requires an interactive terminal"):
             interactive_multi_select(items)
+
+
+class TestRichFallbackSelector:
+    """Tests for the Rich-based numbered-prompt fallback (Windows path)."""
+
+    @patch("ai_shell.selector._CURSES_AVAILABLE", False)
+    @patch("ai_shell.selector.sys")
+    @patch("rich.console.Console")
+    def test_returns_correct_items(self, mock_console_cls, mock_sys):
+        from ai_shell.selector import interactive_multi_select
+
+        mock_sys.stdin.isatty.return_value = True
+        items = [
+            SelectionItem(label="repo-a", value="./repo-a", description="service"),
+            SelectionItem(label="repo-b", value="./repo-b", description="library"),
+            SelectionItem(label="repo-c", value="./repo-c"),
+        ]
+
+        mock_console = MagicMock()
+        mock_console_cls.return_value = mock_console
+        mock_console.input.return_value = "1,3"
+
+        result = interactive_multi_select(items)
+
+        assert len(result) == 2
+        assert result[0].label == "repo-a"
+        assert result[1].label == "repo-c"
+
+    @patch("ai_shell.selector._CURSES_AVAILABLE", False)
+    @patch("ai_shell.selector.sys")
+    @patch("rich.console.Console")
+    def test_cancel_with_q(self, mock_console_cls, mock_sys):
+        from ai_shell.selector import interactive_multi_select
+
+        mock_sys.stdin.isatty.return_value = True
+        items = [SelectionItem(label="repo-a", value="./repo-a")]
+
+        mock_console = MagicMock()
+        mock_console_cls.return_value = mock_console
+        mock_console.input.return_value = "q"
+
+        result = interactive_multi_select(items)
+
+        assert result == []
+
+    @patch("ai_shell.selector._CURSES_AVAILABLE", False)
+    @patch("ai_shell.selector.sys")
+    @patch("rich.console.Console")
+    def test_cancel_with_empty_input(self, mock_console_cls, mock_sys):
+        from ai_shell.selector import interactive_multi_select
+
+        mock_sys.stdin.isatty.return_value = True
+        items = [SelectionItem(label="repo-a", value="./repo-a")]
+
+        mock_console = MagicMock()
+        mock_console_cls.return_value = mock_console
+        mock_console.input.return_value = ""
+
+        result = interactive_multi_select(items)
+
+        assert result == []
+
+    @patch("ai_shell.selector._CURSES_AVAILABLE", False)
+    @patch("ai_shell.selector.sys")
+    @patch("rich.console.Console")
+    def test_validates_out_of_range(self, mock_console_cls, mock_sys):
+        from ai_shell.selector import interactive_multi_select
+
+        mock_sys.stdin.isatty.return_value = True
+        items = [
+            SelectionItem(label="repo-a", value="./repo-a"),
+            SelectionItem(label="repo-b", value="./repo-b"),
+        ]
+
+        mock_console = MagicMock()
+        mock_console_cls.return_value = mock_console
+        # First call: out of range, second call: valid
+        mock_console.input.side_effect = ["5", "1,2"]
+
+        result = interactive_multi_select(items)
+
+        assert len(result) == 2
+
+    @patch("ai_shell.selector._CURSES_AVAILABLE", False)
+    @patch("ai_shell.selector.sys")
+    @patch("rich.console.Console")
+    def test_validates_max_selections(self, mock_console_cls, mock_sys):
+        from ai_shell.selector import interactive_multi_select
+
+        mock_sys.stdin.isatty.return_value = True
+        items = [SelectionItem(label=f"repo-{i}", value=f"./repo-{i}") for i in range(5)]
+
+        mock_console = MagicMock()
+        mock_console_cls.return_value = mock_console
+        # First call: 5 selections (over max 4), second call: valid
+        mock_console.input.side_effect = ["1,2,3,4,5", "1,2"]
+
+        result = interactive_multi_select(items, max_selections=4)
+
+        assert len(result) == 2
+
+    @patch("ai_shell.selector._CURSES_AVAILABLE", False)
+    @patch("ai_shell.selector.sys")
+    @patch("rich.console.Console")
+    def test_handles_keyboard_interrupt(self, mock_console_cls, mock_sys):
+        from ai_shell.selector import interactive_multi_select
+
+        mock_sys.stdin.isatty.return_value = True
+        items = [SelectionItem(label="repo-a", value="./repo-a")]
+
+        mock_console = MagicMock()
+        mock_console_cls.return_value = mock_console
+        mock_console.input.side_effect = KeyboardInterrupt
+
+        result = interactive_multi_select(items)
+
+        assert result == []
 
 
 # ── CLI integration tests ───────────────────────────────────────────
