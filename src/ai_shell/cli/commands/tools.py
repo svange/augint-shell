@@ -1,4 +1,4 @@
-"""AI tool subcommands: claude, codex, opencode, aider, shell."""
+"""AI tool subcommands: claude, codex, opencode, aider, bash."""
 
 from __future__ import annotations
 
@@ -279,7 +279,6 @@ def _launch_interactive_multi(
     safe: bool,
     use_aws: bool,
     cli_profile: str | None,
-    skip_preflight: bool,
     extra_args: tuple[str, ...],
 ) -> None:
     """Interactive multi-pane launcher.
@@ -352,7 +351,7 @@ def _launch_interactive_multi(
         bedrock_profile=cli_profile or config.bedrock_profile,
     )
 
-    if use_bedrock and not skip_preflight:
+    if use_bedrock:
         _check_bedrock_access(container_name, exec_env)
 
     # Handle shared Chrome if requested.
@@ -414,7 +413,6 @@ def _launch_team(
     safe: bool,
     use_aws: bool,
     cli_profile: str | None,
-    skip_preflight: bool,
     extra_args: tuple[str, ...],
 ) -> None:
     """Launch Claude Code in Agent Teams mode.
@@ -466,7 +464,7 @@ def _launch_team(
         team_mode=True,
     )
 
-    if use_bedrock and not skip_preflight:
+    if use_bedrock:
         _check_bedrock_access(container_name, exec_env)
 
     workdir = f"/root/projects/{config.project_name}"
@@ -496,7 +494,6 @@ def _launch_single_repo_multi(
     safe: bool,
     use_aws: bool,
     cli_profile: str | None,
-    skip_preflight: bool,
     extra_args: tuple[str, ...],
     worktree_name: str | None = None,
 ) -> None:
@@ -538,7 +535,7 @@ def _launch_single_repo_multi(
         bedrock_profile=cli_profile or config.bedrock_profile,
     )
 
-    if use_bedrock and not skip_preflight:
+    if use_bedrock:
         _check_bedrock_access(container_name, exec_env)
 
     container_project_root = f"/root/projects/{config.project_name}"
@@ -586,7 +583,6 @@ def _launch_multi(
     safe: bool,
     use_aws: bool,
     cli_profile: str | None,
-    skip_preflight: bool,
     extra_args: tuple[str, ...],
     worktree_name: str | None = None,
 ) -> None:
@@ -649,7 +645,6 @@ def _launch_multi(
             safe=safe,
             use_aws=use_aws,
             cli_profile=cli_profile,
-            skip_preflight=skip_preflight,
             extra_args=extra_args,
             worktree_name=worktree_name,
         )
@@ -707,7 +702,7 @@ def _launch_multi(
             bedrock_profile=cli_profile or config.bedrock_profile,
         )
 
-        if use_bedrock and not skip_preflight:
+        if use_bedrock:
             _check_bedrock_access(container_name, exec_env)
 
         workdir = f"/root/projects/{config.project_name}"
@@ -755,7 +750,7 @@ def _launch_multi(
         bedrock_profile=cli_profile or config.bedrock_profile,
     )
 
-    if use_bedrock and not skip_preflight:
+    if use_bedrock:
         _check_bedrock_access(container_name, exec_env)
 
     # Resolve worktree name (auto-generate if flag given without value)
@@ -813,44 +808,9 @@ def _launch_multi(
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option(
-    "--init",
-    "do_init",
-    is_flag=True,
-    default=False,
-    help="Create .claude/ project config in current directory and exit.",
-)
-@click.option(
-    "--update",
-    "do_update",
-    is_flag=True,
-    default=False,
-    help="Update managed files, merging settings to preserve user customizations.",
-)
-@click.option(
-    "--reset",
-    "do_reset",
-    is_flag=True,
-    default=False,
-    help="Force-overwrite all managed config files from templates.",
-)
-@click.option(
-    "--clean",
-    "do_clean",
-    is_flag=True,
-    default=False,
-    help="Delete and recreate .claude/ config from templates.",
-)
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
-@click.option(
-    "--no-preflight",
-    "skip_preflight",
-    is_flag=True,
-    default=False,
-    help="Skip Bedrock pre-flight check (for debugging).",
-)
 @click.option(
     "--worktree",
     "-w",
@@ -913,14 +873,9 @@ def _launch_multi(
 @click.pass_context
 def claude(
     ctx,
-    do_init,
-    do_update,
-    do_reset,
-    do_clean,
     safe,
     use_aws,
     cli_profile,
-    skip_preflight,
     worktree_name,
     do_multi,
     do_team,
@@ -930,12 +885,8 @@ def claude(
 ):
     """Launch Claude Code in the dev container."""
     # Incompatibility checks
-    if do_multi and any([do_init, do_update, do_reset, do_clean]):
-        raise click.ClickException("--multi is incompatible with --init/--update/--reset/--clean.")
     if do_team and do_multi:
         raise click.ClickException("--team and --multi are incompatible (both manage tmux).")
-    if do_team and any([do_init, do_update, do_reset, do_clean]):
-        raise click.ClickException("--team is incompatible with --init/--update/--reset/--clean.")
     if do_interactive and not do_multi:
         raise click.ClickException("--interactive requires --multi.")
     if do_interactive and do_team:
@@ -948,17 +899,6 @@ def claude(
             "(interactive handles Chrome setup itself)."
         )
 
-    if do_init or do_update or do_reset or do_clean:
-        from ai_shell.scaffold import scaffold_claude as _scaffold_claude
-
-        _scaffold_claude(
-            Path.cwd(),
-            overwrite=do_reset or do_clean,
-            clean=do_clean,
-            merge=do_update,
-        )
-        return
-
     if do_multi:
         if do_interactive:
             _launch_interactive_multi(
@@ -966,7 +906,6 @@ def claude(
                 safe=safe,
                 use_aws=use_aws,
                 cli_profile=cli_profile,
-                skip_preflight=skip_preflight,
                 extra_args=extra_args,
             )
             return
@@ -975,7 +914,6 @@ def claude(
             safe=safe,
             use_aws=use_aws,
             cli_profile=cli_profile,
-            skip_preflight=skip_preflight,
             extra_args=extra_args,
             worktree_name=worktree_name,
         )
@@ -987,18 +925,11 @@ def claude(
             safe=safe,
             use_aws=use_aws,
             cli_profile=cli_profile,
-            skip_preflight=skip_preflight,
             extra_args=extra_args,
         )
         return
 
     # Auto-init if .claude/ is missing
-    if not (Path.cwd() / ".claude").exists():
-        console.print("[dim].claude/ not found - running first-time init...[/dim]")
-        from ai_shell.scaffold import scaffold_claude as _scaffold_claude
-
-        _scaffold_claude(Path.cwd())
-
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
@@ -1014,11 +945,10 @@ def claude(
         profile_label = exec_env.get("AWS_PROFILE", "default")
         region_label = exec_env.get("AWS_REGION", "us-east-1")
         bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-        if not skip_preflight:
-            console.print(
-                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
-            )
-            _check_bedrock_access(name, exec_env)
+        console.print(
+            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+        )
+        _check_bedrock_access(name, exec_env)
     else:
         bedrock_label = ""
 
@@ -1084,77 +1014,19 @@ def claude(
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option(
-    "--init",
-    "do_init",
-    is_flag=True,
-    default=False,
-    help="Create .codex/ and .agents/ project config in current directory and exit.",
-)
-@click.option(
-    "--update",
-    "do_update",
-    is_flag=True,
-    default=False,
-    help="Update managed files, merging settings to preserve user customizations.",
-)
-@click.option(
-    "--reset",
-    "do_reset",
-    is_flag=True,
-    default=False,
-    help="Force-overwrite all managed config files from templates.",
-)
-@click.option(
-    "--clean",
-    "do_clean",
-    is_flag=True,
-    default=False,
-    help="Delete and recreate .codex/ and .agents/ config from templates.",
-)
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
-@click.option(
-    "--no-preflight",
-    "skip_preflight",
-    is_flag=True,
-    default=False,
-    help="Skip Bedrock pre-flight check (for debugging).",
-)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def codex(
     ctx,
-    do_init,
-    do_update,
-    do_reset,
-    do_clean,
     safe,
     use_aws,
     cli_profile,
-    skip_preflight,
     extra_args,
 ):
     """Launch Codex in the dev container."""
-    if do_init or do_update or do_reset or do_clean:
-        from ai_shell.scaffold import scaffold_codex as _scaffold_codex
-
-        _scaffold_codex(
-            Path.cwd(),
-            overwrite=do_reset or do_clean,
-            clean=do_clean,
-            merge=do_update,
-        )
-        return
-
-    # Auto-init if .codex/ is missing
-    if not (Path.cwd() / ".codex").exists():
-        console.print("[dim].codex/ not found - running first-time init...[/dim]")
-        from ai_shell.scaffold import scaffold_codex as _scaffold_codex
-
-        _scaffold_codex(Path.cwd())
-
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
@@ -1177,11 +1049,10 @@ def codex(
         profile_label = exec_env.get("AWS_PROFILE", "default")
         region_label = exec_env.get("AWS_REGION", "us-east-1")
         bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-        if not skip_preflight:
-            console.print(
-                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
-            )
-            _check_bedrock_access(name, exec_env)
+        console.print(
+            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+        )
+        _check_bedrock_access(name, exec_env)
     else:
         bedrock_label = ""
 
@@ -1195,75 +1066,17 @@ def codex(
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option(
-    "--init",
-    "do_init",
-    is_flag=True,
-    default=False,
-    help="Create opencode project config in current directory and exit.",
-)
-@click.option(
-    "--update",
-    "do_update",
-    is_flag=True,
-    default=False,
-    help="Update managed files, merging settings to preserve user customizations.",
-)
-@click.option(
-    "--reset",
-    "do_reset",
-    is_flag=True,
-    default=False,
-    help="Force-overwrite all managed config files from templates.",
-)
-@click.option(
-    "--clean",
-    "do_clean",
-    is_flag=True,
-    default=False,
-    help="Delete and recreate opencode and .agents/ config from templates.",
-)
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
-@click.option(
-    "--no-preflight",
-    "skip_preflight",
-    is_flag=True,
-    default=False,
-    help="Skip Bedrock pre-flight check (for debugging).",
-)
 @click.pass_context
 def opencode(
     ctx,
-    do_init,
-    do_update,
-    do_reset,
-    do_clean,
     safe,
     use_aws,
     cli_profile,
-    skip_preflight,
 ):
     """Launch opencode in the dev container."""
-    if do_init or do_update or do_reset or do_clean:
-        from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
-
-        _scaffold_opencode(
-            Path.cwd(),
-            overwrite=do_reset or do_clean,
-            clean=do_clean,
-            merge=do_update,
-        )
-        return
-
-    # Auto-init if opencode.json is missing
-    if not (Path.cwd() / "opencode.json").exists():
-        console.print("[dim]opencode.json not found - running first-time init...[/dim]")
-        from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
-
-        _scaffold_opencode(Path.cwd())
-
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
@@ -1279,11 +1092,10 @@ def opencode(
         profile_label = exec_env.get("AWS_PROFILE", "default")
         region_label = exec_env.get("AWS_REGION", "us-east-1")
         bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-        if not skip_preflight:
-            console.print(
-                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
-            )
-            _check_bedrock_access(name, exec_env)
+        console.print(
+            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+        )
+        _check_bedrock_access(name, exec_env)
     else:
         bedrock_label = ""
 
@@ -1293,57 +1105,11 @@ def opencode(
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option(
-    "--init",
-    "do_init",
-    is_flag=True,
-    default=False,
-    help="Create aider project config in current directory and exit.",
-)
-@click.option(
-    "--update",
-    "do_update",
-    is_flag=True,
-    default=False,
-    help="Update managed files, merging settings to preserve user customizations.",
-)
-@click.option(
-    "--reset",
-    "do_reset",
-    is_flag=True,
-    default=False,
-    help="Force-overwrite all managed config files from templates.",
-)
-@click.option(
-    "--clean",
-    "do_clean",
-    is_flag=True,
-    default=False,
-    help="Delete and recreate aider config from templates.",
-)
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def aider(ctx, do_init, do_update, do_reset, do_clean, safe, extra_args):
+def aider(ctx, safe, extra_args):
     """Launch aider with local LLM in the dev container."""
-    if do_init or do_update or do_reset or do_clean:
-        from ai_shell.scaffold import scaffold_aider as _scaffold_aider
-
-        _scaffold_aider(
-            Path.cwd(),
-            overwrite=do_reset or do_clean,
-            clean=do_clean,
-            merge=do_update,
-        )
-        return
-
-    # Auto-init if .aider.conf.yml is missing
-    if not (Path.cwd() / ".aider.conf.yml").exists():
-        console.print("[dim].aider.conf.yml not found - running first-time init...[/dim]")
-        from ai_shell.scaffold import scaffold_aider as _scaffold_aider
-
-        _scaffold_aider(Path.cwd())
-
     manager, name, exec_env, config = _get_manager(ctx)
     cmd = ["aider", "--model", config.aider_model]
     if not safe:
@@ -1357,79 +1123,16 @@ def aider(ctx, do_init, do_update, do_reset, do_clean, safe, extra_args):
 
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.pass_context
-def shell(ctx):
+def bash(ctx):
     """Open a bash shell in the dev container."""
     manager, name, exec_env, _config = _get_manager(ctx)
-    console.print(f"[bold]Opening shell in {name}...[/bold]")
+    console.print(f"[bold]Opening bash in {name}...[/bold]")
     manager.exec_interactive(name, ["/bin/bash"], extra_env=exec_env)
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option(
-    "--update",
-    is_flag=True,
-    default=False,
-    help="Update managed files, merging settings to preserve user customizations.",
-)
-@click.option(
-    "--reset",
-    is_flag=True,
-    default=False,
-    help="Force-overwrite all managed config files from templates.",
-)
-@click.option(
-    "--clean",
-    is_flag=True,
-    default=False,
-    help="Delete and recreate all config from templates.",
-)
-@click.option(
-    "--all",
-    "scaffold_all",
-    is_flag=True,
-    default=False,
-    help="Also scaffold all tool configs (claude, codex, opencode, aider).",
-)
-def init(update, reset, clean, scaffold_all):
-    """Initialize ai-shell config files in the current directory."""
-    from ai_shell.scaffold import scaffold_aider as _scaffold_aider
-    from ai_shell.scaffold import scaffold_claude as _scaffold_claude
-    from ai_shell.scaffold import scaffold_codex as _scaffold_codex
-    from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
+def init():
+    """Create .ai-shell.yaml config in the current directory."""
     from ai_shell.scaffold import scaffold_project
 
-    overwrite = reset or clean
-    merge = update
-    target_dir = Path.cwd()
-
-    scaffold_project(
-        target_dir,
-        overwrite=overwrite,
-        clean=clean,
-        merge=merge,
-    )
-    if scaffold_all:
-        _scaffold_claude(
-            target_dir,
-            overwrite=overwrite,
-            clean=clean,
-            merge=merge,
-        )
-        _scaffold_opencode(
-            target_dir,
-            overwrite=overwrite,
-            clean=clean,
-            merge=merge,
-        )
-        _scaffold_codex(
-            target_dir,
-            overwrite=overwrite,
-            clean=clean,
-            merge=merge,
-        )
-        _scaffold_aider(
-            target_dir,
-            overwrite=overwrite,
-            clean=clean,
-            merge=merge,
-        )
+    scaffold_project(Path.cwd())
