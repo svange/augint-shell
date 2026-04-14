@@ -28,6 +28,7 @@ SHM_SIZE = "2g"
 # Volume names (prefixed to avoid collisions)
 # =============================================================================
 UV_CACHE_VOLUME = "augint-shell-uv-cache"
+GH_CONFIG_VOLUME = "augint-shell-gh-config"
 
 
 def uv_venv_path(repo_name: str, worktree_name: str | None = None) -> str:
@@ -163,7 +164,9 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
         else:
             logger.debug("Skipping optional mount (not found): %s", source)
 
-    # Optional: gh CLI config (Linux/Mac path or WSL2 Windows APPDATA path)
+    # gh CLI config: bind-mount the host path when found (Linux/Mac/WSL2),
+    # otherwise use a named volume so auth persists across container recreations
+    # (needed on Windows where gh stores tokens in keyring, not a file).
     gh_config = _find_gh_config_dir()
     if gh_config is not None:
         mounts.append(
@@ -172,6 +175,14 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
                 source=str(gh_config),
                 type="bind",
                 read_only=False,
+            )
+        )
+    else:
+        mounts.append(
+            Mount(
+                target="/root/.config/gh",
+                source=GH_CONFIG_VOLUME,
+                type="volume",
             )
         )
 

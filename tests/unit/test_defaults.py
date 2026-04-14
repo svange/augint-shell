@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from ai_shell.defaults import (
     CONTAINER_PREFIX,
+    GH_CONFIG_VOLUME,
     NPM_CACHE_VOLUME,
     UV_CACHE_VOLUME,
     build_dev_environment,
@@ -109,19 +110,24 @@ class TestBuildDevMounts:
         project_dir.mkdir()
 
         # With a fake home that has nothing in it
-        with patch("ai_shell.defaults.Path.home", return_value=tmp_path / "fakehome"):
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path / "fakehome"),
+            patch.dict("os.environ", {}, clear=True),
+        ):
             (tmp_path / "fakehome").mkdir()
             mounts = build_dev_mounts(project_dir, "test-project")
 
-        # Should have project dir + cache volumes, but no optional mounts
         targets = [m.get("Target") for m in mounts]
         assert "/root/projects/test-project" in targets
         assert "/root/.cache/uv" in targets
         assert "/root/.npm" in targets
-        # Optional mounts should NOT be present since paths don't exist
         assert "/root/.ssh" not in targets
         assert "/root/.claude" not in targets
-        assert "/root/.config/gh" not in targets
+        # No host path found → falls back to named volume (not a bind mount)
+        gh_mount = next((m for m in mounts if m.get("Target") == "/root/.config/gh"), None)
+        assert gh_mount is not None
+        assert gh_mount.get("Type") == "volume"
+        assert gh_mount.get("Source") == GH_CONFIG_VOLUME
 
     def test_includes_existing_optional_paths(self, tmp_path):
         project_dir = tmp_path / "test-project"
@@ -134,14 +140,20 @@ class TestBuildDevMounts:
         (fake_home / ".aws").mkdir()
         (fake_home / ".config" / "gh").mkdir(parents=True)
 
-        with patch("ai_shell.defaults.Path.home", return_value=fake_home):
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=fake_home),
+            patch.dict("os.environ", {}, clear=True),
+        ):
             mounts = build_dev_mounts(project_dir, "test-project")
 
         targets = [m.get("Target") for m in mounts]
         assert "/root/.ssh" in targets
         assert "/root/.claude" in targets
         assert "/root/.aws" in targets
-        assert "/root/.config/gh" in targets
+        # Host path found → bind mount (not named volume)
+        gh_mount = next((m for m in mounts if m.get("Target") == "/root/.config/gh"), None)
+        assert gh_mount is not None
+        assert gh_mount.get("Type") == "bind"
 
 
 class TestBuildDevEnvironment:
