@@ -128,6 +128,54 @@ class TestBuildClaudePaneCommand:
         assert "UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/my-repo;" in cmd
         assert "-wt-" not in cmd
 
+    def test_mcp_config_path_in_command(self):
+        cmd = build_claude_pane_command(
+            repo_name="my-repo", mcp_config_path="/etc/ai-shell/chrome-mcp.json"
+        )
+        assert "--mcp-config" in cmd
+        assert "/etc/ai-shell/chrome-mcp.json" in cmd
+
+    def test_mcp_config_path_in_both_retry_branches(self):
+        cmd = build_claude_pane_command(
+            repo_name="my-repo", mcp_config_path="/etc/ai-shell/chrome-mcp.json"
+        )
+        parts = cmd.split("||")
+        assert "--mcp-config" in parts[0]
+        assert "--mcp-config" in parts[1]
+
+    def test_mcp_config_path_in_safe_mode(self):
+        cmd = build_claude_pane_command(
+            repo_name="my-repo", safe=True, mcp_config_path="/etc/ai-shell/chrome-mcp.json"
+        )
+        assert "--mcp-config" in cmd
+        assert "/etc/ai-shell/chrome-mcp.json" in cmd
+
+    def test_mcp_config_path_none_no_flag(self):
+        cmd = build_claude_pane_command(repo_name="my-repo", mcp_config_path=None)
+        assert "--mcp-config" not in cmd
+
+    def test_team_env_exports_agent_teams(self):
+        cmd = build_claude_pane_command(repo_name="my-repo", team_env=True)
+        assert "export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1;" in cmd
+
+    def test_team_env_false_no_agent_teams(self):
+        cmd = build_claude_pane_command(repo_name="my-repo", team_env=False)
+        assert "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" not in cmd
+
+    def test_team_env_with_safe_mode(self):
+        cmd = build_claude_pane_command(repo_name="my-repo", safe=True, team_env=True)
+        assert "export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1;" in cmd
+        assert "--dangerously-skip-permissions" not in cmd
+
+    def test_mcp_and_team_combined(self):
+        cmd = build_claude_pane_command(
+            repo_name="my-repo",
+            mcp_config_path="/etc/ai-shell/chrome-mcp.json",
+            team_env=True,
+        )
+        assert "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1" in cmd
+        assert "--mcp-config" in cmd
+
 
 class TestPaneSpec:
     def test_construction(self):

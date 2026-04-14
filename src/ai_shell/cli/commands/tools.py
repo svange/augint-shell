@@ -273,6 +273,141 @@ def _load_workspace_repos(workspace_yaml: Path) -> tuple[str, list[dict[str, Any
     return workspace_name, repos
 
 
+def _launch_interactive_multi(
+    ctx: click.Context,
+    *,
+    safe: bool,
+    use_aws: bool,
+    cli_profile: str | None,
+    skip_preflight: bool,
+    extra_args: tuple[str, ...],
+) -> None:
+    """Interactive multi-pane launcher.
+
+    Walks the user through a guided wizard to configure each tmux pane,
+    then builds and launches the customised tmux session.
+    """
+    from ai_shell.interactive import build_interactive_panes, run_interactive_wizard
+    from ai_shell.tmux import (
+        TMUX_SESSION_PREFIX,
+        build_attach_command,
+        build_check_session_command,
+        build_tmux_commands,
+    )
+
+    # Load config early -- needed for session check and container setup.
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    session_name = f"{TMUX_SESSION_PREFIX}-{config.project_name}"
+    container_name = dev_container_name(config.project_name, config.project_dir)
+
+    # Check for existing tmux session.
+    check_cmd = build_check_session_command(container_name, session_name)
+    has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0
+
+    if has_session:
+        console.print(f"[bold]Found existing tmux session '[cyan]{session_name}[/cyan]'.[/bold]")
+        choice = click.prompt(
+            "  Reconnect, start fresh, or cancel?",
+            type=click.Choice(["reconnect", "fresh", "cancel"], case_sensitive=False),
+            default="reconnect",
+        )
+        if choice == "reconnect":
+            attach_cmd = build_attach_command(container_name, session_name)
+            logger.debug("tmux reattach: %s", " ".join(attach_cmd))
+            sys.stdout.flush()
+            sys.stderr.flush()
+            attach = subprocess.run(attach_cmd)
+            sys.exit(attach.returncode)
+        elif choice == "cancel":
+            return
+        # choice == "fresh": fall through to wizard
+
+    # Gather workspace repos if available.
+    workspace_yaml = Path.cwd() / "workspace.yaml"
+    workspace_repos = None
+    if workspace_yaml.exists():
+        _, workspace_repos = _load_workspace_repos(workspace_yaml)
+
+    # Run the wizard.
+    interactive_config = run_interactive_wizard(
+        project_name=config.project_name,
+        workspace_repos=workspace_repos,
+    )
+    if interactive_config is None:
+        console.print("[dim]Cancelled.[/dim]")
+        return
+
+    # Ensure container is running.
+    use_bedrock = use_aws or config.claude_provider == "aws"
+    manager = ContainerManager(config)
+    container_name = manager.ensure_dev_container()
+    exec_env = build_dev_environment(
+        config.extra_env,
+        config.project_dir,
+        project_name=config.project_name,
+        bedrock=use_bedrock,
+        aws_profile=config.ai_profile,
+        aws_region=config.aws_region,
+        bedrock_profile=cli_profile or config.bedrock_profile,
+    )
+
+    if use_bedrock and not skip_preflight:
+        _check_bedrock_access(container_name, exec_env)
+
+    # Handle shared Chrome if requested.
+    mcp_config_path: str | None = None
+    if interactive_config.shared_chrome:
+        from ai_shell.local_chrome import (
+            LocalChromeUnavailable,
+            ensure_host_chrome,
+            start_chrome_proxy,
+            write_mcp_config,
+        )
+
+        console.print("[dim]Connecting to host Chrome...[/dim]")
+        try:
+            chrome_port = ensure_host_chrome(container_name)
+        except LocalChromeUnavailable as exc:
+            raise click.ClickException(str(exc)) from exc
+
+        start_chrome_proxy(container_name, chrome_port)
+        host_mcp_path = write_mcp_config(chrome_port)
+        mcp_config_path = "/etc/ai-shell/chrome-mcp.json"
+        _inject_mcp_config(container_name, str(host_mcp_path), mcp_config_path)
+        console.print("[dim]Chrome DevTools MCP attached.[/dim]")
+
+    # Build pane specs.
+    container_project_root = f"/root/projects/{config.project_name}"
+    panes = build_interactive_panes(
+        config=interactive_config,
+        project_name=config.project_name,
+        container_name=container_name,
+        container_project_root=container_project_root,
+        safe=safe,
+        extra_args=extra_args,
+        mcp_config_path=mcp_config_path,
+        setup_worktree_fn=_setup_worktree,
+    )
+
+    # Build and run tmux commands.
+    cmds = build_tmux_commands(container_name, session_name, panes)
+
+    console.print(f"[bold]Launching {len(panes)} panes in tmux session '{session_name}'...[/bold]")
+
+    for cmd_args in cmds[:-1]:
+        result = subprocess.run(cmd_args, capture_output=True, text=True)
+        if result.returncode != 0 and "kill-session" not in " ".join(cmd_args):
+            logger.debug("tmux setup command failed: %s\n%s", cmd_args, result.stderr)
+
+    final_cmd = cmds[-1]
+    logger.debug("tmux attach: %s", " ".join(final_cmd))
+    sys.stdout.flush()
+    sys.stderr.flush()
+    attach = subprocess.run(final_cmd)
+    sys.exit(attach.returncode)
+
+
 def _launch_team(
     ctx: click.Context,
     *,
@@ -762,6 +897,18 @@ def _launch_multi(
         "over your real Windows Chrome tabs."
     ),
 )
+@click.option(
+    "--interactive",
+    "-i",
+    "do_interactive",
+    is_flag=True,
+    default=False,
+    help=(
+        "Interactive multi-pane setup: walk through a guided menu to "
+        "configure window types, teams mode, and shared Chrome before "
+        "launching tmux.  Requires --multi."
+    ),
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def claude(
@@ -778,6 +925,7 @@ def claude(
     do_multi,
     do_team,
     local_chrome,
+    do_interactive,
     extra_args,
 ):
     """Launch Claude Code in the dev container."""
@@ -788,6 +936,17 @@ def claude(
         raise click.ClickException("--team and --multi are incompatible (both manage tmux).")
     if do_team and any([do_init, do_update, do_reset, do_clean]):
         raise click.ClickException("--team is incompatible with --init/--update/--reset/--clean.")
+    if do_interactive and not do_multi:
+        raise click.ClickException("--interactive requires --multi.")
+    if do_interactive and do_team:
+        raise click.ClickException(
+            "--interactive and --team are incompatible (interactive handles teams mode itself)."
+        )
+    if do_interactive and local_chrome:
+        raise click.ClickException(
+            "--interactive and --local-chrome are incompatible "
+            "(interactive handles Chrome setup itself)."
+        )
 
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_claude as _scaffold_claude
@@ -801,6 +960,16 @@ def claude(
         return
 
     if do_multi:
+        if do_interactive:
+            _launch_interactive_multi(
+                ctx,
+                safe=safe,
+                use_aws=use_aws,
+                cli_profile=cli_profile,
+                skip_preflight=skip_preflight,
+                extra_args=extra_args,
+            )
+            return
         _launch_multi(
             ctx,
             safe=safe,

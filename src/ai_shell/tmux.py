@@ -52,6 +52,8 @@ def build_claude_pane_command(
     extra_args: tuple[str, ...] = (),
     worktree_name: str | None = None,
     sync_deps: bool = True,
+    mcp_config_path: str | None = None,
+    team_env: bool = False,
 ) -> str:
     """Build the claude invocation string for a single tmux pane.
 
@@ -65,28 +67,50 @@ def build_claude_pane_command(
     When *sync_deps* is True (default), prepends ``uv sync`` / ``npm ci``
     commands so the per-repo venv is initialised before Claude starts.
 
+    When *mcp_config_path* is set, inserts ``--mcp-config <path>`` into the
+    claude argument list so the pane gets access to the MCP server.
+
+    When *team_env* is True, exports
+    ``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` so this pane runs in Agent
+    Teams mode.
+
     In non-safe mode, tries ``claude -c`` (continue previous conversation)
     first; falls back to a fresh session if that fails (e.g. no prior
     conversation exists).
     """
     uv_env = f"UV_PROJECT_ENVIRONMENT={uv_venv_path(repo_name, worktree_name)}"
 
+    env_exports = f"export {uv_env};"
+    if team_env:
+        env_exports += " export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1;"
+
     dep_prefix = _build_dep_sync_prefix() if sync_deps else ""
 
+    mcp_args: list[str] = []
+    if mcp_config_path:
+        mcp_args = ["--mcp-config", mcp_config_path]
+
     if safe:
-        parts: list[str] = ["claude", "-n", repo_name]
+        parts: list[str] = ["claude", *mcp_args, "-n", repo_name]
         if extra_args:
             parts.append("--")
             parts.extend(extra_args)
         cmd = " ".join(shlex.quote(p) for p in parts)
-        return f"export {uv_env}; {dep_prefix}{cmd}"
+        return f"{env_exports} {dep_prefix}{cmd}"
 
     # Non-safe: build two commands -- continue attempt and fresh fallback
-    base_parts: list[str] = ["claude", "--dangerously-skip-permissions", "-n", repo_name]
+    base_parts: list[str] = [
+        "claude",
+        "--dangerously-skip-permissions",
+        *mcp_args,
+        "-n",
+        repo_name,
+    ]
     continue_parts: list[str] = [
         "claude",
         "--dangerously-skip-permissions",
         "-c",
+        *mcp_args,
         "-n",
         repo_name,
     ]
@@ -98,7 +122,7 @@ def build_claude_pane_command(
     continue_cmd = " ".join(shlex.quote(p) for p in continue_parts) + extra_suffix
     fresh_cmd = " ".join(shlex.quote(p) for p in base_parts) + extra_suffix
 
-    return f"export {uv_env}; {dep_prefix}{continue_cmd} || {fresh_cmd}"
+    return f"{env_exports} {dep_prefix}{continue_cmd} || {fresh_cmd}"
 
 
 def build_check_session_command(container_name: str, session_name: str) -> list[str]:
