@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.67.0 (2026-04-14)
+
+### Features
+
+- Add support for new LLMs on RTX 4090 (Qwen3.5, Qwen2.5-Coder, Llama 3.1, Dolphin3)
+  ([`afd2183`](https://github.com/svange/augint-shell/commit/afd2183b8bab542364308fc7be7ce8b5e81b4790))
+
+
 ## v0.66.0 (2026-04-14)
 
 ### Features
