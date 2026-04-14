@@ -27,7 +27,7 @@
   {
     "License": "GNU Library or Lesser General Public License (LGPL)",
     "Name": "PyGithub",
-    "Version": "2.9.0"
+    "Version": "2.9.1"
   },
   {
     "License": "MIT",
@@ -62,12 +62,12 @@
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.68.0"
+    "Version": "0.69.0"
   },
   {
     "License": "UNKNOWN",
     "Name": "augint-tools",
-    "Version": "4.2.1"
+    "Version": "4.7.0"
   },
   {
     "License": "Apache-2.0",
