@@ -32,6 +32,18 @@
         },
         "dolphin3:8b": {
           "name": "Dolphin 3.0 8B – Uncensored Llama 3.1 (Local)"
+        },
+        "qwen3.5:9b": {
+          "name": "Qwen 3.5 9B – Chat (Local, 5070 Ti)"
+        },
+        "huihui_ai/qwen3.5-abliterated:9b": {
+          "name": "Qwen 3.5 9B Abliterated – Uncensored Chat (Local, 5070 Ti)"
+        },
+        "qwen2.5-coder:14b-instruct": {
+          "name": "Qwen2.5 Coder 14B – Coding (Local, 5070 Ti)"
+        },
+        "huihui_ai/qwen3.5-abliterated:9b-OmniCoder": {
+          "name": "Qwen 3.5 9B OmniCoder – Uncensored Coding (Local, 5070 Ti)"
         }
       }
     },

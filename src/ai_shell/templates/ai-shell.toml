@@ -162,6 +162,24 @@
 #   ollama pull qwen3:14b-q4_k_m
 #   ollama pull qwen3:32b-q4_k_m
 #
+# ─── RTX 5070 Ti model guide (12 GiB VRAM) ──────────────────────────────────
+#
+# Chat models
+# ────────────
+# qwen3.5:9b                              ~7 GiB   Q4_K_M  best chat, 256K ctx, multimodal
+# huihui_ai/qwen3.5-abliterated:9b        ~7 GiB   Q4_K    uncensored Qwen3.5 (abliterated)
+#
+# Coding models
+# ──────────────
+# qwen2.5-coder:14b-instruct              ~9 GiB   Q4_K_M  largest dedicated coder that fits
+# huihui_ai/qwen3.5-abliterated:9b-OmniCoder  ~6 GiB  Q4_K  uncensored coding variant
+#
+# Quick-start pull commands (run inside `ai-shell llm shell`):
+#   ollama pull qwen3.5:9b
+#   ollama pull huihui_ai/qwen3.5-abliterated:9b
+#   ollama pull qwen2.5-coder:14b-instruct
+#   ollama pull huihui_ai/qwen3.5-abliterated:9b-OmniCoder
+#
 # After pulling, set primary_model (and fallback_model) below, then run:
 #   ai-shell llm setup        # pulls models + applies context-window config
 #
@@ -188,6 +206,30 @@
 # [llm]
 # primary_model = "dolphin3:8b"
 # fallback_model = "llama3.1:8b"
+# context_size = 32768
+#
+# --- Example: 5070 Ti coding-focused setup ---
+# [llm]
+# primary_model = "qwen2.5-coder:14b-instruct"
+# fallback_model = "qwen3.5:9b"
+# context_size = 32768
+#
+# --- Example: 5070 Ti general-chat setup ---
+# [llm]
+# primary_model = "qwen3.5:9b"
+# fallback_model = "huihui_ai/qwen3.5-abliterated:9b"
+# context_size = 32768
+#
+# --- Example: 5070 Ti uncensored-chat setup ---
+# [llm]
+# primary_model = "huihui_ai/qwen3.5-abliterated:9b"
+# fallback_model = "dolphin3:8b"
+# context_size = 32768
+#
+# --- Example: 5070 Ti uncensored-coding setup ---
+# [llm]
+# primary_model = "huihui_ai/qwen3.5-abliterated:9b-OmniCoder"
+# fallback_model = "qwen2.5-coder:14b-instruct"
 # context_size = 32768
 
 # =============================================================================
