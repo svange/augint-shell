@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.64.1 (2026-04-14)
+
+### Bug Fixes
+
+- Detect Windows gh CLI config path for WSL2 users
+  ([`86543d1`](https://github.com/svange/augint-shell/commit/86543d1540de56dfc542db9e001ede52273c15d8))
+
+
 ## v0.64.0 (2026-04-13)
 
 ### Features
