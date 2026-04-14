@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.71.0 (2026-04-14)
+
+### Features
+
+- Add interactive multi-pane wizard for claude --multi -i
+  ([`3236d49`](https://github.com/svange/augint-shell/commit/3236d49a115a7c197ca54a9b6b21cfce13120094))
+
+
 ## v0.70.0 (2026-04-14)
 
 ### Features
