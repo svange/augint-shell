@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.71.2 (2026-04-14)
+
+### Bug Fixes
+
+- Prefer SSO keyring token over PAT in container entrypoint
+  ([`f162690`](https://github.com/svange/augint-shell/commit/f1626907771baaf0e42d58201b6e66b3114ca214))
+
+
 ## v0.71.1 (2026-04-14)
 
 ### Refactoring
