@@ -498,7 +498,7 @@ Incompatibility: `--multi` + `--init/--update/--reset/--clean/--worktree` raises
 
 | Scenario | Behavior |
 |----------|----------|
-| No `workspace.yaml` | Error: "--multi requires a workspace repo (no workspace.yaml found)" |
+| No `workspace.yaml` | Single-repo mode: prompts "How many windows?" (2–4), then creates one git worktree per window and opens each in a tmux pane |
 | 0 selections | Print "No repos selected" and exit cleanly |
 | 1 selection | Skip tmux, run claude directly for that repo |
 | Repo dir doesn't exist | Error: "woxom-crm not found. Run /ai-workspace-sync first" |

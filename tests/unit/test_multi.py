@@ -535,19 +535,121 @@ class TestClaudeMultiCLI:
     def setup_method(self):
         self.runner = CliRunner()
 
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
     @patch("ai_shell.cli.commands.tools._check_bedrock_access")
     @patch("ai_shell.cli.commands.tools.build_dev_environment")
     @patch("ai_shell.cli.commands.tools.ContainerManager")
     @patch("ai_shell.cli.commands.tools.load_config")
-    def test_multi_no_workspace_yaml(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    def test_multi_no_workspace_yaml_launches_single_repo_mode(
+        self,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+        mock_dev_name,
+        mock_subprocess,
     ):
-        """--multi without workspace.yaml gives a clear error."""
-        with self.runner.isolated_filesystem():
-            result = self.runner.invoke(cli, ["claude", "--multi"])
+        """--multi without workspace.yaml enters single-repo mode: prompts for windows and creates worktrees."""
+        mock_config.return_value = _make_config_mock(project_name="my-repo")
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
 
-        assert result.exit_code != 0
-        assert "No workspace.yaml found" in result.output
+        mock_subprocess.side_effect = _no_existing_session
+
+        with self.runner.isolated_filesystem():
+            # No workspace.yaml -- user requests 2 windows
+            self.runner.invoke(cli, ["claude", "--multi"], input="2\n")
+
+        # Two worktrees should have been created (one per window)
+        worktree_calls = [
+            call
+            for call in mock_subprocess.call_args_list
+            if isinstance(call[0][0], list) and "git" in call[0][0] and "worktree" in call[0][0]
+        ]
+        assert len(worktree_calls) == 2
+
+        # tmux attach-session should have been called
+        attach_calls = [
+            call
+            for call in mock_subprocess.call_args_list
+            if any("attach-session" in str(a) for a in call[0])
+        ]
+        assert len(attach_calls) >= 1
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    def test_multi_no_workspace_yaml_four_windows(
+        self,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+        mock_dev_name,
+        mock_subprocess,
+    ):
+        """Single-repo --multi with 4 windows creates four worktrees."""
+        mock_config.return_value = _make_config_mock(project_name="my-repo")
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
+
+        mock_subprocess.side_effect = _no_existing_session
+
+        with self.runner.isolated_filesystem():
+            self.runner.invoke(cli, ["claude", "--multi"], input="4\n")
+
+        worktree_calls = [
+            call
+            for call in mock_subprocess.call_args_list
+            if isinstance(call[0][0], list) and "git" in call[0][0] and "worktree" in call[0][0]
+        ]
+        assert len(worktree_calls) == 4
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    def test_multi_no_workspace_yaml_with_named_worktree(
+        self,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+        mock_dev_name,
+        mock_subprocess,
+    ):
+        """--multi --worktree <name> in single-repo mode uses <name>-1, <name>-2 suffixes."""
+        mock_config.return_value = _make_config_mock(project_name="my-repo")
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
+
+        mock_subprocess.side_effect = _no_existing_session
+
+        with self.runner.isolated_filesystem():
+            self.runner.invoke(cli, ["claude", "--multi", "--worktree", "feat-x"], input="2\n")
+
+        # The worktree setup calls should include "feat-x-1" and "feat-x-2"
+        worktree_calls = [
+            call
+            for call in mock_subprocess.call_args_list
+            if isinstance(call[0][0], list) and "git" in call[0][0] and "worktree" in call[0][0]
+        ]
+        assert len(worktree_calls) == 2
+        all_args = " ".join(str(call) for call in worktree_calls)
+        assert "feat-x-1" in all_args
+        assert "feat-x-2" in all_args
 
     @patch("ai_shell.cli.commands.tools._check_bedrock_access")
     @patch("ai_shell.cli.commands.tools.build_dev_environment")
