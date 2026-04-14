@@ -96,6 +96,25 @@ primary_model = "global-model"
 
         assert config.primary_model == "global-model"
 
+    def test_home_yaml_config_loaded(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("llm:\n  primary_model: home-yaml-model\n")
+
+        with patch("ai_shell.config.Path.home", return_value=tmp_path):
+            config = load_config(project_dir=tmp_path / "project")
+
+        assert config.primary_model == "home-yaml-model"
+
+    def test_home_yaml_takes_precedence_over_config_dir(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("llm:\n  primary_model: home-yaml-wins\n")
+        global_dir = tmp_path / ".config" / "ai-shell"
+        global_dir.mkdir(parents=True)
+        (global_dir / "config.toml").write_bytes(b'[llm]\nprimary_model = "config-dir-loses"\n')
+
+        with patch("ai_shell.config.Path.home", return_value=tmp_path):
+            config = load_config(project_dir=tmp_path / "project")
+
+        assert config.primary_model == "home-yaml-wins"
+
     def test_project_toml_overrides_global(self, tmp_path):
         global_dir = tmp_path / ".config" / "ai-shell"
         global_dir.mkdir(parents=True)

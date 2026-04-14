@@ -402,50 +402,21 @@ class TestToolCommands:
 
         mock_check_bedrock.assert_called_once()
 
-    @patch("ai_shell.cli.commands.tools._inject_codex_api_key")
-    def test_codex_bedrock_no_preflight_skips_check(
-        self, mock_inject, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        config = MagicMock()
-        config.codex_openai_api_key = ""
-        config.codex_provider = ""
-        config.codex_profile = ""
-        config.bedrock_profile = ""
-        config.ai_profile = ""
-        config.aws_region = ""
-        config.extra_env = {}
-        config.project_dir = "/tmp/test"
-        mock_config.return_value = config
-
-        bedrock_env = dict(TEST_EXEC_ENV)
-        bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
-        bedrock_env["AWS_PROFILE"] = "rd"
-        mock_build_env.return_value = bedrock_env
-        mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
-        mock_manager.exec_interactive.side_effect = SystemExit(0)
-        mock_manager_cls.return_value = mock_manager
-
-        self.runner.invoke(cli, ["codex", "--aws", "--no-preflight"])
-
-        mock_check_bedrock.assert_not_called()
-
-    def test_shell_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
+    def test_bash_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
         mock_manager.exec_interactive.side_effect = SystemExit(0)
         mock_manager_cls.return_value = mock_manager
 
-        self.runner.invoke(cli, ["shell"])
+        self.runner.invoke(cli, ["bash"])
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert cmd == ["/bin/bash"]
         assert mock_manager.exec_interactive.call_args[1]["extra_env"] == TEST_EXEC_ENV
 
-    @patch("ai_shell.scaffold.scaffold_aider")
     def test_aider_passes_model_and_env(
-        self, mock_scaffold_aider, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
@@ -471,9 +442,8 @@ class TestToolCommands:
         assert extra_env["OLLAMA_API_BASE"] == "http://host.docker.internal:11434"
         assert extra_env["GH_TOKEN"] == "test-token"
 
-    @patch("ai_shell.scaffold.scaffold_aider")
     def test_aider_safe_mode(
-        self, mock_scaffold_aider, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
@@ -492,204 +462,6 @@ class TestToolCommands:
         assert "--yes-always" not in cmd
         assert "--model" in cmd
         assert "--restore-chat-history" in cmd
-
-    def test_opencode_init_calls_scaffold(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
-                result = self.runner.invoke(cli, ["opencode", "--init"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=False,
-            clean=False,
-            merge=False,
-        )
-        mock_manager_cls.assert_not_called()
-        assert result.exit_code == 0
-
-    def test_opencode_update_calls_scaffold_with_merge(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
-                result = self.runner.invoke(cli, ["opencode", "--update"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=False,
-            clean=False,
-            merge=True,
-        )
-        assert result.exit_code == 0
-
-    def test_opencode_reset_calls_scaffold_with_overwrite(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
-                result = self.runner.invoke(cli, ["opencode", "--reset"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=True,
-            clean=False,
-            merge=False,
-        )
-        assert result.exit_code == 0
-
-    def test_opencode_clean_calls_scaffold_with_clean(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_opencode") as mock_scaffold:
-                result = self.runner.invoke(cli, ["opencode", "--clean"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=True,
-            clean=True,
-            merge=False,
-        )
-        mock_manager_cls.assert_not_called()
-        assert result.exit_code == 0
-
-    def test_codex_init_calls_scaffold(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
-                result = self.runner.invoke(cli, ["codex", "--init"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=False,
-            clean=False,
-            merge=False,
-        )
-        mock_manager_cls.assert_not_called()
-        assert result.exit_code == 0
-
-    def test_codex_update_calls_scaffold_with_merge(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
-                result = self.runner.invoke(cli, ["codex", "--update"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=False,
-            clean=False,
-            merge=True,
-        )
-        assert result.exit_code == 0
-
-    def test_codex_reset_calls_scaffold_with_overwrite(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
-                result = self.runner.invoke(cli, ["codex", "--reset"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=True,
-            clean=False,
-            merge=False,
-        )
-        assert result.exit_code == 0
-
-    def test_codex_clean_calls_scaffold_with_clean(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_codex") as mock_scaffold:
-                result = self.runner.invoke(cli, ["codex", "--clean"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=True,
-            clean=True,
-            merge=False,
-        )
-        mock_manager_cls.assert_not_called()
-        assert result.exit_code == 0
-
-    def test_aider_init_calls_scaffold(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
-                result = self.runner.invoke(cli, ["aider", "--init"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=False,
-            clean=False,
-            merge=False,
-        )
-        mock_manager_cls.assert_not_called()
-        assert result.exit_code == 0
-
-    def test_aider_update_calls_scaffold_with_merge(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
-                result = self.runner.invoke(cli, ["aider", "--update"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=False,
-            clean=False,
-            merge=True,
-        )
-        assert result.exit_code == 0
-
-    def test_aider_reset_calls_scaffold_with_overwrite(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
-                result = self.runner.invoke(cli, ["aider", "--reset"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=True,
-            clean=False,
-            merge=False,
-        )
-        assert result.exit_code == 0
-
-    def test_aider_clean_calls_scaffold_with_clean(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        with patch("ai_shell.cli.commands.tools.Path") as mock_path:
-            mock_path.cwd.return_value = "/tmp/test"
-            with patch("ai_shell.scaffold.scaffold_aider") as mock_scaffold:
-                result = self.runner.invoke(cli, ["aider", "--clean"])
-
-        mock_scaffold.assert_called_once_with(
-            "/tmp/test",
-            overwrite=True,
-            clean=True,
-            merge=False,
-        )
-        mock_manager_cls.assert_not_called()
-        assert result.exit_code == 0
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
@@ -946,100 +718,6 @@ class TestCheckBedrockAccess:
         args = mock_run.call_args[0][0]
         shell_cmd = args[-1]
         assert "--profile" not in shell_cmd
-
-
-class TestAutoInit:
-    """Auto-init triggers scaffold on first run when config files are missing."""
-
-    def setup_method(self):
-        self.runner = CliRunner()
-
-    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
-    @patch("ai_shell.cli.commands.tools.build_dev_environment")
-    @patch("ai_shell.cli.commands.tools.ContainerManager")
-    @patch("ai_shell.cli.commands.tools.load_config")
-    @patch("ai_shell.scaffold.scaffold_opencode")
-    def test_opencode_auto_inits_when_config_missing(
-        self, mock_scaffold, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        mock_build_env.return_value = {}
-        config = MagicMock()
-        config.opencode_provider = ""
-        mock_config.return_value = config
-        mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
-        mock_manager.exec_interactive.side_effect = SystemExit(0)
-        mock_manager_cls.return_value = mock_manager
-
-        with self.runner.isolated_filesystem():
-            self.runner.invoke(cli, ["opencode"])
-
-        mock_scaffold.assert_called_once()
-
-    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
-    @patch("ai_shell.cli.commands.tools.build_dev_environment")
-    @patch("ai_shell.cli.commands.tools.ContainerManager")
-    @patch("ai_shell.cli.commands.tools.load_config")
-    @patch("ai_shell.scaffold.scaffold_claude")
-    def test_claude_auto_inits_when_config_missing(
-        self, mock_scaffold, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        mock_build_env.return_value = {}
-        config = MagicMock()
-        config.claude_provider = ""
-        mock_config.return_value = config
-        mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
-        mock_manager.run_interactive.return_value = (0, 30.0)
-        mock_manager_cls.return_value = mock_manager
-
-        with self.runner.isolated_filesystem():
-            self.runner.invoke(cli, ["claude"])
-
-        mock_scaffold.assert_called_once()
-
-    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
-    @patch("ai_shell.cli.commands.tools.build_dev_environment")
-    @patch("ai_shell.cli.commands.tools.ContainerManager")
-    @patch("ai_shell.cli.commands.tools.load_config")
-    @patch("ai_shell.scaffold.scaffold_codex")
-    def test_codex_auto_inits_when_config_missing(
-        self, mock_scaffold, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        mock_build_env.return_value = {}
-        mock_config.return_value = MagicMock()
-        mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
-        mock_manager.exec_interactive.side_effect = SystemExit(0)
-        mock_manager_cls.return_value = mock_manager
-
-        with self.runner.isolated_filesystem():
-            self.runner.invoke(cli, ["codex"])
-
-        mock_scaffold.assert_called_once()
-
-    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
-    @patch("ai_shell.cli.commands.tools.build_dev_environment")
-    @patch("ai_shell.cli.commands.tools.ContainerManager")
-    @patch("ai_shell.cli.commands.tools.load_config")
-    @patch("ai_shell.scaffold.scaffold_aider")
-    def test_aider_auto_inits_when_config_missing(
-        self, mock_scaffold, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        mock_build_env.return_value = {}
-        config = MagicMock()
-        config.aider_model = "ollama_chat/qwen3-coder-next"
-        config.ollama_port = 11434
-        mock_config.return_value = config
-        mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
-        mock_manager.exec_interactive.side_effect = SystemExit(0)
-        mock_manager_cls.return_value = mock_manager
-
-        with self.runner.isolated_filesystem():
-            self.runner.invoke(cli, ["aider"])
-
-        mock_scaffold.assert_called_once()
 
 
 class TestHelpShortFlag:

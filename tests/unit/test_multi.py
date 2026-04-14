@@ -699,17 +699,6 @@ class TestClaudeMultiCLI:
         assert "feat-x-1" in all_args
         assert "feat-x-2" in all_args
 
-    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
-    @patch("ai_shell.cli.commands.tools.build_dev_environment")
-    @patch("ai_shell.cli.commands.tools.ContainerManager")
-    @patch("ai_shell.cli.commands.tools.load_config")
-    def test_multi_incompatible_with_init(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        result = self.runner.invoke(cli, ["claude", "--multi", "--init"])
-        assert result.exit_code != 0
-        assert "--multi is incompatible" in result.output
-
     @patch("ai_shell.cli.commands.tools.subprocess.run")
     @patch("ai_shell.cli.commands.tools.dev_container_name", return_value="augint-shell-test-dev")
     @patch("ai_shell.cli.commands.tools._check_bedrock_access")
@@ -1109,17 +1098,6 @@ class TestClaudeTeamCLI:
         result = self.runner.invoke(cli, ["claude", "--team", "--multi"])
         assert result.exit_code != 0
         assert "--team and --multi are incompatible" in result.output
-
-    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
-    @patch("ai_shell.cli.commands.tools.build_dev_environment")
-    @patch("ai_shell.cli.commands.tools.ContainerManager")
-    @patch("ai_shell.cli.commands.tools.load_config")
-    def test_team_incompatible_with_init(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        result = self.runner.invoke(cli, ["claude", "--team", "--init"])
-        assert result.exit_code != 0
-        assert "--team is incompatible" in result.output
 
     @patch("ai_shell.cli.commands.tools._check_bedrock_access")
     @patch("ai_shell.cli.commands.tools.build_dev_environment")

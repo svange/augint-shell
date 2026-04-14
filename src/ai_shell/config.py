@@ -2,7 +2,11 @@
 
 Priority (highest wins): CLI flags > env vars > project config > global config > defaults.
 
-Config file lookup order (first match wins):
+Global config lookup order (first match wins):
+  ~/.ai-shell.yaml > ~/.ai-shell.yml > ~/.ai-shell.toml
+  > ~/.config/ai-shell/config.yaml > ~/.config/ai-shell/config.yml > ~/.config/ai-shell/config.toml
+
+Project config lookup order (first match wins):
   .ai-shell.yaml > .ai-shell.yml > .ai-shell.toml > ai-shell.toml
 """
 
@@ -94,10 +98,16 @@ def load_config(
     if project_dir:
         config.project_dir = project_dir
 
-    # Load global config
-    global_config_dir = Path.home() / ".config" / "ai-shell"
-    for name in ("config.yaml", "config.yml", "config.toml"):
-        candidate = global_config_dir / name
+    # Load global config (~/.ai-shell.yaml first, ~/.config/ai-shell/ as fallback)
+    home = Path.home()
+    for candidate in (
+        home / ".ai-shell.yaml",
+        home / ".ai-shell.yml",
+        home / ".ai-shell.toml",
+        home / ".config" / "ai-shell" / "config.yaml",
+        home / ".config" / "ai-shell" / "config.yml",
+        home / ".config" / "ai-shell" / "config.toml",
+    ):
         if candidate.exists():
             _apply_config(config, candidate)
             break
