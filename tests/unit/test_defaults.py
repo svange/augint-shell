@@ -371,3 +371,59 @@ class TestBuildDevEnvironmentGhToken:
         ):
             env = build_dev_environment()
         assert env["GH_TOKEN"] == ""
+
+    def test_wsl2_windows_appdata_fallback(self, tmp_path):
+        gh_dir = tmp_path / "GitHub CLI"
+        gh_dir.mkdir(parents=True)
+        (gh_dir / "hosts.yml").write_text("github.com:\n  oauth_token: ghp_from_windows\n")
+        with (
+            patch("ai_shell.defaults._find_gh_config_dir", return_value=gh_dir),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            env = build_dev_environment()
+        assert env["GH_TOKEN"] == "ghp_from_windows"
+
+
+class TestFindGhConfigDir:
+    def test_linux_path_preferred(self, tmp_path):
+        from ai_shell.defaults import _find_gh_config_dir
+
+        linux_gh = tmp_path / ".config" / "gh"
+        linux_gh.mkdir(parents=True)
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            result = _find_gh_config_dir()
+        assert result == linux_gh
+
+    def test_returns_none_when_nothing_exists(self, tmp_path):
+        from ai_shell.defaults import _find_gh_config_dir
+
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            result = _find_gh_config_dir()
+        assert result is None
+
+    def test_wsl2_appdata_not_set_returns_none(self, tmp_path):
+        from ai_shell.defaults import _find_gh_config_dir
+
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            result = _find_gh_config_dir()
+        assert result is None
+
+    def test_wsl2_appdata_path_no_drive_letter_skipped(self, tmp_path):
+        from ai_shell.defaults import _find_gh_config_dir
+
+        # APPDATA without a colon (not a Windows path) should be ignored
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {"APPDATA": "/some/linux/path"}, clear=True),
+        ):
+            result = _find_gh_config_dir()
+        assert result is None
