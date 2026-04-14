@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.69.0 (2026-04-14)
+
+### Features
+
+- Support --multi for single repos via git worktrees
+  ([`8b69210`](https://github.com/svange/augint-shell/commit/8b692103f8f7fd4ad1b162815d8c0dcf2b75cdfb))
+
+
 ## v0.68.0 (2026-04-14)
 
 ### Features
