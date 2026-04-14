@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v0.70.0 (2026-04-14)
+
+### Features
+
+- Add local Chrome integration for Windows with setup instructions
+  ([`7735386`](https://github.com/svange/augint-shell/commit/77353860a0a099bc5512c5d74534e06fc6ecd439))
+
+- Implement local Chrome bridge for Windows with MCP configuration
+  ([`4431f57`](https://github.com/svange/augint-shell/commit/4431f57a61436ad32ed298252b33b410d438f042))
+
+
 ## v0.69.0 (2026-04-14)
 
 ### Features
