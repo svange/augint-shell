@@ -114,9 +114,56 @@
 # =============================================================================
 # primary_model: Default Ollama model for inference
 # fallback_model: Backup model if primary unavailable
-# context_size: Context window in tokens
+# context_size: Context window in tokens (default: 32768)
 # ollama_port: Host port for Ollama API (default: 11434)
 # webui_port: Host port for Open WebUI (default: 3000)
+#
+# Models are downloaded automatically by `ai-shell llm setup`, which:
+#   1. Starts the Ollama container (GPU-enabled if an NVIDIA card is detected)
+#   2. Runs `ollama pull <primary_model>` and `ollama pull <fallback_model>`
+#   3. Applies the context-window Modelfile so both models run with num_ctx set
+#
+# To pull a model manually at any time:
+#   ai-shell llm shell        # opens a bash shell inside the Ollama container
+#   ollama pull <model>       # then run any ollama command directly
+#
+# To select which model opencode uses, set primary_model here and update the
+# `model` field in .opencode/opencode.json to `ollama/<primary_model>`.
+# To configure additional selectable models in opencode, add entries under
+# the `provider.ollama.models` key in that file.
+#
+# ─── RTX 4090 model guide (24 GiB VRAM) ─────────────────────────────────────
+#
+# General-chat / assistant models
+# ─────────────────────────────────
+# qwen3.5:27b                  ~15 GiB  Q4_K_M  fits on 4090 with headroom
+# qwen3.5:27b-q5_k_m           ~19 GiB  Q5_K_M  fits, higher quality
+# qwen3.5:32b-q4_k_m           ~19 GiB  Q4_K_M  tight but fits on 4090
+#
+# Uncensored / instruction-following variants
+# ────────────────────────────────────────────
+# dolphin3:8b                  ~5 GiB   Dolphin 3.0 (uncensored Llama 3.1 8B)
+# llama3.1:8b                  ~5 GiB   Meta Llama 3.1 8B instruct
+# llama3.1:8b-instruct-q4_k_m  ~5 GiB   Q4_K_M quantized
+# llama3.2:latest              ~2 GiB   Meta Llama 3.2 3B (fast/small)
+#
+# Coding-heavy models
+# ────────────────────
+# qwen2.5-coder:32b-q4_k_m    ~19 GiB  Q4_K_M  top coding quality on 4090
+# qwen3:14b-q4_k_m             ~9 GiB   Q4_K_M  fast coder with good accuracy
+# qwen3:32b-q4_k_m             ~19 GiB  Q4_K_M  best local coding on 4090
+# qwen3-coder-next             custom   80B MoE loaded via custom Modelfile
+#
+# Quick-start pull commands (run inside `ai-shell llm shell`):
+#   ollama pull qwen3.5:27b
+#   ollama pull dolphin3:8b
+#   ollama pull llama3.1:8b
+#   ollama pull qwen2.5-coder:32b-q4_k_m
+#   ollama pull qwen3:14b-q4_k_m
+#   ollama pull qwen3:32b-q4_k_m
+#
+# After pulling, set primary_model (and fallback_model) below, then run:
+#   ai-shell llm setup        # pulls models + applies context-window config
 #
 # [llm]
 # primary_model = "qwen3-coder-next"
@@ -124,6 +171,24 @@
 # context_size = 32768
 # ollama_port = 11434
 # webui_port = 3000
+#
+# --- Example: 4090 coding-focused setup ---
+# [llm]
+# primary_model = "qwen2.5-coder:32b-q4_k_m"
+# fallback_model = "qwen3:14b-q4_k_m"
+# context_size = 32768
+#
+# --- Example: 4090 general-chat setup ---
+# [llm]
+# primary_model = "qwen3.5:27b"
+# fallback_model = "llama3.1:8b"
+# context_size = 32768
+#
+# --- Example: 4090 uncensored setup ---
+# [llm]
+# primary_model = "dolphin3:8b"
+# fallback_model = "llama3.1:8b"
+# context_size = 32768
 
 # =============================================================================
 # [aider] - Aider settings
