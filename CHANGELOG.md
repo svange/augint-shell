@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.66.0 (2026-04-14)
+
+### Features
+
+- Use named volume for gh config when no host path found
+  ([`c4d6382`](https://github.com/svange/augint-shell/commit/c4d6382c3bd995c97c97d9435acd41951aeb277a))
+
+
 ## v0.65.0 (2026-04-14)
 
 
