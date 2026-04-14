@@ -1,6 +1,6 @@
 [project]
 name = "augint-shell"
-version = "0.61.0"
+version = "0.64.1"
 description = "Launch AI coding tools and local LLMs in Docker containers"
 authors = [{name = "svange"}]
 readme = "README.md"
@@ -85,7 +85,7 @@ logging_use_named_masks = false
 major_on_zero = false
 allow_zero_version = true
 no_git_verify = false
-tag_format = "augint-shell-v{version}"
+tag_format = "v{version}"
 version_toml = ["pyproject.toml:project.version"]
 version_variables = ["src/ai_shell/__init__.py:__version__"]
 build_command = "uv lock && uv build"

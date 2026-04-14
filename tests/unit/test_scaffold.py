@@ -243,42 +243,42 @@ class TestScaffoldClaude:
 
 
 class TestScaffoldProject:
-    def test_creates_toml_only(self, tmp_path):
+    def test_creates_yaml(self, tmp_path):
         scaffold_project(tmp_path)
-        assert (tmp_path / ".ai-shell.toml").is_file()
+        assert (tmp_path / ".ai-shell.yaml").is_file()
         # opencode.json is no longer created by scaffold_project
         assert not (tmp_path / "opencode.json").exists()
 
-    def test_toml_has_commented_sections(self, tmp_path):
+    def test_yaml_has_commented_sections(self, tmp_path):
         scaffold_project(tmp_path)
-        content = (tmp_path / ".ai-shell.toml").read_text()
-        assert "# [container]" in content
-        assert "# [llm]" in content
-        assert "# [aider]" in content
+        content = (tmp_path / ".ai-shell.yaml").read_text()
+        assert "# container:" in content or "container:" in content
+        assert "# llm:" in content or "llm:" in content
+        assert "# aider:" in content or "aider:" in content
 
     def test_init_skips_existing(self, tmp_path):
-        (tmp_path / ".ai-shell.toml").write_text("original")
+        (tmp_path / ".ai-shell.yaml").write_text("original")
         scaffold_project(tmp_path, overwrite=False)
-        assert (tmp_path / ".ai-shell.toml").read_text() == "original"
+        assert (tmp_path / ".ai-shell.yaml").read_text() == "original"
 
     def test_reset_overwrites_existing(self, tmp_path):
-        (tmp_path / ".ai-shell.toml").write_text("original")
+        (tmp_path / ".ai-shell.yaml").write_text("original")
         scaffold_project(tmp_path, overwrite=True)
-        assert (tmp_path / ".ai-shell.toml").read_text() != "original"
+        assert (tmp_path / ".ai-shell.yaml").read_text() != "original"
 
-    def test_update_overwrites_toml(self, tmp_path):
-        (tmp_path / ".ai-shell.toml").write_text("original")
+    def test_update_overwrites_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("original")
         scaffold_project(tmp_path, merge=True)
-        assert (tmp_path / ".ai-shell.toml").read_text() != "original"
+        assert (tmp_path / ".ai-shell.yaml").read_text() != "original"
 
     def test_clean_removes_and_recreates(self, tmp_path):
         scaffold_project(tmp_path)
         scaffold_project(tmp_path, clean=True)
-        assert (tmp_path / ".ai-shell.toml").is_file()
+        assert (tmp_path / ".ai-shell.yaml").is_file()
 
     def test_clean_works_on_empty_dir(self, tmp_path):
         scaffold_project(tmp_path, clean=True)
-        assert (tmp_path / ".ai-shell.toml").is_file()
+        assert (tmp_path / ".ai-shell.yaml").is_file()
 
 
 class TestScaffoldOpencode:
@@ -564,7 +564,6 @@ class TestSkillsForConfig:
         skills = skills_for_config(RepoType.LIBRARY, BranchStrategy.MAIN)
         assert "ai-promote" not in skills
         assert "ai-setup-oidc" not in skills
-        assert "ai-standardize-repo" in skills
         assert "ai-init" in skills
         assert "ai-new-project" in skills
 
@@ -576,7 +575,6 @@ class TestSkillsForConfig:
         skills = skills_for_config(RepoType.SERVICE, BranchStrategy.MAIN)
         assert "ai-setup-oidc" in skills
         assert "ai-promote" not in skills
-        assert "ai-standardize-repo" in skills
 
     def test_service_dev_has_oidc_and_promote(self):
         skills = skills_for_config(RepoType.SERVICE, BranchStrategy.DEV)
@@ -590,16 +588,6 @@ class TestSkillsForConfig:
         assert "ai-workspace-init" in skills
         assert "ai-workspace-health" in skills
         assert "ai-workspace-foreach" in skills
-        # T5-8: workspace-level standardization entry point
-        assert "ai-workspace-standardize" in skills
-
-    def test_workspace_standardize_not_in_single_repo_configs(self):
-        """ai-workspace-standardize is a workspace-only orchestrator;
-        single-repo types should never receive it."""
-        for repo_type in (RepoType.LIBRARY, RepoType.SERVICE):
-            for branch_strategy in BranchStrategy:
-                skills = skills_for_config(repo_type, branch_strategy)
-                assert "ai-workspace-standardize" not in skills
 
     def test_workspace_excludes_service_skills(self):
         skills = skills_for_config(RepoType.WORKSPACE, BranchStrategy.MAIN)
@@ -607,38 +595,14 @@ class TestSkillsForConfig:
         assert "ai-promote" not in skills
 
     def test_deleted_skills_not_in_any_config(self):
-        # ai-fix-repo-standards was the old monolith; it is the only skill
-        # still in the deleted set. The ai-standardize-* sub-skills were
-        # reinstated when the standardization system was rewritten.
-        deleted = [
-            "ai-fix-repo-standards",
-        ]
+        from ai_shell.scaffold import _DELETED_SKILLS
+
         for repo_type in RepoType:
             for branch_strategy in BranchStrategy:
                 skills = skills_for_config(repo_type, branch_strategy)
-                for name in deleted:
+                for name in _DELETED_SKILLS:
                     assert name not in skills, (
                         f"{name} should be deleted but found in {repo_type}/{branch_strategy}"
-                    )
-
-    def test_standardize_subskills_in_every_config(self):
-        # The umbrella + sub-skill rewrite requires all four sub-skills to
-        # ship alongside ai-standardize-repo so the umbrella can invoke them
-        # as individual steps.
-        required = [
-            "ai-standardize-repo",
-            "ai-standardize-dotfiles",
-            "ai-standardize-pipeline",
-            "ai-standardize-precommit",
-            "ai-standardize-renovate",
-            "ai-standardize-release",
-        ]
-        for repo_type in RepoType:
-            for branch_strategy in BranchStrategy:
-                skills = skills_for_config(repo_type, branch_strategy)
-                for name in required:
-                    assert name in skills, (
-                        f"{name} missing from {repo_type}/{branch_strategy} config"
                     )
 
     def test_workspace_has_universal_skills(self):
@@ -648,7 +612,6 @@ class TestSkillsForConfig:
         assert "ai-prepare-branch" in skills
         assert "ai-submit-work" in skills
         assert "ai-status" in skills
-        assert "ai-standardize-repo" in skills
         assert "ai-new-project" in skills
 
     def test_all_types_have_universal_skills(self):
@@ -661,8 +624,6 @@ class TestSkillsForConfig:
             assert "ai-status" in skills
             assert "ai-rollback" in skills
             assert "ai-repo-health" in skills
-            assert "ai-standardize-repo" in skills
-            assert "ai-standardize-dotfiles" in skills
             assert "ai-init" in skills
             assert "ai-new-project" in skills
 
@@ -703,7 +664,6 @@ class TestNotesTemplateSelection:
         scaffold_project(
             tmp_path,
             repo_type=RepoType.LIBRARY,
-            branch_strategy=BranchStrategy.MAIN,
         )
         content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
         assert "# Institutional Notes: Library Repos" in content
@@ -715,7 +675,6 @@ class TestNotesTemplateSelection:
         scaffold_project(
             tmp_path,
             repo_type=RepoType.SERVICE,
-            branch_strategy=BranchStrategy.DEV,
         )
         content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
         assert "# Institutional Notes: Service Repos" in content
@@ -727,7 +686,6 @@ class TestNotesTemplateSelection:
         scaffold_project(
             tmp_path,
             repo_type=RepoType.WORKSPACE,
-            branch_strategy=BranchStrategy.MAIN,
         )
         content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
         assert "# Institutional Notes: Workspaces" in content
@@ -773,69 +731,23 @@ class TestWorkspaceSkillCommandContract:
             assert command in content
 
 
-class TestProjectTomlContent:
-    def test_library_toml_has_project_section(self, tmp_path):
-        scaffold_project(
-            tmp_path,
-            repo_type=RepoType.LIBRARY,
-            branch_strategy=BranchStrategy.MAIN,
-        )
-        content = (tmp_path / ".ai-shell.toml").read_text()
-        assert 'repo_type = "library"' in content
-        assert 'branch_strategy = "main"' in content
-        # Active [project] section should not have dev_branch when strategy is main
-        project_section = content.split("\n\n")[0]  # first block = [project]
-        assert "dev_branch" not in project_section
+class TestProjectYamlOutput:
+    def test_scaffold_generates_yaml(self, tmp_path):
+        scaffold_project(tmp_path, repo_type=RepoType.LIBRARY)
+        assert (tmp_path / ".ai-shell.yaml").exists()
+        assert not (tmp_path / ".ai-shell.toml").exists()
 
-    def test_service_dev_toml_has_dev_branch(self, tmp_path):
-        scaffold_project(
-            tmp_path,
-            repo_type=RepoType.SERVICE,
-            branch_strategy=BranchStrategy.DEV,
-            dev_branch="staging",
-        )
-        content = (tmp_path / ".ai-shell.toml").read_text()
-        assert 'repo_type = "service"' in content
-        assert 'branch_strategy = "dev"' in content
-        assert 'dev_branch = "staging"' in content
+    def test_generated_yaml_has_no_project_key(self, tmp_path):
+        scaffold_project(tmp_path, repo_type=RepoType.LIBRARY)
+        content = (tmp_path / ".ai-shell.yaml").read_text()
+        assert "project:" not in content
+        assert "repo_type" not in content
 
-    def test_none_type_toml_no_project_section(self, tmp_path):
+    def test_generated_yaml_is_valid(self, tmp_path):
         scaffold_project(tmp_path, repo_type=None)
-        content = (tmp_path / ".ai-shell.toml").read_text()
-        assert "[project]" not in content or "# [project]" in content
+        content = (tmp_path / ".ai-shell.yaml").read_text()
+        import yaml
 
-
-class TestRepoTypeCompat:
-    """Verify repo-type config loading behavior."""
-
-    def test_service_mapped_to_service_in_config(self, tmp_path):
-        from ai_shell.config import load_config
-
-        toml_content = '[project]\nrepo_type = "service"\n'
-        (tmp_path / ".ai-shell.toml").write_text(toml_content)
-        config = load_config(project_dir=tmp_path)
-        assert config.repo_type == "service"
-
-    def test_workspace_kept_in_config(self, tmp_path):
-        from ai_shell.config import load_config
-
-        toml_content = '[project]\nrepo_type = "workspace"\n'
-        (tmp_path / ".ai-shell.toml").write_text(toml_content)
-        config = load_config(project_dir=tmp_path)
-        assert config.repo_type == "workspace"
-
-    def test_service_stays_service_in_config(self, tmp_path):
-        from ai_shell.config import load_config
-
-        toml_content = '[project]\nrepo_type = "service"\n'
-        (tmp_path / ".ai-shell.toml").write_text(toml_content)
-        config = load_config(project_dir=tmp_path)
-        assert config.repo_type == "service"
-
-    def test_library_stays_library_in_config(self, tmp_path):
-        from ai_shell.config import load_config
-
-        toml_content = '[project]\nrepo_type = "library"\n'
-        (tmp_path / ".ai-shell.toml").write_text(toml_content)
-        config = load_config(project_dir=tmp_path)
-        assert config.repo_type == "library"
+        parsed = yaml.safe_load(content)
+        # All content is commented out, so parsed should be None
+        assert parsed is None

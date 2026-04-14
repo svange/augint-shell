@@ -512,7 +512,7 @@ class TestToolCommands:
             branch_strategy=None,
         )
         mock_manager_cls.assert_not_called()
-        mock_merge.assert_called_once_with("/tmp/test", "opencode", background=True)
+        mock_merge.assert_called_once_with("/tmp/test", "opencode", background=True, repo_type=None)
         assert result.exit_code == 0
 
     def test_opencode_update_calls_scaffold_with_merge(
@@ -596,7 +596,7 @@ class TestToolCommands:
             branch_strategy=None,
         )
         mock_manager_cls.assert_not_called()
-        mock_merge.assert_called_once_with("/tmp/test", "codex", background=True)
+        mock_merge.assert_called_once_with("/tmp/test", "codex", background=True, repo_type=None)
         assert result.exit_code == 0
 
     def test_codex_update_calls_scaffold_with_merge(
@@ -741,7 +741,7 @@ class TestToolCommands:
             ):
                 result = self.runner.invoke(cli, ["claude", "--update"])
 
-        mock_merge.assert_called_once_with("/tmp/test", "claude", background=True)
+        mock_merge.assert_called_once_with("/tmp/test", "claude", background=True, repo_type=None)
         assert result.exit_code == 0
 
     def test_claude_update_with_no_merge_skips_merge(
@@ -769,7 +769,7 @@ class TestToolCommands:
             ):
                 self.runner.invoke(cli, ["claude", "--init"])
 
-        mock_merge.assert_called_once_with("/tmp/test", "claude", background=True)
+        mock_merge.assert_called_once_with("/tmp/test", "claude", background=True, repo_type=None)
 
     def test_claude_clean_does_not_call_merge(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
@@ -795,7 +795,7 @@ class TestToolCommands:
             ):
                 result = self.runner.invoke(cli, ["codex", "--update"])
 
-        mock_merge.assert_called_once_with("/tmp/test", "codex", background=True)
+        mock_merge.assert_called_once_with("/tmp/test", "codex", background=True, repo_type=None)
         assert result.exit_code == 0
 
     def test_codex_update_with_no_merge_skips_merge(
@@ -823,7 +823,7 @@ class TestToolCommands:
             ):
                 result = self.runner.invoke(cli, ["opencode", "--update"])
 
-        mock_merge.assert_called_once_with("/tmp/test", "opencode", background=True)
+        mock_merge.assert_called_once_with("/tmp/test", "opencode", background=True, repo_type=None)
         assert result.exit_code == 0
 
     def test_opencode_update_with_no_merge_skips_merge(

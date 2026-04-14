@@ -2,6 +2,41 @@
 
 <!-- version list -->
 
+## v0.64.1 (2026-04-14)
+
+### Bug Fixes
+
+- Detect Windows gh CLI config path for WSL2 users
+  ([`86543d1`](https://github.com/svange/augint-shell/commit/86543d1540de56dfc542db9e001ede52273c15d8))
+
+
+## v0.64.0 (2026-04-13)
+
+### Features
+
+- Add GitHub token handling from hosts.yml and update mount paths
+  ([`e0a727b`](https://github.com/svange/augint-shell/commit/e0a727be0c7e83231e219f85ecb2994438ce765e))
+
+- Add GitHub token handling from hosts.yml and update mount paths
+  ([`fd78c40`](https://github.com/svange/augint-shell/commit/fd78c40e9a9e88719eddc730463ce310669dbe2d))
+
+
+## v0.63.0 (2026-04-13)
+
+### Features
+
+- Remove standardize engine and templates
+  ([`d319bc6`](https://github.com/svange/augint-shell/commit/d319bc607a4af45d243d93a9c835f42692ef139f))
+
+
+## v0.62.0 (2026-04-13)
+
+### Features
+
+- Migrate configuration from TOML to YAML format and remove deprecated sections
+  ([`b5c31f9`](https://github.com/svange/augint-shell/commit/b5c31f928b6b57e61624fa6c51e74ab68aef3902))
+
+
 ## v0.61.0 (2026-04-13)
 
 ### Features
