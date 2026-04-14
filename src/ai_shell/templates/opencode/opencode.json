@@ -9,11 +9,29 @@
         "baseURL": "http://host.docker.internal:11434/v1"
       },
       "models": {
-        "qwen3.5:27b": {
-          "name": "Qwen 3.5 27B (Local)"
-        },
         "qwen3-coder-next": {
           "name": "Qwen3 Coder Next 80B MoE (Local)"
+        },
+        "qwen3.5:27b": {
+          "name": "Qwen 3.5 27B – General Chat (Local)"
+        },
+        "qwen3.5:32b-q4_k_m": {
+          "name": "Qwen 3.5 32B Q4_K_M – General Chat (Local, 4090)"
+        },
+        "qwen3:32b-q4_k_m": {
+          "name": "Qwen3 32B Q4_K_M – Coding (Local, 4090)"
+        },
+        "qwen3:14b-q4_k_m": {
+          "name": "Qwen3 14B Q4_K_M – Coding Fast (Local)"
+        },
+        "qwen2.5-coder:32b-q4_k_m": {
+          "name": "Qwen2.5 Coder 32B Q4_K_M – Coding (Local, 4090)"
+        },
+        "llama3.1:8b": {
+          "name": "Llama 3.1 8B – General (Local)"
+        },
+        "dolphin3:8b": {
+          "name": "Dolphin 3.0 8B – Uncensored Llama 3.1 (Local)"
         }
       }
     },
