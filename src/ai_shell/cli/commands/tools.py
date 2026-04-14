@@ -327,6 +327,97 @@ def _launch_team(
     manager.exec_interactive(container_name, cmd, extra_env=exec_env, workdir=workdir)
 
 
+def _launch_single_repo_multi(
+    *,
+    config: AiShellConfig,
+    session_name: str,
+    safe: bool,
+    use_aws: bool,
+    cli_profile: str | None,
+    skip_preflight: bool,
+    extra_args: tuple[str, ...],
+    worktree_name: str | None = None,
+) -> None:
+    """Single-repo multi-pane launcher.
+
+    Called when ``--multi`` is used outside a workspace repo (no
+    ``workspace.yaml`` in the current directory).  Prompts the user for the
+    number of windows (2–4) and creates a separate git worktree for each pane
+    so that agents can work on independent branches simultaneously.
+    """
+    from ai_shell.tmux import (
+        PaneSpec,
+        build_claude_pane_command,
+        build_tmux_commands,
+    )
+
+    num_windows = click.prompt(
+        "How many windows do you want?",
+        type=click.IntRange(2, 4),
+        default=2,
+    )
+
+    # Resolve the base worktree name (auto-generate when omitted or empty)
+    if worktree_name:
+        base_name = worktree_name
+    else:
+        base_name = _generate_worktree_name()
+
+    use_bedrock = use_aws or config.claude_provider == "aws"
+    manager = ContainerManager(config)
+    container_name = manager.ensure_dev_container()
+    exec_env = build_dev_environment(
+        config.extra_env,
+        config.project_dir,
+        project_name=config.project_name,
+        bedrock=use_bedrock,
+        aws_profile=config.ai_profile,
+        aws_region=config.aws_region,
+        bedrock_profile=cli_profile or config.bedrock_profile,
+    )
+
+    if use_bedrock and not skip_preflight:
+        _check_bedrock_access(container_name, exec_env)
+
+    container_project_root = f"/root/projects/{config.project_name}"
+    panes: list[PaneSpec] = []
+    for i in range(1, num_windows + 1):
+        wt_name = f"{base_name}-{i}"
+        worktree_dir = _setup_worktree(container_name, container_project_root, wt_name)
+        pane_cmd = build_claude_pane_command(
+            repo_name=config.project_name,
+            safe=safe,
+            extra_args=extra_args,
+            worktree_name=wt_name,
+        )
+        panes.append(
+            PaneSpec(
+                name=f"{config.project_name}-{i}",
+                command=pane_cmd,
+                working_dir=worktree_dir,
+            )
+        )
+
+    cmds = build_tmux_commands(container_name, session_name, panes)
+
+    console.print(
+        f"[bold]Launching {num_windows} Claude Code instances for "
+        f"'{config.project_name}' in tmux session '{session_name}'...[/bold]"
+    )
+
+    for cmd_args in cmds[:-1]:
+        result = subprocess.run(cmd_args, capture_output=True, text=True)
+        if result.returncode != 0 and "kill-session" not in " ".join(cmd_args):
+            logger.debug("tmux setup command failed: %s\n%s", cmd_args, result.stderr)
+
+    final_cmd = cmds[-1]
+    logger.debug("tmux attach: %s", " ".join(final_cmd))
+    sys.stdout.flush()
+    sys.stderr.flush()
+    attach = subprocess.run(final_cmd)
+    sys.exit(attach.returncode)
+
+
 def _launch_multi(
     ctx: click.Context,
     *,
@@ -337,10 +428,14 @@ def _launch_multi(
     extra_args: tuple[str, ...],
     worktree_name: str | None = None,
 ) -> None:
-    """Workspace multi-pane Claude launcher.
+    """Multi-pane Claude launcher.
 
-    Validates workspace.yaml, presents an interactive selector, then launches
-    a tmux session inside the dev container with one pane per selected repo.
+    In a workspace repo (``workspace.yaml`` present): presents an interactive
+    selector and launches one pane per selected repo.
+
+    In a single repo (no ``workspace.yaml``): prompts for the number of
+    windows (2–4) and launches that many git worktree instances of the current
+    repo so agents can work on independent branches simultaneously.
     """
     from ai_shell.selector import SelectionItem, interactive_multi_select
     from ai_shell.tmux import (
@@ -352,21 +447,16 @@ def _launch_multi(
         build_tmux_commands,
     )
 
-    workspace_yaml = Path.cwd() / "workspace.yaml"
-    if not workspace_yaml.exists():
-        raise click.ClickException("No workspace.yaml found. --multi requires a workspace repo.")
-
-    workspace_name, repos = _load_workspace_repos(workspace_yaml)
-
-    # Check for existing tmux session before presenting the selector.
-    # The container and session might still be running from a previous
-    # invocation (e.g. after the user detached with C-b d or closed
-    # the terminal).
+    # Load config early -- needed for both the session check and both flows.
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
     session_name = f"{TMUX_SESSION_PREFIX}-{config.project_name}"
     container_name = dev_container_name(config.project_name, config.project_dir)
 
+    # Check for existing tmux session before presenting the selector.
+    # The container and session might still be running from a previous
+    # invocation (e.g. after the user detached with C-b d or closed
+    # the terminal).
     check_cmd = build_check_session_command(container_name, session_name)
     has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0
 
@@ -387,6 +477,23 @@ def _launch_multi(
         elif choice == "cancel":
             return
         # choice == "fresh": fall through to selector and recreate
+
+    # Single-repo path: no workspace.yaml in the current directory.
+    workspace_yaml = Path.cwd() / "workspace.yaml"
+    if not workspace_yaml.exists():
+        _launch_single_repo_multi(
+            config=config,
+            session_name=session_name,
+            safe=safe,
+            use_aws=use_aws,
+            cli_profile=cli_profile,
+            skip_preflight=skip_preflight,
+            extra_args=extra_args,
+            worktree_name=worktree_name,
+        )
+        return
+
+    workspace_name, repos = _load_workspace_repos(workspace_yaml)
 
     # Build selection items: workspace root first, then each child repo
     items: list[SelectionItem] = [
