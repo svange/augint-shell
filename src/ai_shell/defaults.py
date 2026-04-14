@@ -231,27 +231,6 @@ def _find_gh_config_dir() -> Path | None:
     return None
 
 
-def _read_gh_hosts_token() -> str:
-    """Read oauth_token for github.com from the gh CLI hosts.yml.
-
-    Returns empty string if the file is missing, unreadable, or malformed.
-    """
-    import yaml
-
-    gh_config_dir = _find_gh_config_dir()
-    if gh_config_dir is None:
-        return ""
-    hosts_file = gh_config_dir / "hosts.yml"
-    if not hosts_file.exists():
-        return ""
-    try:
-        with hosts_file.open() as f:
-            data = yaml.safe_load(f)
-        return str(data.get("github.com", {}).get("oauth_token", "")) or ""
-    except Exception:  # noqa: BLE001
-        logger.debug("Could not read GH token from %s", hosts_file)
-        return ""
-
 
 def build_dev_environment(
     extra_env: dict[str, str] | None = None,
@@ -292,7 +271,7 @@ def build_dev_environment(
             return dotenv_val
         return os.environ.get(key, default)
 
-    gh_token = _resolve("GH_TOKEN") or _read_gh_hosts_token()
+    gh_token = _resolve("GH_TOKEN")
     env: dict[str, str] = {
         "AWS_PROFILE": aws_profile or _resolve("AWS_PROFILE"),
         "AWS_REGION": aws_region or _resolve("AWS_REGION", "us-east-1"),
