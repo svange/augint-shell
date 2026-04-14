@@ -118,42 +118,22 @@ The dev container cannot open a browser on the Windows host, which blocks OAuth 
 
 What you get:
 
-- Claude drives the tabs you already have open, with your existing logins/cookies.
-- You watch the automation happen in your real Chrome window in real time.
+- Claude drives Chrome tabs on your Windows desktop, visible in real time.
+- Uses a **separate Chrome profile** (`ai-debug-profile`) -- your normal browsing is untouched.
 - No Chrome extension. No third-party service. All traffic stays on `localhost` between the container and the host.
 
-### One-time Windows setup
-
-1. Create a new pinned Chrome shortcut (right-click the taskbar Chrome -> "Google Chrome" -> right-click again -> Properties), and set the Target to:
-
-   ```
-   "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --user-data-dir="%LOCALAPPDATA%\Google\Chrome\ai-debug-profile"
-   ```
-
-   Notes:
-   - `--user-data-dir` gives you a **separate Chrome profile** for agent work. Your normal browsing and logins are untouched.
-   - `--remote-debugging-address=127.0.0.1` binds the debug port to loopback only, so the port is not reachable from your LAN. Docker Desktop can still reach it from the container via `host.docker.internal`.
-   - Adjust the chrome.exe path if your install lives elsewhere (e.g. `%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe`).
-
-2. Launch Chrome from that shortcut. Sign in to the accounts you want Claude to act on (GitHub, AWS Console, whatever the task needs). You only do this once per account; cookies persist in the profile directory.
-
-3. Leave that Chrome window open while working with Claude. Close it when you are done; Claude cannot reach anything while it is not running.
-
-### Using it
-
-From the host (not inside the container):
+### How it works
 
 ```bash
 ai-shell claude --local-chrome
 ```
 
-`ai-shell` probes `host.docker.internal:9222` from inside the container before starting Claude. If Chrome is not running with the debug port, it exits immediately with a message telling you exactly what to launch.
+`ai-shell` automatically:
+1. Checks if Chrome is already running with a debug port (port 9222).
+2. If not, **launches Chrome** on a free port with its own profile at `%LOCALAPPDATA%\Google\Chrome\ai-debug-profile`.
+3. Starts a TCP proxy inside the container and injects `chrome-devtools-mcp` as an MCP server for Claude.
 
-Inside the session you can ask Claude things like:
-
-- "List the tabs I have open."
-- "Take a screenshot of the active tab."
-- "Open <url>, fill in the login form, and click sign in." (You will see and can cancel the run at any time by closing the tab.)
+No manual setup required. Chrome stays open after Claude exits so your login sessions persist. Sign in to whatever accounts you need in that Chrome window (first time only; cookies persist in the profile).
 
 ### Persisting the flag
 
@@ -164,11 +144,21 @@ Add to `ai-shell.toml` (or the YAML equivalent) if you always want this on for a
 local_chrome = true
 ```
 
+Or set the environment variable: `AI_SHELL_LOCAL_CHROME=1`.
+
+### Manual Chrome launch (fallback)
+
+If `ai-shell` can't find `chrome.exe` automatically, launch Chrome yourself:
+
+```
+chrome.exe --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --remote-allow-origins=* --user-data-dir="%LOCALAPPDATA%\Google\Chrome\ai-debug-profile"
+```
+
 ### Troubleshooting
 
-- **"Chrome debug port not reachable on host.docker.internal:9222"** — Chrome is not running, or you launched it without the debug flags. Start it from the pinned shortcut above.
-- **Tabs appear empty / not logged in** — you launched Chrome normally (your default profile) and separately launched the debug profile. Check that the Chrome window you expect Claude to drive was opened from the pinned shortcut with the `--user-data-dir=...ai-debug-profile` argument; that is the profile Claude sees.
-- **Firefox / Safari** — not supported. `chrome-devtools-mcp` requires a Chromium-based browser. Edge works with the same flags but has not been tested here.
+- **"Chrome could not be found or launched"** -- Chrome is not installed at a standard location. Use the manual launch command above, or set the path in your system PATH.
+- **Tabs appear empty / not logged in** -- Sign in to the accounts you need inside the auto-launched Chrome (the one with the `ai-debug-profile` window title). Cookies persist across sessions.
+- **Firefox / Safari** -- not supported. `chrome-devtools-mcp` requires a Chromium-based browser. Edge works with the same flags but has not been tested here.
 
 ## Standardization architecture
 

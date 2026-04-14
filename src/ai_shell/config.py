@@ -60,6 +60,9 @@ class AiShellConfig:
     aws_region: str = ""  # Override AWS_REGION
     bedrock_profile: str = ""  # AWS profile for Bedrock LLM API calls
 
+    # Claude options
+    local_chrome: bool = False  # Attach Chrome DevTools MCP to host Chrome debug port
+
     # Per-tool provider
     claude_provider: str = ""  # "anthropic" (default) or "aws"
     opencode_provider: str = ""  # "local" (default, Ollama) or "aws" (Bedrock)
@@ -186,6 +189,8 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
     claude_sec = data.get("claude", {})
     if "provider" in claude_sec:
         config.claude_provider = claude_sec["provider"]
+    if "local_chrome" in claude_sec:
+        config.local_chrome = bool(claude_sec["local_chrome"])
 
     # [opencode] section
     opencode_sec = data.get("opencode", {})
@@ -222,12 +227,17 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_CODEX_PROVIDER": ("codex_provider", str),
         "AI_SHELL_CODEX_OPENAI_API_KEY": ("codex_openai_api_key", str),
         "AI_SHELL_CODEX_PROFILE": ("codex_profile", str),
+        "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
     }
 
     for env_key, (attr, type_fn) in env_map.items():
         value = os.environ.get(env_key)
         if value is not None:
-            setattr(config, attr, type_fn(value))
+            if type_fn is bool:
+                coerced = value.lower() not in ("0", "false", "no", "")
+            else:
+                coerced = type_fn(value)
+            setattr(config, attr, coerced)
             logger.debug("Config override from env: %s=%s", env_key, value)
 
     # AI_SHELL_PORTS is comma-separated, extends extra_ports

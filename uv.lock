@@ -88,16 +88,17 @@ dev = [
 
 [[package]]
 name = "augint-tools"
-version = "4.2.1"
+version = "4.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
+    { name = "defusedxml" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/43/3e/4539d37fcb411c8df6d69b09420cefc97181ec21514320d6975164c4064f/augint_tools-4.2.1.tar.gz", hash = "sha256:7594343126030ba42a8f3a148d3bad68a813aa590bfd00e8547e9bdd0d915fa8", size = 24637, upload-time = "2026-04-14T02:13:43.353Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6f/89/500834055020bd00a34a236630b13260f2f08ff103f92abc305fcaaa3126/augint_tools-4.7.0.tar.gz", hash = "sha256:55d92a5c9ce863814a1cded8e8a7dc4e0304bef714982de0f5d08b73bdcf7a43", size = 40334, upload-time = "2026-04-14T19:57:28.083Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/7e/9cbf6b5fb6d7fa8f0890a8d34d4af1e40846e8d3efa06e6480950a2f1f46/augint_tools-4.2.1-py3-none-any.whl", hash = "sha256:03168799f4eca54fce27c47925f05f260f47541aa231ca766a4273efa1c49c44", size = 36603, upload-time = "2026-04-14T02:13:41.858Z" },
+    { url = "https://files.pythonhosted.org/packages/df/12/359631d71c1a8007e3ade379f7f8153fccf83e2920a1e67e8df423bc2925/augint_tools-4.7.0-py3-none-any.whl", hash = "sha256:755b24027e947910149db53c830bc82267eb4c3f6909e750d94f0ab079b3a2a3", size = 55725, upload-time = "2026-04-14T19:57:26.591Z" },
 ]
 
 [[package]]
@@ -1161,7 +1162,7 @@ wheels = [
 
 [[package]]
 name = "pygithub"
-version = "2.9.0"
+version = "2.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyjwt", extra = ["crypto"] },
@@ -1170,9 +1171,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a6/9a/44f918e9be12e49cb8b053f09d5d0733b74df52bf4dabc570da1c3ecd9f6/pygithub-2.9.0.tar.gz", hash = "sha256:a26abda1222febba31238682634cad11d8b966137ed6cc3c5e445b29a11cb0a4", size = 2592289, upload-time = "2026-03-22T21:14:39.053Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ab/c3/8465a311197e16cf5ab68789fe689535e90f6b61ab524cc32a39e67237ae/pygithub-2.9.1.tar.gz", hash = "sha256:59771d7ff63d54d427be2e7d0dad2208dfffc2b0a045fec959263787739b611c", size = 2594989, upload-time = "2026-04-14T07:26:13.622Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/de/72e02bc7674e161b155a4b5a03b2347129d0626115bc97ba5bad5070cac9/pygithub-2.9.0-py3-none-any.whl", hash = "sha256:5e2b260ce327bffce9b00f447b65953ef7078ffe93e5a5425624a3075483927c", size = 449653, upload-time = "2026-03-22T21:14:37.726Z" },
+    { url = "https://files.pythonhosted.org/packages/77/aa/81a5506f089a26338bff17535e4339b3b22049ebd1bcdeff756c4d7a7559/pygithub-2.9.1-py3-none-any.whl", hash = "sha256:2ec78fca30092d51a42d76f4ddb02131b6f0c666a35dfdf364cf302cdda115b9", size = 449710, upload-time = "2026-04-14T07:26:12.382Z" },
 ]
 
 [[package]]

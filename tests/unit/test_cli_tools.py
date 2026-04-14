@@ -1,5 +1,6 @@
 """Tests for CLI tool subcommands."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import click
@@ -689,6 +690,116 @@ class TestToolCommands:
         )
         mock_manager_cls.assert_not_called()
         assert result.exit_code == 0
+
+    @patch("ai_shell.cli.commands.tools._inject_mcp_config")
+    @patch("ai_shell.local_chrome.start_chrome_proxy")
+    @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=9222)
+    def test_claude_local_chrome_injects_mcp_config(
+        self,
+        mock_ensure,
+        mock_proxy,
+        mock_inject_mcp,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        """--local-chrome ensures Chrome, injects MCP config, adds --mcp-config to cmd."""
+        config = MagicMock()
+        config.claude_provider = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.local_chrome = False
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        with patch("ai_shell.local_chrome.write_mcp_config") as mock_write:
+            mock_write.return_value = Path("/tmp/chrome-mcp.json")
+            result = self.runner.invoke(cli, ["claude", "--local-chrome"])
+
+        assert result.exit_code == 0
+        cmd = mock_manager.run_interactive.call_args[0][1]
+        assert "--mcp-config" in cmd
+        assert "/etc/ai-shell/chrome-mcp.json" in cmd
+        mock_inject_mcp.assert_called_once()
+        mock_proxy.assert_called_once_with("augint-shell-test-dev", 9222)
+
+    @patch("ai_shell.cli.commands.tools._inject_mcp_config")
+    @patch("ai_shell.local_chrome.start_chrome_proxy")
+    @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=54321)
+    def test_claude_local_chrome_retry_includes_mcp_config(
+        self,
+        mock_ensure,
+        mock_proxy,
+        mock_inject_mcp,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        """--local-chrome injects --mcp-config in both retry attempts."""
+        config = MagicMock()
+        config.claude_provider = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.local_chrome = False
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (1, 1.0)  # Fast failure
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        with patch("ai_shell.local_chrome.write_mcp_config") as mock_write:
+            mock_write.return_value = Path("/tmp/chrome-mcp.json")
+            self.runner.invoke(cli, ["claude", "--local-chrome"])
+
+        # First attempt (with -c)
+        cmd_continue = mock_manager.run_interactive.call_args[0][1]
+        assert "--mcp-config" in cmd_continue
+        # Retry attempt (without -c)
+        cmd_fresh = mock_manager.exec_interactive.call_args[0][1]
+        assert "--mcp-config" in cmd_fresh
+
+    @patch("ai_shell.local_chrome.ensure_host_chrome")
+    def test_claude_local_chrome_fails_fast_when_unreachable(
+        self, mock_ensure, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        """--local-chrome fails with instructions when Chrome can't be started."""
+        from ai_shell.local_chrome import LocalChromeUnavailable
+
+        mock_ensure.side_effect = LocalChromeUnavailable("could not be found")
+        config = MagicMock()
+        config.claude_provider = ""
+        config.bedrock_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.local_chrome = False
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["claude", "--local-chrome"])
+
+        assert result.exit_code != 0
+        assert "could not be found" in result.output
+        mock_manager.run_interactive.assert_not_called()
+        mock_manager.exec_interactive.assert_not_called()
 
     def test_claude_bedrock_launch_message(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
