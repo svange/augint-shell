@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.67.1 (2026-04-14)
+
+### Refactoring
+
+- Remove institutional knowledge file and related code
+  ([`3fa1f98`](https://github.com/svange/augint-shell/commit/3fa1f984ed0c639b0f579686d189da767d5e6783))
+
+
 ## v0.67.0 (2026-04-14)
 
 ### Features
