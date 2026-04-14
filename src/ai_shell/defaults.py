@@ -148,7 +148,6 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
         (home / ".ssh", "/root/.ssh", True),
         (home / ".gitconfig", "/root/.gitconfig.windows", True),
         (home / ".aws", "/root/.aws", False),
-        (home / ".config" / "gh", "/root/.config/gh", False),
     ]
 
     for source, target, read_only in optional_binds:
@@ -163,6 +162,18 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
             )
         else:
             logger.debug("Skipping optional mount (not found): %s", source)
+
+    # Optional: gh CLI config (Linux/Mac path or WSL2 Windows APPDATA path)
+    gh_config = _find_gh_config_dir()
+    if gh_config is not None:
+        mounts.append(
+            Mount(
+                target="/root/.config/gh",
+                source=str(gh_config),
+                type="bind",
+                read_only=False,
+            )
+        )
 
     # Optional: Docker socket
     docker_sock = Path("/var/run/docker.sock")
@@ -197,13 +208,39 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
     return mounts
 
 
-def _read_gh_hosts_token(gh_config_dir: Path) -> str:
-    """Read oauth_token for github.com from ~/.config/gh/hosts.yml.
+def _find_gh_config_dir() -> Path | None:
+    """Find the gh CLI config directory.
+
+    Checks the standard Linux/Mac path (~/.config/gh) first, then falls back
+    to the Windows APPDATA path for WSL2 environments where gh is installed on
+    the Windows side (%APPDATA%\\GitHub CLI\\).
+    """
+    linux_path = Path.home() / ".config" / "gh"
+    if linux_path.exists():
+        return linux_path
+
+    # WSL2 fallback: APPDATA is set as a Windows path (e.g. C:\Users\foo\AppData\Roaming)
+    appdata = os.environ.get("APPDATA", "")
+    if appdata and ":" in appdata:
+        drive, rest = appdata.split(":", 1)
+        wsl_appdata = Path(f"/mnt/{drive.lower()}{rest.replace(chr(92), '/')}")
+        windows_path = wsl_appdata / "GitHub CLI"
+        if windows_path.exists():
+            return windows_path
+
+    return None
+
+
+def _read_gh_hosts_token() -> str:
+    """Read oauth_token for github.com from the gh CLI hosts.yml.
 
     Returns empty string if the file is missing, unreadable, or malformed.
     """
     import yaml
 
+    gh_config_dir = _find_gh_config_dir()
+    if gh_config_dir is None:
+        return ""
     hosts_file = gh_config_dir / "hosts.yml"
     if not hosts_file.exists():
         return ""
@@ -255,7 +292,7 @@ def build_dev_environment(
             return dotenv_val
         return os.environ.get(key, default)
 
-    gh_token = _resolve("GH_TOKEN") or _read_gh_hosts_token(Path.home() / ".config" / "gh")
+    gh_token = _resolve("GH_TOKEN") or _read_gh_hosts_token()
     env: dict[str, str] = {
         "AWS_PROFILE": aws_profile or _resolve("AWS_PROFILE"),
         "AWS_REGION": aws_region or _resolve("AWS_REGION", "us-east-1"),
