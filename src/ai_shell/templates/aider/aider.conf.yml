@@ -12,10 +12,6 @@ yes-always: true
 # Restore previous chat on startup
 restore-chat-history: true
 
-# Read conventions file as context
-read:
-  - INSTITUTIONAL_KNOWLEDGE.md
-
 # Git settings
 auto-commits: true
 # commit-prompt: "Use conventional commits (feat:, fix:, docs:, etc.)"

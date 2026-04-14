@@ -5,16 +5,12 @@ import json
 import yaml
 
 from ai_shell.scaffold import (
-    AGENTS_SKILL_DIRS,
-    BranchStrategy,
-    RepoType,
     _deep_merge_settings,
     scaffold_aider,
     scaffold_claude,
     scaffold_codex,
     scaffold_opencode,
     scaffold_project,
-    skills_for_config,
 )
 
 
@@ -150,10 +146,6 @@ class TestScaffoldClaude:
     def test_clean_works_on_empty_dir(self, tmp_path):
         scaffold_claude(tmp_path, clean=True)
         assert (tmp_path / ".claude" / "settings.json").is_file()
-
-    def test_does_not_create_notes_md(self, tmp_path):
-        scaffold_claude(tmp_path)
-        assert not (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").exists()
 
     # -- merge (--update) tests --
 
@@ -324,23 +316,6 @@ class TestScaffoldOpencode:
         assert "anthropic.claude-opus-4-20250514-v1:0" in models
         assert "anthropic.claude-haiku-4-5-20251001-v1:0" in models
 
-    def test_opencode_json_has_instructions(self, tmp_path):
-        scaffold_opencode(tmp_path)
-        data = json.loads((tmp_path / "opencode.json").read_text())
-        assert "INSTITUTIONAL_KNOWLEDGE.md" in data["instructions"]
-
-    def test_creates_notes_md(self, tmp_path):
-        scaffold_opencode(tmp_path)
-        assert (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").is_file()
-
-    def test_creates_agents_skills(self, tmp_path):
-        scaffold_opencode(tmp_path)
-        skills_dir = tmp_path / ".agents" / "skills"
-        for skill_name in AGENTS_SKILL_DIRS:
-            assert (skills_dir / skill_name / "SKILL.md").is_file(), (
-                f"Missing agent skill: {skill_name}"
-            )
-
     def test_init_skips_existing(self, tmp_path):
         (tmp_path / "opencode.json").write_text("original")
         scaffold_opencode(tmp_path, overwrite=False)
@@ -364,11 +339,8 @@ class TestScaffoldOpencode:
 
     def test_clean_removes_and_recreates(self, tmp_path):
         scaffold_opencode(tmp_path)
-        (tmp_path / ".agents" / "unmanaged.txt").write_text("stale")
         scaffold_opencode(tmp_path, clean=True)
         assert (tmp_path / "opencode.json").is_file()
-        assert (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").is_file()
-        assert not (tmp_path / ".agents" / "unmanaged.txt").exists()
 
     def test_clean_works_on_empty_dir(self, tmp_path):
         scaffold_opencode(tmp_path, clean=True)
@@ -391,29 +363,6 @@ class TestScaffoldCodex:
                 raise AssertionError(
                     f"Expected all-comments template, found active line: {stripped}"
                 )
-
-    def test_creates_notes_md(self, tmp_path):
-        scaffold_codex(tmp_path)
-        assert (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").is_file()
-
-    def test_creates_agents_skills(self, tmp_path):
-        scaffold_codex(tmp_path)
-        skills_dir = tmp_path / ".agents" / "skills"
-        for skill_name in AGENTS_SKILL_DIRS:
-            assert (skills_dir / skill_name / "SKILL.md").is_file(), (
-                f"Missing agent skill: {skill_name}"
-            )
-
-    def test_skill_files_have_frontmatter(self, tmp_path):
-        scaffold_codex(tmp_path)
-        skills_dir = tmp_path / ".agents" / "skills"
-        for skill_name in AGENTS_SKILL_DIRS:
-            content = (skills_dir / skill_name / "SKILL.md").read_text()
-            assert content.startswith("---"), f"{skill_name}/SKILL.md missing YAML frontmatter"
-            second_marker = content.index("---", 3)
-            frontmatter = content[3:second_marker]
-            assert "name:" in frontmatter, f"{skill_name}/SKILL.md missing 'name'"
-            assert "description:" in frontmatter, f"{skill_name}/SKILL.md missing 'description'"
 
     def test_init_skips_existing(self, tmp_path):
         codex_dir = tmp_path / ".codex"
@@ -468,18 +417,6 @@ class TestScaffoldAider:
         data = yaml.safe_load(content)
         assert data["model"] == "ollama_chat/qwen3-coder-next"
 
-    def test_aider_conf_has_notes_read(self, tmp_path):
-        scaffold_aider(tmp_path)
-        content = (tmp_path / ".aider.conf.yml").read_text()
-        data = yaml.safe_load(content)
-        assert "INSTITUTIONAL_KNOWLEDGE.md" in data["read"]
-
-    def test_creates_notes_md(self, tmp_path):
-        scaffold_aider(tmp_path)
-        assert (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").is_file()
-        content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
-        assert "# Institutional Notes" in content
-
     def test_creates_aiderignore(self, tmp_path):
         scaffold_aider(tmp_path)
         assert (tmp_path / ".aiderignore").is_file()
@@ -508,7 +445,6 @@ class TestScaffoldAider:
         scaffold_aider(tmp_path)
         scaffold_aider(tmp_path, clean=True)
         assert (tmp_path / ".aider.conf.yml").is_file()
-        assert (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").is_file()
         assert (tmp_path / ".aiderignore").is_file()
 
     def test_clean_works_on_empty_dir(self, tmp_path):
@@ -516,235 +452,20 @@ class TestScaffoldAider:
         assert (tmp_path / ".aider.conf.yml").is_file()
 
 
-class TestNotesFile:
-    def test_notes_never_overwritten_by_reset(self, tmp_path):
-        scaffold_codex(tmp_path)
-        notes = tmp_path / "INSTITUTIONAL_KNOWLEDGE.md"
-        notes.write_text("My custom notes")
-        scaffold_codex(tmp_path, overwrite=True)
-        assert notes.read_text() == "My custom notes"
-
-    def test_notes_never_overwritten_by_update(self, tmp_path):
-        scaffold_codex(tmp_path)
-        notes = tmp_path / "INSTITUTIONAL_KNOWLEDGE.md"
-        notes.write_text("My custom notes")
-        scaffold_codex(tmp_path, merge=True)
-        assert notes.read_text() == "My custom notes"
-
-    def test_notes_never_deleted_by_clean(self, tmp_path):
-        scaffold_codex(tmp_path)
-        notes = tmp_path / "INSTITUTIONAL_KNOWLEDGE.md"
-        notes.write_text("My custom notes")
-        scaffold_codex(tmp_path, clean=True)
-        assert notes.read_text() == "My custom notes"
-
-    def test_notes_created_if_missing_on_clean(self, tmp_path):
-        scaffold_codex(tmp_path, clean=True)
-        assert (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").is_file()
-
-    def test_notes_has_project_overview_section(self, tmp_path):
-        scaffold_codex(tmp_path)
-        content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
-        assert "# Institutional Notes" in content
-
-    def test_notes_shared_across_tools(self, tmp_path):
-        scaffold_codex(tmp_path)
-        notes = tmp_path / "INSTITUTIONAL_KNOWLEDGE.md"
-        notes.write_text("Custom notes")
-        scaffold_opencode(tmp_path)
-        assert notes.read_text() == "Custom notes"
-
-
-class TestSkillsForConfig:
-    def test_none_returns_all_skills(self):
-        skills = skills_for_config(None, None)
-        assert skills == AGENTS_SKILL_DIRS
-
-    def test_library_main_excludes_promote_and_service_skills(self):
-        skills = skills_for_config(RepoType.LIBRARY, BranchStrategy.MAIN)
-        assert "ai-promote" not in skills
-        assert "ai-setup-oidc" not in skills
-        assert "ai-init" in skills
-        assert "ai-new-project" in skills
-
-    def test_library_dev_includes_promote(self):
-        skills = skills_for_config(RepoType.LIBRARY, BranchStrategy.DEV)
-        assert "ai-promote" in skills
-
-    def test_service_main_has_oidc_no_promote(self):
-        skills = skills_for_config(RepoType.SERVICE, BranchStrategy.MAIN)
-        assert "ai-setup-oidc" in skills
-        assert "ai-promote" not in skills
-
-    def test_service_dev_has_oidc_and_promote(self):
-        skills = skills_for_config(RepoType.SERVICE, BranchStrategy.DEV)
-        assert "ai-setup-oidc" in skills
-        assert "ai-promote" in skills
-
-    def test_workspace_has_workspace_skills(self):
-        skills = skills_for_config(RepoType.WORKSPACE, BranchStrategy.MAIN)
-        assert "ai-workspace-status" in skills
-        assert "ai-workspace-sync" in skills
-        assert "ai-workspace-init" in skills
-        assert "ai-workspace-health" in skills
-        assert "ai-workspace-foreach" in skills
-
-    def test_workspace_excludes_service_skills(self):
-        skills = skills_for_config(RepoType.WORKSPACE, BranchStrategy.MAIN)
-        assert "ai-setup-oidc" not in skills
-        assert "ai-promote" not in skills
-
-    def test_deleted_skills_not_in_any_config(self):
-        from ai_shell.scaffold import _DELETED_SKILLS
-
-        for repo_type in RepoType:
-            for branch_strategy in BranchStrategy:
-                skills = skills_for_config(repo_type, branch_strategy)
-                for name in _DELETED_SKILLS:
-                    assert name not in skills, (
-                        f"{name} should be deleted but found in {repo_type}/{branch_strategy}"
-                    )
-
-    def test_workspace_has_universal_skills(self):
-        skills = skills_for_config(RepoType.WORKSPACE, BranchStrategy.MAIN)
-        assert "ai-init" in skills
-        assert "ai-pick-issue" in skills
-        assert "ai-prepare-branch" in skills
-        assert "ai-submit-work" in skills
-        assert "ai-status" in skills
-        assert "ai-new-project" in skills
-
-    def test_all_types_have_universal_skills(self):
-        for repo_type in RepoType:
-            skills = skills_for_config(repo_type, BranchStrategy.MAIN)
-            assert "ai-pick-issue" in skills
-            assert "ai-prepare-branch" in skills
-            assert "ai-submit-work" in skills
-            assert "ai-monitor-pipeline" in skills
-            assert "ai-status" in skills
-            assert "ai-rollback" in skills
-            assert "ai-repo-health" in skills
-            assert "ai-init" in skills
-            assert "ai-new-project" in skills
-
-
-class TestScaffoldWithRepoType:
-    def test_claude_no_skills_regardless_of_type(self, tmp_path):
-        """Claude skills are delivered via plugin, not scaffold."""
-        scaffold_claude(
-            tmp_path,
-            repo_type=RepoType.LIBRARY,
-            branch_strategy=BranchStrategy.MAIN,
-        )
-        assert not (tmp_path / ".claude" / "skills").exists()
-
-    def test_opencode_workspace_skills(self, tmp_path):
-        scaffold_opencode(
-            tmp_path,
-            repo_type=RepoType.WORKSPACE,
-            branch_strategy=BranchStrategy.MAIN,
-        )
-        skills_dir = tmp_path / ".agents" / "skills"
-        assert (skills_dir / "ai-workspace-status" / "SKILL.md").is_file()
-        assert not (skills_dir / "ai-promote").exists()
-
-    def test_codex_library_skills(self, tmp_path):
-        scaffold_codex(
-            tmp_path,
-            repo_type=RepoType.LIBRARY,
-            branch_strategy=BranchStrategy.MAIN,
-        )
-        skills_dir = tmp_path / ".agents" / "skills"
-        assert not (skills_dir / "ai-promote").exists()
-        assert (skills_dir / "ai-pick-issue" / "SKILL.md").is_file()
-
-
-class TestNotesTemplateSelection:
-    def test_library_notes(self, tmp_path):
-        scaffold_project(
-            tmp_path,
-            repo_type=RepoType.LIBRARY,
-        )
-        content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
-        assert "# Institutional Notes: Library Repos" in content
-        assert "semantic-release" in content
-        assert "uv run ai-tools repo ..." in content
-        assert "uv run ai-tools standardize <path> --verify --json" in content
-
-    def test_service_notes(self, tmp_path):
-        scaffold_project(
-            tmp_path,
-            repo_type=RepoType.SERVICE,
-        )
-        content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
-        assert "# Institutional Notes: Service Repos" in content
-        assert "merge-commit-only policy applies" in content
-        assert "uv run ai-tools repo ..." in content
-        assert "uv run ai-tools standardize <path> --verify --json" in content
-
-    def test_workspace_notes(self, tmp_path):
-        scaffold_project(
-            tmp_path,
-            repo_type=RepoType.WORKSPACE,
-        )
-        content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
-        assert "# Institutional Notes: Workspaces" in content
-        assert "uv run ai-tools workspace sync" in content
-        assert "Workspace orchestration commands live under `uv run ai-tools workspace`" in content
-        assert "uv run ai-tools standardize <child-path>" in content
-        # The "never cd" rationale must ship with the workspace notes.
-        assert "Never `cd` into a child repo" in content
-
-    def test_none_type_uses_default_notes(self, tmp_path):
-        scaffold_project(tmp_path, repo_type=None)
-        content = (tmp_path / "INSTITUTIONAL_KNOWLEDGE.md").read_text()
-        assert "# Institutional Notes" in content
-        assert "## Submodule Map" not in content
-        assert "## Publishing" not in content
-
-
-class TestWorkspaceSkillCommandContract:
-    def test_workspace_skills_use_ai_tools_workspace_surface(self, tmp_path):
-        scaffold_codex(
-            tmp_path,
-            repo_type=RepoType.WORKSPACE,
-            branch_strategy=BranchStrategy.MAIN,
-        )
-        skills_dir = tmp_path / ".agents" / "skills"
-        expected_commands = {
-            "ai-workspace-init": "uv run ai-tools workspace sync --json",
-            "ai-workspace-sync": "uv run ai-tools workspace sync --json",
-            "ai-workspace-status": "uv run ai-tools workspace status --json",
-            "ai-workspace-pick": "uv run ai-tools workspace issues --json",
-            "ai-workspace-branch": "uv run ai-tools workspace branch --json",
-            "ai-workspace-test": "uv run ai-tools workspace check --phase tests --json",
-            "ai-workspace-lint": "uv run ai-tools workspace check --phase quality --json",
-            "ai-workspace-submit": "uv run ai-tools workspace submit --json",
-            "ai-workspace-update": "uv run ai-tools workspace update --json",
-            "ai-workspace-health": "uv run ai-tools workspace status --actionable --json",
-            "ai-workspace-foreach": "uv run ai-tools workspace foreach --json",
-        }
-
-        for skill_name, command in expected_commands.items():
-            content = (skills_dir / skill_name / "SKILL.md").read_text()
-            assert "augint-tools" not in content
-            assert command in content
-
-
 class TestProjectYamlOutput:
     def test_scaffold_generates_yaml(self, tmp_path):
-        scaffold_project(tmp_path, repo_type=RepoType.LIBRARY)
+        scaffold_project(tmp_path)
         assert (tmp_path / ".ai-shell.yaml").exists()
         assert not (tmp_path / ".ai-shell.toml").exists()
 
     def test_generated_yaml_has_no_project_key(self, tmp_path):
-        scaffold_project(tmp_path, repo_type=RepoType.LIBRARY)
+        scaffold_project(tmp_path)
         content = (tmp_path / ".ai-shell.yaml").read_text()
         assert "project:" not in content
         assert "repo_type" not in content
 
     def test_generated_yaml_is_valid(self, tmp_path):
-        scaffold_project(tmp_path, repo_type=None)
+        scaffold_project(tmp_path)
         content = (tmp_path / ".ai-shell.yaml").read_text()
         import yaml
 

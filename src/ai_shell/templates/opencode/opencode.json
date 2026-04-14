@@ -53,7 +53,7 @@
       }
     }
   },
-  "instructions": ["INSTITUTIONAL_KNOWLEDGE.md"],
+  "instructions": [],
   "permission": {
     "read": "allow",
     "edit": "allow",

@@ -16,7 +16,6 @@ from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import AiShellConfig, load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import build_dev_environment, dev_container_name, uv_venv_path
-from ai_shell.scaffold import BranchStrategy, RepoType
 
 logger = logging.getLogger(__name__)
 console = Console(stderr=True)
@@ -195,48 +194,6 @@ def _check_bedrock_access(
             "  - SCP or IAM policy denying bedrock:InvokeModel\n"
             "  - Wrong AWS region: ensure Bedrock is available in the configured region"
         )
-
-
-# ── Repo-type resolution helpers ──────────────────────────────────
-
-
-def _prompt_repo_type() -> RepoType:
-    """Interactively ask user for repo type."""
-    repo_type_val = click.prompt(
-        "Repo type",
-        type=click.Choice(["library", "service", "workspace"], case_sensitive=False),
-    )
-    return _normalize_repo_type_value(repo_type_val)
-
-
-def _normalize_repo_type_value(value: str) -> RepoType:
-    """Map user-facing aliases onto the internal repo type enum."""
-    if value == "iac":
-        return RepoType.SERVICE
-    return RepoType(value)
-
-
-def _resolve_repo_config(
-    flag: str | None,
-    target_dir: Path,
-    *,
-    prompt_if_missing: bool = False,
-) -> tuple[RepoType | None, BranchStrategy | None, str]:
-    """Resolve repo type / branch strategy from flag or prompt.
-
-    Returns (repo_type, branch_strategy, dev_branch).
-    Branch strategy and dev_branch are kept for API compat but always None/"dev".
-    """
-    # 1. CLI flag wins
-    if flag:
-        return _normalize_repo_type_value(flag), None, "dev"
-
-    # 2. Interactive prompt (only for init)
-    if prompt_if_missing:
-        return _prompt_repo_type(), None, "dev"
-
-    # 3. No config available
-    return None, None, "dev"
 
 
 def _get_manager(
@@ -616,13 +573,6 @@ def _launch_multi(
     help="Delete and recreate .claude/ config from templates.",
 )
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
-@click.option(
-    "--no-merge",
-    "skip_merge",
-    is_flag=True,
-    default=False,
-    help="Skip merging notes into context file on --update/--reset.",
-)
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
 @click.option(
@@ -632,9 +582,6 @@ def _launch_multi(
     default=False,
     help="Skip Bedrock pre-flight check (for debugging).",
 )
-@click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
-@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
-@click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.option(
     "--worktree",
     "-w",
@@ -679,11 +626,9 @@ def claude(
     do_reset,
     do_clean,
     safe,
-    skip_merge,
     use_aws,
     cli_profile,
     skip_preflight,
-    repo_type_flag,
     worktree_name,
     do_multi,
     do_team,
@@ -701,28 +646,12 @@ def claude(
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_claude as _scaffold_claude
 
-        target_dir = Path.cwd()
-        repo_type, branch_strategy, _dev = _resolve_repo_config(
-            repo_type_flag,
-            target_dir,
-        )
         _scaffold_claude(
-            target_dir,
+            Path.cwd(),
             overwrite=do_reset or do_clean,
             clean=do_clean,
             merge=do_update,
-            repo_type=repo_type,
-            branch_strategy=branch_strategy,
         )
-        if (do_init or do_update or do_reset) and not skip_merge:
-            from ai_shell.notes_merge import merge_notes_into_context
-
-            merge_notes_into_context(
-                Path.cwd(),
-                "claude",
-                background=True,
-                repo_type=repo_type.value if repo_type else None,
-            )
         return
 
     if do_multi:
@@ -753,21 +682,7 @@ def claude(
         console.print("[dim].claude/ not found - running first-time init...[/dim]")
         from ai_shell.scaffold import scaffold_claude as _scaffold_claude
 
-        _auto_repo_type, _auto_branch, _auto_dev = _resolve_repo_config(None, Path.cwd())
-        _scaffold_claude(
-            Path.cwd(),
-            repo_type=_auto_repo_type,
-            branch_strategy=_auto_branch,
-        )
-        if not skip_merge:
-            from ai_shell.notes_merge import merge_notes_into_context
-
-            merge_notes_into_context(
-                Path.cwd(),
-                "claude",
-                background=True,
-                repo_type=_auto_repo_type.value if _auto_repo_type else None,
-            )
+        _scaffold_claude(Path.cwd())
 
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
@@ -852,13 +767,6 @@ def claude(
     help="Delete and recreate .codex/ and .agents/ config from templates.",
 )
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
-@click.option(
-    "--no-merge",
-    "skip_merge",
-    is_flag=True,
-    default=False,
-    help="Skip merging notes into context file on --update/--reset.",
-)
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
 @click.option(
@@ -868,9 +776,6 @@ def claude(
     default=False,
     help="Skip Bedrock pre-flight check (for debugging).",
 )
-@click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
-@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
-@click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def codex(
@@ -880,39 +785,21 @@ def codex(
     do_reset,
     do_clean,
     safe,
-    skip_merge,
     use_aws,
     cli_profile,
     skip_preflight,
-    repo_type_flag,
     extra_args,
 ):
     """Launch Codex in the dev container."""
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_codex as _scaffold_codex
 
-        target_dir = Path.cwd()
-        repo_type, branch_strategy, _dev = _resolve_repo_config(
-            repo_type_flag,
-            target_dir,
-        )
         _scaffold_codex(
-            target_dir,
+            Path.cwd(),
             overwrite=do_reset or do_clean,
             clean=do_clean,
             merge=do_update,
-            repo_type=repo_type,
-            branch_strategy=branch_strategy,
         )
-        if (do_init or do_update or do_reset) and not skip_merge:
-            from ai_shell.notes_merge import merge_notes_into_context
-
-            merge_notes_into_context(
-                Path.cwd(),
-                "codex",
-                background=True,
-                repo_type=repo_type.value if repo_type else None,
-            )
         return
 
     # Auto-init if .codex/ is missing
@@ -920,21 +807,7 @@ def codex(
         console.print("[dim].codex/ not found - running first-time init...[/dim]")
         from ai_shell.scaffold import scaffold_codex as _scaffold_codex
 
-        _auto_repo_type, _auto_branch, _auto_dev = _resolve_repo_config(None, Path.cwd())
-        _scaffold_codex(
-            Path.cwd(),
-            repo_type=_auto_repo_type,
-            branch_strategy=_auto_branch,
-        )
-        if not skip_merge:
-            from ai_shell.notes_merge import merge_notes_into_context
-
-            merge_notes_into_context(
-                Path.cwd(),
-                "codex",
-                background=True,
-                repo_type=_auto_repo_type.value if _auto_repo_type else None,
-            )
+        _scaffold_codex(Path.cwd())
 
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
@@ -1005,13 +878,6 @@ def codex(
     help="Delete and recreate opencode and .agents/ config from templates.",
 )
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
-@click.option(
-    "--no-merge",
-    "skip_merge",
-    is_flag=True,
-    default=False,
-    help="Skip merging notes into context file on --update/--reset.",
-)
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
 @click.option(
@@ -1021,9 +887,6 @@ def codex(
     default=False,
     help="Skip Bedrock pre-flight check (for debugging).",
 )
-@click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
-@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
-@click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.pass_context
 def opencode(
     ctx,
@@ -1032,38 +895,20 @@ def opencode(
     do_reset,
     do_clean,
     safe,
-    skip_merge,
     use_aws,
     cli_profile,
     skip_preflight,
-    repo_type_flag,
 ):
     """Launch opencode in the dev container."""
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
 
-        target_dir = Path.cwd()
-        repo_type, branch_strategy, _dev = _resolve_repo_config(
-            repo_type_flag,
-            target_dir,
-        )
         _scaffold_opencode(
-            target_dir,
+            Path.cwd(),
             overwrite=do_reset or do_clean,
             clean=do_clean,
             merge=do_update,
-            repo_type=repo_type,
-            branch_strategy=branch_strategy,
         )
-        if (do_init or do_update or do_reset) and not skip_merge:
-            from ai_shell.notes_merge import merge_notes_into_context
-
-            merge_notes_into_context(
-                Path.cwd(),
-                "opencode",
-                background=True,
-                repo_type=repo_type.value if repo_type else None,
-            )
         return
 
     # Auto-init if opencode.json is missing
@@ -1071,21 +916,7 @@ def opencode(
         console.print("[dim]opencode.json not found - running first-time init...[/dim]")
         from ai_shell.scaffold import scaffold_opencode as _scaffold_opencode
 
-        _auto_repo_type, _auto_branch, _auto_dev = _resolve_repo_config(None, Path.cwd())
-        _scaffold_opencode(
-            Path.cwd(),
-            repo_type=_auto_repo_type,
-            branch_strategy=_auto_branch,
-        )
-        if not skip_merge:
-            from ai_shell.notes_merge import merge_notes_into_context
-
-            merge_notes_into_context(
-                Path.cwd(),
-                "opencode",
-                background=True,
-                repo_type=_auto_repo_type.value if _auto_repo_type else None,
-            )
+        _scaffold_opencode(Path.cwd())
 
     # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
@@ -1145,27 +976,18 @@ def opencode(
     help="Delete and recreate aider config from templates.",
 )
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
-@click.option("--lib", "--library", "repo_type_flag", flag_value="library", hidden=True)
-@click.option("--service", "repo_type_flag", flag_value="service", hidden=True)
-@click.option("--workspace", "repo_type_flag", flag_value="workspace", hidden=True)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def aider(ctx, do_init, do_update, do_reset, do_clean, safe, repo_type_flag, extra_args):
+def aider(ctx, do_init, do_update, do_reset, do_clean, safe, extra_args):
     """Launch aider with local LLM in the dev container."""
     if do_init or do_update or do_reset or do_clean:
         from ai_shell.scaffold import scaffold_aider as _scaffold_aider
 
-        target_dir = Path.cwd()
-        repo_type, _branch, _dev = _resolve_repo_config(
-            repo_type_flag,
-            target_dir,
-        )
         _scaffold_aider(
-            target_dir,
+            Path.cwd(),
             overwrite=do_reset or do_clean,
             clean=do_clean,
             merge=do_update,
-            repo_type=repo_type,
         )
         return
 
@@ -1174,11 +996,7 @@ def aider(ctx, do_init, do_update, do_reset, do_clean, safe, repo_type_flag, ext
         console.print("[dim].aider.conf.yml not found - running first-time init...[/dim]")
         from ai_shell.scaffold import scaffold_aider as _scaffold_aider
 
-        _auto_repo_type, _auto_branch, _auto_dev = _resolve_repo_config(None, Path.cwd())
-        _scaffold_aider(
-            Path.cwd(),
-            repo_type=_auto_repo_type,
-        )
+        _scaffold_aider(Path.cwd())
 
     manager, name, exec_env, config = _get_manager(ctx)
     cmd = ["aider", "--model", config.aider_model]
@@ -1226,33 +1044,7 @@ def shell(ctx):
     default=False,
     help="Also scaffold all tool configs (claude, codex, opencode, aider).",
 )
-@click.option(
-    "--no-merge",
-    "skip_merge",
-    is_flag=True,
-    default=False,
-    help="Skip merging notes into context files on --update/--reset --all.",
-)
-@click.option(
-    "--lib",
-    "--library",
-    "repo_type_flag",
-    flag_value="library",
-    help="Scaffold for a library repo (publishes packages).",
-)
-@click.option(
-    "--service",
-    "repo_type_flag",
-    flag_value="service",
-    help="Scaffold for a service / web / backend repo.",
-)
-@click.option(
-    "--workspace",
-    "repo_type_flag",
-    flag_value="workspace",
-    help="Scaffold for a workspace repo coordinating multiple child repos.",
-)
-def init(update, reset, clean, scaffold_all, skip_merge, repo_type_flag):
+def init(update, reset, clean, scaffold_all):
     """Initialize ai-shell config files in the current directory."""
     from ai_shell.scaffold import scaffold_aider as _scaffold_aider
     from ai_shell.scaffold import scaffold_claude as _scaffold_claude
@@ -1264,21 +1056,11 @@ def init(update, reset, clean, scaffold_all, skip_merge, repo_type_flag):
     merge = update
     target_dir = Path.cwd()
 
-    # Resolve repo type: flag > persisted config > interactive prompt
-    # Prompt only on fresh init (not update/reset without explicit flag)
-    is_fresh_init = not (update or reset or clean)
-    repo_type, branch_strategy, dev_branch = _resolve_repo_config(
-        repo_type_flag,
-        target_dir,
-        prompt_if_missing=is_fresh_init,
-    )
-
     scaffold_project(
         target_dir,
         overwrite=overwrite,
         clean=clean,
         merge=merge,
-        repo_type=repo_type,
     )
     if scaffold_all:
         _scaffold_claude(
@@ -1286,35 +1068,22 @@ def init(update, reset, clean, scaffold_all, skip_merge, repo_type_flag):
             overwrite=overwrite,
             clean=clean,
             merge=merge,
-            repo_type=repo_type,
-            branch_strategy=branch_strategy,
         )
         _scaffold_opencode(
             target_dir,
             overwrite=overwrite,
             clean=clean,
             merge=merge,
-            repo_type=repo_type,
-            branch_strategy=branch_strategy,
         )
         _scaffold_codex(
             target_dir,
             overwrite=overwrite,
             clean=clean,
             merge=merge,
-            repo_type=repo_type,
-            branch_strategy=branch_strategy,
         )
         _scaffold_aider(
             target_dir,
             overwrite=overwrite,
             clean=clean,
             merge=merge,
-            repo_type=repo_type,
         )
-        if (update or reset) and not skip_merge:
-            from ai_shell.notes_merge import merge_notes_into_context
-
-            _rt = repo_type.value if repo_type else None
-            merge_notes_into_context(target_dir, "claude", background=True, repo_type=_rt)
-            merge_notes_into_context(target_dir, "codex", background=True, repo_type=_rt)

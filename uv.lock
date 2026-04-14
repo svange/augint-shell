@@ -39,8 +39,11 @@ dependencies = [
     { name = "rich" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
+    { name = "augint-github" },
+    { name = "augint-shell" },
+    { name = "augint-tools" },
     { name = "bandit" },
     { name = "mypy" },
     { name = "pdoc" },
@@ -55,53 +58,46 @@ dev = [
     { name = "types-pyyaml" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "augint-github" },
-    { name = "augint-tools" },
-]
-
 [package.metadata]
 requires-dist = [
-    { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "docker", specifier = ">=7.0.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
-    { name = "pdoc", marker = "extra == 'dev'", specifier = ">=15.0.0" },
-    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7.0" },
-    { name = "pip-licenses", marker = "extra == 'dev'", specifier = ">=5.0.0" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
-    { name = "pytest-html", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "python-semantic-release", marker = "extra == 'dev'", specifier = ">=10.3.1" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=14.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
-    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0" },
 ]
-provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "augint-github", specifier = ">=1.3.1" },
+    { name = "augint-shell", editable = "." },
     { name = "augint-tools", specifier = ">=2.1.1" },
+    { name = "bandit", specifier = ">=1.7.0" },
+    { name = "mypy", specifier = ">=1.8.0" },
+    { name = "pdoc", specifier = ">=15.0.0" },
+    { name = "pip-audit", specifier = ">=2.7.0" },
+    { name = "pip-licenses", specifier = ">=5.0.0" },
+    { name = "pre-commit", specifier = ">=4.0.0" },
+    { name = "pytest", specifier = ">=7.4.0" },
+    { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pytest-html", specifier = ">=4.0.0" },
+    { name = "python-semantic-release", specifier = ">=10.3.1" },
+    { name = "ruff", specifier = ">=0.8.0" },
+    { name = "types-pyyaml", specifier = ">=6.0" },
 ]
 
 [[package]]
 name = "augint-tools"
-version = "3.8.0"
+version = "4.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
-    { name = "tomli-w" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/15/69/4f3c70850d15ab9f2c1898a6bb5727c53532600181c11b0b95ce4e330c14/augint_tools-3.8.0.tar.gz", hash = "sha256:3e3c06c016b05ab102129ca344f61979ca4df59f72650b21896eff1b3ba02521", size = 38181, upload-time = "2026-04-13T05:26:41.15Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/3e/4539d37fcb411c8df6d69b09420cefc97181ec21514320d6975164c4064f/augint_tools-4.2.1.tar.gz", hash = "sha256:7594343126030ba42a8f3a148d3bad68a813aa590bfd00e8547e9bdd0d915fa8", size = 24637, upload-time = "2026-04-14T02:13:43.353Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/54/ef/478ecbed0cceff393438cb695ac968d032682fca0d1d2dfc755b86c3bb7a/augint_tools-3.8.0-py3-none-any.whl", hash = "sha256:ed59e32617af8c82adc03bcb8229c41098c103f9d5b53ad1ebcdefbc608de55f", size = 52145, upload-time = "2026-04-13T05:26:39.581Z" },
+    { url = "https://files.pythonhosted.org/packages/be/7e/9cbf6b5fb6d7fa8f0890a8d34d4af1e40846e8d3efa06e6480950a2f1f46/augint_tools-4.2.1-py3-none-any.whl", hash = "sha256:03168799f4eca54fce27c47925f05f260f47541aa231ca766a4273efa1c49c44", size = 36603, upload-time = "2026-04-14T02:13:41.858Z" },
 ]
 
 [[package]]
@@ -1628,7 +1624,7 @@ wheels = [
 
 [[package]]
 name = "virtualenv"
-version = "21.2.1"
+version = "21.2.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "distlib" },
@@ -1636,9 +1632,9 @@ dependencies = [
     { name = "platformdirs" },
     { name = "python-discovery" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/97/c5/aff062c66b42e2183201a7ace10c6b2e959a9a16525c8e8ca8e59410d27a/virtualenv-21.2.1.tar.gz", hash = "sha256:b66ffe81301766c0d5e2208fc3576652c59d44e7b731fc5f5ed701c9b537fa78", size = 5844770, upload-time = "2026-04-09T18:47:11.482Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/8c/bdd9f89f89e4a787ac61bb2da4d884bc45e0c287ec694dfa3170dddd5cfe/virtualenv-21.2.3.tar.gz", hash = "sha256:9bb6d1414ab55ca624371e30c7719c32f183ef44da544ef8aa44a456de7ac191", size = 5844776, upload-time = "2026-04-14T01:10:36.692Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/0e/f083a76cb590e60dff3868779558eefefb8dfb7c9ed020babc7aa014ccbf/virtualenv-21.2.1-py3-none-any.whl", hash = "sha256:bd16b49c53562b28cf1a3ad2f36edb805ad71301dee70ddc449e5c88a9f919a2", size = 5828326, upload-time = "2026-04-09T18:47:09.331Z" },
+    { url = "https://files.pythonhosted.org/packages/95/19/bc7c4e05f42532863cf2ae7e7e847beab25835934e0410160b47eeff1e35/virtualenv-21.2.3-py3-none-any.whl", hash = "sha256:486652347ea8526d91e9807c0274583cb7ba31dd4942ff10fb5621402f0fe0d8", size = 5828329, upload-time = "2026-04-14T01:10:34.809Z" },
 ]
 
 [[package]]
