@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.68.0 (2026-04-14)
+
+### Features
+
+- Add RTX 5070 Ti model guide and example configurations
+  ([`6e3e02c`](https://github.com/svange/augint-shell/commit/6e3e02cd7818448f2f2c1738ab30aeff9d64f37d))
+
+
 ## v0.67.1 (2026-04-14)
 
 ### Refactoring
