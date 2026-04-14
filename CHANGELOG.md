@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.71.1 (2026-04-14)
+
+### Refactoring
+
+- Strip scaffolding from tool commands, rename shell to bash, extend global config path
+  ([`c53f144`](https://github.com/svange/augint-shell/commit/c53f144f41799edc7b52c913916b65146ee21605))
+
+
 ## v0.71.0 (2026-04-14)
 
 ### Features
