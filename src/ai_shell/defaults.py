@@ -231,7 +231,6 @@ def _find_gh_config_dir() -> Path | None:
     return None
 
 
-
 def build_dev_environment(
     extra_env: dict[str, str] | None = None,
     project_dir: Path | None = None,
