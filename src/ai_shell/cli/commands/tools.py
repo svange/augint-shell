@@ -136,6 +136,33 @@ def _inject_codex_api_key(container_name: str, api_key: str) -> None:
         )
 
 
+def _inject_mcp_config(
+    container_name: str,
+    host_path: str,
+    container_path: str,
+) -> None:
+    """Copy an MCP config file from the host into a running container.
+
+    Uses ``docker cp`` so the file is available immediately without
+    requiring a mount declared at container creation time.
+    """
+    # Ensure the parent directory exists inside the container.
+    # Use string split (not Path) because container_path is a Linux path
+    # and this code runs on Windows where Path would mangle it.
+    parent = container_path.rsplit("/", 1)[0]
+    subprocess.run(
+        ["docker", "exec", container_name, "mkdir", "-p", parent],
+        capture_output=True,
+    )
+    result = subprocess.run(
+        ["docker", "cp", host_path, f"{container_name}:{container_path}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        logger.warning("Failed to copy MCP config into container: %s", result.stderr.strip())
+
+
 def _check_bedrock_access(
     container_name: str,
     exec_env: dict[str, str],
@@ -724,6 +751,17 @@ def _launch_multi(
         "the container.  Reads workspace.yaml for repo context."
     ),
 )
+@click.option(
+    "--local-chrome",
+    "local_chrome",
+    is_flag=True,
+    default=False,
+    help=(
+        "Attach Chrome DevTools MCP to host Chrome running with "
+        "--remote-debugging-port=9222. Gives Claude browser control "
+        "over your real Windows Chrome tabs."
+    ),
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def claude(
@@ -739,6 +777,7 @@ def claude(
     worktree_name,
     do_multi,
     do_team,
+    local_chrome,
     extra_args,
 ):
     """Launch Claude Code in the dev container."""
@@ -823,13 +862,44 @@ def claude(
         worktree_dir = _setup_worktree(name, container_project_dir, worktree_name)
         console.print(f"[dim]Worktree: {worktree_dir} (branch: worktree-{worktree_name})[/dim]")
 
+    # Local Chrome bridge: probe debug port, write MCP config, inject into args
+    local_chrome = local_chrome or config.local_chrome is True
+    mcp_args: list[str] = []
+    if local_chrome:
+        from ai_shell.local_chrome import (
+            LocalChromeUnavailable,
+            ensure_host_chrome,
+            start_chrome_proxy,
+            write_mcp_config,
+        )
+
+        console.print("[dim]Connecting to host Chrome...[/dim]")
+        try:
+            chrome_port = ensure_host_chrome(name)
+        except LocalChromeUnavailable as exc:
+            raise click.ClickException(str(exc)) from exc
+
+        console.print(f"[dim]Chrome debug port {chrome_port} reachable.[/dim]")
+
+        # Start TCP proxy: localhost:<port> -> host.docker.internal:<port>
+        # Chrome rejects non-localhost Host headers, so the MCP server
+        # must connect via localhost.
+        start_chrome_proxy(name, chrome_port)
+
+        mcp_path = write_mcp_config(chrome_port)
+        container_mcp_path = "/etc/ai-shell/chrome-mcp.json"
+        # Inject the MCP config file into the running container
+        _inject_mcp_config(name, str(mcp_path), container_mcp_path)
+        mcp_args = ["--mcp-config", container_mcp_path]
+        console.print("[dim]Chrome DevTools MCP attached.[/dim]")
+
     if safe:
-        cmd = ["claude", *extra_args]
+        cmd = ["claude", *mcp_args, *extra_args]
         console.print(f"[bold]Launching Claude Code (safe mode){bedrock_label} in {name}...[/bold]")
         manager.exec_interactive(name, cmd, extra_env=exec_env, workdir=worktree_dir)
     else:
         # Try with -c first (continue previous conversation)
-        cmd_continue = ["claude", "--dangerously-skip-permissions", "-c", *extra_args]
+        cmd_continue = ["claude", "--dangerously-skip-permissions", "-c", *mcp_args, *extra_args]
         console.print(f"[bold]Launching Claude Code{bedrock_label} in {name}...[/bold]")
         exit_code, elapsed = manager.run_interactive(
             name, cmd_continue, extra_env=exec_env, workdir=worktree_dir
@@ -838,7 +908,7 @@ def claude(
         if exit_code != 0 and elapsed < FAST_FAILURE_THRESHOLD:
             # -c failed quickly (likely no prior conversation), retry without it
             console.print("[yellow]No prior conversation found, starting fresh...[/yellow]")
-            cmd_fresh = ["claude", "--dangerously-skip-permissions", *extra_args]
+            cmd_fresh = ["claude", "--dangerously-skip-permissions", *mcp_args, *extra_args]
             manager.exec_interactive(name, cmd_fresh, extra_env=exec_env, workdir=worktree_dir)
         else:
             sys.exit(exit_code)

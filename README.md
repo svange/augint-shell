@@ -112,6 +112,54 @@ Global config at `~/.config/ai-shell/config.toml` is also supported.
 - Runs AI tools interactively inside the container
 - Supports concurrent instances across multiple projects
 
+## Attaching to your Windows Chrome (`--local-chrome`)
+
+The dev container cannot open a browser on the Windows host, which blocks OAuth popups, CAPTCHA pages, and any "click around in a logged-in site" task. `ai-shell claude --local-chrome` bridges Claude inside the container to your *real* Chrome on Windows through the Chrome DevTools Protocol, using the official [`chrome-devtools-mcp`](https://github.com/ChromeDevTools/chrome-devtools-mcp) server.
+
+What you get:
+
+- Claude drives Chrome tabs on your Windows desktop, visible in real time.
+- Uses a **separate Chrome profile** (`ai-debug-profile`) -- your normal browsing is untouched.
+- No Chrome extension. No third-party service. All traffic stays on `localhost` between the container and the host.
+
+### How it works
+
+```bash
+ai-shell claude --local-chrome
+```
+
+`ai-shell` automatically:
+1. Checks if Chrome is already running with a debug port (port 9222).
+2. If not, **launches Chrome** on a free port with its own profile at `%LOCALAPPDATA%\Google\Chrome\ai-debug-profile`.
+3. Starts a TCP proxy inside the container and injects `chrome-devtools-mcp` as an MCP server for Claude.
+
+No manual setup required. Chrome stays open after Claude exits so your login sessions persist. Sign in to whatever accounts you need in that Chrome window (first time only; cookies persist in the profile).
+
+### Persisting the flag
+
+Add to `ai-shell.toml` (or the YAML equivalent) if you always want this on for a project:
+
+```toml
+[claude]
+local_chrome = true
+```
+
+Or set the environment variable: `AI_SHELL_LOCAL_CHROME=1`.
+
+### Manual Chrome launch (fallback)
+
+If `ai-shell` can't find `chrome.exe` automatically, launch Chrome yourself:
+
+```
+chrome.exe --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --remote-allow-origins=* --user-data-dir="%LOCALAPPDATA%\Google\Chrome\ai-debug-profile"
+```
+
+### Troubleshooting
+
+- **"Chrome could not be found or launched"** -- Chrome is not installed at a standard location. Use the manual launch command above, or set the path in your system PATH.
+- **Tabs appear empty / not logged in** -- Sign in to the accounts you need inside the auto-launched Chrome (the one with the `ai-debug-profile` window title). Cookies persist across sessions.
+- **Firefox / Safari** -- not supported. `chrome-devtools-mcp` requires a Chromium-based browser. Edge works with the same flags but has not been tested here.
+
 ## Standardization architecture
 
 `augint-shell` also ships the skill bundle and Python machinery for
