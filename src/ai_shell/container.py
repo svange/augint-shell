@@ -459,15 +459,78 @@ class ContainerManager:
                 return True
         return False
 
+    # AUTO-UPDATE: Pre-launch tool freshness check
+    def ensure_tool_fresh(self, container_name: str, tool_name: str) -> None:
+        """Check if a tool is stale and update it before launch.
+
+        Runs ``update-tools.sh --check <tool>`` inside the container.
+        If stale (exit code 1), runs ``--tool <tool>`` in the foreground
+        (blocking) which also kicks off background updates for other tools.
+
+        Silently does nothing if ``update-tools.sh`` is not present in the
+        container (backward compatibility with older images).
+        """
+        update_script = "/usr/local/bin/update-tools.sh"
+
+        # Check if update script exists in the container
+        check_exists = subprocess.run(
+            ["docker", "exec", container_name, "test", "-x", update_script],
+            capture_output=True,
+        )
+        if check_exists.returncode != 0:
+            logger.debug(
+                "update-tools.sh not found in %s, skipping freshness check",
+                container_name,
+            )
+            return
+
+        # Check freshness
+        check_result = subprocess.run(
+            ["docker", "exec", container_name, update_script, "--check", tool_name],
+            capture_output=True,
+        )
+        if check_result.returncode == 0:
+            logger.debug("Tool %s is fresh, skipping update", tool_name)
+            return
+
+        # Tool is stale — update it in foreground (--tool also backgrounds the rest)
+        logger.info("Updating %s before launch...", tool_name)
+        update_result = subprocess.run(
+            ["docker", "exec", container_name, update_script, "--tool", tool_name],
+            timeout=300,  # 5 minute timeout
+        )
+        if update_result.returncode != 0:
+            logger.warning("Tool update for %s returned non-zero, continuing anyway", tool_name)
+
     def _pull_image_if_needed(self, image: str) -> None:
-        """Pull a Docker image if not available locally."""
-        try:
-            self.client.images.get(image)
-            logger.debug("Image already available: %s", image)
-        except ImageNotFound:
-            logger.info("Pulling image: %s (this may take a while)...", image)
+        """Pull a Docker image if not available locally.
+
+        For the ``latest`` tag, always pull to ensure the freshest digest
+        since the local cache may be stale.  If the pull fails but a
+        cached copy exists, falls back to the cached version with a
+        warning.
+        """
+        tag = image.rsplit(":", 1)[-1] if ":" in image else "latest"
+
+        # AUTO-UPDATE: Always pull 'latest' to get fresh images
+        if tag != "latest":
             try:
-                self.client.images.pull(*image.rsplit(":", 1))
-                logger.info("Image pulled: %s", image)
-            except APIError as e:
-                raise ImagePullError(image, str(e)) from e
+                self.client.images.get(image)
+                logger.debug("Image already available: %s", image)
+                return
+            except ImageNotFound:
+                pass
+
+        logger.info("Pulling image: %s (this may take a while)...", image)
+        try:
+            self.client.images.pull(*image.rsplit(":", 1))
+            logger.info("Image pulled: %s", image)
+        except APIError as e:
+            if tag == "latest":
+                try:
+                    self.client.images.get(image)
+                    logger.warning("Failed to pull latest image, using cached version: %s", e)
+                    return
+                except ImageNotFound:
+                    pass
+            raise ImagePullError(image, str(e)) from e

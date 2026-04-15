@@ -29,6 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     dos2unix \
     bind9-utils \
+    # AUTO-UPDATE: cron daemon for background tool updates
+    cron \
     # Python development
     python3-dev \
     # AWS CLI dependencies
@@ -238,6 +240,11 @@ RUN echo '#!/bin/bash' > /usr/local/bin/git && \
 # This is because the project files aren't available during build time
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
+
+# AUTO-UPDATE: Tool update script and runtime directories
+COPY update-tools.sh /usr/local/bin/update-tools.sh
+RUN chmod +x /usr/local/bin/update-tools.sh && \
+    mkdir -p /var/run/ai-shell/update-markers /var/log/ai-shell
 
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

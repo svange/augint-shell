@@ -40,7 +40,7 @@ class AiShellConfig:
 
     # Container
     image: str = DEFAULT_IMAGE
-    image_tag: str = __version__
+    image_tag: str = "latest"
     project_name: str = ""
     project_dir: Path = field(default_factory=Path.cwd)
 
@@ -66,6 +66,7 @@ class AiShellConfig:
 
     # Claude options
     local_chrome: bool = False  # Attach Chrome DevTools MCP to project-scoped host Chrome
+    pinned_image: bool = False  # When True, use version-matched image tag instead of latest
 
     # Per-tool provider
     claude_provider: str = ""  # "anthropic" (default) or "aws"
@@ -131,6 +132,11 @@ def load_config(
         from ai_shell.defaults import sanitize_project_name
 
         config.project_name = sanitize_project_name(config.project_dir)
+
+    # Pin to version-matched tag when pinned_image is set and tag wasn't
+    # explicitly overridden to something other than the default "latest".
+    if config.pinned_image and config.image_tag == "latest":
+        config.image_tag = __version__
 
     return config
 
@@ -201,6 +207,8 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.claude_provider = claude_sec["provider"]
     if "local_chrome" in claude_sec:
         config.local_chrome = bool(claude_sec["local_chrome"])
+    if "pinned_image" in container:
+        config.pinned_image = bool(container["pinned_image"])
 
     # [opencode] section
     opencode_sec = data.get("opencode", {})
@@ -238,6 +246,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_CODEX_OPENAI_API_KEY": ("codex_openai_api_key", str),
         "AI_SHELL_CODEX_PROFILE": ("codex_profile", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
+        "AI_SHELL_PINNED_IMAGE": ("pinned_image", bool),
     }
 
     for env_key, (attr, type_fn) in env_map.items():

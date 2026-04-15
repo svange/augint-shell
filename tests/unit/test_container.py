@@ -615,17 +615,95 @@ class TestContainerLogs:
 
 
 class TestPullImage:
-    def test_skips_when_image_exists(self, mock_container_manager, mock_docker_client):
+    def test_skips_when_versioned_image_exists(self, mock_container_manager, mock_docker_client):
         mock_docker_client.images.get.return_value = MagicMock()
-        mock_container_manager._pull_image_if_needed("test:latest")
+        mock_container_manager._pull_image_if_needed("test:1.0.0")
         mock_docker_client.images.pull.assert_not_called()
 
-    def test_pulls_when_image_missing(self, mock_container_manager, mock_docker_client):
+    def test_pulls_when_versioned_image_missing(self, mock_container_manager, mock_docker_client):
         from docker.errors import ImageNotFound
 
         mock_docker_client.images.get.side_effect = ImageNotFound("not found")
+        mock_container_manager._pull_image_if_needed("test:1.0.0")
+        mock_docker_client.images.pull.assert_called_once_with("test", "1.0.0")
+
+    def test_always_pulls_latest_tag(self, mock_container_manager, mock_docker_client):
+        """Latest tag should always pull to ensure freshness."""
+        mock_docker_client.images.get.return_value = MagicMock()
         mock_container_manager._pull_image_if_needed("test:latest")
         mock_docker_client.images.pull.assert_called_once_with("test", "latest")
+
+    def test_latest_falls_back_to_cache_on_pull_failure(
+        self, mock_container_manager, mock_docker_client
+    ):
+        """If pulling latest fails but a cached copy exists, use the cache."""
+        from docker.errors import APIError
+
+        mock_docker_client.images.pull.side_effect = APIError("network error")
+        mock_docker_client.images.get.return_value = MagicMock()  # cached copy exists
+        # Should not raise — falls back to cache
+        mock_container_manager._pull_image_if_needed("test:latest")
+
+    def test_latest_raises_when_no_cache_and_pull_fails(
+        self, mock_container_manager, mock_docker_client
+    ):
+        """If pulling latest fails and no cached copy, raise ImagePullError."""
+        from docker.errors import APIError, ImageNotFound
+
+        mock_docker_client.images.pull.side_effect = APIError("network error")
+        mock_docker_client.images.get.side_effect = ImageNotFound("not found")
+
+        with pytest.raises(ImagePullError):
+            mock_container_manager._pull_image_if_needed("test:latest")
+
+
+class TestEnsureToolFresh:
+    def test_skips_when_script_missing(self, mock_container_manager):
+        """Should silently skip if update-tools.sh is not in the container."""
+        with patch("ai_shell.container.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1)  # test -x fails
+            mock_container_manager.ensure_tool_fresh("test-container", "codex")
+
+            # Only the existence check should be called
+            mock_run.assert_called_once()
+            assert "test" in mock_run.call_args[0][0]
+
+    def test_skips_when_tool_is_fresh(self, mock_container_manager):
+        """Should skip update when tool marker is within TTL."""
+        with patch("ai_shell.container.subprocess.run") as mock_run:
+            # First call: script exists (exit 0), second call: tool fresh (exit 0)
+            mock_run.side_effect = [
+                MagicMock(returncode=0),  # test -x
+                MagicMock(returncode=0),  # --check (fresh)
+            ]
+            mock_container_manager.ensure_tool_fresh("test-container", "codex")
+            assert mock_run.call_count == 2
+
+    def test_updates_when_tool_is_stale(self, mock_container_manager):
+        """Should run --tool update when tool marker is stale."""
+        with patch("ai_shell.container.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),  # test -x (exists)
+                MagicMock(returncode=1),  # --check (stale)
+                MagicMock(returncode=0),  # --tool (update)
+            ]
+            mock_container_manager.ensure_tool_fresh("test-container", "codex")
+            assert mock_run.call_count == 3
+            # Third call should be the update
+            update_args = mock_run.call_args_list[2][0][0]
+            assert "--tool" in update_args
+            assert "codex" in update_args
+
+    def test_continues_when_update_fails(self, mock_container_manager):
+        """Should not raise when tool update returns non-zero."""
+        with patch("ai_shell.container.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),  # test -x
+                MagicMock(returncode=1),  # --check (stale)
+                MagicMock(returncode=1),  # --tool (failed)
+            ]
+            # Should not raise
+            mock_container_manager.ensure_tool_fresh("test-container", "codex")
 
 
 class TestExtraVolumes:

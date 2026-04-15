@@ -233,6 +233,40 @@ image = "hidden/image"
         assert config.image == "hidden/image"
 
 
+class TestImageTagConfig:
+    def test_default_image_tag_is_latest(self):
+        config = AiShellConfig()
+        assert config.image_tag == "latest"
+        assert config.full_image == "svange/augint-shell:latest"
+
+    def test_pinned_image_uses_version_tag(self, tmp_path):
+        from ai_shell import __version__
+
+        (tmp_path / ".ai-shell.yaml").write_text("container:\n  pinned_image: true\n")
+        config = load_config(project_dir=tmp_path)
+        assert config.image_tag == __version__
+
+    def test_pinned_image_does_not_override_explicit_tag(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "container:\n  pinned_image: true\n  image_tag: '0.50.0'\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        # Explicit image_tag wins over pinned_image
+        assert config.image_tag == "0.50.0"
+
+    def test_pinned_image_env_var(self, tmp_path):
+        from ai_shell import __version__
+
+        with patch.dict("os.environ", {"AI_SHELL_PINNED_IMAGE": "true"}):
+            config = load_config(project_dir=tmp_path)
+        assert config.image_tag == __version__
+
+    def test_pinned_image_false_keeps_latest(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("container:\n  pinned_image: false\n")
+        config = load_config(project_dir=tmp_path)
+        assert config.image_tag == "latest"
+
+
 class TestAwsConfig:
     def test_aws_defaults_empty(self, tmp_path):
         config = load_config(project_dir=tmp_path)

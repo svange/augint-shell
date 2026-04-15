@@ -249,6 +249,13 @@ def _get_manager(
     """
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
+
+    # AUTO-UPDATE: Apply --orig-image flag from root CLI
+    if ctx.obj and ctx.obj.get("orig_image"):
+        from ai_shell import __version__
+
+        config.image_tag = __version__
+
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
     exec_env = build_dev_environment(
@@ -363,6 +370,9 @@ def _launch_loaded_config_claude(
             project_name=config.project_name,
             project_dir=config.project_dir,
         )
+
+    # AUTO-UPDATE: Check tool freshness before launch
+    manager.ensure_tool_fresh(container_name, "claude")
 
     if safe:
         cmd = ["claude", *mcp_args, *extra_args]
@@ -1141,6 +1151,9 @@ def codex(
     else:
         bedrock_label = ""
 
+    # AUTO-UPDATE: Check tool freshness before launch
+    manager.ensure_tool_fresh(name, "codex")
+
     cmd = ["codex"]
     if not safe:
         cmd.extend(["--dangerously-bypass-approvals-and-sandbox"])
@@ -1184,6 +1197,9 @@ def opencode(
     else:
         bedrock_label = ""
 
+    # AUTO-UPDATE: Check tool freshness before launch
+    manager.ensure_tool_fresh(name, "opencode")
+
     cmd = ["/root/.opencode/bin/opencode"]
     console.print(f"[bold]Launching opencode{bedrock_label} in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env)
@@ -1201,6 +1217,10 @@ def aider(ctx, safe, extra_args):
         cmd.append("--yes-always")
     cmd.extend(["--restore-chat-history", *extra_args])
     exec_env["OLLAMA_API_BASE"] = f"http://host.docker.internal:{config.ollama_port}"
+
+    # AUTO-UPDATE: Check tool freshness before launch
+    manager.ensure_tool_fresh(name, "aider")
+
     mode_label = " (safe mode)" if safe else ""
     console.print(f"[bold]Launching aider{mode_label} ({config.aider_model}) in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env)

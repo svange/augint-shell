@@ -77,5 +77,16 @@ elif [ -f "package.json" ]; then
     echo "===================================="
 fi
 
+# =========================================================================
+# AUTO-UPDATE: Background cron + initial tool update
+# Remove this block to disable auto-updates.
+# =========================================================================
+if [ -x /usr/local/bin/update-tools.sh ] && command -v cron >/dev/null 2>&1; then
+    echo "0 */6 * * * flock -n /var/run/ai-shell/update.lock /usr/local/bin/update-tools.sh --all >> /var/log/ai-shell/cron-update.log 2>&1" | crontab -
+    cron
+    /usr/local/bin/update-tools.sh --all >> /var/log/ai-shell/initial-update.log 2>&1 &
+fi
+# =========================================================================
+
 # Note: No cd command - Docker Compose working_dir handles the directory
 exec "$@"

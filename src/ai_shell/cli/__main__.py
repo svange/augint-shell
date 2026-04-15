@@ -16,11 +16,18 @@ from ai_shell.cli.commands.tools import aider, bash, claude, codex, init, openco
 @click.version_option(version=__version__, prog_name="ai-shell")
 @click.option("--project", default=None, help="Override project name for container naming.")
 @click.option("--verbose", "-v", is_flag=True, default=False, help="Enable debug logging.")
+@click.option(
+    "--orig-image",
+    is_flag=True,
+    default=False,
+    help="Use the version-pinned image tag instead of 'latest'.",
+)
 @click.pass_context
-def cli(ctx, project, verbose):
+def cli(ctx, project, verbose, orig_image):
     """AI Shell - Launch AI coding tools and local LLMs in Docker containers."""
     ctx.ensure_object(dict)
     ctx.obj["project"] = project
+    ctx.obj["orig_image"] = orig_image
     if verbose:
         logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(message)s")
 
