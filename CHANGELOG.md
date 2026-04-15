@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.75.0 (2026-04-15)
+
+### Features
+
+- Add chat interface output to WebUI status in llm.py
+  ([`d7d98c9`](https://github.com/svange/augint-shell/commit/d7d98c99c89d2e6f4a2fa40b1531fac681118e0b))
+
+
 ## v0.74.0 (2026-04-15)
 
 ### Features
