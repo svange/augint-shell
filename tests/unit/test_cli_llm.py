@@ -109,6 +109,7 @@ class TestLlmCommands:
         assert "http://localhost:11434" in result.output
         assert "http://localhost:11434/v1" in result.output
         assert "http://localhost:3000" in result.output
+        assert "Chat interface" in result.output
         assert "qwen3-coder-next" in result.output
         assert "32768" in result.output
 
@@ -131,6 +132,7 @@ class TestLlmCommands:
         assert result.exit_code == 0
         assert "not found" in result.output
         assert "http://localhost:11434" in result.output
+        assert "Chat interface" in result.output
         assert "not running" in result.output
 
     def test_llm_pull(self, mock_config, mock_manager_cls):

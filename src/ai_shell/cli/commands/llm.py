@@ -211,8 +211,10 @@ def llm_status(ctx):
         console.print(f"  OpenAI-compatible:  [dim]{ollama_url}/v1[/dim] (not running)")
     if webui_running:
         console.print(f"  Open WebUI:         [cyan]{webui_url}[/cyan]")
+        console.print(f"  Chat interface:     [cyan]{webui_url}[/cyan]")
     else:
         console.print(f"  Open WebUI:         [dim]{webui_url}[/dim] (not running)")
+        console.print(f"  Chat interface:     [dim]{webui_url}[/dim] (not running)")
 
     console.print("\n[bold]Configuration:[/bold]")
     console.print(f"  Primary model:   {config.primary_model}")
