@@ -255,6 +255,130 @@ def _get_manager(
     return manager, container_name, exec_env, config
 
 
+def _bedrock_label(exec_env: dict[str, str]) -> str:
+    """Return the user-facing Bedrock suffix for launch messages."""
+    profile_label = exec_env.get("AWS_PROFILE", "default")
+    region_label = exec_env.get("AWS_REGION", "us-east-1")
+    return f" via Bedrock (profile={profile_label}, region={region_label})"
+
+
+def _configure_local_chrome(
+    container_name: str,
+    *,
+    project_name: str,
+    project_dir: Path | str | None,
+) -> tuple[list[str], str]:
+    """Attach chrome-devtools-mcp to a host Chrome instance."""
+    from ai_shell.local_chrome import (
+        LocalChromeUnavailable,
+        ensure_host_chrome,
+        start_chrome_proxy,
+        write_mcp_config,
+    )
+
+    console.print("[dim]Connecting to host Chrome...[/dim]")
+    try:
+        chrome_port = ensure_host_chrome(
+            container_name,
+            project_name=project_name,
+            project_dir=project_dir,
+        )
+    except LocalChromeUnavailable as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    console.print(f"[dim]Chrome debug port {chrome_port} reachable.[/dim]")
+
+    # Start TCP proxy: localhost:<port> -> host.docker.internal:<port>
+    # Chrome rejects non-localhost Host headers, so the MCP server
+    # must connect via localhost.
+    start_chrome_proxy(container_name, chrome_port)
+
+    host_mcp_path = write_mcp_config(chrome_port)
+    container_mcp_path = "/etc/ai-shell/chrome-mcp.json"
+    _inject_mcp_config(container_name, str(host_mcp_path), container_mcp_path)
+    console.print("[dim]Chrome DevTools MCP attached.[/dim]")
+    return ["--mcp-config", container_mcp_path], container_mcp_path
+
+
+def _launch_loaded_config_claude(
+    config: AiShellConfig,
+    *,
+    safe: bool,
+    use_aws: bool,
+    cli_profile: str | None,
+    extra_args: tuple[str, ...],
+    local_chrome: bool = False,
+    team_mode: bool = False,
+    worktree_name: str | None = None,
+) -> None:
+    """Launch Claude for an already loaded project config."""
+    use_bedrock = use_aws or config.claude_provider == "aws"
+    manager = ContainerManager(config)
+    container_name = manager.ensure_dev_container()
+    exec_env = build_dev_environment(
+        config.extra_env,
+        config.project_dir,
+        project_name=config.project_name,
+        bedrock=use_bedrock,
+        aws_profile=config.ai_profile,
+        aws_region=config.aws_region,
+        bedrock_profile=cli_profile or config.bedrock_profile,
+    )
+
+    if team_mode:
+        exec_env = dict(exec_env)
+        exec_env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
+
+    bedrock_label = ""
+    if use_bedrock:
+        bedrock_label = _bedrock_label(exec_env)
+        console.print(
+            "Checking Bedrock access "
+            f"(profile={exec_env.get('AWS_PROFILE', 'default')}, "
+            f"region={exec_env.get('AWS_REGION', 'us-east-1')})..."
+        )
+        _check_bedrock_access(container_name, exec_env)
+
+    workdir: str | None = None
+    resolved_worktree_name = worktree_name
+    if resolved_worktree_name is not None:
+        if resolved_worktree_name == "":
+            resolved_worktree_name = _generate_worktree_name()
+        container_project_dir = f"/root/projects/{config.project_name}"
+        workdir = _setup_worktree(container_name, container_project_dir, resolved_worktree_name)
+        console.print(f"[dim]Worktree: {workdir} (branch: worktree-{resolved_worktree_name})[/dim]")
+
+    mcp_args: list[str] = []
+    if local_chrome:
+        mcp_args, _ = _configure_local_chrome(
+            container_name,
+            project_name=config.project_name,
+            project_dir=config.project_dir,
+        )
+
+    if safe:
+        cmd = ["claude", *mcp_args, *extra_args]
+        console.print(
+            f"[bold]Launching Claude Code (safe mode){bedrock_label} in {container_name}...[/bold]"
+        )
+        manager.exec_interactive(container_name, cmd, extra_env=exec_env, workdir=workdir)
+        return
+
+    cmd_continue = ["claude", "--dangerously-skip-permissions", "-c", *mcp_args, *extra_args]
+    console.print(f"[bold]Launching Claude Code{bedrock_label} in {container_name}...[/bold]")
+    exit_code, elapsed = manager.run_interactive(
+        container_name, cmd_continue, extra_env=exec_env, workdir=workdir
+    )
+
+    if exit_code != 0 and elapsed < FAST_FAILURE_THRESHOLD:
+        console.print("[yellow]No prior conversation found, starting fresh...[/yellow]")
+        cmd_fresh = ["claude", "--dangerously-skip-permissions", *mcp_args, *extra_args]
+        manager.exec_interactive(container_name, cmd_fresh, extra_env=exec_env, workdir=workdir)
+        return
+
+    sys.exit(exit_code)
+
+
 def _load_workspace_repos(workspace_yaml: Path) -> tuple[str, list[dict[str, Any]]]:
     """Parse workspace.yaml and return (workspace_name, repos_list).
 
@@ -273,20 +397,21 @@ def _load_workspace_repos(workspace_yaml: Path) -> tuple[str, list[dict[str, Any
     return workspace_name, repos
 
 
-def _launch_interactive_multi(
+def _launch_interactive(
     ctx: click.Context,
     *,
     safe: bool,
     use_aws: bool,
     cli_profile: str | None,
     extra_args: tuple[str, ...],
+    worktree_name: str | None = None,
 ) -> None:
-    """Interactive multi-pane launcher.
+    """Interactive Claude launcher.
 
-    Walks the user through a guided wizard to configure each tmux pane,
-    then builds and launches the customised tmux session.
+    Walks the user through a guided wizard to configure panes, then launches
+    either a normal single session or a customised tmux session.
     """
-    from ai_shell.interactive import build_interactive_panes, run_interactive_wizard
+    from ai_shell.interactive import PaneType, build_interactive_panes, run_interactive_wizard
     from ai_shell.tmux import (
         TMUX_SESSION_PREFIX,
         build_attach_command,
@@ -294,13 +419,83 @@ def _launch_interactive_multi(
         build_tmux_commands,
     )
 
-    # Load config early -- needed for session check and container setup.
+    # Load config early -- needed for prompt defaults and any single-pane launch.
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
+
+    # Gather workspace repos if available.
+    workspace_yaml = Path.cwd() / "workspace.yaml"
+    workspace_repos = None
+    if workspace_yaml.exists():
+        _, workspace_repos = _load_workspace_repos(workspace_yaml)
+
+    # Run the wizard.
+    interactive_config = run_interactive_wizard(
+        project_name=config.project_name,
+        workspace_repos=workspace_repos,
+        default_windows=2,
+        default_shared_chrome=config.local_chrome is True,
+    )
+    if interactive_config is None:
+        console.print("[dim]Cancelled.[/dim]")
+        return
+
+    if interactive_config.pane_count == 1:
+        choice = interactive_config.pane_choices[0]
+
+        if choice.pane_type == PaneType.BASH:
+            manager = ContainerManager(config)
+            container_name = manager.ensure_dev_container()
+            exec_env = build_dev_environment(
+                config.extra_env,
+                config.project_dir,
+                project_name=config.project_name,
+                aws_profile=config.ai_profile,
+                aws_region=config.aws_region,
+                bedrock_profile=cli_profile or config.bedrock_profile,
+            )
+            console.print(f"[bold]Launching Bash in {container_name}...[/bold]")
+            manager.exec_interactive(
+                container_name,
+                ["/bin/bash"],
+                extra_env=exec_env,
+                workdir=f"/root/projects/{config.project_name}",
+            )
+            return
+
+        selected_dir = config.project_dir
+        target_label = config.project_name
+        if choice.pane_type == PaneType.WORKSPACE_REPO:
+            selected_dir = Path.cwd() / choice.repo_path
+            if not selected_dir.exists():
+                raise click.ClickException(
+                    f"Repo directory not found: {selected_dir}\n"
+                    "  Run /ai-workspace-sync to clone workspace repos first."
+                )
+            target_label = choice.repo_name
+
+        console.print(
+            f"[dim]Single Claude pane selected -- launching standard session in "
+            f"{target_label}[/dim]"
+        )
+        selected_config = load_config(project_override=project, project_dir=selected_dir)
+        _launch_loaded_config_claude(
+            selected_config,
+            safe=safe,
+            use_aws=use_aws,
+            cli_profile=cli_profile,
+            extra_args=extra_args,
+            local_chrome=interactive_config.shared_chrome,
+            team_mode=interactive_config.team_mode,
+            worktree_name=worktree_name,
+        )
+        return
+
     session_name = f"{TMUX_SESSION_PREFIX}-{config.project_name}"
     container_name = dev_container_name(config.project_name, config.project_dir)
 
-    # Check for existing tmux session.
+    # Check for existing tmux session after the user has actually chosen a
+    # multi-pane launch.
     check_cmd = build_check_session_command(container_name, session_name)
     has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0
 
@@ -318,24 +513,8 @@ def _launch_interactive_multi(
             sys.stderr.flush()
             attach = subprocess.run(attach_cmd)
             sys.exit(attach.returncode)
-        elif choice == "cancel":
+        if choice == "cancel":
             return
-        # choice == "fresh": fall through to wizard
-
-    # Gather workspace repos if available.
-    workspace_yaml = Path.cwd() / "workspace.yaml"
-    workspace_repos = None
-    if workspace_yaml.exists():
-        _, workspace_repos = _load_workspace_repos(workspace_yaml)
-
-    # Run the wizard.
-    interactive_config = run_interactive_wizard(
-        project_name=config.project_name,
-        workspace_repos=workspace_repos,
-    )
-    if interactive_config is None:
-        console.print("[dim]Cancelled.[/dim]")
-        return
 
     # Ensure container is running.
     use_bedrock = use_aws or config.claude_provider == "aws"
@@ -357,24 +536,11 @@ def _launch_interactive_multi(
     # Handle shared Chrome if requested.
     mcp_config_path: str | None = None
     if interactive_config.shared_chrome:
-        from ai_shell.local_chrome import (
-            LocalChromeUnavailable,
-            ensure_host_chrome,
-            start_chrome_proxy,
-            write_mcp_config,
+        _, mcp_config_path = _configure_local_chrome(
+            container_name,
+            project_name=config.project_name,
+            project_dir=config.project_dir,
         )
-
-        console.print("[dim]Connecting to host Chrome...[/dim]")
-        try:
-            chrome_port = ensure_host_chrome(container_name)
-        except LocalChromeUnavailable as exc:
-            raise click.ClickException(str(exc)) from exc
-
-        start_chrome_proxy(container_name, chrome_port)
-        host_mcp_path = write_mcp_config(chrome_port)
-        mcp_config_path = "/etc/ai-shell/chrome-mcp.json"
-        _inject_mcp_config(container_name, str(host_mcp_path), mcp_config_path)
-        console.print("[dim]Chrome DevTools MCP attached.[/dim]")
 
     # Build pane specs.
     container_project_root = f"/root/projects/{config.project_name}"
@@ -686,41 +852,16 @@ def _launch_multi(
                 "  Run /ai-workspace-sync to clone workspace repos first."
             )
         console.print(f"[dim]Single selection -- launching Claude in {sel.label}[/dim]")
-        # Re-derive config from the selected repo's directory
         project = ctx.obj.get("project") if ctx.obj else None
         config = load_config(project_override=project, project_dir=sel_path)
-        use_bedrock = use_aws or config.claude_provider == "aws"
-        manager = ContainerManager(config)
-        container_name = manager.ensure_dev_container()
-        exec_env = build_dev_environment(
-            config.extra_env,
-            config.project_dir,
-            project_name=config.project_name,
-            bedrock=use_bedrock,
-            aws_profile=config.ai_profile,
-            aws_region=config.aws_region,
-            bedrock_profile=cli_profile or config.bedrock_profile,
+        _launch_loaded_config_claude(
+            config,
+            safe=safe,
+            use_aws=use_aws,
+            cli_profile=cli_profile,
+            extra_args=extra_args,
+            worktree_name=worktree_name,
         )
-
-        if use_bedrock:
-            _check_bedrock_access(container_name, exec_env)
-
-        workdir = f"/root/projects/{config.project_name}"
-        if safe:
-            cmd = ["claude", *extra_args]
-            manager.exec_interactive(container_name, cmd, extra_env=exec_env, workdir=workdir)
-        else:
-            cmd_c = ["claude", "--dangerously-skip-permissions", "-c", *extra_args]
-            exit_code, elapsed = manager.run_interactive(
-                container_name, cmd_c, extra_env=exec_env, workdir=workdir
-            )
-            if exit_code != 0 and elapsed < FAST_FAILURE_THRESHOLD:
-                cmd_fresh = ["claude", "--dangerously-skip-permissions", *extra_args]
-                manager.exec_interactive(
-                    container_name, cmd_fresh, extra_env=exec_env, workdir=workdir
-                )
-            else:
-                sys.exit(exit_code)
         return
 
     # Multi selection (2-4 repos): validate dirs, build tmux session
@@ -852,9 +993,9 @@ def _launch_multi(
     is_flag=True,
     default=False,
     help=(
-        "Attach Chrome DevTools MCP to host Chrome running with "
-        "--remote-debugging-port=9222. Gives Claude browser control "
-        "over your real Windows Chrome tabs."
+        "Attach Chrome DevTools MCP to a project-scoped host Chrome session. "
+        "ai-shell launches or reuses a separate Windows Chrome profile for "
+        "this repo and gives Claude browser control over those tabs."
     ),
 )
 @click.option(
@@ -865,8 +1006,8 @@ def _launch_multi(
     default=False,
     help=(
         "Interactive multi-pane setup: walk through a guided menu to "
-        "configure window types, teams mode, and shared Chrome before "
-        "launching tmux.  Requires --multi."
+        "configure windows, teams mode, and shared Chrome before launch. "
+        "A single Claude pane falls back to a normal session."
     ),
 )
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
@@ -887,8 +1028,6 @@ def claude(
     # Incompatibility checks
     if do_team and do_multi:
         raise click.ClickException("--team and --multi are incompatible (both manage tmux).")
-    if do_interactive and not do_multi:
-        raise click.ClickException("--interactive requires --multi.")
     if do_interactive and do_team:
         raise click.ClickException(
             "--interactive and --team are incompatible (interactive handles teams mode itself)."
@@ -899,16 +1038,18 @@ def claude(
             "(interactive handles Chrome setup itself)."
         )
 
+    if do_interactive:
+        _launch_interactive(
+            ctx,
+            safe=safe,
+            use_aws=use_aws,
+            cli_profile=cli_profile,
+            extra_args=extra_args,
+            worktree_name=worktree_name,
+        )
+        return
+
     if do_multi:
-        if do_interactive:
-            _launch_interactive_multi(
-                ctx,
-                safe=safe,
-                use_aws=use_aws,
-                cli_profile=cli_profile,
-                extra_args=extra_args,
-            )
-            return
         _launch_multi(
             ctx,
             safe=safe,
@@ -929,88 +1070,19 @@ def claude(
         )
         return
 
-    # Auto-init if .claude/ is missing
-    # Load config first to check provider setting
+    # Load config for the current project and launch a normal Claude session.
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
-    use_bedrock = use_aws or config.claude_provider == "aws"
-
-    manager, name, exec_env, config = _get_manager(
-        ctx,
-        bedrock=use_bedrock,
-        bedrock_profile=cli_profile or "",
-    )
-
-    if use_bedrock:
-        profile_label = exec_env.get("AWS_PROFILE", "default")
-        region_label = exec_env.get("AWS_REGION", "us-east-1")
-        bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-        console.print(
-            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
-        )
-        _check_bedrock_access(name, exec_env)
-    else:
-        bedrock_label = ""
-
-    # Resolve worktree working directory (if --worktree/-w was given)
-    worktree_dir: str | None = None
-    if worktree_name is not None:
-        if worktree_name == "":
-            worktree_name = _generate_worktree_name()
-        container_project_dir = f"/root/projects/{config.project_name}"
-        worktree_dir = _setup_worktree(name, container_project_dir, worktree_name)
-        console.print(f"[dim]Worktree: {worktree_dir} (branch: worktree-{worktree_name})[/dim]")
-
-    # Local Chrome bridge: probe debug port, write MCP config, inject into args
     local_chrome = local_chrome or config.local_chrome is True
-    mcp_args: list[str] = []
-    if local_chrome:
-        from ai_shell.local_chrome import (
-            LocalChromeUnavailable,
-            ensure_host_chrome,
-            start_chrome_proxy,
-            write_mcp_config,
-        )
-
-        console.print("[dim]Connecting to host Chrome...[/dim]")
-        try:
-            chrome_port = ensure_host_chrome(name)
-        except LocalChromeUnavailable as exc:
-            raise click.ClickException(str(exc)) from exc
-
-        console.print(f"[dim]Chrome debug port {chrome_port} reachable.[/dim]")
-
-        # Start TCP proxy: localhost:<port> -> host.docker.internal:<port>
-        # Chrome rejects non-localhost Host headers, so the MCP server
-        # must connect via localhost.
-        start_chrome_proxy(name, chrome_port)
-
-        mcp_path = write_mcp_config(chrome_port)
-        container_mcp_path = "/etc/ai-shell/chrome-mcp.json"
-        # Inject the MCP config file into the running container
-        _inject_mcp_config(name, str(mcp_path), container_mcp_path)
-        mcp_args = ["--mcp-config", container_mcp_path]
-        console.print("[dim]Chrome DevTools MCP attached.[/dim]")
-
-    if safe:
-        cmd = ["claude", *mcp_args, *extra_args]
-        console.print(f"[bold]Launching Claude Code (safe mode){bedrock_label} in {name}...[/bold]")
-        manager.exec_interactive(name, cmd, extra_env=exec_env, workdir=worktree_dir)
-    else:
-        # Try with -c first (continue previous conversation)
-        cmd_continue = ["claude", "--dangerously-skip-permissions", "-c", *mcp_args, *extra_args]
-        console.print(f"[bold]Launching Claude Code{bedrock_label} in {name}...[/bold]")
-        exit_code, elapsed = manager.run_interactive(
-            name, cmd_continue, extra_env=exec_env, workdir=worktree_dir
-        )
-
-        if exit_code != 0 and elapsed < FAST_FAILURE_THRESHOLD:
-            # -c failed quickly (likely no prior conversation), retry without it
-            console.print("[yellow]No prior conversation found, starting fresh...[/yellow]")
-            cmd_fresh = ["claude", "--dangerously-skip-permissions", *mcp_args, *extra_args]
-            manager.exec_interactive(name, cmd_fresh, extra_env=exec_env, workdir=worktree_dir)
-        else:
-            sys.exit(exit_code)
+    _launch_loaded_config_claude(
+        config,
+        safe=safe,
+        use_aws=use_aws,
+        cli_profile=cli_profile,
+        extra_args=extra_args,
+        local_chrome=local_chrome,
+        worktree_name=worktree_name,
+    )
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)

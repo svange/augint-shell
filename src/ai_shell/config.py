@@ -65,7 +65,7 @@ class AiShellConfig:
     bedrock_profile: str = ""  # AWS profile for Bedrock LLM API calls
 
     # Claude options
-    local_chrome: bool = False  # Attach Chrome DevTools MCP to host Chrome debug port
+    local_chrome: bool = False  # Attach Chrome DevTools MCP to project-scoped host Chrome
 
     # Per-tool provider
     claude_provider: str = ""  # "anthropic" (default) or "aws"

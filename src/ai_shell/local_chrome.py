@@ -18,21 +18,29 @@ import json
 import logging
 import os
 import platform
-import socket
 import subprocess
 import time
+from hashlib import sha1
 from pathlib import Path
+from urllib.error import URLError
+from urllib.request import urlopen
+
+from ai_shell.defaults import unique_project_name
 
 logger = logging.getLogger(__name__)
 
 CHROME_DEBUG_HOST = "host.docker.internal"
-DEFAULT_CHROME_DEBUG_PORT = 9222
+CHROME_HOST_PROBE_TIMEOUT_SECONDS = 20.0
+CHROME_CONTAINER_PROBE_TIMEOUT_SECONDS = 10.0
+CHROME_PROBE_INTERVAL_SECONDS = 0.5
+CHROME_DEBUG_PORT_RANGE_START = 40000
+CHROME_DEBUG_PORT_RANGE_SIZE = 20000
 
 MCP_CONFIG_FILENAME = "chrome-mcp.json"
 
-# User-data-dir for the ai-shell debug Chrome profile (keeps it separate from
-# the user's normal browsing).
-_CHROME_PROFILE_DIR_NAME = "ai-debug-profile"
+# User-data-dir for ai-shell project-specific Chrome profiles (keeps them
+# separate from the user's normal browsing and from other repos).
+_CHROME_PROFILE_ROOT_DIR_NAME = "ai-shell"
 
 # Well-known Chrome install paths on Windows
 _CHROME_CANDIDATES = [
@@ -49,20 +57,6 @@ _NODE_PROXY_TEMPLATE = (
     "s.on('error',()=>c.destroy());c.on('error',()=>s.destroy())"
     "}}).listen({port},'127.0.0.1')"
 )
-
-SETUP_INSTRUCTIONS = """\
-Chrome could not be found or launched automatically, and the debug port \
-is not reachable.
-
-To fix, launch Chrome manually with these flags:
-
-  chrome.exe --remote-debugging-port=9222 \\
-    --remote-debugging-address=127.0.0.1 \\
-    --remote-allow-origins=* \\
-    --user-data-dir="%LOCALAPPDATA%\\Google\\Chrome\\ai-debug-profile"
-
-Then re-run this command.
-See README.md "Attaching to your Windows Chrome" for details."""
 
 
 class LocalChromeUnavailable(Exception):
@@ -89,23 +83,57 @@ def find_chrome() -> str | None:
     return None
 
 
-def _chrome_profile_dir() -> str:
-    """Return the user-data-dir path for the ai-shell debug Chrome profile."""
+def _project_slug(project_name: str, project_dir: str | Path | None = None) -> str:
+    """Return a stable slug for project-scoped Chrome state."""
+    if project_dir is not None:
+        try:
+            return unique_project_name(Path(project_dir), project_name)
+        except (TypeError, ValueError):
+            logger.debug("Falling back to project-name-only slug for %s", project_name)
+    slug = "".join(ch if ch.isalnum() or ch == "-" else "-" for ch in project_name.lower())
+    slug = "-".join(part for part in slug.split("-") if part)
+    return slug or "project"
+
+
+def _chrome_profile_dir(project_name: str, project_dir: str | Path | None = None) -> str:
+    """Return the user-data-dir path for a project's ai-shell debug Chrome."""
+    slug = _project_slug(project_name, project_dir)
     local_app = os.environ.get("LOCALAPPDATA", "")
     if local_app:
-        return str(Path(local_app) / "Google" / "Chrome" / _CHROME_PROFILE_DIR_NAME)
-    return str(Path.home() / ".config" / "google-chrome" / _CHROME_PROFILE_DIR_NAME)
+        return str(Path(local_app) / "Google" / "Chrome" / _CHROME_PROFILE_ROOT_DIR_NAME / slug)
+    return str(Path.home() / ".config" / "google-chrome" / _CHROME_PROFILE_ROOT_DIR_NAME / slug)
 
 
-def _find_free_port() -> int:
-    """Find a free TCP port on the host by briefly binding to port 0."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        port: int = s.getsockname()[1]
-        return port
+def _project_debug_port(project_name: str, project_dir: str | Path | None = None) -> int:
+    """Return a stable per-project Chrome remote debugging port."""
+    slug = _project_slug(project_name, project_dir)
+    digest = sha1(slug.encode("utf-8"), usedforsecurity=False).hexdigest()
+    return CHROME_DEBUG_PORT_RANGE_START + (int(digest[:8], 16) % CHROME_DEBUG_PORT_RANGE_SIZE)
 
 
-def launch_chrome(port: int) -> bool:
+def _build_setup_instructions(project_name: str, profile_dir: str, port: int) -> str:
+    """Return manual setup instructions for the project's Chrome profile."""
+    return f"""\
+Chrome could not be found or launched automatically, and the debug port \
+is not reachable.
+
+To fix, launch Chrome manually with these flags:
+
+  chrome.exe --remote-debugging-port={port} \\
+    --remote-debugging-address=127.0.0.1 \\
+    --remote-allow-origins=* \\
+    --user-data-dir="{profile_dir}"
+
+Then re-run this command for project '{project_name}'.
+See README.md "Attaching to your Windows Chrome" for details."""
+
+
+def launch_chrome(
+    port: int,
+    *,
+    project_name: str,
+    project_dir: str | Path | None = None,
+) -> bool:
     """Launch Chrome on the host with the debug port enabled.
 
     Returns ``True`` if Chrome was launched, ``False`` if Chrome could
@@ -115,7 +143,7 @@ def launch_chrome(port: int) -> bool:
     if chrome_path is None:
         return False
 
-    profile_dir = _chrome_profile_dir()
+    profile_dir = _chrome_profile_dir(project_name, project_dir)
     args = [
         chrome_path,
         f"--remote-debugging-port={port}",
@@ -167,38 +195,82 @@ def probe_chrome_port(container_name: str, port: int) -> bool:
     return True
 
 
-def ensure_host_chrome(container_name: str) -> int:
+def probe_host_chrome_port(port: int) -> bool:
+    """Check whether a Chrome debug port is reachable on the host."""
+    try:
+        with urlopen(f"http://127.0.0.1:{port}/json/version", timeout=2) as response:
+            return bool(response.read().strip())
+    except (OSError, URLError):
+        return False
+
+
+def _wait_until_ready(
+    probe_fn,
+    *args: object,
+    timeout_seconds: float,
+    interval_seconds: float = CHROME_PROBE_INTERVAL_SECONDS,
+) -> bool:
+    """Poll until a probe succeeds or the timeout expires."""
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        if probe_fn(*args):
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(interval_seconds, remaining))
+
+
+def ensure_host_chrome(
+    container_name: str,
+    *,
+    project_name: str,
+    project_dir: str | Path | None = None,
+) -> int:
     """Ensure Chrome is running with a debug port reachable from the container.
 
-    1. Probe the default port (9222) -- if Chrome is already running, return it.
-    2. Find a free port, launch Chrome on it, wait briefly for startup.
-    3. Raise :class:`LocalChromeUnavailable` if Chrome can't be found or started.
+    Each project gets its own debug profile directory and a stable debug port,
+    so different repos can keep separate logged-in Chrome instances alive.
 
     Returns the port number Chrome is listening on.
     """
-    # Try the default port first -- user may have Chrome open already
-    if probe_chrome_port(container_name, DEFAULT_CHROME_DEBUG_PORT):
-        return DEFAULT_CHROME_DEBUG_PORT
+    port = _project_debug_port(project_name, project_dir)
+    profile_dir = _chrome_profile_dir(project_name, project_dir)
 
-    # Launch Chrome on a fresh port
-    port = _find_free_port()
-    logger.info(
-        "Chrome not found on port %d, launching on port %d", DEFAULT_CHROME_DEBUG_PORT, port
-    )
+    if probe_chrome_port(container_name, port):
+        return port
 
-    if not launch_chrome(port):
-        raise LocalChromeUnavailable(SETUP_INSTRUCTIONS)
+    logger.info("Chrome for project %s not found on port %d, launching it", project_name, port)
 
-    # Brief wait for Chrome to start (typically <2s)
-    for attempt in range(5):
-        time.sleep(1)
-        if probe_chrome_port(container_name, port):
-            logger.info("Chrome ready on port %d after %ds", port, attempt + 1)
-            return port
+    if not launch_chrome(port, project_name=project_name, project_dir=project_dir):
+        raise LocalChromeUnavailable(_build_setup_instructions(project_name, profile_dir, port))
+
+    if not _wait_until_ready(
+        probe_host_chrome_port,
+        port,
+        timeout_seconds=CHROME_HOST_PROBE_TIMEOUT_SECONDS,
+    ):
+        raise LocalChromeUnavailable(
+            f"Chrome was launched for project '{project_name}' on port {port}, but the "
+            f"debug port did not open on localhost within "
+            f"{int(CHROME_HOST_PROBE_TIMEOUT_SECONDS)} seconds.\n\n"
+            "If another ai-shell Chrome window for this project is already open, "
+            "close it and retry."
+        )
+
+    if _wait_until_ready(
+        probe_chrome_port,
+        container_name,
+        port,
+        timeout_seconds=CHROME_CONTAINER_PROBE_TIMEOUT_SECONDS,
+    ):
+        logger.info("Chrome ready on port %d for project %s", port, project_name)
+        return port
 
     raise LocalChromeUnavailable(
-        f"Chrome was launched on port {port} but the debug port did not become "
-        "reachable within 5 seconds.\n\n"
+        f"Chrome is listening on localhost:{port} for project '{project_name}', but the "
+        "debug port did not become reachable from the dev container within "
+        f"{int(CHROME_CONTAINER_PROBE_TIMEOUT_SECONDS)} seconds.\n\n"
         "Check that Docker Desktop can reach the host via host.docker.internal."
     )
 

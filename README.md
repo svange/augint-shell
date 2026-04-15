@@ -119,7 +119,7 @@ The dev container cannot open a browser on the Windows host, which blocks OAuth 
 What you get:
 
 - Claude drives Chrome tabs on your Windows desktop, visible in real time.
-- Uses a **separate Chrome profile** (`ai-debug-profile`) -- your normal browsing is untouched.
+- Uses a **separate Chrome profile per project** -- your normal browsing is untouched, and each repo keeps its own logged-in state.
 - No Chrome extension. No third-party service. All traffic stays on `localhost` between the container and the host.
 
 ### How it works
@@ -129,9 +129,10 @@ ai-shell claude --local-chrome
 ```
 
 `ai-shell` automatically:
-1. Checks if Chrome is already running with a debug port (port 9222).
-2. If not, **launches Chrome** on a free port with its own profile at `%LOCALAPPDATA%\Google\Chrome\ai-debug-profile`.
-3. Starts a TCP proxy inside the container and injects `chrome-devtools-mcp` as an MCP server for Claude.
+1. Computes a stable debug port and Chrome profile for the current project.
+2. Reuses that project's Chrome if it is already running.
+3. If not, **launches Chrome** for the project on its assigned port with its own profile under `%LOCALAPPDATA%\Google\Chrome\ai-shell\...`.
+4. Starts a TCP proxy inside the container and injects `chrome-devtools-mcp` as an MCP server for Claude.
 
 No manual setup required. Chrome stays open after Claude exits so your login sessions persist. Sign in to whatever accounts you need in that Chrome window (first time only; cookies persist in the profile).
 
@@ -148,16 +149,17 @@ Or set the environment variable: `AI_SHELL_LOCAL_CHROME=1`.
 
 ### Manual Chrome launch (fallback)
 
-If `ai-shell` can't find `chrome.exe` automatically, launch Chrome yourself:
+If `ai-shell` can't find `chrome.exe` automatically, launch Chrome yourself using the project-specific port and profile path that `ai-shell` prints in the error message. The shape of the command is:
 
 ```
-chrome.exe --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --remote-allow-origins=* --user-data-dir="%LOCALAPPDATA%\Google\Chrome\ai-debug-profile"
+chrome.exe --remote-debugging-port=<project-port> --remote-debugging-address=127.0.0.1 --remote-allow-origins=* --user-data-dir="%LOCALAPPDATA%\Google\Chrome\ai-shell\<project-slug>"
 ```
 
 ### Troubleshooting
 
 - **"Chrome could not be found or launched"** -- Chrome is not installed at a standard location. Use the manual launch command above, or set the path in your system PATH.
-- **Tabs appear empty / not logged in** -- Sign in to the accounts you need inside the auto-launched Chrome (the one with the `ai-debug-profile` window title). Cookies persist across sessions.
+- **Tabs appear empty / not logged in** -- Sign in to the accounts you need inside the auto-launched Chrome for that project. Cookies persist in that project's profile across sessions.
+- **A different repo opened the wrong Chrome window** -- Each project now gets its own Chrome profile and debug port. Re-run from the correct repo so `ai-shell` attaches to that repo's browser instance.
 - **Firefox / Safari** -- not supported. `chrome-devtools-mcp` requires a Chromium-based browser. Edge works with the same flags but has not been tested here.
 
 ## Standardization architecture

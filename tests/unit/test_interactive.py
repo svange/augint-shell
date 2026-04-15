@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import click
@@ -68,7 +69,7 @@ def _make_config_mock(project_name="test-project"):
     config.ai_profile = ""
     config.aws_region = ""
     config.extra_env = {}
-    config.project_dir = MagicMock()
+    config.project_dir = Path(f"/tmp/{project_name}")
     config.local_chrome = False
     return config
 
@@ -114,6 +115,21 @@ class TestBuildPaneOptions:
 
 
 class TestRunInteractiveWizard:
+    def test_single_window_current_project(self):
+        with patch("ai_shell.interactive.click") as mock_click:
+            mock_click.prompt.side_effect = [1, 1]
+            mock_click.confirm.side_effect = [False, False]
+            mock_click.IntRange = click.IntRange
+            mock_click.Abort = click.Abort
+
+            result = run_interactive_wizard(project_name="my-project")
+
+        assert result is not None
+        assert result.pane_count == 1
+        assert result.pane_choices[0].pane_type == PaneType.THIS_PROJECT
+        assert result.team_mode is False
+        assert result.shared_chrome is False
+
     def test_basic_two_worktree_panes(self):
         # 2 windows, both "This project", no teams, no chrome
         with patch("ai_shell.interactive.click") as mock_click:
@@ -151,6 +167,21 @@ class TestRunInteractiveWizard:
         assert result.pane_choices[2].repo_name == "repo-a"
         assert result.team_mode is True
         assert result.shared_chrome is True
+
+    def test_single_bash_skips_claude_follow_up_prompts(self):
+        with patch("ai_shell.interactive.click") as mock_click:
+            mock_click.prompt.side_effect = [1, 2]
+            mock_click.IntRange = click.IntRange
+            mock_click.Abort = click.Abort
+
+            result = run_interactive_wizard(project_name="my-project")
+
+        assert result is not None
+        assert result.pane_count == 1
+        assert result.pane_choices[0].pane_type == PaneType.BASH
+        assert result.team_mode is False
+        assert result.shared_chrome is False
+        mock_click.confirm.assert_not_called()
 
     def test_cancel_returns_none(self):
         with patch("ai_shell.interactive.click") as mock_click:
@@ -371,18 +402,44 @@ class TestInteractiveCLI:
     def setup_method(self):
         self.runner = CliRunner()
 
-    def test_interactive_requires_multi(self):
-        result = self.runner.invoke(cli, ["claude", "--interactive"])
-        assert result.exit_code != 0
-        assert "--interactive requires --multi" in result.output
+    @patch("ai_shell.cli.commands.tools._check_bedrock_access")
+    @patch("ai_shell.cli.commands.tools.build_dev_environment")
+    @patch("ai_shell.cli.commands.tools.ContainerManager")
+    @patch("ai_shell.cli.commands.tools.load_config")
+    def test_interactive_launches_single_session_without_multi(
+        self,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        mock_config.return_value = _make_config_mock()
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "test-container"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(
+            cli,
+            ["claude", "--interactive"],
+            input="1\n1\nn\nn\n",
+        )
+
+        assert result.exit_code == 0
+        assert "Single Claude pane selected" in result.output
+        cmd = mock_manager.run_interactive.call_args[0][1]
+        assert cmd == ["claude", "--dangerously-skip-permissions", "-c"]
+        assert mock_manager.run_interactive.call_args[1]["workdir"] is None
+        mock_manager.exec_interactive.assert_not_called()
 
     def test_interactive_conflicts_with_team(self):
-        result = self.runner.invoke(cli, ["claude", "--multi", "--interactive", "--team"])
+        result = self.runner.invoke(cli, ["claude", "--interactive", "--team"])
         assert result.exit_code != 0
         assert "incompatible" in result.output
 
     def test_interactive_conflicts_with_local_chrome(self):
-        result = self.runner.invoke(cli, ["claude", "--multi", "--interactive", "--local-chrome"])
+        result = self.runner.invoke(cli, ["claude", "--interactive", "--local-chrome"])
         assert result.exit_code != 0
         assert "incompatible" in result.output
 

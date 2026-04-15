@@ -1,8 +1,8 @@
-"""Interactive multi-pane wizard for ``ai-shell claude --multi -i``.
+"""Interactive launcher wizard for ``ai-shell claude -i``.
 
-Walks the user through a guided menu to configure each tmux pane,
-then converts the collected choices into :class:`~ai_shell.tmux.PaneSpec`
-objects ready for :func:`~ai_shell.tmux.build_tmux_commands`.
+Walks the user through a guided menu to configure each pane, then converts the
+collected choices into :class:`~ai_shell.tmux.PaneSpec` objects when a tmux
+session is needed.
 """
 
 from __future__ import annotations
@@ -48,6 +48,19 @@ class InteractiveConfig:
     team_mode: bool = False
     shared_chrome: bool = False
 
+    @property
+    def pane_count(self) -> int:
+        """Return the number of panes requested by the user."""
+        return len(self.pane_choices)
+
+    @property
+    def has_claude_panes(self) -> bool:
+        """Return ``True`` when at least one pane launches Claude."""
+        return any(
+            choice.pane_type in (PaneType.THIS_PROJECT, PaneType.WORKSPACE_REPO)
+            for choice in self.pane_choices
+        )
+
 
 # ── Option builder ───────────────────────────────────────────────────
 
@@ -69,7 +82,7 @@ def _build_pane_options(
     """Build the numbered option list for per-window type selection."""
     options: list[_PaneOption] = [
         _PaneOption(
-            label=f"This project ({project_name}) - Claude in worktree",
+            label=f"This project ({project_name}) - Claude session",
             pane_type=PaneType.THIS_PROJECT,
         ),
         _PaneOption(
@@ -102,8 +115,12 @@ def run_interactive_wizard(
     project_name: str,
     workspace_repos: list[dict[str, Any]] | None = None,
     console: Console | None = None,
+    min_windows: int = 1,
+    max_windows: int = 4,
+    default_windows: int | None = None,
+    default_shared_chrome: bool = False,
 ) -> InteractiveConfig | None:
-    """Walk the user through the interactive multi-pane setup.
+    """Walk the user through the interactive launcher flow.
 
     Returns :class:`InteractiveConfig` with all choices, or ``None`` if the
     user cancels (Ctrl-C / EOFError).
@@ -112,13 +129,15 @@ def run_interactive_wizard(
         console = Console(stderr=True)
 
     options = _build_pane_options(project_name, workspace_repos)
+    if default_windows is None:
+        default_windows = min_windows
 
     try:
         # Step 1: number of windows
         num_windows: int = click.prompt(
             "How many windows?",
-            type=click.IntRange(2, 4),
-            default=2,
+            type=click.IntRange(min_windows, max_windows),
+            default=default_windows,
         )
 
         # Step 2: per-window type
@@ -144,15 +163,23 @@ def run_interactive_wizard(
             )
 
         # Step 3: pre-launch options
-        console.print()
-        team_mode = click.confirm(
-            "Enable teams mode on the primary Claude pane?",
-            default=False,
+        team_mode = False
+        shared_chrome = False
+        has_claude_panes = any(
+            choice.pane_type in (PaneType.THIS_PROJECT, PaneType.WORKSPACE_REPO)
+            for choice in choices
         )
-        shared_chrome = click.confirm(
-            "Enable shared Chrome browser for all Claude panes?",
-            default=False,
-        )
+        if has_claude_panes:
+            console.print()
+            if num_windows == 1:
+                team_prompt = "Enable teams mode for this Claude pane?"
+                chrome_prompt = "Enable Chrome browser for this Claude pane?"
+            else:
+                team_prompt = "Enable teams mode on the primary Claude pane?"
+                chrome_prompt = "Enable shared Chrome browser for all Claude panes?"
+
+            team_mode = click.confirm(team_prompt, default=False)
+            shared_chrome = click.confirm(chrome_prompt, default=default_shared_chrome)
 
     except (EOFError, KeyboardInterrupt, click.Abort):
         return None

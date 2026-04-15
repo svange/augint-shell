@@ -483,6 +483,8 @@ class TestToolCommands:
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
+        config.project_name = "test-project"
+        config.project_dir = Path("/tmp/test-project")
         config.local_chrome = False
         mock_config.return_value = config
 
@@ -501,6 +503,11 @@ class TestToolCommands:
         assert "--mcp-config" in cmd
         assert "/etc/ai-shell/chrome-mcp.json" in cmd
         mock_inject_mcp.assert_called_once()
+        mock_ensure.assert_called_once_with(
+            "augint-shell-test-dev",
+            project_name="test-project",
+            project_dir=Path("/tmp/test-project"),
+        )
         mock_proxy.assert_called_once_with("augint-shell-test-dev", 9222)
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
@@ -523,6 +530,8 @@ class TestToolCommands:
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
+        config.project_name = "test-project"
+        config.project_dir = Path("/tmp/test-project")
         config.local_chrome = False
         mock_config.return_value = config
 
@@ -543,6 +552,11 @@ class TestToolCommands:
         # Retry attempt (without -c)
         cmd_fresh = mock_manager.exec_interactive.call_args[0][1]
         assert "--mcp-config" in cmd_fresh
+        mock_ensure.assert_called_once_with(
+            "augint-shell-test-dev",
+            project_name="test-project",
+            project_dir=Path("/tmp/test-project"),
+        )
 
     @patch("ai_shell.local_chrome.ensure_host_chrome")
     def test_claude_local_chrome_fails_fast_when_unreachable(
@@ -558,6 +572,8 @@ class TestToolCommands:
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
+        config.project_name = "test-project"
+        config.project_dir = Path("/tmp/test-project")
         config.local_chrome = False
         mock_config.return_value = config
 
@@ -572,6 +588,11 @@ class TestToolCommands:
         assert "could not be found" in result.output
         mock_manager.run_interactive.assert_not_called()
         mock_manager.exec_interactive.assert_not_called()
+        mock_ensure.assert_called_once_with(
+            "augint-shell-test-dev",
+            project_name="test-project",
+            project_dir=Path("/tmp/test-project"),
+        )
 
     def test_claude_bedrock_launch_message(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
