@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.74.0 (2026-04-15)
+
+### Features
+
+- Add --skip-updates option to CLI for skipping tool freshness checks
+  ([`c8ff02f`](https://github.com/svange/augint-shell/commit/c8ff02fcf02c2051a91ee6e3dedd2e08d15aeaad))
+
+
 ## v0.73.0 (2026-04-15)
 
 ### Features
