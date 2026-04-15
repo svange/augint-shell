@@ -57,17 +57,17 @@
   {
     "License": "MIT",
     "Name": "augint-github",
-    "Version": "1.10.0"
+    "Version": "1.12.0"
   },
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.71.2"
+    "Version": "0.72.0"
   },
   {
     "License": "UNKNOWN",
     "Name": "augint-tools",
-    "Version": "4.7.0"
+    "Version": "4.8.0"
   },
   {
     "License": "Apache-2.0",
@@ -147,7 +147,7 @@
   {
     "License": "MIT",
     "Name": "filelock",
-    "Version": "3.25.2"
+    "Version": "3.28.0"
   },
   {
     "License": "BSD License",
@@ -232,7 +232,7 @@
   {
     "License": "Apache-2.0 OR BSD-2-Clause",
     "Name": "packaging",
-    "Version": "26.0"
+    "Version": "26.1"
   },
   {
     "License": "Mozilla Public License 2.0 (MPL 2.0)",
@@ -287,12 +287,12 @@
   {
     "License": "MIT",
     "Name": "pydantic",
-    "Version": "2.13.0"
+    "Version": "2.13.1"
   },
   {
     "License": "MIT",
     "Name": "pydantic_core",
-    "Version": "2.46.0"
+    "Version": "2.46.1"
   },
   {
     "License": "MIT",
@@ -417,7 +417,7 @@
   {
     "License": "MIT",
     "Name": "virtualenv",
-    "Version": "21.2.3"
+    "Version": "21.2.4"
   },
   {
     "License": "BSD-2-Clause",
