@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.73.0 (2026-04-15)
+
+### Features
+
+- Implement auto-update mechanism for tools in Docker containers
+  ([`b9289c1`](https://github.com/svange/augint-shell/commit/b9289c1ba44b41cff94a94df126c74bf7df2d52a))
+
+
 ## v0.72.0 (2026-04-15)
 
 ### Bug Fixes
