@@ -22,9 +22,8 @@ import subprocess
 import time
 from collections.abc import Callable
 from hashlib import sha1
+from http.client import HTTPConnection, HTTPException
 from pathlib import Path
-from urllib.error import URLError
-from urllib.request import urlopen
 
 from ai_shell.defaults import unique_project_name
 
@@ -198,11 +197,15 @@ def probe_chrome_port(container_name: str, port: int) -> bool:
 
 def probe_host_chrome_port(port: int) -> bool:
     """Check whether a Chrome debug port is reachable on the host."""
+    connection = HTTPConnection("127.0.0.1", port, timeout=2)
     try:
-        with urlopen(f"http://127.0.0.1:{port}/json/version", timeout=2) as response:
-            return bool(response.read().strip())
-    except (OSError, URLError):
+        connection.request("GET", "/json/version")
+        response = connection.getresponse()
+        return response.status == 200 and bool(response.read().strip())
+    except (OSError, HTTPException):
         return False
+    finally:
+        connection.close()
 
 
 def _wait_until_ready(

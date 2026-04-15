@@ -84,17 +84,40 @@ class TestProjectChromeState:
 
 
 class TestProbeHostChromePort:
-    @patch("ai_shell.local_chrome.urlopen")
-    def test_returns_true_when_reachable(self, mock_urlopen):
+    @patch("ai_shell.local_chrome.HTTPConnection")
+    def test_returns_true_when_reachable(self, mock_connection_cls):
+        mock_connection = MagicMock()
         response = MagicMock()
-        response.__enter__.return_value.read.return_value = b'{"Browser":"Chrome"}'
-        mock_urlopen.return_value = response
+        response.status = 200
+        response.read.return_value = b'{"Browser":"Chrome"}'
+        mock_connection.getresponse.return_value = response
+        mock_connection_cls.return_value = mock_connection
 
         assert probe_host_chrome_port(9222) is True
+        mock_connection_cls.assert_called_once_with("127.0.0.1", 9222, timeout=2)
+        mock_connection.request.assert_called_once_with("GET", "/json/version")
+        mock_connection.close.assert_called_once()
 
-    @patch("ai_shell.local_chrome.urlopen", side_effect=OSError("nope"))
-    def test_returns_false_when_unreachable(self, mock_urlopen):
+    @patch("ai_shell.local_chrome.HTTPConnection")
+    def test_returns_false_when_unreachable(self, mock_connection_cls):
+        mock_connection = MagicMock()
+        mock_connection.request.side_effect = OSError("nope")
+        mock_connection_cls.return_value = mock_connection
+
         assert probe_host_chrome_port(9222) is False
+        mock_connection.close.assert_called_once()
+
+    @patch("ai_shell.local_chrome.HTTPConnection")
+    def test_returns_false_when_http_status_not_ok(self, mock_connection_cls):
+        mock_connection = MagicMock()
+        response = MagicMock()
+        response.status = 500
+        response.read.return_value = b'{"error":"boom"}'
+        mock_connection.getresponse.return_value = response
+        mock_connection_cls.return_value = mock_connection
+
+        assert probe_host_chrome_port(9222) is False
+        mock_connection.close.assert_called_once()
 
 
 class TestEnsureHostChrome:
