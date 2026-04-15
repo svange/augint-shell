@@ -20,6 +20,7 @@ import os
 import platform
 import subprocess
 import time
+from collections.abc import Callable
 from hashlib import sha1
 from pathlib import Path
 from urllib.error import URLError
@@ -205,7 +206,7 @@ def probe_host_chrome_port(port: int) -> bool:
 
 
 def _wait_until_ready(
-    probe_fn,
+    probe_fn: Callable[..., bool],
     *args: object,
     timeout_seconds: float,
     interval_seconds: float = CHROME_PROBE_INTERVAL_SECONDS,
