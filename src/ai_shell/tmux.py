@@ -250,7 +250,7 @@ def build_tmux_commands(
         # Status bar
         ("status-style", "bg=colour235 fg=colour248"),
         ("status-left", "#[fg=colour172,bold] #S #[fg=colour248]| "),
-        ("status-right", "#[fg=colour95] C-b z=zoom  C-b d=detach "),
+        ("status-right", "#[fg=colour95] C-b: ◫o +c ▦␣ ◀p ▶n ⛶z ⏏d ⌦& "),
         ("status-left-length", "40"),
         ("status-right-length", "40"),
     ]

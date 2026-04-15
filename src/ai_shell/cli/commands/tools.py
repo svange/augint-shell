@@ -34,6 +34,14 @@ def _generate_worktree_name() -> str:
     return uuid.uuid4().hex[:8]
 
 
+def _print_tmux_quick_start() -> None:
+    """Print a short tmux quick-start before attaching."""
+    console.print("[dim]tmux: mouse click=focus drag=resize wheel=scroll[/dim]")
+    console.print(
+        "[dim]      Ctrl-b o=pane c=tab Space=layout p/n=tab z=zoom d=detach &=kill-tab[/dim]"
+    )
+
+
 def _setup_worktree(container_name: str, container_project_dir: str, name: str) -> str:
     """Create a git worktree inside the container and return its absolute container path.
 
@@ -509,6 +517,7 @@ def _launch_interactive(
         if choice == "reconnect":
             attach_cmd = build_attach_command(container_name, session_name)
             logger.debug("tmux reattach: %s", " ".join(attach_cmd))
+            _print_tmux_quick_start()
             sys.stdout.flush()
             sys.stderr.flush()
             attach = subprocess.run(attach_cmd)
@@ -567,6 +576,7 @@ def _launch_interactive(
 
     final_cmd = cmds[-1]
     logger.debug("tmux attach: %s", " ".join(final_cmd))
+    _print_tmux_quick_start()
     sys.stdout.flush()
     sys.stderr.flush()
     attach = subprocess.run(final_cmd)
@@ -737,6 +747,7 @@ def _launch_single_repo_multi(
 
     final_cmd = cmds[-1]
     logger.debug("tmux attach: %s", " ".join(final_cmd))
+    _print_tmux_quick_start()
     sys.stdout.flush()
     sys.stderr.flush()
     attach = subprocess.run(final_cmd)
@@ -794,6 +805,7 @@ def _launch_multi(
         if choice == "reconnect":
             attach_cmd = build_attach_command(container_name, session_name)
             logger.debug("tmux reattach: %s", " ".join(attach_cmd))
+            _print_tmux_quick_start()
             sys.stdout.flush()
             sys.stderr.flush()
             attach = subprocess.run(attach_cmd)
@@ -942,6 +954,7 @@ def _launch_multi(
     # Final command: interactive attach (replaces process)
     final_cmd = cmds[-1]
     logger.debug("tmux attach: %s", " ".join(final_cmd))
+    _print_tmux_quick_start()
     sys.stdout.flush()
     sys.stderr.flush()
     attach = subprocess.run(final_cmd)

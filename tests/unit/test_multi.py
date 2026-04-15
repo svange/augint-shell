@@ -318,8 +318,15 @@ class TestBuildTmuxCommands:
         all_args = [" ".join(c) for c in cmds]
         joined = "\n".join(all_args)
 
-        assert "C-b z=zoom" in joined
-        assert "C-b d=detach" in joined
+        assert "C-b:" in joined
+        assert "◫o" in joined
+        assert "+c" in joined
+        assert "▦␣" in joined
+        assert "◀p" in joined
+        assert "▶n" in joined
+        assert "⛶z" in joined
+        assert "⏏d" in joined
+        assert "⌦&" in joined
 
     def test_server_level_terminal_options(self):
         panes = [

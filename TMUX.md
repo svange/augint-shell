@@ -199,7 +199,7 @@ set-option -t claude-multi pane-border-indicators arrows
 # Session name in amber (matches active border), help hints in mauve.
 set-option -t claude-multi status-style "bg=colour235 fg=colour248"
 set-option -t claude-multi status-left "#[fg=colour172,bold] #S #[fg=colour248]| "
-set-option -t claude-multi status-right "#[fg=colour95] C-b z=zoom  C-b d=detach "
+set-option -t claude-multi status-right "#[fg=colour95] C-b: ◫o +c ▦␣ ◀p ▶n ⛶z ⏏d ⌦& "
 set-option -t claude-multi status-left-length 40
 set-option -t claude-multi status-right-length 40
 
@@ -220,13 +220,21 @@ os.execvp("docker", [
 ])
 ```
 
+Before attach, `ai-shell` prints a short tmux quick-start reminder.
+
 The user is now inside the tmux session. They can:
+- This launch creates one tmux window containing 2-4 panes; the panes are mouse-resizable after startup
 - Click panes to switch focus
 - Drag pane borders to resize
 - Scroll with mouse wheel in the focused pane
+- Use `Ctrl-b o` for the next pane
+- Use `Ctrl-b c` to create a new tmux window (tab)
+- Use `Ctrl-b Space` to cycle pane layouts
+- Use `Ctrl-b p` / `Ctrl-b n` for previous / next tmux window (tab)
 - Use `Ctrl-b z` to zoom/unzoom a single pane (fullscreen toggle)
 - Use `Ctrl-b arrow` to move between panes via keyboard
 - Use `Ctrl-b d` to detach (container stays running, re-attach later)
+- Use `Ctrl-b &` to kill the current tmux window (tab)
 
 **Important**: Use `Ctrl-b d` to detach, NOT `Ctrl-d`. `Ctrl-d` sends EOF to
 the active pane's shell and may close the terminal window without properly
