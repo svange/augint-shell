@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.72.0 (2026-04-15)
+
+### Bug Fixes
+
+- Add type hint for probe_fn parameter in _wait_until_ready function
+  ([`30a15a8`](https://github.com/svange/augint-shell/commit/30a15a83d1058aabf85bf7d650aee10b446750ab))
+
+- Replace urlopen with HTTPConnection for probing Chrome debug port
+  ([`5be52c0`](https://github.com/svange/augint-shell/commit/5be52c0c00a50e5d600f2c3e1bff788b529ec919))
+
+### Features
+
+- Enhance local Chrome integration with project-specific profiles and debug ports
+  ([`f5de8e4`](https://github.com/svange/augint-shell/commit/f5de8e43adacb77de916bc1b06dca926691282c9))
+
+- Update tmux status-right and add quick-start instructions
+  ([`42625ff`](https://github.com/svange/augint-shell/commit/42625ff37e3abd79fe23aae258c7e4536a82809b))
+
+
 ## v0.71.2 (2026-04-14)
 
 ### Bug Fixes
