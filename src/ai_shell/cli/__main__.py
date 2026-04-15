@@ -22,12 +22,19 @@ from ai_shell.cli.commands.tools import aider, bash, claude, codex, init, openco
     default=False,
     help="Use the version-pinned image tag instead of 'latest'.",
 )
+@click.option(
+    "--skip-updates",
+    is_flag=True,
+    default=False,
+    help="Skip the pre-launch tool freshness check.",
+)
 @click.pass_context
-def cli(ctx, project, verbose, orig_image):
+def cli(ctx, project, verbose, orig_image, skip_updates):
     """AI Shell - Launch AI coding tools and local LLMs in Docker containers."""
     ctx.ensure_object(dict)
     ctx.obj["project"] = project
     ctx.obj["orig_image"] = orig_image
+    ctx.obj["skip_updates"] = skip_updates
     if verbose:
         logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(message)s")
 

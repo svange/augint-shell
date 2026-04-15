@@ -468,8 +468,13 @@ class ContainerManager:
         (blocking) which also kicks off background updates for other tools.
 
         Silently does nothing if ``update-tools.sh`` is not present in the
-        container (backward compatibility with older images).
+        container (backward compatibility with older images), or if
+        ``config.skip_updates`` is True (``--skip-updates`` flag).
         """
+        if self.config.skip_updates:
+            logger.debug("Skipping tool freshness check (--skip-updates)")
+            return
+
         update_script = "/usr/local/bin/update-tools.sh"
 
         # Check if update script exists in the container
@@ -494,13 +499,21 @@ class ContainerManager:
             return
 
         # Tool is stale — update it in foreground (--tool also backgrounds the rest)
-        logger.info("Updating %s before launch...", tool_name)
-        update_result = subprocess.run(
-            ["docker", "exec", container_name, update_script, "--tool", tool_name],
-            timeout=300,  # 5 minute timeout
-        )
-        if update_result.returncode != 0:
-            logger.warning("Tool update for %s returned non-zero, continuing anyway", tool_name)
+        from rich.console import Console
+
+        console = Console(stderr=True)
+        with console.status(f"[bold]Updating {tool_name}...[/bold]", spinner="dots"):
+            update_result = subprocess.run(
+                ["docker", "exec", container_name, update_script, "--tool", tool_name],
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout
+            )
+        if update_result.returncode == 0:
+            console.print(f"[green]Updated {tool_name}[/green]")
+        else:
+            console.print(f"[yellow]Update for {tool_name} had issues, continuing anyway[/yellow]")
+            logger.debug("Update stderr: %s", update_result.stderr)
 
     def _pull_image_if_needed(self, image: str) -> None:
         """Pull a Docker image if not available locally.

@@ -250,11 +250,13 @@ def _get_manager(
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
 
-    # AUTO-UPDATE: Apply --orig-image flag from root CLI
+    # AUTO-UPDATE: Apply --orig-image and --skip-updates flags from root CLI
     if ctx.obj and ctx.obj.get("orig_image"):
         from ai_shell import __version__
 
         config.image_tag = __version__
+    if ctx.obj and ctx.obj.get("skip_updates"):
+        config.skip_updates = True
 
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()

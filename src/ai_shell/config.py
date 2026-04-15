@@ -67,6 +67,7 @@ class AiShellConfig:
     # Claude options
     local_chrome: bool = False  # Attach Chrome DevTools MCP to project-scoped host Chrome
     pinned_image: bool = False  # When True, use version-matched image tag instead of latest
+    skip_updates: bool = False  # When True, skip pre-launch tool freshness checks
 
     # Per-tool provider
     claude_provider: str = ""  # "anthropic" (default) or "aws"
@@ -209,6 +210,8 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.local_chrome = bool(claude_sec["local_chrome"])
     if "pinned_image" in container:
         config.pinned_image = bool(container["pinned_image"])
+    if "skip_updates" in container:
+        config.skip_updates = bool(container["skip_updates"])
 
     # [opencode] section
     opencode_sec = data.get("opencode", {})
@@ -247,6 +250,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_CODEX_PROFILE": ("codex_profile", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
         "AI_SHELL_PINNED_IMAGE": ("pinned_image", bool),
+        "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),
     }
 
     for env_key, (attr, type_fn) in env_map.items():
