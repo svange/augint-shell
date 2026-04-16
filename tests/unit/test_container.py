@@ -11,6 +11,8 @@ from ai_shell.defaults import (
     KOKORO_IMAGE_CPU,
     KOKORO_IMAGE_GPU,
     LLM_NETWORK,
+    N8N_CONTAINER,
+    N8N_IMAGE,
     SHM_SIZE,
 )
 from ai_shell.exceptions import ContainerNotFoundError, DockerNotAvailableError, ImagePullError
@@ -614,6 +616,36 @@ class TestEnsureKokoro:
 
         stopped.start.assert_called_once()
         assert name == KOKORO_CONTAINER
+
+
+class TestEnsureN8n:
+    def test_creates_n8n_container(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        name = mock_container_manager.ensure_n8n()
+
+        assert name == N8N_CONTAINER
+        mock_docker_client.containers.run.assert_called_once()
+        call_kwargs = mock_docker_client.containers.run.call_args[1]
+        assert call_kwargs["image"] == N8N_IMAGE
+        assert call_kwargs["network"] == LLM_NETWORK
+        assert "network_mode" not in call_kwargs
+        # Port mapping binds 5678 inside the container to the configured host port.
+        ports = call_kwargs["ports"]
+        assert "5678/tcp" in ports
+        # Mount targets the n8n data directory.
+        mount_targets = [m["Target"] for m in call_kwargs["mounts"]]
+        assert "/home/node/.n8n" in mount_targets
+
+    def test_starts_stopped_n8n(self, mock_container_manager):
+        stopped = MagicMock()
+        stopped.status = "exited"
+        mock_container_manager._get_container = MagicMock(return_value=stopped)
+
+        name = mock_container_manager.ensure_n8n()
+        stopped.start.assert_called_once()
+        assert name == N8N_CONTAINER
 
 
 class TestExecInOllama:
