@@ -72,7 +72,10 @@ Extension pattern for a new host-level service (follow `ensure_kokoro`):
 1. Add constants to `defaults.py` (`FOO_CONTAINER`, `FOO_IMAGE`,
    `FOO_DATA_VOLUME`, `DEFAULT_FOO_PORT`)
 2. Add fields to `AiShellConfig` and the YAML/env loader paths
-3. Add `ensure_foo()` to `ContainerManager` (copy `ensure_kokoro` shape)
+3. Add `ensure_foo()` to `ContainerManager` (copy `ensure_kokoro` shape).
+   If the service uses GPU, call `detect_gpu()` before `_get_container()`
+   and use `_recreate_if_gpu_changed()` to auto-recreate when GPU
+   availability changes (prevents stale CPU-only containers).
 4. Add `--foo` flag to `_stack_flags` in `llm.py`, wire into `_resolve_stacks`
 5. Wire into `llm_up`, `llm_down`, `llm_clean`, `llm_setup`, `llm_status`,
    `llm_logs`

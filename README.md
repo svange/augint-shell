@@ -150,7 +150,7 @@ secondary within a slot keeps tool formats and context semantics identical.
 |---|---|---|---|
 | `--webui` | Open WebUI | 3000 | Implies `--voice` so Kokoro is wired as the "read aloud" backend. Use `--no-voice` to skip. |
 | `--voice` | Kokoro TTS | 8880 | OpenAI-compatible `/v1/audio/speech`. |
-| `--whisper` | Speaches STT | 8001 | OpenAI-compatible `/v1/audio/transcriptions`. Default model: `Systran/faster-distil-whisper-large-v3` (preloaded). GPU image used automatically when NVIDIA is detected. |
+| `--whisper` | Speaches STT | 8001 | OpenAI-compatible `/v1/audio/transcriptions`. Default model: `Systran/faster-distil-whisper-large-v3` (preloaded). GPU image used automatically when NVIDIA is detected; container auto-recreates if GPU availability changes. |
 | `--voice-agent` | Pipecat voice agent | 8010 | Experimental. Built locally on first use from `docker/voice-agent/`. Push-to-talk PWA over WebSocket (Speaches STT -> Ollama -> Kokoro TTS). See `VOICE_AGENT_PLAN.md`. |
 | `--n8n` | n8n | 5678 | Workflow automation, standalone. |
 
@@ -161,6 +161,7 @@ secondary within a slot keeps tool formats and context semantics identical.
 - Mounts your project directory, SSH keys, AWS credentials, and tool configs
 - Runs AI tools interactively inside the container
 - Supports concurrent instances across multiple projects
+- GPU-capable containers (Ollama, Kokoro, Whisper) auto-detect NVIDIA GPUs and recreate themselves if GPU availability changes
 
 ## Attaching to your Windows Chrome (`--local-chrome`)
 

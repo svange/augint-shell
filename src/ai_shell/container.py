@@ -302,7 +302,7 @@ class ContainerManager:
     def ensure_ollama(self) -> str:
         """Get or create the Ollama container with GPU auto-detection.
 
-        Returns the container name.
+        Recreates the container if GPU availability has changed since creation.
         """
         gpu_available = detect_gpu()
         container = self._get_container(OLLAMA_CONTAINER)
@@ -438,7 +438,7 @@ class ContainerManager:
 
         Exposes an OpenAI-compatible ``/v1/audio/speech`` endpoint on the
         configured port. GPU image is used when NVIDIA is detected;
-        otherwise the CPU image.
+        otherwise the CPU image. Recreates if GPU availability has changed.
         """
         gpu_available = detect_gpu()
         container = self._get_container(KOKORO_CONTAINER)
@@ -475,10 +475,10 @@ class ContainerManager:
 
         Exposes an OpenAI-compatible ``/v1/audio/transcriptions`` endpoint on
         the configured port. GPU image is used when NVIDIA is detected;
-        otherwise the CPU image. The Hugging Face model cache persists in a
-        named volume (Speaches runs as ``ubuntu`` UID 1000 — a named volume
-        inherits the correct ownership; bind-mounting a host dir here would
-        require an explicit chown).
+        otherwise the CPU image. Recreates if GPU availability has changed.
+        The Hugging Face model cache persists in a named volume (Speaches runs
+        as ``ubuntu`` UID 1000 — a named volume inherits the correct ownership;
+        bind-mounting a host dir here would require an explicit chown).
         """
         gpu_available = detect_gpu()
         container = self._get_container(WHISPER_CONTAINER)

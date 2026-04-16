@@ -111,14 +111,14 @@ CLI commands (cli/commands/)
 
 1. **Per-project dev containers** (`augint-shell-{project}-dev`): One per project directory, runs all AI tools. Created on-demand, reused if running. Uses `tail -f /dev/null` to stay alive, commands exec into it.
 
-2. **Host-level LLM stack** (singletons): Ollama + Open WebUI containers shared across all projects via `augint-shell-llm` Docker network. Persistent named volumes. GPU auto-detected for Ollama.
+2. **Host-level LLM stack** (singletons): Ollama, Open WebUI, Kokoro TTS, Speaches STT, voice-agent, and n8n containers shared across all projects via `augint-shell-llm` Docker network. Persistent named volumes. GPU auto-detected for Ollama, Kokoro, and Whisper; those containers auto-recreate when GPU availability changes (e.g., container was created without GPU but GPU is now available). Voice-agent image is built locally on first use.
 
 ### Config Layering (highest priority first)
 
 1. CLI flags (`--project`)
 2. Environment variables (`AI_SHELL_*` prefix)
-3. Project `ai-shell.toml`
-4. Global `~/.config/ai-shell/config.toml`
+3. Project config (first match: `.ai-shell.yaml` > `.ai-shell.yml` > `.ai-shell.toml` > `ai-shell.toml`)
+4. Global config (`~/.ai-shell.yaml` > `~/.ai-shell.yml` > `~/.ai-shell.toml` > `~/.config/ai-shell/config.*`)
 5. Hard-coded defaults in `defaults.py`
 
 ### Container Naming
