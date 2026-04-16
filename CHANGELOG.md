@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v0.78.0 (2026-04-16)
+
+### Bug Fixes
+
+- Replace urlopen with HTTPConnection for probing Chrome debug port
+  ([`5442dd0`](https://github.com/svange/augint-shell/commit/5442dd08ea475f1a080f19f08d7b6a372de10869))
+
+### Features
+
+- Add n8n workflow automation support and related configurations
+  ([#79](https://github.com/svange/augint-shell/pull/79),
+  [`5447fde`](https://github.com/svange/augint-shell/commit/5447fdee9fd3b906f341ce526762765dc7e1badd))
+
+- Add tests for N8n container creation and management
+  ([#79](https://github.com/svange/augint-shell/pull/79),
+  [`5447fde`](https://github.com/svange/augint-shell/commit/5447fdee9fd3b906f341ce526762765dc7e1badd))
+
+- Integrate Kokoro TTS support and update related configurations
+  ([#79](https://github.com/svange/augint-shell/pull/79),
+  [`5447fde`](https://github.com/svange/augint-shell/commit/5447fdee9fd3b906f341ce526762765dc7e1badd))
+
+- Update primary model to Qwen3-Coder-30B A3B and add model manifest validation
+  ([`287503e`](https://github.com/svange/augint-shell/commit/287503ecfc21ead3f8b786f06c7f9ae62d3d728f))
+
+### Refactoring
+
+- Improve code formatting and readability in llm.py and test_cli_llm.py
+  ([#79](https://github.com/svange/augint-shell/pull/79),
+  [`5447fde`](https://github.com/svange/augint-shell/commit/5447fdee9fd3b906f341ce526762765dc7e1badd))
+
+
 ## v0.77.0 (2026-04-16)
 
 ### Features
