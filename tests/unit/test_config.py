@@ -13,7 +13,8 @@ class TestAiShellConfig:
         assert config.primary_model == "qwen3-coder:30b-a3b-q4_K_M"
         assert config.ollama_port == 11434
         assert config.webui_port == 3000
-        assert config.lobechat_port == 3210
+        assert config.kokoro_port == 8880
+        assert config.n8n_port == 5678
 
     def test_full_image(self):
         config = AiShellConfig(image="svange/augint-shell", image_tag="1.2.3")
@@ -45,7 +46,7 @@ image_tag = "2.0.0"
 [llm]
 primary_model = "llama3:8b"
 ollama_port = 12345
-lobechat_port = 4321
+kokoro_port = 4321
 """
         (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
         config = load_config(project_dir=tmp_path)
@@ -54,20 +55,20 @@ lobechat_port = 4321
         assert config.image_tag == "2.0.0"
         assert config.primary_model == "llama3:8b"
         assert config.ollama_port == 12345
-        assert config.lobechat_port == 4321
+        assert config.kokoro_port == 4321
 
     def test_env_var_overrides(self, tmp_path):
         env = {
             "AI_SHELL_IMAGE": "env/image",
             "AI_SHELL_OLLAMA_PORT": "9999",
-            "AI_SHELL_LOBECHAT_PORT": "4321",
+            "AI_SHELL_KOKORO_PORT": "4321",
         }
         with patch.dict("os.environ", env):
             config = load_config(project_dir=tmp_path)
 
         assert config.image == "env/image"
         assert config.ollama_port == 9999
-        assert config.lobechat_port == 4321
+        assert config.kokoro_port == 4321
 
     def test_env_vars_override_toml(self, tmp_path):
         toml_content = b"""

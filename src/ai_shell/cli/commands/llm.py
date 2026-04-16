@@ -1,4 +1,16 @@
-"""LLM stack management commands: up, down, pull, setup, status, logs, shell."""
+"""LLM stack management commands: up, down, pull, setup, status, logs, shell.
+
+Stack flags (applied to up/down/clean/setup):
+    --webui     Open WebUI (OpenAI-style chat UI backed by Ollama). Kokoro
+                TTS starts with it by default (wired as WebUI's "read aloud"
+                backend); use --no-voice to skip.
+    --voice     Kokoro-FastAPI (local OpenAI-compatible TTS) standalone.
+    --no-voice  Opt-out: skip Kokoro even when --webui is set.
+    --n8n       n8n workflow automation engine (standalone).
+    --all       Enable every optional stack.
+
+``llm up`` with no flags starts only the base Ollama container.
+"""
 
 import socket
 import time
@@ -12,7 +24,9 @@ from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import (
-    LOBECHAT_CONTAINER,
+    KOKORO_CONTAINER,
+    N8N_CONTAINER,
+    N8N_DATA_VOLUME,
     OLLAMA_CONTAINER,
     OLLAMA_DATA_VOLUME,
     WEBUI_CONTAINER,
@@ -170,50 +184,128 @@ def _get_manager(ctx) -> ContainerManager:
     return ContainerManager(config)
 
 
+def _resolve_stacks(
+    webui: bool, voice: bool, no_voice: bool, n8n: bool, all_: bool
+) -> tuple[bool, bool, bool]:
+    """Resolve stack flags into concrete (webui, voice, n8n) enablement.
+
+    Rules:
+    - ``--all`` turns on every optional stack.
+    - ``--webui`` implies ``--voice`` (Kokoro is wired as WebUI's TTS backend).
+    - ``--no-voice`` is the opt-out and always wins.
+    - ``--n8n`` is standalone with no implied sibling stacks.
+
+    Extension pattern: when we add ``--libre`` / ``--dify`` / ``--hands``,
+    they become additional parameters here with the same ``all_`` expansion.
+    """
+    if all_:
+        webui = True
+        voice = True
+        n8n = True
+    if webui:
+        voice = True
+    if no_voice:
+        voice = False
+    return webui, voice, n8n
+
+
+# Shared decorators for stack flags on up/down/clean/setup.
+def _stack_flags(func):
+    func = click.option("--all", "all_", is_flag=True, help="Enable every optional stack.")(func)
+    func = click.option("--n8n", is_flag=True, help="n8n workflow automation engine (port 5678).")(
+        func
+    )
+    func = click.option(
+        "--no-voice",
+        "no_voice",
+        is_flag=True,
+        help="Skip Kokoro TTS even when --webui is set.",
+    )(func)
+    func = click.option(
+        "--voice",
+        is_flag=True,
+        help="Kokoro local TTS (OpenAI-compatible, port 8880). Implied by --webui.",
+    )(func)
+    func = click.option(
+        "--webui", is_flag=True, help="Open WebUI (Kokoro TTS wired automatically)."
+    )(func)
+    return func
+
+
 @click.group("llm", context_settings=CONTEXT_SETTINGS)
 @click.pass_context
 def llm_group(ctx):
-    """Manage the local LLM stack (Ollama + Open WebUI + LobeChat)."""
+    """Manage the local LLM stack (Ollama + optional Open WebUI / TTS)."""
 
 
 @llm_group.command("up")
+@_stack_flags
 @click.pass_context
-def llm_up(ctx):
-    """Start the LLM stack (Ollama + Open WebUI + LobeChat)."""
+def llm_up(ctx, webui: bool, voice: bool, no_voice: bool, n8n: bool, all_: bool):
+    """Start the LLM stack.
+
+    With no flags, starts only Ollama. ``--webui`` brings up Open WebUI and
+    (by default) wires Kokoro TTS as its "read aloud" backend; pass
+    ``--no-voice`` to skip TTS. ``--voice`` alone runs Kokoro standalone.
+    ``--n8n`` brings up n8n workflow automation.
+    """
+    webui, voice, n8n = _resolve_stacks(webui, voice, no_voice, n8n, all_)
     manager = _get_manager(ctx)
+    config = manager.config
     console.print("[bold]Starting LLM stack...[/bold]")
     _warn_if_low_memory()
 
     manager.ensure_ollama()
-    console.print(f"  Ollama API:  http://localhost:{manager.config.ollama_port}")
+    console.print(f"  Ollama API:  http://localhost:{config.ollama_port}")
 
-    manager.ensure_webui()
-    console.print(f"  Open WebUI:  http://localhost:{manager.config.webui_port}")
+    if voice:
+        manager.ensure_kokoro()
+        console.print(f"  Kokoro TTS:  http://localhost:{config.kokoro_port}/v1")
 
-    manager.ensure_lobechat()
-    console.print(
-        f"  LobeChat:    http://localhost:{manager.config.lobechat_port}  [dim](recommended)[/dim]"
-    )
+    if webui:
+        manager.ensure_webui(voice_enabled=voice)
+        console.print(f"  Open WebUI:  http://localhost:{config.webui_port}")
+
+    if n8n:
+        manager.ensure_n8n()
+        console.print(f"  n8n:         http://localhost:{config.n8n_port}")
 
     lan = _lan_ip()
     if lan:
         console.print("\n[bold]LAN access[/bold] (bound to 0.0.0.0):")
-        console.print(f"  Ollama API:  http://{lan}:{manager.config.ollama_port}")
-        console.print(f"  Open WebUI:  http://{lan}:{manager.config.webui_port}")
-        console.print(f"  LobeChat:    http://{lan}:{manager.config.lobechat_port}")
+        console.print(f"  Ollama API:  http://{lan}:{config.ollama_port}")
+        if voice:
+            console.print(f"  Kokoro TTS:  http://{lan}:{config.kokoro_port}/v1")
+        if webui:
+            console.print(f"  Open WebUI:  http://{lan}:{config.webui_port}")
+        if n8n:
+            console.print(f"  n8n:         http://{lan}:{config.n8n_port}")
 
     console.print("\n[bold green]LLM stack is running.[/bold green]")
-    console.print("If this is your first time, run: [bold]ai-shell llm setup[/bold]")
 
 
 @llm_group.command("down")
+@_stack_flags
 @click.pass_context
-def llm_down(ctx):
-    """Stop the LLM stack."""
+def llm_down(ctx, webui: bool, voice: bool, no_voice: bool, n8n: bool, all_: bool):
+    """Stop containers in the LLM stack.
+
+    With no flags, stops only Ollama. Use stack flags or --all to stop
+    additional stacks.
+    """
+    webui, voice, n8n = _resolve_stacks(webui, voice, no_voice, n8n, all_)
     manager = _get_manager(ctx)
     console.print("[bold]Stopping LLM stack...[/bold]")
 
-    for name in [LOBECHAT_CONTAINER, WEBUI_CONTAINER, OLLAMA_CONTAINER]:
+    targets = [OLLAMA_CONTAINER]
+    if webui:
+        targets.append(WEBUI_CONTAINER)
+    if voice:
+        targets.append(KOKORO_CONTAINER)
+    if n8n:
+        targets.append(N8N_CONTAINER)
+
+    for name in targets:
         status = manager.container_status(name)
         if status == "running":
             manager.stop_container(name)
@@ -227,49 +319,69 @@ def llm_down(ctx):
 
 
 @llm_group.command("clean")
+@_stack_flags
 @click.option(
-    "--volumes",
-    "-v",
-    "remove_volumes",
+    "--wipe",
     is_flag=True,
-    help="Also remove named volumes (deletes downloaded models + WebUI chat history).",
+    help="Also wipe persistent data (models, chat history). Irreversible.",
 )
-@click.option(
-    "--yes",
-    "-y",
-    "assume_yes",
-    is_flag=True,
-    help="Skip the confirmation prompt.",
-)
+@click.option("--yes", "-y", "assume_yes", is_flag=True, help="Skip the confirmation prompt.")
 @click.pass_context
-def llm_clean(ctx, remove_volumes: bool, assume_yes: bool):
-    """Stop and remove all LLM containers (LobeChat, Open WebUI, Ollama).
+def llm_clean(
+    ctx,
+    webui: bool,
+    voice: bool,
+    no_voice: bool,
+    n8n: bool,
+    all_: bool,
+    wipe: bool,
+    assume_yes: bool,
+):
+    """Remove LLM containers and (with --wipe) persistent data.
 
-    By default, named volumes are preserved so downloaded models survive.
-    Pass --volumes to also wipe volumes (requires re-pulling models).
+    With no stack flags, removes the base Ollama container only. Use stack
+    flags or --all to also remove other stacks. --wipe additionally deletes
+    named Docker volumes.
     """
+    webui, voice, n8n = _resolve_stacks(webui, voice, no_voice, n8n, all_)
     manager = _get_manager(ctx)
 
+    targets = [OLLAMA_CONTAINER]
+    if webui:
+        targets.append(WEBUI_CONTAINER)
+    if voice:
+        targets.append(KOKORO_CONTAINER)
+    if n8n:
+        targets.append(N8N_CONTAINER)
+
+    volumes: list[str] = []
+    if wipe:
+        volumes.append(OLLAMA_DATA_VOLUME)
+        if webui:
+            volumes.append(WEBUI_DATA_VOLUME)
+        if n8n:
+            volumes.append(N8N_DATA_VOLUME)
+
     if not assume_yes:
-        scope = "containers + volumes (downloaded models will be deleted)"
-        if not remove_volumes:
-            scope = "containers only (volumes preserved)"
+        if wipe:
+            scope = "containers + volumes (models and chat history will be deleted)"
+        else:
+            scope = "containers only (data preserved)"
         console.print(f"[bold]About to remove:[/bold] {scope}")
         if not click.confirm("Continue?", default=False):
             console.print("Aborted.")
             return
 
     console.print("[bold]Cleaning LLM stack...[/bold]")
-
-    for name in [LOBECHAT_CONTAINER, WEBUI_CONTAINER, OLLAMA_CONTAINER]:
+    for name in targets:
         if manager.container_status(name) is None:
             console.print(f"  Not found: {name}")
             continue
         manager.remove_container(name)
         console.print(f"  Removed: {name}")
 
-    if remove_volumes:
-        for volume in [OLLAMA_DATA_VOLUME, WEBUI_DATA_VOLUME]:
+    if wipe:
+        for volume in volumes:
             if manager.remove_volume(volume):
                 console.print(f"  Removed volume: {volume}")
             else:
@@ -302,23 +414,30 @@ def llm_pull(ctx):
 
 
 @llm_group.command("setup")
+@_stack_flags
 @click.pass_context
-def llm_setup(ctx):
-    """First-time setup: start stack, pull models, configure context window."""
+def llm_setup(ctx, webui: bool, voice: bool, no_voice: bool, n8n: bool, all_: bool):
+    """First-time setup: start stack, pull models, configure context.
+
+    Accepts the same stack flags as ``llm up``. With no flags, sets up only
+    the base Ollama container and pulls the configured primary/fallback models.
+    """
+    webui, voice, n8n = _resolve_stacks(webui, voice, no_voice, n8n, all_)
     manager = _get_manager(ctx)
     config = manager.config
 
-    # Fail fast on invalid model tags before touching Docker / pulling anything.
     _validate_models_or_abort(config.primary_model, config.fallback_model)
 
-    # Start the stack
     console.print("[bold]Starting LLM stack...[/bold]")
     _warn_if_low_memory()
     manager.ensure_ollama()
-    manager.ensure_webui()
-    manager.ensure_lobechat()
+    if voice:
+        manager.ensure_kokoro()
+    if webui:
+        manager.ensure_webui(voice_enabled=voice)
+    if n8n:
+        manager.ensure_n8n()
 
-    # Wait for Ollama to be ready
     console.print("[bold]Waiting for Ollama to be ready...[/bold]")
     for i in range(10):
         try:
@@ -333,7 +452,6 @@ def llm_setup(ctx):
         console.print("[bold red]Ollama failed to start after 20s[/bold red]")
         raise click.Abort()
 
-    # Pull models
     console.print(f"\n[bold]Pulling primary model: {config.primary_model}...[/bold]")
     output = manager.exec_in_ollama(["ollama", "pull", config.primary_model])
     console.print(output)
@@ -344,66 +462,72 @@ def llm_setup(ctx):
 
     console.print("\n[bold green]============================================[/bold green]")
     console.print("[bold green] Setup complete![/bold green]")
-    console.print(f"\n  LobeChat:    http://localhost:{config.lobechat_port}  (recommended)")
-    console.print(f"  Open WebUI:  http://localhost:{config.webui_port}")
     console.print(f"  Ollama API:  http://localhost:{config.ollama_port}")
+    if voice:
+        console.print(f"  Kokoro TTS:  http://localhost:{config.kokoro_port}/v1")
+    if webui:
+        console.print(f"  Open WebUI:  http://localhost:{config.webui_port}")
+    if n8n:
+        console.print(f"  n8n:         http://localhost:{config.n8n_port}")
     console.print(f"\n  Primary model:  {config.primary_model}")
     console.print(f"  Fallback model: {config.fallback_model}")
     console.print(f"  Context window: {config.context_size} tokens")
     console.print("[bold green]============================================[/bold green]")
 
 
+def _render_container_row(manager: ContainerManager, name: str, label: str) -> None:
+    """Print one row of the `llm status` grid, colored by runtime state."""
+    status = manager.container_status(name)
+    if status == "running":
+        console.print(f"  [green]{label:<20}[/green] [green]running[/green]  [dim]({name})[/dim]")
+    elif status is not None:
+        console.print(
+            f"  [yellow]{label:<20}[/yellow] [yellow]{status}[/yellow]  [dim]({name})[/dim]"
+        )
+    else:
+        console.print(f"  [dim]{label:<20} absent   ({name})[/dim]")
+
+
 @llm_group.command("status")
 @click.pass_context
 def llm_status(ctx):
-    """Show status of LLM stack, URLs, and loaded models."""
+    """Show status of all known LLM containers, URLs, and loaded models."""
     manager = _get_manager(ctx)
     config = manager.config
-    ollama_running = manager.container_status(OLLAMA_CONTAINER) == "running"
-    webui_running = manager.container_status(WEBUI_CONTAINER) == "running"
-    lobechat_running = manager.container_status(LOBECHAT_CONTAINER) == "running"
 
-    console.print("[bold]Container status:[/bold]")
-    for name, running in [
-        (OLLAMA_CONTAINER, ollama_running),
-        (WEBUI_CONTAINER, webui_running),
-        (LOBECHAT_CONTAINER, lobechat_running),
-    ]:
-        status = manager.container_status(name)
-        if running:
-            console.print(f"  {name}: [green]{status}[/green]")
-        elif status is not None:
-            console.print(f"  {name}: [yellow]{status}[/yellow]")
-        else:
-            console.print(f"  {name}: [red]not found[/red]")
+    console.print("[bold]Base stack[/bold]")
+    _render_container_row(manager, OLLAMA_CONTAINER, "Ollama")
+
+    console.print("\n[bold]WebUI stack[/bold]")
+    _render_container_row(manager, WEBUI_CONTAINER, "Open WebUI")
+
+    console.print("\n[bold]Voice stack[/bold]")
+    _render_container_row(manager, KOKORO_CONTAINER, "Kokoro TTS")
+
+    console.print("\n[bold]n8n stack[/bold]")
+    _render_container_row(manager, N8N_CONTAINER, "n8n")
 
     console.print("\n[bold]Access URLs:[/bold]")
-    ollama_url = f"http://localhost:{config.ollama_port}"
-    webui_url = f"http://localhost:{config.webui_port}"
-    lobechat_url = f"http://localhost:{config.lobechat_port}"
-    if lobechat_running:
-        console.print(
-            f"  LobeChat:           [cyan]{lobechat_url}[/cyan]  [bold](recommended)[/bold]"
-        )
-    else:
-        console.print(f"  LobeChat:           [dim]{lobechat_url}[/dim] (not running)")
-    if ollama_running:
-        console.print(f"  Ollama API:         [cyan]{ollama_url}[/cyan]")
-        console.print(f"  OpenAI-compatible:  [cyan]{ollama_url}/v1[/cyan]")
-    else:
-        console.print(f"  Ollama API:         [dim]{ollama_url}[/dim] (not running)")
-        console.print(f"  OpenAI-compatible:  [dim]{ollama_url}/v1[/dim] (not running)")
-    if webui_running:
-        console.print(f"  Open WebUI:         [cyan]{webui_url}[/cyan]")
-    else:
-        console.print(f"  Open WebUI:         [dim]{webui_url}[/dim] (not running)")
+
+    def _url(label: str, name: str, url: str) -> None:
+        running = manager.container_status(name) == "running"
+        color = "cyan" if running else "dim"
+        suffix = "" if running else "  (not running)"
+        console.print(f"  {label:<18}  [{color}]{url}[/{color}]{suffix}")
+
+    _url("Ollama API:", OLLAMA_CONTAINER, f"http://localhost:{config.ollama_port}")
+    _url("  OpenAI-compat:", OLLAMA_CONTAINER, f"http://localhost:{config.ollama_port}/v1")
+    _url("Open WebUI:", WEBUI_CONTAINER, f"http://localhost:{config.webui_port}")
+    _url("Kokoro TTS:", KOKORO_CONTAINER, f"http://localhost:{config.kokoro_port}/v1")
+    _url("n8n:", N8N_CONTAINER, f"http://localhost:{config.n8n_port}")
 
     lan = _lan_ip()
     if lan:
         console.print("\n[bold]LAN access[/bold] (bound to 0.0.0.0):")
-        console.print(f"  Ollama API:         [cyan]http://{lan}:{config.ollama_port}[/cyan]")
-        console.print(f"  Open WebUI:         [cyan]http://{lan}:{config.webui_port}[/cyan]")
-        console.print(f"  LobeChat:           [cyan]http://{lan}:{config.lobechat_port}[/cyan]")
+        console.print(f"  Ollama API:         http://{lan}:{config.ollama_port}")
+        console.print(f"  Open WebUI:         http://{lan}:{config.webui_port}")
+        console.print(f"  Kokoro TTS:         http://{lan}:{config.kokoro_port}/v1")
+        console.print(f"  n8n:                http://{lan}:{config.n8n_port}")
 
     console.print("\n[bold]Configuration:[/bold]")
     console.print(f"  Primary model:   {config.primary_model}")
@@ -426,7 +550,7 @@ def llm_status(ctx):
         else:
             console.print("  (none)")
 
-    if ollama_running:
+    if manager.container_status(OLLAMA_CONTAINER) == "running":
         console.print("\n[bold]Available models:[/bold]")
         output = manager.exec_in_ollama(["ollama", "list"])
         console.print(output)
@@ -441,7 +565,12 @@ def llm_logs(ctx, follow):
     if follow:
         manager.container_logs(OLLAMA_CONTAINER, follow=True)
     else:
-        for name in [OLLAMA_CONTAINER, WEBUI_CONTAINER, LOBECHAT_CONTAINER]:
+        for name in [
+            OLLAMA_CONTAINER,
+            WEBUI_CONTAINER,
+            KOKORO_CONTAINER,
+            N8N_CONTAINER,
+        ]:
             status = manager.container_status(name)
             if status is not None:
                 console.print(f"\n[bold]--- {name} ---[/bold]")

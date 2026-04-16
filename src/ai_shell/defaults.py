@@ -47,19 +47,24 @@ def uv_venv_path(repo_name: str, worktree_name: str | None = None) -> str:
 NPM_CACHE_VOLUME = "augint-shell-npm-cache"
 OLLAMA_DATA_VOLUME = "augint-shell-ollama-data"
 WEBUI_DATA_VOLUME = "augint-shell-webui-data"
+N8N_DATA_VOLUME = "augint-shell-n8n-data"
 
 # =============================================================================
 # LLM defaults
 # =============================================================================
 OLLAMA_IMAGE = "ollama/ollama"
 WEBUI_IMAGE = "ghcr.io/open-webui/open-webui:main"
-LOBECHAT_IMAGE = "lobehub/lobe-chat:latest"
+KOKORO_IMAGE_CPU = "ghcr.io/remsky/kokoro-fastapi-cpu:latest"
+KOKORO_IMAGE_GPU = "ghcr.io/remsky/kokoro-fastapi-gpu:latest"
+N8N_IMAGE = "docker.n8n.io/n8nio/n8n"
 DEFAULT_PRIMARY_MODEL = "qwen3-coder:30b-a3b-q4_K_M"
 DEFAULT_FALLBACK_MODEL = "huihui_ai/llama3.3-abliterated"
 DEFAULT_CONTEXT_SIZE = 32768
 DEFAULT_OLLAMA_PORT = 11434
 DEFAULT_WEBUI_PORT = 3000
-DEFAULT_LOBECHAT_PORT = 3210
+DEFAULT_KOKORO_PORT = 8880
+DEFAULT_N8N_PORT = 5678
+DEFAULT_KOKORO_VOICE = "af_bella"
 DEFAULT_DEV_PORTS = [3000, 4200, 5000, 5173, 5678, 8000, 8080, 8888]
 
 # =============================================================================
@@ -78,7 +83,8 @@ OLLAMA_CPU_SHARES = 1024  # Docker CPU scheduling priority (default 0 = fair-sha
 # =============================================================================
 OLLAMA_CONTAINER = "augint-shell-ollama"
 WEBUI_CONTAINER = "augint-shell-webui"
-LOBECHAT_CONTAINER = "augint-shell-lobechat"
+KOKORO_CONTAINER = "augint-shell-kokoro"
+N8N_CONTAINER = "augint-shell-n8n"
 
 # =============================================================================
 # Docker network

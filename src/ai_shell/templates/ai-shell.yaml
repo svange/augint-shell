@@ -85,6 +85,7 @@
 # context_size: Context window in tokens (default: 32768)
 # ollama_port: Host port for Ollama API (default: 11434)
 # webui_port: Host port for Open WebUI (default: 3000)
+# n8n_port: Host port for n8n workflow automation (default: 5678)
 #
 # Models are downloaded automatically by `ai-shell llm setup`, which:
 #   1. Starts the Ollama container (GPU-enabled if an NVIDIA card is detected)
@@ -161,6 +162,7 @@
 #   context_size: 32768
 #   ollama_port: 11434
 #   webui_port: 3000
+#   n8n_port: 5678
 #
 # --- Example: 4090 coding-focused setup ---
 # llm:

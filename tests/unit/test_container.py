@@ -5,7 +5,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ai_shell.config import AiShellConfig
-from ai_shell.defaults import DEFAULT_DEV_PORTS, LLM_NETWORK, SHM_SIZE
+from ai_shell.defaults import (
+    DEFAULT_DEV_PORTS,
+    KOKORO_CONTAINER,
+    KOKORO_IMAGE_CPU,
+    KOKORO_IMAGE_GPU,
+    LLM_NETWORK,
+    N8N_CONTAINER,
+    N8N_IMAGE,
+    SHM_SIZE,
+)
 from ai_shell.exceptions import ContainerNotFoundError, DockerNotAvailableError, ImagePullError
 
 
@@ -391,6 +400,9 @@ class TestEnsureOllama:
         assert "device_requests" in call_kwargs
         assert len(call_kwargs["device_requests"]) == 1
         assert call_kwargs["network"] == LLM_NETWORK
+        env = call_kwargs["environment"]
+        assert env["OLLAMA_FLASH_ATTENTION"] == "1"
+        assert env["OLLAMA_KV_CACHE_TYPE"] == "q8_0"
 
     def test_creates_without_gpu_when_unavailable(self, mock_container_manager, mock_docker_client):
         mock_container_manager._get_container = MagicMock(return_value=None)
@@ -405,6 +417,9 @@ class TestEnsureOllama:
         call_kwargs = mock_docker_client.containers.run.call_args[1]
         assert "device_requests" not in call_kwargs
         assert call_kwargs["network"] == LLM_NETWORK
+        env = call_kwargs["environment"]
+        assert env["OLLAMA_FLASH_ATTENTION"] == "1"
+        assert env["OLLAMA_KV_CACHE_TYPE"] == "q8_0"
 
     def test_sets_gpu_overhead_when_vram_info_available(
         self, mock_container_manager, mock_docker_client
@@ -533,9 +548,28 @@ class TestEnsureWebui:
         assert name == "augint-shell-webui"
         mock_docker_client.containers.run.assert_called_once()
         call_kwargs = mock_docker_client.containers.run.call_args[1]
-        assert "OLLAMA_BASE_URL" in call_kwargs["environment"]
+        env = call_kwargs["environment"]
+        assert "OLLAMA_BASE_URL" in env
         assert call_kwargs["network"] == LLM_NETWORK
         assert "network_mode" not in call_kwargs
+        # Without voice, no TTS env vars are injected.
+        assert "AUDIO_TTS_ENGINE" not in env
+        assert "AUDIO_TTS_OPENAI_API_BASE_URL" not in env
+
+    def test_voice_enabled_wires_kokoro_tts(self, mock_container_manager, mock_docker_client):
+        """When voice_enabled=True, WebUI is pre-wired to the Kokoro container."""
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        mock_container_manager.ensure_webui(voice_enabled=True)
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert env["AUDIO_TTS_ENGINE"] == "openai"
+        assert env["AUDIO_TTS_OPENAI_API_BASE_URL"] == f"http://{KOKORO_CONTAINER}:8880/v1"
+        assert env["AUDIO_TTS_OPENAI_API_KEY"] == "dummy"
+        assert env["AUDIO_TTS_MODEL"] == "kokoro"
+        # Default voice from config flows through.
+        assert env["AUDIO_TTS_VOICE"] == mock_container_manager.config.kokoro_voice
 
     def test_starts_stopped_webui(self, mock_container_manager):
         stopped = MagicMock()
@@ -547,41 +581,71 @@ class TestEnsureWebui:
         assert name == "augint-shell-webui"
 
 
-class TestEnsureLobechat:
-    def test_creates_lobechat_container(self, mock_container_manager, mock_docker_client):
+class TestEnsureKokoro:
+    def test_uses_gpu_image_when_gpu_available(self, mock_container_manager, mock_docker_client):
         mock_container_manager._get_container = MagicMock(return_value=None)
         mock_container_manager._pull_image_if_needed = MagicMock()
 
-        name = mock_container_manager.ensure_lobechat()
+        with patch("ai_shell.container.detect_gpu", return_value=True):
+            name = mock_container_manager.ensure_kokoro()
 
-        assert name == "augint-shell-lobechat"
-        mock_docker_client.containers.run.assert_called_once()
+        assert name == KOKORO_CONTAINER
         call_kwargs = mock_docker_client.containers.run.call_args[1]
-        assert call_kwargs["image"] == "lobehub/lobe-chat:latest"
-        assert call_kwargs["name"] == "augint-shell-lobechat"
-        env = call_kwargs["environment"]
-        # Ollama proxy URL must be base URL only (no /v1) for LobeChat to
-        # discover models via /api/tags.
-        assert env["OLLAMA_PROXY_URL"].endswith(":11434")
-        assert not env["OLLAMA_PROXY_URL"].endswith("/v1")
-        # New chats default to the local fallback (chat) model on Ollama.
-        assert env["DEFAULT_AGENT_CONFIG"] == (
-            "model=huihui_ai/llama3.3-abliterated;provider=ollama"
-        )
-        # OpenAI provider must be hidden in the local-only stack.
-        assert env["ENABLED_OPENAI"] == "0"
+        assert call_kwargs["image"] == KOKORO_IMAGE_GPU
+        assert "device_requests" in call_kwargs
         assert call_kwargs["network"] == LLM_NETWORK
-        assert "network_mode" not in call_kwargs
-        assert "mounts" not in call_kwargs  # client-DB mode, no server-side state
 
-    def test_starts_stopped_lobechat(self, mock_container_manager):
+    def test_uses_cpu_image_when_no_gpu(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with patch("ai_shell.container.detect_gpu", return_value=False):
+            mock_container_manager.ensure_kokoro()
+
+        call_kwargs = mock_docker_client.containers.run.call_args[1]
+        assert call_kwargs["image"] == KOKORO_IMAGE_CPU
+        assert "device_requests" not in call_kwargs
+
+    def test_starts_stopped_kokoro(self, mock_container_manager):
         stopped = MagicMock()
         stopped.status = "exited"
         mock_container_manager._get_container = MagicMock(return_value=stopped)
 
-        name = mock_container_manager.ensure_lobechat()
+        with patch("ai_shell.container.detect_gpu", return_value=False):
+            name = mock_container_manager.ensure_kokoro()
+
         stopped.start.assert_called_once()
-        assert name == "augint-shell-lobechat"
+        assert name == KOKORO_CONTAINER
+
+
+class TestEnsureN8n:
+    def test_creates_n8n_container(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        name = mock_container_manager.ensure_n8n()
+
+        assert name == N8N_CONTAINER
+        mock_docker_client.containers.run.assert_called_once()
+        call_kwargs = mock_docker_client.containers.run.call_args[1]
+        assert call_kwargs["image"] == N8N_IMAGE
+        assert call_kwargs["network"] == LLM_NETWORK
+        assert "network_mode" not in call_kwargs
+        # Port mapping binds 5678 inside the container to the configured host port.
+        ports = call_kwargs["ports"]
+        assert "5678/tcp" in ports
+        # Mount targets the n8n data directory.
+        mount_targets = [m["Target"] for m in call_kwargs["mounts"]]
+        assert "/home/node/.n8n" in mount_targets
+
+    def test_starts_stopped_n8n(self, mock_container_manager):
+        stopped = MagicMock()
+        stopped.status = "exited"
+        mock_container_manager._get_container = MagicMock(return_value=stopped)
+
+        name = mock_container_manager.ensure_n8n()
+        stopped.start.assert_called_once()
+        assert name == N8N_CONTAINER
 
 
 class TestExecInOllama:

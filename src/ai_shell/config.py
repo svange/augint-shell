@@ -26,7 +26,9 @@ from ai_shell.defaults import (
     DEFAULT_DEV_PORTS,
     DEFAULT_FALLBACK_MODEL,
     DEFAULT_IMAGE,
-    DEFAULT_LOBECHAT_PORT,
+    DEFAULT_KOKORO_PORT,
+    DEFAULT_KOKORO_VOICE,
+    DEFAULT_N8N_PORT,
     DEFAULT_OLLAMA_PORT,
     DEFAULT_PRIMARY_MODEL,
     DEFAULT_WEBUI_PORT,
@@ -51,7 +53,9 @@ class AiShellConfig:
     context_size: int = DEFAULT_CONTEXT_SIZE
     ollama_port: int = DEFAULT_OLLAMA_PORT
     webui_port: int = DEFAULT_WEBUI_PORT
-    lobechat_port: int = DEFAULT_LOBECHAT_PORT
+    kokoro_port: int = DEFAULT_KOKORO_PORT
+    kokoro_voice: str = DEFAULT_KOKORO_VOICE
+    n8n_port: int = DEFAULT_N8N_PORT
 
     # Extra configuration
     extra_env: dict[str, str] = field(default_factory=dict)
@@ -182,8 +186,12 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.ollama_port = int(llm["ollama_port"])
     if "webui_port" in llm:
         config.webui_port = int(llm["webui_port"])
-    if "lobechat_port" in llm:
-        config.lobechat_port = int(llm["lobechat_port"])
+    if "kokoro_port" in llm:
+        config.kokoro_port = int(llm["kokoro_port"])
+    if "kokoro_voice" in llm:
+        config.kokoro_voice = str(llm["kokoro_voice"])
+    if "n8n_port" in llm:
+        config.n8n_port = int(llm["n8n_port"])
 
     # [aws] section
     aws = data.get("aws", {})
@@ -217,7 +225,9 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_CONTEXT_SIZE": ("context_size", int),
         "AI_SHELL_OLLAMA_PORT": ("ollama_port", int),
         "AI_SHELL_WEBUI_PORT": ("webui_port", int),
-        "AI_SHELL_LOBECHAT_PORT": ("lobechat_port", int),
+        "AI_SHELL_KOKORO_PORT": ("kokoro_port", int),
+        "AI_SHELL_KOKORO_VOICE": ("kokoro_voice", str),
+        "AI_SHELL_N8N_PORT": ("n8n_port", int),
         "AI_SHELL_AI_PROFILE": ("ai_profile", str),
         "AI_SHELL_AWS_REGION": ("aws_region", str),
         "AI_SHELL_BEDROCK_PROFILE": ("bedrock_profile", str),

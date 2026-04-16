@@ -63,7 +63,7 @@ ai-shell opencode
 
 | Command | Description |
 |---|---|
-| `ai-shell llm up` | Start Ollama + Open WebUI |
+| `ai-shell llm up` | Start Ollama (add `--webui`, `--n8n`, or `--all` for optional stacks) |
 | `ai-shell llm down` | Stop LLM stack |
 | `ai-shell llm pull` | Pull configured models |
 | `ai-shell llm setup` | First-time setup (up + pull + configure) |
