@@ -97,12 +97,14 @@ fallback_model = "qwen3-coder-next"
 context_size = 32768
 ollama_port = 11434
 webui_port = 3000
-
-[aider]
-model = "ollama_chat/qwen3.5:27b"
 ```
 
 Global config at `~/.config/ai-shell/config.toml` is also supported.
+
+`ai-shell` does not manage tool-specific config files for Codex, OpenCode, or
+Aider. Use `augint-opencodex` or the tools' native config files for those, and
+use `ai-shell` for container/runtime settings such as AWS profiles, local LLM
+ports, and Claude options.
 
 ## How It Works
 
@@ -199,7 +201,7 @@ change in augint-shell — downstream tools read the canon at runtime.
 | Standardization orchestration (single-repo) | augint-shell | `/ai-standardize-repo` |
 | Standardization orchestration (workspace) | augint-shell | `/ai-workspace-standardize` |
 | Workspace bulk verify | augint-shell skill layer | `/ai-workspace-standardize --verify` loops over children calling `ai-tools standardize <child-path> --verify --json` |
-| AI agent configuration | augint-shell (`.ai-shell.toml`) | container settings, model provider — NOT for repo-shape detection |
+| AI agent configuration | augint-shell (`.ai-shell.toml`) | container/runtime settings only — NOT tool-specific Codex/OpenCode/Aider config |
 
 ### Canonical gate vocabulary
 

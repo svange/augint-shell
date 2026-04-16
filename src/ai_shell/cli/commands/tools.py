@@ -106,44 +106,6 @@ def _setup_worktree(container_name: str, container_project_dir: str, name: str) 
     return worktree_abs
 
 
-def _inject_codex_api_key(container_name: str, api_key: str) -> None:
-    """Write the configured API key into ~/.codex/auth.json inside the container.
-
-    Codex reads credentials from auth.json rather than the OPENAI_API_KEY env var,
-    so the env var alone has no effect. This patches auth.json in-place before
-    launch. Because ~/.codex/ is bind-mounted from the host, this also updates
-    the host file — effectively switching the active OpenAI account.
-
-    The key is passed via a dedicated env var to avoid any shell-escaping issues.
-    """
-    # Use python3 inside the container: read OPENAI_API_KEY from env and write to auth.json.
-    # auth_mode is set to "apikey" to tell codex not to use SSO tokens.
-    python_cmd = (
-        "import json, os; "
-        "p = os.path.expanduser('~/.codex/auth.json'); "
-        "d = json.loads(open(p).read()) if os.path.exists(p) else {}; "
-        "d['auth_mode'] = 'apikey'; "
-        "d['OPENAI_API_KEY'] = os.environ['_CODEX_INJECT_KEY']; "
-        "open(p, 'w').write(json.dumps(d))"
-    )
-    args = [
-        "docker",
-        "exec",
-        "-e",
-        f"_CODEX_INJECT_KEY={api_key}",
-        container_name,
-        "python3",
-        "-c",
-        python_cmd,
-    ]
-    logger.debug("codex api key inject: docker exec %s python3 -c ...", container_name)
-    result = subprocess.run(args, capture_output=True, text=True, timeout=10)
-    if result.returncode != 0:
-        raise click.ClickException(
-            f"Failed to inject codex api_key into ~/.codex/auth.json:\n  {result.stderr.strip()}"
-        )
-
-
 def _inject_mcp_config(
     container_name: str,
     host_path: str,
@@ -1124,23 +1086,15 @@ def codex(
     extra_args,
 ):
     """Launch Codex in the dev container."""
-    # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
-    use_bedrock = use_aws or config.codex_provider == "aws"
+    use_bedrock = use_aws
 
     manager, name, exec_env, config = _get_manager(
         ctx,
         bedrock=use_bedrock,
-        bedrock_profile=cli_profile or config.codex_profile,
+        bedrock_profile=cli_profile or config.bedrock_profile,
     )
-
-    # Inject API key into ~/.codex/auth.json if configured.
-    # Codex reads auth from auth.json (not the OPENAI_API_KEY env var), so we patch
-    # auth.json directly. This also updates the bind-mounted host file, effectively
-    # switching the active OpenAI account for the duration of the session.
-    if config.codex_openai_api_key:
-        _inject_codex_api_key(name, config.codex_openai_api_key)
 
     if use_bedrock:
         profile_label = exec_env.get("AWS_PROFILE", "default")
@@ -1177,15 +1131,14 @@ def opencode(
     cli_profile,
 ):
     """Launch opencode in the dev container."""
-    # Load config first to check provider setting
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
-    use_bedrock = use_aws or config.opencode_provider == "aws"
+    use_bedrock = use_aws
 
     manager, name, exec_env, config = _get_manager(
         ctx,
         bedrock=use_bedrock,
-        bedrock_profile=cli_profile or "",
+        bedrock_profile=cli_profile or config.bedrock_profile,
     )
 
     if use_bedrock:
@@ -1214,7 +1167,8 @@ def opencode(
 def aider(ctx, safe, extra_args):
     """Launch aider with local LLM in the dev container."""
     manager, name, exec_env, config = _get_manager(ctx)
-    cmd = ["aider", "--model", config.aider_model]
+    aider_model = f"ollama_chat/{config.primary_model}"
+    cmd = ["aider", "--model", aider_model]
     if not safe:
         cmd.append("--yes-always")
     cmd.extend(["--restore-chat-history", *extra_args])
@@ -1224,7 +1178,7 @@ def aider(ctx, safe, extra_args):
     manager.ensure_tool_fresh(name, "aider")
 
     mode_label = " (safe mode)" if safe else ""
-    console.print(f"[bold]Launching aider{mode_label} ({config.aider_model}) in {name}...[/bold]")
+    console.print(f"[bold]Launching aider{mode_label} ({aider_model}) in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env)
 
 

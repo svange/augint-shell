@@ -16,7 +16,7 @@
 #
 # bedrock_profile: AWS profile for Bedrock LLM API calls. Often a different
 #   account than ai_profile. Overrides AWS_PROFILE specifically for AI tool
-#   processes (Claude Code, opencode) when their provider is set to "aws".
+#   processes launched with `--aws`.
 #   Override with env var: AI_SHELL_BEDROCK_PROFILE
 #   Override per-session with: --profile <name> on the CLI
 #
@@ -51,47 +51,11 @@
 # claude:
 #   provider: aws
 
-# =============================================================================
-# opencode - opencode settings
-# =============================================================================
-# provider: API backend for opencode.
-#   "local" - Local Ollama LLM instance (default)
-#   "aws"   - Amazon Bedrock (uses bedrock_profile from aws section)
-#
-# When provider is "aws", use opencode's model picker to select a Bedrock model.
-# Pre-configured models: Claude Sonnet 4, Opus 4, Haiku 4.
-# Quick switch with CLI: ai-shell opencode --aws
-# Override per-session:   ai-shell opencode --aws --profile <name>
-#
-# Override with env var: AI_SHELL_OPENCODE_PROVIDER
-#
-# opencode:
-#   provider: local
-
-# =============================================================================
-# codex - Codex settings
-# =============================================================================
-# provider: API backend for Codex.
-#   "openai" - OpenAI API (default, uses mounted ~/.codex credentials or api_key)
-#   "aws"    - Amazon Bedrock (uses profile from this section or aws.bedrock_profile)
-#
-# openai_api_key: OpenAI API key. If set, overrides mounted SSO auth and patches
-#   ~/.codex/auth.json before launch. Useful for switching between OpenAI organizations.
-#   Override with env var: AI_SHELL_CODEX_OPENAI_API_KEY
-#
-# profile: AWS profile for Bedrock auth (when provider is "aws").
-#   Falls back to bedrock_profile from aws section if not set.
-#   Override with env var: AI_SHELL_CODEX_PROFILE
-#
-# Quick switch with CLI: ai-shell codex --aws
-# Override per-session:   ai-shell codex --aws --profile <name>
-#
-# Override with env var: AI_SHELL_CODEX_PROVIDER
-#
-# codex:
-#   provider: openai
-#   openai_api_key: sk-proj-...
-#   profile: my-bedrock-account
+# Codex runtime note:
+#   ai-shell does not manage Codex's own config file, but `ai-shell codex --aws`
+#   launches Codex with Bedrock by injecting `CLAUDE_CODE_USE_BEDROCK=1` and
+#   setting `AWS_PROFILE` to `aws.bedrock_profile` (or `--profile` if passed).
+#   Local-LLM Codex configuration is not managed in this file.
 
 # =============================================================================
 # container - Docker container settings
@@ -131,10 +95,11 @@
 #   ai-shell llm shell        # opens a bash shell inside the Ollama container
 #   ollama pull <model>       # then run any ollama command directly
 #
-# To select which model opencode uses, set primary_model here and update the
-# `model` field in .opencode/opencode.json to `ollama/<primary_model>`.
-# To configure additional selectable models in opencode, add entries under
-# the `provider.ollama.models` key in that file.
+# ai-shell only manages the local LLM endpoint and generic runtime settings.
+# Tool-specific config files for Codex, OpenCode, and Aider should be managed
+# separately, for example via augint-opencodex.
+# Keep tool-specific provider, model, auth, and permission settings out of this
+# file. Put those in the generated tool config files instead.
 #
 # ─── RTX 4090 model guide (24 GiB VRAM) ─────────────────────────────────────
 #
@@ -235,11 +200,3 @@
 #   primary_model: huihui_ai/qwen3.5-abliterated:9b-OmniCoder
 #   fallback_model: qwen2.5-coder:14b-instruct
 #   context_size: 32768
-
-# =============================================================================
-# aider - Aider settings
-# =============================================================================
-# model: LLM model string (default: ollama_chat/<primary_model>)
-#
-# aider:
-#   model: ollama_chat/qwen3-coder-next

@@ -44,9 +44,6 @@ image_tag = "2.0.0"
 [llm]
 primary_model = "llama3:8b"
 ollama_port = 12345
-
-[aider]
-model = "ollama_chat/llama3:8b"
 """
         (tmp_path / ".ai-shell.toml").write_bytes(toml_content)
         config = load_config(project_dir=tmp_path)
@@ -55,7 +52,6 @@ model = "ollama_chat/llama3:8b"
         assert config.image_tag == "2.0.0"
         assert config.primary_model == "llama3:8b"
         assert config.ollama_port == 12345
-        assert config.aider_model == "ollama_chat/llama3:8b"
 
     def test_env_var_overrides(self, tmp_path):
         env = {
@@ -274,10 +270,11 @@ class TestAwsConfig:
         assert config.aws_region == ""
         assert config.bedrock_profile == ""
         assert config.claude_provider == ""
-        assert config.opencode_provider == ""
-        assert config.codex_provider == ""
-        assert config.codex_openai_api_key == ""
-        assert config.codex_profile == ""
+        assert not hasattr(config, "opencode_provider")
+        assert not hasattr(config, "codex_provider")
+        assert not hasattr(config, "codex_openai_api_key")
+        assert not hasattr(config, "codex_profile")
+        assert not hasattr(config, "aider_model")
 
     def test_ai_profile_from_toml(self, tmp_path):
         (tmp_path / ".ai-shell.toml").write_bytes(b"""
@@ -311,14 +308,6 @@ provider = "aws"
         config = load_config(project_dir=tmp_path)
         assert config.claude_provider == "aws"
 
-    def test_opencode_provider_from_toml(self, tmp_path):
-        (tmp_path / ".ai-shell.toml").write_bytes(b"""
-[opencode]
-provider = "aws"
-""")
-        config = load_config(project_dir=tmp_path)
-        assert config.opencode_provider == "aws"
-
     def test_full_aws_config(self, tmp_path):
         (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [aws]
@@ -328,26 +317,18 @@ region = "us-west-2"
 
 [claude]
 provider = "aws"
-
-[opencode]
-provider = "aws"
 """)
         config = load_config(project_dir=tmp_path)
         assert config.ai_profile == "infra-acct"
         assert config.bedrock_profile == "ai-acct"
         assert config.aws_region == "us-west-2"
         assert config.claude_provider == "aws"
-        assert config.opencode_provider == "aws"
 
     def test_provider_env_vars(self, tmp_path):
-        env = {
-            "AI_SHELL_CLAUDE_PROVIDER": "aws",
-            "AI_SHELL_OPENCODE_PROVIDER": "aws",
-        }
+        env = {"AI_SHELL_CLAUDE_PROVIDER": "aws"}
         with patch.dict("os.environ", env):
             config = load_config(project_dir=tmp_path)
         assert config.claude_provider == "aws"
-        assert config.opencode_provider == "aws"
 
     def test_bedrock_profile_env_var(self, tmp_path):
         with patch.dict("os.environ", {"AI_SHELL_BEDROCK_PROFILE": "ai-acct"}):
@@ -368,50 +349,38 @@ provider = "anthropic"
             config = load_config(project_dir=tmp_path)
         assert config.claude_provider == "aws"
 
-    def test_codex_provider_from_toml(self, tmp_path):
+    def test_tool_specific_sections_are_ignored(self, tmp_path):
         (tmp_path / ".ai-shell.toml").write_bytes(b"""
-[codex]
+[aider]
+model = "ollama_chat/ignored"
+
+[opencode]
 provider = "aws"
-""")
-        config = load_config(project_dir=tmp_path)
-        assert config.codex_provider == "aws"
 
-    def test_codex_openai_api_key_from_toml(self, tmp_path):
-        (tmp_path / ".ai-shell.toml").write_bytes(b"""
-[codex]
-openai_api_key = "sk-test-123"
-""")
-        config = load_config(project_dir=tmp_path)
-        assert config.codex_openai_api_key == "sk-test-123"
-
-    def test_codex_profile_from_toml(self, tmp_path):
-        (tmp_path / ".ai-shell.toml").write_bytes(b"""
-[codex]
-profile = "my-bedrock-acct"
-""")
-        config = load_config(project_dir=tmp_path)
-        assert config.codex_profile == "my-bedrock-acct"
-
-    def test_codex_full_config(self, tmp_path):
-        (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [codex]
 provider = "aws"
 openai_api_key = "sk-test-123"
 profile = "bedrock-acct"
 """)
         config = load_config(project_dir=tmp_path)
-        assert config.codex_provider == "aws"
-        assert config.codex_openai_api_key == "sk-test-123"
-        assert config.codex_profile == "bedrock-acct"
+        assert not hasattr(config, "aider_model")
+        assert not hasattr(config, "opencode_provider")
+        assert not hasattr(config, "codex_provider")
+        assert not hasattr(config, "codex_openai_api_key")
+        assert not hasattr(config, "codex_profile")
 
-    def test_codex_env_vars(self, tmp_path):
+    def test_tool_specific_env_vars_are_ignored(self, tmp_path):
         env = {
+            "AI_SHELL_AIDER_MODEL": "ollama_chat/ignored",
+            "AI_SHELL_OPENCODE_PROVIDER": "aws",
             "AI_SHELL_CODEX_PROVIDER": "aws",
             "AI_SHELL_CODEX_OPENAI_API_KEY": "sk-env-456",
             "AI_SHELL_CODEX_PROFILE": "env-profile",
         }
         with patch.dict("os.environ", env):
             config = load_config(project_dir=tmp_path)
-        assert config.codex_provider == "aws"
-        assert config.codex_openai_api_key == "sk-env-456"
-        assert config.codex_profile == "env-profile"
+        assert not hasattr(config, "aider_model")
+        assert not hasattr(config, "opencode_provider")
+        assert not hasattr(config, "codex_provider")
+        assert not hasattr(config, "codex_openai_api_key")
+        assert not hasattr(config, "codex_profile")

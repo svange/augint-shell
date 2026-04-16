@@ -15,7 +15,8 @@ class TestScaffoldProject:
         content = (tmp_path / ".ai-shell.yaml").read_text()
         assert "# container:" in content or "container:" in content
         assert "# llm:" in content or "llm:" in content
-        assert "# aider:" in content or "aider:" in content
+        assert "augint-opencodex" in content
+        assert "# aider:" not in content
 
     def test_skips_existing(self, tmp_path):
         (tmp_path / ".ai-shell.yaml").write_text("original")

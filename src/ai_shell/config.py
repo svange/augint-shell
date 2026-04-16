@@ -51,9 +51,6 @@ class AiShellConfig:
     ollama_port: int = DEFAULT_OLLAMA_PORT
     webui_port: int = DEFAULT_WEBUI_PORT
 
-    # Aider
-    aider_model: str = f"ollama_chat/{DEFAULT_PRIMARY_MODEL}"
-
     # Extra configuration
     extra_env: dict[str, str] = field(default_factory=dict)
     extra_volumes: list[str] = field(default_factory=list)
@@ -71,10 +68,6 @@ class AiShellConfig:
 
     # Per-tool provider
     claude_provider: str = ""  # "anthropic" (default) or "aws"
-    opencode_provider: str = ""  # "local" (default, Ollama) or "aws" (Bedrock)
-    codex_provider: str = ""  # "openai" (default) or "aws" (Bedrock)
-    codex_openai_api_key: str = ""  # OpenAI API key (if set, overrides mounted SSO auth)
-    codex_profile: str = ""  # AWS profile for Bedrock auth (when provider = "aws")
 
     @property
     def full_image(self) -> str:
@@ -188,11 +181,6 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
     if "webui_port" in llm:
         config.webui_port = int(llm["webui_port"])
 
-    # [aider] section
-    aider = data.get("aider", {})
-    if "model" in aider:
-        config.aider_model = aider["model"]
-
     # [aws] section
     aws = data.get("aws", {})
     if "ai_profile" in aws:
@@ -213,20 +201,6 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
     if "skip_updates" in container:
         config.skip_updates = bool(container["skip_updates"])
 
-    # [opencode] section
-    opencode_sec = data.get("opencode", {})
-    if "provider" in opencode_sec:
-        config.opencode_provider = opencode_sec["provider"]
-
-    # [codex] section
-    codex_sec = data.get("codex", {})
-    if "provider" in codex_sec:
-        config.codex_provider = codex_sec["provider"]
-    if "openai_api_key" in codex_sec:
-        config.codex_openai_api_key = codex_sec["openai_api_key"]
-    if "profile" in codex_sec:
-        config.codex_profile = codex_sec["profile"]
-
 
 def _apply_env_vars(config: AiShellConfig) -> None:
     """Apply AI_SHELL_* environment variable overrides."""
@@ -239,15 +213,10 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_CONTEXT_SIZE": ("context_size", int),
         "AI_SHELL_OLLAMA_PORT": ("ollama_port", int),
         "AI_SHELL_WEBUI_PORT": ("webui_port", int),
-        "AI_SHELL_AIDER_MODEL": ("aider_model", str),
         "AI_SHELL_AI_PROFILE": ("ai_profile", str),
         "AI_SHELL_AWS_REGION": ("aws_region", str),
         "AI_SHELL_BEDROCK_PROFILE": ("bedrock_profile", str),
         "AI_SHELL_CLAUDE_PROVIDER": ("claude_provider", str),
-        "AI_SHELL_OPENCODE_PROVIDER": ("opencode_provider", str),
-        "AI_SHELL_CODEX_PROVIDER": ("codex_provider", str),
-        "AI_SHELL_CODEX_OPENAI_API_KEY": ("codex_openai_api_key", str),
-        "AI_SHELL_CODEX_PROFILE": ("codex_profile", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
         "AI_SHELL_PINNED_IMAGE": ("pinned_image", bool),
         "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),

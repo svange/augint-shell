@@ -240,9 +240,6 @@ class TestToolCommands:
         assert result.exit_code == 0
 
         config = MagicMock()
-        config.codex_openai_api_key = ""
-        config.codex_provider = ""
-        config.codex_profile = ""
         config.bedrock_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
@@ -267,9 +264,6 @@ class TestToolCommands:
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
-        config.codex_openai_api_key = ""
-        config.codex_provider = ""
-        config.codex_profile = ""
         config.bedrock_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
@@ -288,40 +282,10 @@ class TestToolCommands:
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert "--dangerously-bypass-approvals-and-sandbox" not in cmd
 
-    @patch("ai_shell.cli.commands.tools._inject_codex_api_key")
-    def test_codex_openai_api_key_from_config(
-        self, mock_inject, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        config = MagicMock()
-        config.codex_openai_api_key = "sk-test-123"
-        config.codex_provider = ""
-        config.codex_profile = ""
-        config.bedrock_profile = ""
-        config.ai_profile = ""
-        config.aws_region = ""
-        config.extra_env = {}
-        config.project_dir = "/tmp/test"
-        mock_config.return_value = config
-
-        mock_build_env.return_value = dict(TEST_EXEC_ENV)
-        mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
-        mock_manager.exec_interactive.side_effect = SystemExit(0)
-        mock_manager_cls.return_value = mock_manager
-
-        self.runner.invoke(cli, ["codex"])
-
-        # Verify auth.json was patched with the configured key
-        mock_inject.assert_called_once_with("augint-shell-test-dev", "sk-test-123")
-
-    @patch("ai_shell.cli.commands.tools._inject_codex_api_key")
     def test_codex_bedrock_launch_message(
-        self, mock_inject, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
-        config.codex_openai_api_key = ""
-        config.codex_provider = ""
-        config.codex_profile = ""
         config.bedrock_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
@@ -344,14 +308,11 @@ class TestToolCommands:
         assert "profile=rd" in result.output
         assert "region=us-east-1" in result.output
 
-    def test_codex_config_provider_activates_bedrock(
+    def test_codex_aws_uses_bedrock_profile_from_config(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
-        config.codex_provider = "aws"
-        config.codex_openai_api_key = ""
-        config.codex_profile = "rd"
-        config.bedrock_profile = ""
+        config.bedrock_profile = "rd"
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -367,21 +328,18 @@ class TestToolCommands:
         mock_manager.exec_interactive.side_effect = SystemExit(0)
         mock_manager_cls.return_value = mock_manager
 
-        result = self.runner.invoke(cli, ["codex"])
+        result = self.runner.invoke(cli, ["codex", "--aws"])
 
         assert "Bedrock" in result.output
         mock_build_env.assert_called_once()
         call_kwargs = mock_build_env.call_args[1]
         assert call_kwargs["bedrock"] is True
+        assert call_kwargs["bedrock_profile"] == "rd"
 
-    @patch("ai_shell.cli.commands.tools._inject_codex_api_key")
     def test_codex_bedrock_preflight_called(
-        self, mock_inject, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
-        config.codex_openai_api_key = ""
-        config.codex_provider = ""
-        config.codex_profile = ""
         config.bedrock_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
@@ -420,7 +378,7 @@ class TestToolCommands:
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
-        config.aider_model = "ollama_chat/qwen3-coder-next"
+        config.primary_model = "qwen3-coder-next"
         config.ollama_port = 11434
         mock_config.return_value = config
 
@@ -447,7 +405,8 @@ class TestToolCommands:
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
-        config.aider_model = "ollama_chat/qwen3-coder-next"
+        config.primary_model = "qwen3-coder-next"
+        config.ollama_port = 11434
         mock_config.return_value = config
 
         mock_manager = MagicMock()
