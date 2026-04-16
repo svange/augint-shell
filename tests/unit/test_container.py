@@ -14,6 +14,10 @@ from ai_shell.defaults import (
     N8N_CONTAINER,
     N8N_IMAGE,
     SHM_SIZE,
+    WHISPER_CONTAINER,
+    WHISPER_DATA_VOLUME,
+    WHISPER_IMAGE_CPU,
+    WHISPER_IMAGE_GPU,
 )
 from ai_shell.exceptions import ContainerNotFoundError, DockerNotAvailableError, ImagePullError
 
@@ -616,6 +620,90 @@ class TestEnsureKokoro:
 
         stopped.start.assert_called_once()
         assert name == KOKORO_CONTAINER
+
+
+class TestEnsureWhisper:
+    def test_uses_gpu_image_when_gpu_available(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with patch("ai_shell.container.detect_gpu", return_value=True):
+            name = mock_container_manager.ensure_whisper()
+
+        assert name == WHISPER_CONTAINER
+        call_kwargs = mock_docker_client.containers.run.call_args[1]
+        assert call_kwargs["image"] == WHISPER_IMAGE_GPU
+        assert "device_requests" in call_kwargs
+        assert call_kwargs["network"] == LLM_NETWORK
+
+    def test_uses_cpu_image_when_no_gpu(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with patch("ai_shell.container.detect_gpu", return_value=False):
+            mock_container_manager.ensure_whisper()
+
+        call_kwargs = mock_docker_client.containers.run.call_args[1]
+        assert call_kwargs["image"] == WHISPER_IMAGE_CPU
+        assert "device_requests" not in call_kwargs
+
+    def test_starts_stopped_whisper(self, mock_container_manager):
+        stopped = MagicMock()
+        stopped.status = "exited"
+        mock_container_manager._get_container = MagicMock(return_value=stopped)
+
+        with patch("ai_shell.container.detect_gpu", return_value=False):
+            name = mock_container_manager.ensure_whisper()
+
+        stopped.start.assert_called_once()
+        assert name == WHISPER_CONTAINER
+
+    def test_publishes_port_8000_to_configured_host_port(
+        self, mock_container_manager, mock_docker_client
+    ):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+        mock_container_manager.config.whisper_port = 9876
+
+        with patch("ai_shell.container.detect_gpu", return_value=False):
+            mock_container_manager.ensure_whisper()
+
+        ports = mock_docker_client.containers.run.call_args[1]["ports"]
+        assert "8000/tcp" in ports
+        host_ip, host_port = ports["8000/tcp"]
+        assert host_ip == "0.0.0.0"  # nosec B104
+        assert host_port == 9876
+
+    def test_mounts_cache_volume_at_hf_hub_path(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with patch("ai_shell.container.detect_gpu", return_value=False):
+            mock_container_manager.ensure_whisper()
+
+        mounts = mock_docker_client.containers.run.call_args[1]["mounts"]
+        assert len(mounts) == 1
+        mount = mounts[0]
+        assert mount["Target"] == "/home/ubuntu/.cache/huggingface/hub"
+        assert mount["Source"] == WHISPER_DATA_VOLUME
+        assert mount["Type"] == "volume"
+
+    def test_env_passes_inference_device_and_preload_models_as_json(
+        self, mock_container_manager, mock_docker_client
+    ):
+        import json as json_
+
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+        mock_container_manager.config.whisper_model = "Systran/faster-distil-whisper-large-v3"
+
+        with patch("ai_shell.container.detect_gpu", return_value=False):
+            mock_container_manager.ensure_whisper()
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert env["WHISPER__INFERENCE_DEVICE"] == "auto"
+        # pydantic-settings JSON array syntax, not comma-separated.
+        assert json_.loads(env["PRELOAD_MODELS"]) == ["Systran/faster-distil-whisper-large-v3"]
 
 
 class TestEnsureN8n:

@@ -63,7 +63,7 @@ ai-shell opencode
 
 | Command | Description |
 |---|---|
-| `ai-shell llm up` | Start Ollama (add `--webui`, `--n8n`, or `--all` for optional stacks) |
+| `ai-shell llm up` | Start Ollama (add `--webui`, `--whisper`, `--n8n`, or `--all` for optional stacks) |
 | `ai-shell llm down` | Stop LLM stack |
 | `ai-shell llm pull` | Pull configured models |
 | `ai-shell llm setup` | First-time setup (up + pull + configure) |
@@ -143,6 +143,15 @@ secondary within a slot keeps tool formats and context semantics identical.
 1. **Qwen3.5 Ollama tool calling is broken** ([ollama #14493](https://github.com/ollama/ollama/issues/14493), open). This does not affect Open WebUI's default chat with web search and RAG — those run server-side in WebUI without touching Ollama's tools API. It does affect agent CLIs routed through Ollama's `/v1/chat/completions` tools array, which is why the chat slots are Qwen3.5 and the coding slots are Qwen3-Coder (explicit tools badge, working parser).
 2. **Ollama `num_ctx` defaults to 4096** for every model, well below what modern agent prompts need (Claude Code sends ~35K tokens). `context_size` in your config is applied via Modelfile override during `llm setup` — leave it at 32768 unless you have a reason.
 3. **Qwen3-Coder tool-count cliff**: reliable native `tool_calls` emission below ~5 registered tools; above that the model may emit XML inside content and some parsers miss it. Keep agent tool sets tight.
+
+**Optional stacks** (not auto-started; opt-in with `ai-shell llm up --<flag>` or `--all`):
+
+| Flag | Service | Port | Notes |
+|---|---|---|---|
+| `--webui` | Open WebUI | 3000 | Implies `--voice` so Kokoro is wired as the "read aloud" backend. Use `--no-voice` to skip. |
+| `--voice` | Kokoro TTS | 8880 | OpenAI-compatible `/v1/audio/speech`. |
+| `--whisper` | Speaches STT | 8001 | OpenAI-compatible `/v1/audio/transcriptions`. Default model: `Systran/faster-distil-whisper-large-v3` (preloaded). GPU image used automatically when NVIDIA is detected. |
+| `--n8n` | n8n | 5678 | Workflow automation, standalone. |
 
 ## How It Works
 

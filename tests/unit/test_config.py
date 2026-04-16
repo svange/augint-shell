@@ -24,6 +24,8 @@ class TestAiShellConfig:
         assert config.webui_port == 3000
         assert config.kokoro_port == 8880
         assert config.n8n_port == 5678
+        assert config.whisper_port == 8001
+        assert config.whisper_model == "Systran/faster-distil-whisper-large-v3"
 
     def test_models_to_pull_dedupes_slots(self):
         # Same tag in primary and extras should dedupe to one entry.
@@ -335,6 +337,51 @@ class TestImageTagConfig:
         (tmp_path / ".ai-shell.yaml").write_text("container:\n  pinned_image: false\n")
         config = load_config(project_dir=tmp_path)
         assert config.image_tag == "latest"
+
+
+class TestWhisperConfig:
+    def test_whisper_toml_overrides(self, tmp_path):
+        (tmp_path / ".ai-shell.toml").write_bytes(
+            b"""
+[llm]
+whisper_port = 9100
+whisper_model = "Systran/faster-whisper-tiny"
+"""
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.whisper_port == 9100
+        assert config.whisper_model == "Systran/faster-whisper-tiny"
+
+    def test_whisper_yaml_overrides(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "llm:\n  whisper_port: 9200\n  whisper_model: Systran/faster-whisper-small\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.whisper_port == 9200
+        assert config.whisper_model == "Systran/faster-whisper-small"
+
+    def test_whisper_env_var_overrides(self, tmp_path):
+        env = {
+            "AI_SHELL_WHISPER_PORT": "9300",
+            "AI_SHELL_WHISPER_MODEL": "Systran/faster-whisper-base",
+        }
+        with patch.dict("os.environ", env):
+            config = load_config(project_dir=tmp_path)
+        assert config.whisper_port == 9300
+        assert config.whisper_model == "Systran/faster-whisper-base"
+
+    def test_whisper_env_overrides_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "llm:\n  whisper_port: 9200\n  whisper_model: yaml-model\n"
+        )
+        env = {
+            "AI_SHELL_WHISPER_PORT": "9400",
+            "AI_SHELL_WHISPER_MODEL": "env-model",
+        }
+        with patch.dict("os.environ", env):
+            config = load_config(project_dir=tmp_path)
+        assert config.whisper_port == 9400
+        assert config.whisper_model == "env-model"
 
 
 class TestAwsConfig:

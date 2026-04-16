@@ -6,6 +6,7 @@ with the exact same configuration.
 
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
 import sys
@@ -33,6 +34,10 @@ from ai_shell.defaults import (
     WEBUI_CONTAINER,
     WEBUI_DATA_VOLUME,
     WEBUI_IMAGE,
+    WHISPER_CONTAINER,
+    WHISPER_DATA_VOLUME,
+    WHISPER_IMAGE_CPU,
+    WHISPER_IMAGE_GPU,
     build_dev_environment,
     build_dev_mounts,
     dev_container_name,
@@ -428,6 +433,59 @@ class ContainerManager:
         self.client.containers.run(**kwargs)
         logger.info("Kokoro container created on port %d", self.config.kokoro_port)
         return KOKORO_CONTAINER
+
+    def ensure_whisper(self) -> str:
+        """Get or create the Speaches (local STT) container.
+
+        Exposes an OpenAI-compatible ``/v1/audio/transcriptions`` endpoint on
+        the configured port. GPU image is used when NVIDIA is detected;
+        otherwise the CPU image. The Hugging Face model cache persists in a
+        named volume (Speaches runs as ``ubuntu`` UID 1000 — a named volume
+        inherits the correct ownership; bind-mounting a host dir here would
+        require an explicit chown).
+        """
+        container = self._get_container(WHISPER_CONTAINER)
+        if container is not None:
+            if container.status != "running":
+                logger.info("Starting existing Whisper container")
+                container.start()
+            return WHISPER_CONTAINER
+
+        gpu_available = detect_gpu()
+        image = WHISPER_IMAGE_GPU if gpu_available else WHISPER_IMAGE_CPU
+        logger.info("Creating Whisper container (%s)", "GPU" if gpu_available else "CPU")
+        self._pull_image_if_needed(image)
+        network_name = self._ensure_llm_network()
+
+        # PRELOAD_MODELS uses pydantic-settings JSON array syntax, not CSV.
+        # json.dumps guarantees correct escaping for any model id.
+        environment = {
+            "WHISPER__INFERENCE_DEVICE": "auto",
+            "PRELOAD_MODELS": json.dumps([self.config.whisper_model]),
+        }
+
+        kwargs: dict = {
+            "image": image,
+            "name": WHISPER_CONTAINER,
+            "ports": {"8000/tcp": ("0.0.0.0", self.config.whisper_port)},  # nosec B104
+            "environment": environment,
+            "mounts": [
+                Mount(
+                    target="/home/ubuntu/.cache/huggingface/hub",
+                    source=WHISPER_DATA_VOLUME,
+                    type="volume",
+                )
+            ],
+            "restart_policy": {"Name": "unless-stopped"},
+            "detach": True,
+            "network": network_name,
+        }
+        if gpu_available:
+            kwargs["device_requests"] = [DeviceRequest(count=1, capabilities=[["gpu"]])]
+
+        self.client.containers.run(**kwargs)
+        logger.info("Whisper container created on port %d", self.config.whisper_port)
+        return WHISPER_CONTAINER
 
     def ensure_n8n(self) -> str:
         """Get or create the n8n workflow automation container.

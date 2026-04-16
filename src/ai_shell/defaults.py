@@ -48,6 +48,7 @@ NPM_CACHE_VOLUME = "augint-shell-npm-cache"
 OLLAMA_DATA_VOLUME = "augint-shell-ollama-data"
 WEBUI_DATA_VOLUME = "augint-shell-webui-data"
 N8N_DATA_VOLUME = "augint-shell-n8n-data"
+WHISPER_DATA_VOLUME = "augint-shell-whisper-cache"
 
 # =============================================================================
 # LLM defaults
@@ -57,6 +58,8 @@ WEBUI_IMAGE = "ghcr.io/open-webui/open-webui:main"
 KOKORO_IMAGE_CPU = "ghcr.io/remsky/kokoro-fastapi-cpu:latest"
 KOKORO_IMAGE_GPU = "ghcr.io/remsky/kokoro-fastapi-gpu:latest"
 N8N_IMAGE = "docker.n8n.io/n8nio/n8n"
+WHISPER_IMAGE_CPU = "ghcr.io/speaches-ai/speaches:latest-cpu"
+WHISPER_IMAGE_GPU = "ghcr.io/speaches-ai/speaches:latest-cuda"
 # Model slots (RTX 4090-sized, validated April 2026). Primary = best available for
 # the role; secondary = best uncensored alternative. See README "Local LLM stack"
 # and the generated .ai-shell.yaml for per-slot rationale and caveats.
@@ -69,6 +72,8 @@ DEFAULT_OLLAMA_PORT = 11434
 DEFAULT_WEBUI_PORT = 3000
 DEFAULT_KOKORO_PORT = 8880
 DEFAULT_N8N_PORT = 5678
+DEFAULT_WHISPER_PORT = 8001
+DEFAULT_WHISPER_MODEL = "Systran/faster-distil-whisper-large-v3"
 DEFAULT_KOKORO_VOICE = "af_bella"
 DEFAULT_DEV_PORTS = [3000, 4200, 5000, 5173, 5678, 8000, 8080, 8888]
 
@@ -90,6 +95,7 @@ OLLAMA_CONTAINER = "augint-shell-ollama"
 WEBUI_CONTAINER = "augint-shell-webui"
 KOKORO_CONTAINER = "augint-shell-kokoro"
 N8N_CONTAINER = "augint-shell-n8n"
+WHISPER_CONTAINER = "augint-shell-whisper"
 
 # =============================================================================
 # Docker network
