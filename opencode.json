@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "ollama/qwen3-coder-next",
+  "model": "ollama/qwen3.5:27b",
   "provider": {
     "ollama": {
       "npm": "@ai-sdk/openai-compatible",
@@ -11,9 +11,6 @@
       "models": {
         "qwen3.5:27b": {
           "name": "Qwen 3.5 27B (Local)"
-        },
-        "qwen3-coder-next": {
-          "name": "Qwen3 Coder Next 80B MoE (Local)"
         }
       }
     },
