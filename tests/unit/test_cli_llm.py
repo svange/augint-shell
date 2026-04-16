@@ -91,7 +91,7 @@ class TestLlmCommands:
         config = MagicMock()
         config.ollama_port = 11434
         config.webui_port = 3000
-        config.primary_model = "qwen3-coder-next"
+        config.primary_model = "qwen3-coder:32b-a3b-q4_K_M"
         config.fallback_model = "qwen3.5:27b"
         config.context_size = 32768
         mock_config.return_value = config
@@ -110,14 +110,14 @@ class TestLlmCommands:
         assert "http://localhost:11434/v1" in result.output
         assert "http://localhost:3000" in result.output
         assert "Chat interface" in result.output
-        assert "qwen3-coder-next" in result.output
+        assert "qwen3-coder:32b-a3b-q4_K_M" in result.output
         assert "32768" in result.output
 
     def test_llm_status_not_found(self, mock_config, mock_manager_cls):
         config = MagicMock()
         config.ollama_port = 11434
         config.webui_port = 3000
-        config.primary_model = "qwen3-coder-next"
+        config.primary_model = "qwen3-coder:32b-a3b-q4_K_M"
         config.fallback_model = "qwen3.5:27b"
         config.context_size = 32768
         mock_config.return_value = config
@@ -137,7 +137,7 @@ class TestLlmCommands:
 
     def test_llm_pull(self, mock_config, mock_manager_cls):
         config = MagicMock()
-        config.primary_model = "qwen3-coder-next"
+        config.primary_model = "qwen3-coder:32b-a3b-q4_K_M"
         config.fallback_model = "qwen3.5:27b"
         mock_config.return_value = config
 

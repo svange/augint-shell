@@ -92,8 +92,8 @@ image_tag = "latest"
 extra_env = { MY_VAR = "value" }
 
 [llm]
-primary_model = "qwen3.5:27b"
-fallback_model = "qwen3-coder-next"
+primary_model = "qwen3-coder:32b-a3b-q4_K_M"
+fallback_model = "qwen3.5:27b"
 context_size = 32768
 ollama_port = 11434
 webui_port = 3000

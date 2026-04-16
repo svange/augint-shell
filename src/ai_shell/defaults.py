@@ -53,7 +53,7 @@ WEBUI_DATA_VOLUME = "augint-shell-webui-data"
 # =============================================================================
 OLLAMA_IMAGE = "ollama/ollama"
 WEBUI_IMAGE = "ghcr.io/open-webui/open-webui:main"
-DEFAULT_PRIMARY_MODEL = "qwen3-coder-next"
+DEFAULT_PRIMARY_MODEL = "qwen3-coder:32b-a3b-q4_K_M"
 DEFAULT_FALLBACK_MODEL = "qwen3.5:27b"
 DEFAULT_CONTEXT_SIZE = 32768
 DEFAULT_OLLAMA_PORT = 11434

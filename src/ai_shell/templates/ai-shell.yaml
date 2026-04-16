@@ -111,20 +111,23 @@
 #
 # Uncensored / instruction-following variants
 # ────────────────────────────────────────────
-# dolphin3:8b                  ~5 GiB   Dolphin 3.0 (uncensored Llama 3.1 8B)
-# llama3.1:8b                  ~5 GiB   Meta Llama 3.1 8B instruct
-# llama3.1:8b-instruct-q4_k_m  ~5 GiB   Q4_K_M quantized
-# llama3.2:latest              ~2 GiB   Meta Llama 3.2 3B (fast/small)
+# dolphin3:8b                      ~5 GiB   Dolphin 3.0 (uncensored Llama 3.1 8B)
+# huihui_ai/llama3.3-abliterated   ~16 GiB  Llama 3.3 70B abliterated (uncensored chat)
+# llama3.1:8b                      ~5 GiB   Meta Llama 3.1 8B instruct
+# llama3.1:8b-instruct-q4_k_m      ~5 GiB   Q4_K_M quantized
+# llama3.2:latest                  ~2 GiB   Meta Llama 3.2 3B (fast/small)
 #
 # Coding-heavy models
 # ────────────────────
-# qwen2.5-coder:32b-q4_k_m    ~19 GiB  Q4_K_M  top coding quality on 4090
-# qwen3:14b-q4_k_m             ~9 GiB   Q4_K_M  fast coder with good accuracy
-# qwen3:32b-q4_k_m             ~19 GiB  Q4_K_M  best local coding on 4090
-# qwen3-coder-next             custom   80B MoE loaded via custom Modelfile
+# qwen2.5-coder:32b-q4_k_m        ~19 GiB  Q4_K_M  top coding quality on 4090
+# qwen3:14b-q4_k_m               ~9 GiB   Q4_K_M  fast coder with good accuracy
+# qwen3:32b-q4_k_m               ~19 GiB  Q4_K_M  best local coding on 4090
+# qwen3-coder:32b-a3b-q4_K_M     ~12-14 GiB  Q4_K_M  Qwen3-Coder-32B A3B (Mixture-of-Experts)
 #
 # Quick-start pull commands (run inside `ai-shell llm shell`):
 #   ollama pull qwen3.5:27b
+#   ollama pull qwen3-coder:32b-a3b-q4_K_M
+#   ollama pull huihui_ai/llama3.3-abliterated
 #   ollama pull dolphin3:8b
 #   ollama pull llama3.1:8b
 #   ollama pull qwen2.5-coder:32b-q4_k_m
@@ -153,7 +156,7 @@
 #   ai-shell llm setup        # pulls models + applies context-window config
 #
 # llm:
-#   primary_model: qwen3-coder-next
+#   primary_model: qwen3-coder:32b-a3b-q4_K_M
 #   fallback_model: qwen3.5:27b
 #   context_size: 32768
 #   ollama_port: 11434
