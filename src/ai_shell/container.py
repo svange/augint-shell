@@ -260,6 +260,36 @@ class ContainerManager:
     # LLM stack (host-level singletons)
     # =========================================================================
 
+    @staticmethod
+    def _container_has_gpu(container: Container) -> bool:
+        """Return True if *container* was created with a GPU device request."""
+        device_requests = container.attrs.get("HostConfig", {}).get("DeviceRequests") or []
+        return any(
+            "gpu" in (cap for caps in (dr.get("Capabilities") or []) for cap in caps)
+            for dr in device_requests
+        )
+
+    def _recreate_if_gpu_changed(
+        self, container: Container, gpu_available: bool, label: str
+    ) -> bool:
+        """Remove *container* if its GPU state doesn't match *gpu_available*.
+
+        Returns True if the container was removed (caller must recreate).
+        """
+        has_gpu = self._container_has_gpu(container)
+        if has_gpu == gpu_available:
+            return False
+        want = "GPU" if gpu_available else "CPU-only"
+        had = "GPU" if has_gpu else "CPU-only"
+        logger.warning(
+            "%s container has %s but system now offers %s — recreating",
+            label,
+            had,
+            want,
+        )
+        container.remove(force=True)
+        return True
+
     def _ensure_llm_network(self) -> str:
         """Get or create the shared Docker network for the LLM stack."""
         try:
@@ -274,20 +304,21 @@ class ContainerManager:
 
         Returns the container name.
         """
+        gpu_available = detect_gpu()
         container = self._get_container(OLLAMA_CONTAINER)
 
         if container is not None:
-            if container.status != "running":
-                logger.info("Starting existing Ollama container")
-                container.start()
-            return OLLAMA_CONTAINER
+            if self._recreate_if_gpu_changed(container, gpu_available, "Ollama"):
+                pass  # fall through to creation
+            else:
+                if container.status != "running":
+                    logger.info("Starting existing Ollama container")
+                    container.start()
+                return OLLAMA_CONTAINER
 
         logger.info("Creating Ollama container")
         self._pull_image_if_needed(OLLAMA_IMAGE)
         network_name = self._ensure_llm_network()
-
-        # GPU auto-detection
-        gpu_available = detect_gpu()
         device_requests = None
         env: dict[str, str] = {
             "OLLAMA_CONTEXT_LENGTH": str(self.config.context_size),
@@ -409,14 +440,16 @@ class ContainerManager:
         configured port. GPU image is used when NVIDIA is detected;
         otherwise the CPU image.
         """
+        gpu_available = detect_gpu()
         container = self._get_container(KOKORO_CONTAINER)
         if container is not None:
-            if container.status != "running":
-                logger.info("Starting existing Kokoro container")
-                container.start()
-            return KOKORO_CONTAINER
-
-        gpu_available = detect_gpu()
+            if self._recreate_if_gpu_changed(container, gpu_available, "Kokoro"):
+                pass  # fall through to creation
+            else:
+                if container.status != "running":
+                    logger.info("Starting existing Kokoro container")
+                    container.start()
+                return KOKORO_CONTAINER
         image = KOKORO_IMAGE_GPU if gpu_available else KOKORO_IMAGE_CPU
         logger.info("Creating Kokoro container (%s)", "GPU" if gpu_available else "CPU")
         self._pull_image_if_needed(image)
@@ -447,14 +480,16 @@ class ContainerManager:
         inherits the correct ownership; bind-mounting a host dir here would
         require an explicit chown).
         """
+        gpu_available = detect_gpu()
         container = self._get_container(WHISPER_CONTAINER)
         if container is not None:
-            if container.status != "running":
-                logger.info("Starting existing Whisper container")
-                container.start()
-            return WHISPER_CONTAINER
-
-        gpu_available = detect_gpu()
+            if self._recreate_if_gpu_changed(container, gpu_available, "Whisper"):
+                pass  # fall through to creation
+            else:
+                if container.status != "running":
+                    logger.info("Starting existing Whisper container")
+                    container.start()
+                return WHISPER_CONTAINER
         image = WHISPER_IMAGE_GPU if gpu_available else WHISPER_IMAGE_CPU
         logger.info("Creating Whisper container (%s)", "GPU" if gpu_available else "CPU")
         self._pull_image_if_needed(image)
