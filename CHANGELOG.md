@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.75.1 (2026-04-16)
+
+### Refactoring
+
+- Remove tool-specific configuration for Codex, OpenCode, and Aider from main config files
+  ([`7431907`](https://github.com/svange/augint-shell/commit/7431907ec6b04ab0400edd3703e920eb35799041))
+
+
 ## v0.75.0 (2026-04-15)
 
 ### Features
