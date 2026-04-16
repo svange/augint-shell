@@ -378,7 +378,7 @@ class TestToolCommands:
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
-        config.primary_model = "qwen3-coder:32b-a3b-q4_K_M"
+        config.primary_model = "qwen3-coder:30b-a3b-q4_K_M"
         config.ollama_port = 11434
         mock_config.return_value = config
 
@@ -395,7 +395,7 @@ class TestToolCommands:
         extra_env = call_args[1].get("extra_env", {})
 
         assert "--model" in cmd
-        assert "ollama_chat/qwen3-coder:32b-a3b-q4_K_M" in cmd
+        assert "ollama_chat/qwen3-coder:30b-a3b-q4_K_M" in cmd
         assert "--yes-always" in cmd
         assert extra_env["OLLAMA_API_BASE"] == "http://host.docker.internal:11434"
         assert extra_env["GH_TOKEN"] == "test-token"
@@ -405,7 +405,7 @@ class TestToolCommands:
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
-        config.primary_model = "qwen3-coder:32b-a3b-q4_K_M"
+        config.primary_model = "qwen3-coder:30b-a3b-q4_K_M"
         config.ollama_port = 11434
         mock_config.return_value = config
 

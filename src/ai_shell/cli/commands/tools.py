@@ -38,7 +38,7 @@ def _print_tmux_quick_start() -> None:
     """Print a short tmux quick-start before attaching."""
     console.print("[dim]tmux: mouse click=focus drag=resize wheel=scroll[/dim]")
     console.print(
-        "[dim]      Ctrl-b o=pane c=tab Space=layout p/n=tab z=zoom d=detach &=kill-tab[/dim]"
+        "[dim]      Ctrl-a o=pane c=tab Space=layout z=zoom d=detach &=kill-tab[/dim]"
     )
 
 
@@ -764,7 +764,7 @@ def _launch_multi(
 
     # Check for existing tmux session before presenting the selector.
     # The container and session might still be running from a previous
-    # invocation (e.g. after the user detached with C-b d or closed
+    # invocation (e.g. after the user detached with C-a d or closed
     # the terminal).
     check_cmd = build_check_session_command(container_name, session_name)
     has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0

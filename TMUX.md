@@ -199,9 +199,11 @@ set-option -t claude-multi pane-border-indicators arrows
 # Session name in amber (matches active border), help hints in mauve.
 set-option -t claude-multi status-style "bg=colour235 fg=colour248"
 set-option -t claude-multi status-left "#[fg=colour172,bold] #S #[fg=colour248]| "
-set-option -t claude-multi status-right "#[fg=colour95] C-b: ◫o +c ▦␣ ◀p ▶n ⛶z ⏏d ⌦& "
+set-option -t claude-multi prefix C-a
+bind-key C-a send-prefix
+set-option -t claude-multi status-right "#[fg=colour95] C-a: o=pane c=tab Space=layout z=zoom d=detach &=kill "
 set-option -t claude-multi status-left-length 40
-set-option -t claude-multi status-right-length 40
+set-option -t claude-multi status-right-length 60
 
 # ── Terminal (server-level) ────────────────────────────────────────
 # True color support for Claude Code's syntax highlighting.
@@ -227,16 +229,15 @@ The user is now inside the tmux session. They can:
 - Click panes to switch focus
 - Drag pane borders to resize
 - Scroll with mouse wheel in the focused pane
-- Use `Ctrl-b o` for the next pane
-- Use `Ctrl-b c` to create a new tmux window (tab)
-- Use `Ctrl-b Space` to cycle pane layouts
-- Use `Ctrl-b p` / `Ctrl-b n` for previous / next tmux window (tab)
-- Use `Ctrl-b z` to zoom/unzoom a single pane (fullscreen toggle)
-- Use `Ctrl-b arrow` to move between panes via keyboard
-- Use `Ctrl-b d` to detach (container stays running, re-attach later)
-- Use `Ctrl-b &` to kill the current tmux window (tab)
+- Use `Ctrl-a o` for the next pane
+- Use `Ctrl-a c` to create a new tmux window (tab)
+- Use `Ctrl-a Space` to cycle pane layouts
+- Use `Ctrl-a z` to zoom/unzoom a single pane (fullscreen toggle)
+- Use `Ctrl-a arrow` to move between panes via keyboard
+- Use `Ctrl-a d` to detach (container stays running, re-attach later)
+- Use `Ctrl-a &` to kill the current tmux window (tab)
 
-**Important**: Use `Ctrl-b d` to detach, NOT `Ctrl-d`. `Ctrl-d` sends EOF to
+**Important**: Use `Ctrl-a d` to detach, NOT `Ctrl-d`. `Ctrl-d` sends EOF to
 the active pane's shell and may close the terminal window without properly
 detaching. The tmux session and all Claude instances continue running in the
 container either way.
@@ -562,5 +563,5 @@ Mock `interactive_multi_select`, `subprocess.run`, `os.execvp`, `ContainerManage
 4. `uv run pre-commit run --all-files`
 5. Manual: `cd` to workspace, run `ai-shell claude --multi`, pick 2-3 repos,
    verify tmux opens with correct panes and Claude running in each
-6. Manual: verify mouse clicks switch panes, scrolling works, `Ctrl-b z` zooms
+6. Manual: verify mouse clicks switch panes, scrolling works, `Ctrl-a z` zooms
 7. Manual: verify `uv sync` in one pane doesn't corrupt another pane's venv

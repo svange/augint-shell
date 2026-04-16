@@ -237,6 +237,7 @@ def build_tmux_commands(
         ("escape-time", "10"),
         ("history-limit", "50000"),
         ("focus-events", "on"),
+        ("prefix", "C-a"),
         # Pane borders: amber active, dusty mauve inactive, heavy lines
         ("pane-border-status", "top"),
         ("pane-border-lines", "heavy"),
@@ -250,12 +251,15 @@ def build_tmux_commands(
         # Status bar
         ("status-style", "bg=colour235 fg=colour248"),
         ("status-left", "#[fg=colour172,bold] #S #[fg=colour248]| "),
-        ("status-right", "#[fg=colour95] C-b: ◫o +c ▦␣ ◀p ▶n ⛶z ⏏d ⌦& "),
+        ("status-right", "#[fg=colour95] C-a: o=pane c=tab Space=layout z=zoom d=detach &=kill "),
         ("status-left-length", "40"),
-        ("status-right-length", "40"),
+        ("status-right-length", "60"),
     ]
     for key, value in session_options:
         cmds.append(_exec("tmux", "set-option", "-t", session_name, key, value))
+
+    # Double-tap the new prefix key to send Ctrl-a through to the pane.
+    cmds.append(_exec("tmux", "bind-key", "C-a", "send-prefix"))
 
     # 8. Server-level terminal options for true-color support
     cmds.append(_exec("tmux", "set-option", "-s", "default-terminal", "tmux-256color"))

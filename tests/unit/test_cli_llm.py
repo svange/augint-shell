@@ -5,7 +5,11 @@ from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
 
 from ai_shell.cli.__main__ import cli
-from ai_shell.cli.commands.llm import _warn_if_low_memory
+from ai_shell.cli.commands.llm import (
+    _manifest_exists,
+    _parse_model_ref,
+    _warn_if_low_memory,
+)
 from ai_shell.defaults import LOBECHAT_CONTAINER, OLLAMA_CONTAINER, WEBUI_CONTAINER
 
 
@@ -55,6 +59,91 @@ class TestWarnIfLowMemory:
         mock_console.print.assert_not_called()
 
 
+class TestParseModelRef:
+    def test_library_no_tag(self):
+        assert _parse_model_ref("qwen3-coder") == ("library", "qwen3-coder", "latest")
+
+    def test_library_with_tag(self):
+        assert _parse_model_ref("qwen3-coder:30b-a3b-q4_K_M") == (
+            "library",
+            "qwen3-coder",
+            "30b-a3b-q4_K_M",
+        )
+
+    def test_namespaced_no_tag(self):
+        assert _parse_model_ref("huihui_ai/llama3.3-abliterated") == (
+            "huihui_ai",
+            "llama3.3-abliterated",
+            "latest",
+        )
+
+    def test_namespaced_with_tag(self):
+        assert _parse_model_ref("huihui_ai/llama3.3-abliterated:q4") == (
+            "huihui_ai",
+            "llama3.3-abliterated",
+            "q4",
+        )
+
+
+@patch("ai_shell.cli.commands.llm.HTTPSConnection")
+class TestManifestExists:
+    def test_returns_true_on_200(self, mock_https_cls):
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = b""
+        connection = MagicMock()
+        connection.getresponse.return_value = response
+        mock_https_cls.return_value = connection
+
+        assert _manifest_exists("qwen3-coder:30b-a3b-q4_K_M") is True
+        connection.request.assert_called_once()
+        method, path = connection.request.call_args[0][:2]
+        assert method == "HEAD"
+        assert path == "/v2/library/qwen3-coder/manifests/30b-a3b-q4_K_M"
+        connection.close.assert_called_once()
+
+    def test_returns_false_on_404(self, mock_https_cls):
+        response = MagicMock()
+        response.status = 404
+        response.read.return_value = b""
+        connection = MagicMock()
+        connection.getresponse.return_value = response
+        mock_https_cls.return_value = connection
+
+        assert _manifest_exists("qwen3-coder:bogus-tag") is False
+        connection.close.assert_called_once()
+
+    def test_returns_none_on_network_error(self, mock_https_cls):
+        connection = MagicMock()
+        connection.request.side_effect = OSError("boom")
+        mock_https_cls.return_value = connection
+
+        assert _manifest_exists("qwen3-coder:30b-a3b-q4_K_M") is None
+        connection.close.assert_called_once()
+
+    def test_returns_none_on_unexpected_status(self, mock_https_cls):
+        response = MagicMock()
+        response.status = 500
+        response.read.return_value = b""
+        connection = MagicMock()
+        connection.getresponse.return_value = response
+        mock_https_cls.return_value = connection
+
+        assert _manifest_exists("qwen3-coder:30b-a3b-q4_K_M") is None
+
+    def test_uses_namespace_for_non_library_model(self, mock_https_cls):
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = b""
+        connection = MagicMock()
+        connection.getresponse.return_value = response
+        mock_https_cls.return_value = connection
+
+        _manifest_exists("huihui_ai/llama3.3-abliterated")
+        path = connection.request.call_args[0][1]
+        assert path == "/v2/huihui_ai/llama3.3-abliterated/manifests/latest"
+
+
 @patch("ai_shell.cli.commands.llm.ContainerManager")
 @patch("ai_shell.cli.commands.llm.load_config")
 class TestLlmCommands:
@@ -101,7 +190,7 @@ class TestLlmCommands:
         config.ollama_port = 11434
         config.webui_port = 3000
         config.lobechat_port = 3210
-        config.primary_model = "qwen3-coder:32b-a3b-q4_K_M"
+        config.primary_model = "qwen3-coder:30b-a3b-q4_K_M"
         config.fallback_model = "huihui_ai/llama3.3-abliterated"
         config.context_size = 32768
         mock_config.return_value = config
@@ -124,7 +213,7 @@ class TestLlmCommands:
         assert "http://localhost:3210" in result.output
         assert "LobeChat" in result.output
         assert "recommended" in result.output
-        assert "qwen3-coder:32b-a3b-q4_K_M" in result.output
+        assert "qwen3-coder:30b-a3b-q4_K_M" in result.output
         assert "32768" in result.output
 
     def test_llm_status_not_found(self, mock_config, mock_manager_cls):
@@ -132,7 +221,7 @@ class TestLlmCommands:
         config.ollama_port = 11434
         config.webui_port = 3000
         config.lobechat_port = 3210
-        config.primary_model = "qwen3-coder:32b-a3b-q4_K_M"
+        config.primary_model = "qwen3-coder:30b-a3b-q4_K_M"
         config.fallback_model = "huihui_ai/llama3.3-abliterated"
         config.context_size = 32768
         mock_config.return_value = config
@@ -153,7 +242,7 @@ class TestLlmCommands:
 
     def test_llm_pull(self, mock_config, mock_manager_cls):
         config = MagicMock()
-        config.primary_model = "qwen3-coder:32b-a3b-q4_K_M"
+        config.primary_model = "qwen3-coder:30b-a3b-q4_K_M"
         config.fallback_model = "huihui_ai/llama3.3-abliterated"
         mock_config.return_value = config
 
@@ -162,8 +251,50 @@ class TestLlmCommands:
         mock_manager.exec_in_ollama.return_value = "pulling model..."
         mock_manager_cls.return_value = mock_manager
 
-        result = self.runner.invoke(cli, ["llm", "pull"])
+        with patch("ai_shell.cli.commands.llm._manifest_exists", return_value=True):
+            result = self.runner.invoke(cli, ["llm", "pull"])
 
         assert result.exit_code == 0
         # Should pull both models
         assert mock_manager.exec_in_ollama.call_count >= 3  # 2 pulls + 1 list
+
+    def test_llm_pull_aborts_on_missing_tag(self, mock_config, mock_manager_cls):
+        config = MagicMock()
+        config.primary_model = "qwen3-coder:bogus-tag"
+        config.fallback_model = "huihui_ai/llama3.3-abliterated"
+        mock_config.return_value = config
+
+        mock_manager = MagicMock()
+        mock_manager.config = config
+        mock_manager_cls.return_value = mock_manager
+
+        # Primary is missing, fallback exists.
+        def fake_probe(ref: str) -> bool:
+            return not ref.endswith("bogus-tag")
+
+        with patch("ai_shell.cli.commands.llm._manifest_exists", side_effect=fake_probe):
+            result = self.runner.invoke(cli, ["llm", "pull"])
+
+        assert result.exit_code != 0
+        assert "not found" in result.output
+        assert "qwen3-coder:bogus-tag" in result.output
+        # Must not have started pulling anything.
+        mock_manager.exec_in_ollama.assert_not_called()
+
+    def test_llm_pull_proceeds_when_registry_unreachable(self, mock_config, mock_manager_cls):
+        config = MagicMock()
+        config.primary_model = "qwen3-coder:30b-a3b-q4_K_M"
+        config.fallback_model = "huihui_ai/llama3.3-abliterated"
+        mock_config.return_value = config
+
+        mock_manager = MagicMock()
+        mock_manager.config = config
+        mock_manager.exec_in_ollama.return_value = "pulling model..."
+        mock_manager_cls.return_value = mock_manager
+
+        # None = probe couldn't complete; must not block the pull.
+        with patch("ai_shell.cli.commands.llm._manifest_exists", return_value=None):
+            result = self.runner.invoke(cli, ["llm", "pull"])
+
+        assert result.exit_code == 0
+        assert mock_manager.exec_in_ollama.call_count >= 3

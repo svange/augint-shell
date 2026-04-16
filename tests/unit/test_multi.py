@@ -293,6 +293,8 @@ class TestBuildTmuxCommands:
         assert "pane-border-status" in joined
         assert "escape-time" in joined
         assert "focus-events" in joined
+        assert "prefix C-a" in joined
+        assert "bind-key C-a send-prefix" in joined
         assert "pane-border-lines" in joined
         assert "pane-border-indicators" in joined
 
@@ -318,15 +320,13 @@ class TestBuildTmuxCommands:
         all_args = [" ".join(c) for c in cmds]
         joined = "\n".join(all_args)
 
-        assert "C-b:" in joined
-        assert "◫o" in joined
-        assert "+c" in joined
-        assert "▦␣" in joined
-        assert "◀p" in joined
-        assert "▶n" in joined
-        assert "⛶z" in joined
-        assert "⏏d" in joined
-        assert "⌦&" in joined
+        assert "C-a:" in joined
+        assert "o=pane" in joined
+        assert "c=tab" in joined
+        assert "Space=layout" in joined
+        assert "z=zoom" in joined
+        assert "d=detach" in joined
+        assert "&=kill" in joined
 
     def test_server_level_terminal_options(self):
         panes = [

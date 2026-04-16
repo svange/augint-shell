@@ -122,11 +122,11 @@
 # qwen2.5-coder:32b-q4_k_m        ~19 GiB  Q4_K_M  top coding quality on 4090
 # qwen3:14b-q4_k_m               ~9 GiB   Q4_K_M  fast coder with good accuracy
 # qwen3:32b-q4_k_m               ~19 GiB  Q4_K_M  best local coding on 4090
-# qwen3-coder:32b-a3b-q4_K_M     ~12-14 GiB  Q4_K_M  Qwen3-Coder-32B A3B (Mixture-of-Experts)
+# qwen3-coder:30b-a3b-q4_K_M     ~19 GiB  Q4_K_M  Qwen3-Coder 30B A3B (Mixture-of-Experts, ~3B active)
 #
 # Quick-start pull commands (run inside `ai-shell llm shell`):
 #   ollama pull qwen3.5:27b
-#   ollama pull qwen3-coder:32b-a3b-q4_K_M
+#   ollama pull qwen3-coder:30b-a3b-q4_K_M
 #   ollama pull huihui_ai/llama3.3-abliterated
 #   ollama pull dolphin3:8b
 #   ollama pull llama3.1:8b
@@ -156,7 +156,7 @@
 #   ai-shell llm setup        # pulls models + applies context-window config
 #
 # llm:
-#   primary_model: qwen3-coder:32b-a3b-q4_K_M
+#   primary_model: qwen3-coder:30b-a3b-q4_K_M
 #   fallback_model: huihui_ai/llama3.3-abliterated
 #   context_size: 32768
 #   ollama_port: 11434

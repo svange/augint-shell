@@ -2,6 +2,7 @@
 
 import socket
 import time
+from http.client import HTTPException, HTTPSConnection
 from pathlib import Path
 
 import click
@@ -16,6 +17,92 @@ from ai_shell.gpu import get_vram_info, get_vram_processes
 console = Console(stderr=True)
 
 _LOW_MEMORY_THRESHOLD_GIB = 30  # 27B+ models need ~30 GiB
+_OLLAMA_REGISTRY_HOST = "registry.ollama.ai"
+_MANIFEST_PROBE_TIMEOUT = 5.0
+
+
+def _parse_model_ref(ref: str) -> tuple[str, str, str]:
+    """Parse an Ollama model reference into (namespace, name, tag).
+
+    - "foo"          -> ("library", "foo", "latest")
+    - "foo:tag"      -> ("library", "foo", "tag")
+    - "ns/foo"       -> ("ns", "foo", "latest")
+    - "ns/foo:tag"   -> ("ns", "foo", "tag")
+    """
+    tag = "latest"
+    if ":" in ref:
+        ref, tag = ref.rsplit(":", 1)
+    if "/" in ref:
+        namespace, name = ref.split("/", 1)
+    else:
+        namespace, name = "library", ref
+    return namespace, name, tag
+
+
+def _manifest_exists(model_ref: str) -> bool | None:
+    """Probe the Ollama registry for a model manifest.
+
+    Returns True if the manifest exists (HTTP 200), False if it
+    definitively does not (HTTP 404), or None if the check could not
+    be completed (network error, unexpected status). Callers should
+    treat None as "don't block" so an unreachable registry never
+    prevents a pull that might succeed from a local mirror.
+    """
+    namespace, name, tag = _parse_model_ref(model_ref)
+    path = f"/v2/{namespace}/{name}/manifests/{tag}"
+    connection = HTTPSConnection(_OLLAMA_REGISTRY_HOST, timeout=_MANIFEST_PROBE_TIMEOUT)
+    try:
+        connection.request(
+            "HEAD",
+            path,
+            headers={"Accept": "application/vnd.docker.distribution.manifest.v2+json"},
+        )
+        response = connection.getresponse()
+        response.read()  # drain so the connection is reusable / cleanly closed
+        if response.status == 200:
+            return True
+        if response.status == 404:
+            return False
+        return None
+    except (OSError, HTTPException):
+        return None
+    finally:
+        connection.close()
+
+
+def _tag_list_url(model_ref: str) -> str:
+    """Return the ollama.com tag list URL for a model reference."""
+    namespace, name, _ = _parse_model_ref(model_ref)
+    if namespace == "library":
+        return f"https://ollama.com/library/{name}/tags"
+    return f"https://ollama.com/{namespace}/{name}/tags"
+
+
+def _validate_models_or_abort(*model_refs: str) -> None:
+    """Fail fast if any referenced model tag is missing from the registry.
+
+    Definite 404s abort with a message pointing at the tag list page.
+    Network / unexpected errors are ignored so the check never blocks
+    a pull when the registry is simply unreachable (offline use, local
+    mirror, transient DNS issue, etc.).
+    """
+    missing: list[str] = []
+    for ref in model_refs:
+        if _manifest_exists(ref) is False:
+            missing.append(ref)
+    if not missing:
+        return
+    console.print(
+        "[bold red]Error:[/bold red] the following model tag(s) were not found "
+        "on the Ollama registry:"
+    )
+    for ref in missing:
+        console.print(f"  - [cyan]{ref}[/cyan]  (tags: {_tag_list_url(ref)})")
+    console.print(
+        "\nUpdate [bold]primary_model[/bold] / [bold]fallback_model[/bold] in "
+        "your ai-shell config to a valid tag and retry."
+    )
+    raise click.Abort()
 
 
 def _lan_ip() -> str | None:
@@ -140,6 +227,8 @@ def llm_pull(ctx):
     manager = _get_manager(ctx)
     config = manager.config
 
+    _validate_models_or_abort(config.primary_model, config.fallback_model)
+
     console.print(f"[bold]Pulling primary model: {config.primary_model}...[/bold]")
     output = manager.exec_in_ollama(["ollama", "pull", config.primary_model])
     console.print(output)
@@ -159,6 +248,9 @@ def llm_setup(ctx):
     """First-time setup: start stack, pull models, configure context window."""
     manager = _get_manager(ctx)
     config = manager.config
+
+    # Fail fast on invalid model tags before touching Docker / pulling anything.
+    _validate_models_or_abort(config.primary_model, config.fallback_model)
 
     # Start the stack
     console.print("[bold]Starting LLM stack...[/bold]")
