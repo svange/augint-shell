@@ -15,7 +15,12 @@ class TestScaffoldProject:
         content = (tmp_path / ".ai-shell.yaml").read_text()
         assert "# container:" in content or "container:" in content
         assert "# llm:" in content or "llm:" in content
-        assert "augint-opencodex" in content
+        # The llm section documents the 4 role-specific slots.
+        assert "primary_chat_model" in content
+        assert "secondary_chat_model" in content
+        assert "primary_coding_model" in content
+        assert "secondary_coding_model" in content
+        assert "extra_models" in content
         assert "# aider:" not in content
 
     def test_skips_existing(self, tmp_path):

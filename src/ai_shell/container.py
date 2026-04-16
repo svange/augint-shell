@@ -357,6 +357,11 @@ class ContainerManager:
         environment = {
             "OLLAMA_BASE_URL": f"http://{OLLAMA_CONTAINER}:11434",
             "WEBUI_AUTH": "false",
+            # DEFAULT_MODELS is a PersistentConfig: env seeds the DB on first
+            # boot and UI edits win after that. Point new chats at the
+            # primary chat slot; users can pick the secondary (uncensored)
+            # from the model dropdown.
+            "DEFAULT_MODELS": self.config.primary_chat_model,
         }
         if voice_enabled:
             environment.update(

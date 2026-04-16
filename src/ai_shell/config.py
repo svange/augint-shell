@@ -24,13 +24,15 @@ from ai_shell import __version__
 from ai_shell.defaults import (
     DEFAULT_CONTEXT_SIZE,
     DEFAULT_DEV_PORTS,
-    DEFAULT_FALLBACK_MODEL,
     DEFAULT_IMAGE,
     DEFAULT_KOKORO_PORT,
     DEFAULT_KOKORO_VOICE,
     DEFAULT_N8N_PORT,
     DEFAULT_OLLAMA_PORT,
-    DEFAULT_PRIMARY_MODEL,
+    DEFAULT_PRIMARY_CHAT_MODEL,
+    DEFAULT_PRIMARY_CODING_MODEL,
+    DEFAULT_SECONDARY_CHAT_MODEL,
+    DEFAULT_SECONDARY_CODING_MODEL,
     DEFAULT_WEBUI_PORT,
 )
 
@@ -47,9 +49,15 @@ class AiShellConfig:
     project_name: str = ""
     project_dir: Path = field(default_factory=Path.cwd)
 
-    # LLM
-    primary_model: str = DEFAULT_PRIMARY_MODEL
-    fallback_model: str = DEFAULT_FALLBACK_MODEL
+    # LLM model slots. Primary = best-available; secondary = best uncensored
+    # alternative. Chat slots are routed to Open WebUI, coding slots to
+    # OpenCode / Aider. `extra_models` is a free-form list of additional
+    # Ollama tags to pull alongside the 4 slots (deduped).
+    primary_chat_model: str = DEFAULT_PRIMARY_CHAT_MODEL
+    secondary_chat_model: str = DEFAULT_SECONDARY_CHAT_MODEL
+    primary_coding_model: str = DEFAULT_PRIMARY_CODING_MODEL
+    secondary_coding_model: str = DEFAULT_SECONDARY_CODING_MODEL
+    extra_models: list[str] = field(default_factory=list)
     context_size: int = DEFAULT_CONTEXT_SIZE
     ollama_port: int = DEFAULT_OLLAMA_PORT
     webui_port: int = DEFAULT_WEBUI_PORT
@@ -84,6 +92,28 @@ class AiShellConfig:
     def dev_ports(self) -> list[int]:
         """Return deduplicated, sorted list of dev container ports to expose."""
         return sorted(set(DEFAULT_DEV_PORTS + self.extra_ports))
+
+    @property
+    def models_to_pull(self) -> list[str]:
+        """Return the full deduped list of Ollama model tags to pull.
+
+        The 4 slots in order, followed by any ``extra_models``. Duplicates
+        are removed while preserving first-occurrence order.
+        """
+        ordered = [
+            self.primary_chat_model,
+            self.secondary_chat_model,
+            self.primary_coding_model,
+            self.secondary_coding_model,
+            *self.extra_models,
+        ]
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for model in ordered:
+            if model and model not in seen:
+                seen.add(model)
+                deduped.append(model)
+        return deduped
 
 
 def load_config(
@@ -151,6 +181,39 @@ def _load_config_file(path: Path) -> dict:
         return tomllib.load(f)
 
 
+_LEGACY_LLM_KEY_HINT = {
+    "primary_model": (
+        "renamed to `primary_coding_model` (coding) or `primary_chat_model` "
+        "(chat). The new config uses 4 role-specific slots; pick the one "
+        "that matches your intent. See the generated .ai-shell.yaml for the "
+        "full layout."
+    ),
+    "fallback_model": (
+        "removed. The previous `fallback_model` was role-ambiguous. Use "
+        "`secondary_chat_model` and `secondary_coding_model` instead "
+        "(both default to the best uncensored variants). See the generated "
+        ".ai-shell.yaml for the full layout."
+    ),
+}
+
+
+def _reject_legacy_llm_keys(llm_section: dict, path: Path) -> None:
+    """Raise on deprecated `primary_model` / `fallback_model` keys.
+
+    These were removed when the llm config split into 4 role-specific slots
+    (primary/secondary x chat/coding). Silently aliasing them would corrupt
+    intent — e.g. the old `fallback_model` meant different things to chat and
+    coding users. Fail loudly with migration guidance.
+    """
+    bad = [k for k in _LEGACY_LLM_KEY_HINT if k in llm_section]
+    if not bad:
+        return
+    lines = [f"\nDeprecated llm key(s) found in {path}:"]
+    for key in bad:
+        lines.append(f"  - `{key}`: {_LEGACY_LLM_KEY_HINT[key]}")
+    raise ValueError("\n".join(lines))
+
+
 def _apply_config(config: AiShellConfig, path: Path) -> None:
     """Apply settings from a YAML or TOML config file."""
     try:
@@ -176,10 +239,17 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
 
     # [llm] section
     llm = data.get("llm", {})
-    if "primary_model" in llm:
-        config.primary_model = llm["primary_model"]
-    if "fallback_model" in llm:
-        config.fallback_model = llm["fallback_model"]
+    _reject_legacy_llm_keys(llm, path)
+    if "primary_chat_model" in llm:
+        config.primary_chat_model = llm["primary_chat_model"]
+    if "secondary_chat_model" in llm:
+        config.secondary_chat_model = llm["secondary_chat_model"]
+    if "primary_coding_model" in llm:
+        config.primary_coding_model = llm["primary_coding_model"]
+    if "secondary_coding_model" in llm:
+        config.secondary_coding_model = llm["secondary_coding_model"]
+    if "extra_models" in llm:
+        config.extra_models.extend(str(m) for m in llm["extra_models"])
     if "context_size" in llm:
         config.context_size = int(llm["context_size"])
     if "ollama_port" in llm:
@@ -214,14 +284,29 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.skip_updates = bool(container["skip_updates"])
 
 
+_LEGACY_ENV_VARS = {
+    "AI_SHELL_PRIMARY_MODEL": ("AI_SHELL_PRIMARY_CODING_MODEL or AI_SHELL_PRIMARY_CHAT_MODEL"),
+    "AI_SHELL_FALLBACK_MODEL": ("AI_SHELL_SECONDARY_CHAT_MODEL or AI_SHELL_SECONDARY_CODING_MODEL"),
+}
+
+
 def _apply_env_vars(config: AiShellConfig) -> None:
     """Apply AI_SHELL_* environment variable overrides."""
+    bad_env = [k for k in _LEGACY_ENV_VARS if os.environ.get(k) is not None]
+    if bad_env:
+        lines = ["\nDeprecated AI_SHELL_* env var(s) set:"]
+        for key in bad_env:
+            lines.append(f"  - {key}: use {_LEGACY_ENV_VARS[key]} instead")
+        raise ValueError("\n".join(lines))
+
     env_map: dict[str, tuple[str, type]] = {
         "AI_SHELL_IMAGE": ("image", str),
         "AI_SHELL_IMAGE_TAG": ("image_tag", str),
         "AI_SHELL_PROJECT": ("project_name", str),
-        "AI_SHELL_PRIMARY_MODEL": ("primary_model", str),
-        "AI_SHELL_FALLBACK_MODEL": ("fallback_model", str),
+        "AI_SHELL_PRIMARY_CHAT_MODEL": ("primary_chat_model", str),
+        "AI_SHELL_SECONDARY_CHAT_MODEL": ("secondary_chat_model", str),
+        "AI_SHELL_PRIMARY_CODING_MODEL": ("primary_coding_model", str),
+        "AI_SHELL_SECONDARY_CODING_MODEL": ("secondary_coding_model", str),
         "AI_SHELL_CONTEXT_SIZE": ("context_size", int),
         "AI_SHELL_OLLAMA_PORT": ("ollama_port", int),
         "AI_SHELL_WEBUI_PORT": ("webui_port", int),

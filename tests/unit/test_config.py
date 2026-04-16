@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from ai_shell.config import AiShellConfig, load_config
 from ai_shell.defaults import DEFAULT_DEV_PORTS
 
@@ -10,11 +12,38 @@ class TestAiShellConfig:
     def test_defaults(self):
         config = AiShellConfig()
         assert config.image == "svange/augint-shell"
-        assert config.primary_model == "qwen3-coder:30b-a3b-q4_K_M"
+        assert config.primary_chat_model == "qwen3.5:27b"
+        assert config.secondary_chat_model == "huihui_ai/qwen3.5-abliterated:27b"
+        assert config.primary_coding_model == "qwen3-coder:30b-a3b-q4_K_M"
+        assert (
+            config.secondary_coding_model
+            == "huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M"
+        )
+        assert config.extra_models == []
         assert config.ollama_port == 11434
         assert config.webui_port == 3000
         assert config.kokoro_port == 8880
         assert config.n8n_port == 5678
+
+    def test_models_to_pull_dedupes_slots(self):
+        # Same tag in primary and extras should dedupe to one entry.
+        config = AiShellConfig(
+            primary_chat_model="foo:1",
+            secondary_chat_model="bar:1",
+            primary_coding_model="foo:1",  # duplicates primary chat
+            secondary_coding_model="baz:1",
+            extra_models=["bar:1", "qux:1"],  # bar duplicates secondary chat
+        )
+        assert config.models_to_pull == ["foo:1", "bar:1", "baz:1", "qux:1"]
+
+    def test_models_to_pull_skips_empty(self):
+        config = AiShellConfig(
+            primary_chat_model="foo:1",
+            secondary_chat_model="",
+            primary_coding_model="bar:1",
+            secondary_coding_model="",
+        )
+        assert config.models_to_pull == ["foo:1", "bar:1"]
 
     def test_full_image(self):
         config = AiShellConfig(image="svange/augint-shell", image_tag="1.2.3")
@@ -44,7 +73,11 @@ image = "custom/image"
 image_tag = "2.0.0"
 
 [llm]
-primary_model = "llama3:8b"
+primary_chat_model = "llama3:8b"
+secondary_chat_model = "llama3:8b-uncensored"
+primary_coding_model = "qwen-coder:test"
+secondary_coding_model = "qwen-coder-uncensored:test"
+extra_models = ["dolphin3:8b", "mistral:7b"]
 ollama_port = 12345
 kokoro_port = 4321
 """
@@ -53,7 +86,11 @@ kokoro_port = 4321
 
         assert config.image == "custom/image"
         assert config.image_tag == "2.0.0"
-        assert config.primary_model == "llama3:8b"
+        assert config.primary_chat_model == "llama3:8b"
+        assert config.secondary_chat_model == "llama3:8b-uncensored"
+        assert config.primary_coding_model == "qwen-coder:test"
+        assert config.secondary_coding_model == "qwen-coder-uncensored:test"
+        assert config.extra_models == ["dolphin3:8b", "mistral:7b"]
         assert config.ollama_port == 12345
         assert config.kokoro_port == 4321
 
@@ -89,33 +126,35 @@ image = "toml/image"
         (global_dir / "config.toml").write_bytes(
             b"""
 [llm]
-primary_model = "global-model"
+primary_chat_model = "global-model"
 """
         )
 
         with patch("ai_shell.config.Path.home", return_value=tmp_path):
             config = load_config(project_dir=tmp_path)
 
-        assert config.primary_model == "global-model"
+        assert config.primary_chat_model == "global-model"
 
     def test_home_yaml_config_loaded(self, tmp_path):
-        (tmp_path / ".ai-shell.yaml").write_text("llm:\n  primary_model: home-yaml-model\n")
+        (tmp_path / ".ai-shell.yaml").write_text("llm:\n  primary_chat_model: home-yaml-model\n")
 
         with patch("ai_shell.config.Path.home", return_value=tmp_path):
             config = load_config(project_dir=tmp_path / "project")
 
-        assert config.primary_model == "home-yaml-model"
+        assert config.primary_chat_model == "home-yaml-model"
 
     def test_home_yaml_takes_precedence_over_config_dir(self, tmp_path):
-        (tmp_path / ".ai-shell.yaml").write_text("llm:\n  primary_model: home-yaml-wins\n")
+        (tmp_path / ".ai-shell.yaml").write_text("llm:\n  primary_chat_model: home-yaml-wins\n")
         global_dir = tmp_path / ".config" / "ai-shell"
         global_dir.mkdir(parents=True)
-        (global_dir / "config.toml").write_bytes(b'[llm]\nprimary_model = "config-dir-loses"\n')
+        (global_dir / "config.toml").write_bytes(
+            b'[llm]\nprimary_chat_model = "config-dir-loses"\n'
+        )
 
         with patch("ai_shell.config.Path.home", return_value=tmp_path):
             config = load_config(project_dir=tmp_path / "project")
 
-        assert config.primary_model == "home-yaml-wins"
+        assert config.primary_chat_model == "home-yaml-wins"
 
     def test_project_toml_overrides_global(self, tmp_path):
         global_dir = tmp_path / ".config" / "ai-shell"
@@ -123,20 +162,49 @@ primary_model = "global-model"
         (global_dir / "config.toml").write_bytes(
             b"""
 [llm]
-primary_model = "global-model"
+primary_chat_model = "global-model"
 """
         )
         (tmp_path / ".ai-shell.toml").write_bytes(
             b"""
 [llm]
-primary_model = "project-model"
+primary_chat_model = "project-model"
 """
         )
 
         with patch("ai_shell.config.Path.home", return_value=tmp_path):
             config = load_config(project_dir=tmp_path)
 
-        assert config.primary_model == "project-model"
+        assert config.primary_chat_model == "project-model"
+
+    def test_legacy_primary_model_key_errors(self, tmp_path):
+        (tmp_path / ".ai-shell.toml").write_bytes(b'[llm]\nprimary_model = "old-tag"\n')
+        with pytest.raises(ValueError, match="primary_model"):
+            load_config(project_dir=tmp_path)
+
+    def test_legacy_fallback_model_key_errors(self, tmp_path):
+        (tmp_path / ".ai-shell.toml").write_bytes(b'[llm]\nfallback_model = "old-tag"\n')
+        with pytest.raises(ValueError, match="fallback_model"):
+            load_config(project_dir=tmp_path)
+
+    def test_legacy_primary_model_env_var_errors(self, tmp_path):
+        with patch.dict("os.environ", {"AI_SHELL_PRIMARY_MODEL": "old-tag"}):
+            with pytest.raises(ValueError, match="AI_SHELL_PRIMARY_MODEL"):
+                load_config(project_dir=tmp_path)
+
+    def test_new_env_vars_apply(self, tmp_path):
+        env = {
+            "AI_SHELL_PRIMARY_CHAT_MODEL": "env-chat",
+            "AI_SHELL_SECONDARY_CHAT_MODEL": "env-chat-2",
+            "AI_SHELL_PRIMARY_CODING_MODEL": "env-code",
+            "AI_SHELL_SECONDARY_CODING_MODEL": "env-code-2",
+        }
+        with patch.dict("os.environ", env):
+            config = load_config(project_dir=tmp_path)
+        assert config.primary_chat_model == "env-chat"
+        assert config.secondary_chat_model == "env-chat-2"
+        assert config.primary_coding_model == "env-code"
+        assert config.secondary_coding_model == "env-code-2"
 
     def test_extra_env_accumulated(self, tmp_path):
         (tmp_path / ".ai-shell.toml").write_bytes(

@@ -226,8 +226,17 @@ def _make_manager_config() -> MagicMock:
     config.kokoro_port = 8880
     config.kokoro_voice = "af_bella"
     config.n8n_port = 5678
-    config.primary_model = "qwen3-coder:30b-a3b-q4_K_M"
-    config.fallback_model = "huihui_ai/llama3.3-abliterated"
+    config.primary_chat_model = "qwen3.5:27b"
+    config.secondary_chat_model = "huihui_ai/qwen3.5-abliterated:27b"
+    config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+    config.secondary_coding_model = "huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M"
+    config.extra_models = []
+    config.models_to_pull = [
+        config.primary_chat_model,
+        config.secondary_chat_model,
+        config.primary_coding_model,
+        config.secondary_coding_model,
+    ]
     config.context_size = 32768
     return config
 
@@ -554,19 +563,25 @@ class TestLlmCommands:
             result = self.runner.invoke(cli, ["llm", "pull"])
 
         assert result.exit_code == 0
-        # Should pull both models
-        assert manager.exec_in_ollama.call_count >= 3  # 2 pulls + 1 list
+        # Should pull all 4 slots + the trailing `ollama list`
+        assert manager.exec_in_ollama.call_count >= 5  # 4 pulls + 1 list
 
     def test_llm_pull_aborts_on_missing_tag(self, mock_config, mock_manager_cls):
         config = _make_manager_config()
-        config.primary_model = "qwen3-coder:bogus-tag"
+        config.primary_coding_model = "qwen3-coder:bogus-tag"
+        config.models_to_pull = [
+            config.primary_chat_model,
+            config.secondary_chat_model,
+            config.primary_coding_model,
+            config.secondary_coding_model,
+        ]
         mock_config.return_value = config
 
         manager = MagicMock()
         manager.config = config
         mock_manager_cls.return_value = manager
 
-        # Primary is missing, fallback exists.
+        # Primary coding is missing, others exist.
         def fake_probe(ref: str) -> bool:
             return not ref.endswith("bogus-tag")
 

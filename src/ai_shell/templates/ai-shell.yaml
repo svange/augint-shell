@@ -78,130 +78,152 @@
 #     - 9229
 
 # =============================================================================
-# llm - Local LLM settings (Ollama + Open WebUI)
+# llm - Local LLM stack (Ollama + Open WebUI + optional TTS / n8n)
 # =============================================================================
-# primary_model: Default Ollama model for inference
-# fallback_model: Backup model if primary unavailable
-# context_size: Context window in tokens (default: 32768)
-# ollama_port: Host port for Ollama API (default: 11434)
-# webui_port: Host port for Open WebUI (default: 3000)
-# n8n_port: Host port for n8n workflow automation (default: 5678)
+# Four role-specific model slots. Primary = best-available for the role;
+# secondary = best uncensored alternative (abliterated: refusal weights
+# surgically removed, benchmark quality preserved). Same base model family
+# within each role pair so switching primary <-> secondary keeps token
+# behavior, tool formats, and context semantics consistent.
 #
-# Models are downloaded automatically by `ai-shell llm setup`, which:
-#   1. Starts the Ollama container (GPU-enabled if an NVIDIA card is detected)
-#   2. Runs `ollama pull <primary_model>` and `ollama pull <fallback_model>`
-#   3. Applies the context-window Modelfile so both models run with num_ctx set
+# Routing:
+#   chat slots   -> Open WebUI (DEFAULT_MODELS env seeds the default chat model)
+#   coding slots -> OpenCode / Aider (--model flag sets primary coding model)
 #
-# To pull a model manually at any time:
-#   ai-shell llm shell        # opens a bash shell inside the Ollama container
-#   ollama pull <model>       # then run any ollama command directly
+# `ai-shell llm pull` and `llm setup` download all 4 slots plus any
+# `extra_models` entries, deduped.
 #
-# ai-shell only manages the local LLM endpoint and generic runtime settings.
-# Tool-specific config files for Codex, OpenCode, and Aider should be managed
-# separately, for example via augint-opencodex.
-# Keep tool-specific provider, model, auth, and permission settings out of this
-# file. Put those in the generated tool config files instead.
+# All four defaults fit an RTX 4090 (24 GiB VRAM) with headroom for a 32K KV
+# cache. Total disk footprint ~74 GB across the four models.
 #
-# ─── RTX 4090 model guide (24 GiB VRAM) ─────────────────────────────────────
+# --- Slot 1: primary_chat_model ---------------------------------------------
+# Default: qwen3.5:27b  (~17 GB, dense, 256K context)
 #
-# General-chat / assistant models
-# ─────────────────────────────────
-# qwen3.5:27b                  ~15 GiB  Q4_K_M  fits on 4090 with headroom
-# qwen3.5:27b-q5_k_m           ~19 GiB  Q5_K_M  fits, higher quality
-# qwen3.5:32b-q4_k_m           ~19 GiB  Q4_K_M  tight but fits on 4090
+# Why this model:
+#   Qwen3.5-27B is Alibaba's Feb 2026 dense chat/reasoning release. Best
+#   benchmark scores in the under-20 GiB tier: MMLU-Pro 86.1, GPQA 85.5,
+#   SWE-bench Verified 72.4. Hybrid Gated DeltaNet + full-attention (3:1)
+#   gives near-linear long-context scaling — 256K context is genuinely
+#   usable, not just advertised.
 #
-# Uncensored / instruction-following variants
-# ────────────────────────────────────────────
-# dolphin3:8b                      ~5 GiB   Dolphin 3.0 (uncensored Llama 3.1 8B)
-# huihui_ai/llama3.3-abliterated   ~16 GiB  Llama 3.3 70B abliterated (uncensored chat)
-# llama3.1:8b                      ~5 GiB   Meta Llama 3.1 8B instruct
-# llama3.1:8b-instruct-q4_k_m      ~5 GiB   Q4_K_M quantized
-# llama3.2:latest                  ~2 GiB   Meta Llama 3.2 3B (fast/small)
+# Used by:
+#   Open WebUI (set as DEFAULT_MODELS so new chats open against it).
 #
-# Coding-heavy models
-# ────────────────────
-# qwen2.5-coder:32b-q4_k_m        ~19 GiB  Q4_K_M  top coding quality on 4090
-# qwen3:14b-q4_k_m               ~9 GiB   Q4_K_M  fast coder with good accuracy
-# qwen3:32b-q4_k_m               ~19 GiB  Q4_K_M  best local coding on 4090
-# qwen3-coder:30b-a3b-q4_K_M     ~19 GiB  Q4_K_M  Qwen3-Coder 30B A3B (Mixture-of-Experts, ~3B active)
+# Caveats:
+#   Ollama's native tool-calling for Qwen3.5 is broken (Ollama issue #14493,
+#   open as of 2026-04). Not a problem for WebUI chat: WebUI's built-in web
+#   search and RAG do server-side fetch + context injection — they don't
+#   route through Ollama's tools API. If you flip WebUI's per-chat
+#   "Function Calling: Native" toggle, tool-using chats will break for
+#   this slot; leave it on "Default".
 #
-# Quick-start pull commands (run inside `ai-shell llm shell`):
-#   ollama pull qwen3.5:27b
-#   ollama pull qwen3-coder:30b-a3b-q4_K_M
-#   ollama pull huihui_ai/llama3.3-abliterated
-#   ollama pull dolphin3:8b
-#   ollama pull llama3.1:8b
-#   ollama pull qwen2.5-coder:32b-q4_k_m
-#   ollama pull qwen3:14b-q4_k_m
-#   ollama pull qwen3:32b-q4_k_m
+# --- Slot 2: secondary_chat_model -------------------------------------------
+# Default: huihui_ai/qwen3.5-abliterated:27b  (~17 GB, dense, 256K context)
 #
-# ─── RTX 5070 Ti model guide (12 GiB VRAM) ──────────────────────────────────
+# Why this model:
+#   Same Qwen3.5-27B base as the primary chat slot, abliterated by
+#   huihui.ai: refusal-direction vectors neutralized via weight surgery
+#   (no retraining), so benchmark capacity is preserved. Use this slot
+#   when the aligned model refuses legitimate requests (security research,
+#   red-team write-ups, creative fiction, etc.).
 #
-# Chat models
-# ────────────
-# qwen3.5:9b                              ~7 GiB   Q4_K_M  best chat, 256K ctx, multimodal
-# huihui_ai/qwen3.5-abliterated:9b        ~7 GiB   Q4_K    uncensored Qwen3.5 (abliterated)
+# Used by:
+#   Open WebUI — selectable in the model dropdown; does NOT auto-default.
 #
-# Coding models
-# ──────────────
-# qwen2.5-coder:14b-instruct              ~9 GiB   Q4_K_M  largest dedicated coder that fits
-# huihui_ai/qwen3.5-abliterated:9b-OmniCoder  ~6 GiB  Q4_K  uncensored coding variant
+# Caveats:
+#   Same Ollama tool-calling bug as the primary (same base). Expect slightly
+#   higher hallucination and occasional instruction drift vs the aligned
+#   base; don't use for ground-truth factual Q&A.
 #
-# Quick-start pull commands (run inside `ai-shell llm shell`):
-#   ollama pull qwen3.5:9b
-#   ollama pull huihui_ai/qwen3.5-abliterated:9b
-#   ollama pull qwen2.5-coder:14b-instruct
-#   ollama pull huihui_ai/qwen3.5-abliterated:9b-OmniCoder
+# --- Slot 3: primary_coding_model -------------------------------------------
+# Default: qwen3-coder:30b-a3b-q4_K_M  (~19 GB, MoE 30.5B/3.3B active, 256K ctx)
 #
-# After pulling, set primary_model (and fallback_model) below, then run:
-#   ai-shell llm setup        # pulls models + applies context-window config
+# Why this model:
+#   Alibaba's Qwen3-Coder 30B-A3B (July 2025) — first Qwen model explicitly
+#   trained for *agentic* software engineering rather than autocomplete.
+#   SWE-bench Verified 51.6, best-in-class at this VRAM tier. Purpose-built
+#   XML tool-call format with first-class support in Claude Code, OpenCode,
+#   Aider, Goose. Ollama registry explicitly declares the "tools"
+#   capability on this tag.
+#   MoE routing (3.3B active per token) gives ~8B-class throughput — fast
+#   enough for interactive agent loops on a single 4090.
+#
+# Used by:
+#   OpenCode (`ai-shell opencode` launches with --model ollama/<this slot>).
+#   Aider  (`ai-shell aider` uses ollama_chat/<this slot>).
+#
+# Caveats:
+#   Tool-count cliff: reliable native tool_calls below ~5 tools; above that
+#   the model may emit XML inside content and some parsers miss them. Use
+#   recent Ollama (>= Aug 2025 with the Unsloth chat-template fix).
+#   Defaults to num_ctx=4096 in raw Ollama — the `context_size` setting
+#   below raises this to 32768 via Modelfile override.
+#
+# --- Slot 4: secondary_coding_model -----------------------------------------
+# Default: huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M  (~19 GB)
+#
+# Why this model:
+#   Same Qwen3-Coder 30B-A3B base as the primary coding slot, abliterated.
+#   Keeps the XML tool-call template intact, so function calling still works
+#   via Ollama's tools API (though no explicit "tools" badge on the
+#   abliterated page — smoke-test before relying on it in a production
+#   agent loop). Use when the aligned coder refuses legitimate work
+#   (deobfuscation, pentest automation, security research).
+#
+# Used by:
+#   OpenCode — swap in via the runtime model picker when needed; does NOT
+#   auto-default.
+#
+# Caveats:
+#   Same tool-count cliff as primary coding. Same abliteration drift
+#   caveat as the secondary chat slot.
+#
+# --- num_ctx (context_size) -------------------------------------------------
+# Ollama defaults to num_ctx=4096 per model — far below what modern agent
+# tool prompts need (Claude Code alone sends ~35K tokens). `context_size`
+# below is applied via Modelfile overrides during `ai-shell llm setup`.
+# 32768 is a safe default; raise for longer conversations (256K is the
+# native limit across all four default slots).
+#
+# --- extra_models -----------------------------------------------------------
+# Free-form list of additional Ollama tags to pull alongside the 4 slots.
+# Uncomment to enable; each entry is pulled once (deduped against the
+# 4 slots).
+#
+# Commented suggestions below are curated for an RTX 4090. Flip them to
+# uncommented entries and re-run `ai-shell llm pull` to add them.
+#
+# Override with env vars:
+#   AI_SHELL_PRIMARY_CHAT_MODEL
+#   AI_SHELL_SECONDARY_CHAT_MODEL
+#   AI_SHELL_PRIMARY_CODING_MODEL
+#   AI_SHELL_SECONDARY_CODING_MODEL
+#   AI_SHELL_CONTEXT_SIZE
+#   AI_SHELL_OLLAMA_PORT / WEBUI_PORT / KOKORO_PORT / N8N_PORT
+#   AI_SHELL_KOKORO_VOICE
 #
 # llm:
-#   primary_model: qwen3-coder:30b-a3b-q4_K_M
-#   fallback_model: huihui_ai/llama3.3-abliterated
+#   primary_chat_model: qwen3.5:27b
+#   secondary_chat_model: huihui_ai/qwen3.5-abliterated:27b
+#   primary_coding_model: qwen3-coder:30b-a3b-q4_K_M
+#   secondary_coding_model: huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M
 #   context_size: 32768
 #   ollama_port: 11434
 #   webui_port: 3000
+#   kokoro_port: 8880
 #   n8n_port: 5678
-#
-# --- Example: 4090 coding-focused setup ---
-# llm:
-#   primary_model: qwen2.5-coder:32b-q4_k_m
-#   fallback_model: qwen3:14b-q4_k_m
-#   context_size: 32768
-#
-# --- Example: 4090 general-chat setup ---
-# llm:
-#   primary_model: qwen3.5:27b
-#   fallback_model: llama3.1:8b
-#   context_size: 32768
-#
-# --- Example: 4090 uncensored setup ---
-# llm:
-#   primary_model: dolphin3:8b
-#   fallback_model: llama3.1:8b
-#   context_size: 32768
-#
-# --- Example: 5070 Ti coding-focused setup ---
-# llm:
-#   primary_model: qwen2.5-coder:14b-instruct
-#   fallback_model: qwen3.5:9b
-#   context_size: 32768
-#
-# --- Example: 5070 Ti general-chat setup ---
-# llm:
-#   primary_model: qwen3.5:9b
-#   fallback_model: huihui_ai/qwen3.5-abliterated:9b
-#   context_size: 32768
-#
-# --- Example: 5070 Ti uncensored-chat setup ---
-# llm:
-#   primary_model: huihui_ai/qwen3.5-abliterated:9b
-#   fallback_model: dolphin3:8b
-#   context_size: 32768
-#
-# --- Example: 5070 Ti uncensored-coding setup ---
-# llm:
-#   primary_model: huihui_ai/qwen3.5-abliterated:9b-OmniCoder
-#   fallback_model: qwen2.5-coder:14b-instruct
-#   context_size: 32768
+#   extra_models: []
+#     # --- Lightweight / fast (good for quick tasks, low VRAM load) ---
+#     # - llama3.1:8b                          # ~5 GB, Meta Llama 3.1 8B instruct
+#     # - llama3.2:latest                      # ~2 GB, Llama 3.2 3B, very fast
+#     # - dolphin3:8b                          # ~5 GB, uncensored Llama 3.1 8B
+#     #
+#     # --- Alternative MoE chat (different architecture for A/B) ---
+#     # - qwen3:30b-a3b-instruct-2507-q4_K_M  # ~19 GB, Qwen3 MoE, ~196 tok/s on 4090
+#     #
+#     # --- Previous-generation coders (for comparison / Qwen2.5 family) ---
+#     # - qwen2.5-coder:32b-q4_k_m             # ~19 GB, Qwen2.5-Coder 32B dense
+#     # - qwen2.5-coder:14b-instruct           # ~9 GB, smaller Qwen2.5-Coder
+#     #
+#     # --- Alternative uncensored chat (older Llama 3.3 abliterated, tight on 4090) ---
+#     # - huihui_ai/llama3.3-abliterated       # 43+ GB, does NOT fit 4090 comfortably

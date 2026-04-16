@@ -57,8 +57,13 @@ WEBUI_IMAGE = "ghcr.io/open-webui/open-webui:main"
 KOKORO_IMAGE_CPU = "ghcr.io/remsky/kokoro-fastapi-cpu:latest"
 KOKORO_IMAGE_GPU = "ghcr.io/remsky/kokoro-fastapi-gpu:latest"
 N8N_IMAGE = "docker.n8n.io/n8nio/n8n"
-DEFAULT_PRIMARY_MODEL = "qwen3-coder:30b-a3b-q4_K_M"
-DEFAULT_FALLBACK_MODEL = "huihui_ai/llama3.3-abliterated"
+# Model slots (RTX 4090-sized, validated April 2026). Primary = best available for
+# the role; secondary = best uncensored alternative. See README "Local LLM stack"
+# and the generated .ai-shell.yaml for per-slot rationale and caveats.
+DEFAULT_PRIMARY_CHAT_MODEL = "qwen3.5:27b"
+DEFAULT_SECONDARY_CHAT_MODEL = "huihui_ai/qwen3.5-abliterated:27b"
+DEFAULT_PRIMARY_CODING_MODEL = "qwen3-coder:30b-a3b-q4_K_M"
+DEFAULT_SECONDARY_CODING_MODEL = "huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M"
 DEFAULT_CONTEXT_SIZE = 32768
 DEFAULT_OLLAMA_PORT = 11434
 DEFAULT_WEBUI_PORT = 3000

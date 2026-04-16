@@ -83,28 +83,66 @@ ai-shell opencode
 
 ## Configuration
 
-Optional `ai-shell.toml` in your project root:
+Optional `.ai-shell.yaml` in your project root (YAML is the default; TOML is
+also accepted — see `ai-shell init` for the full generated template with
+per-section rationale):
 
-```toml
-[container]
-image = "svange/augint-shell"
-image_tag = "latest"
-extra_env = { MY_VAR = "value" }
+```yaml
+container:
+  image: svange/augint-shell
+  image_tag: latest
+  extra_env:
+    MY_VAR: value
 
-[llm]
-primary_model = "qwen3-coder:30b-a3b-q4_K_M"
-fallback_model = "huihui_ai/llama3.3-abliterated"
-context_size = 32768
-ollama_port = 11434
-webui_port = 3000
+llm:
+  primary_chat_model: qwen3.5:27b
+  secondary_chat_model: huihui_ai/qwen3.5-abliterated:27b
+  primary_coding_model: qwen3-coder:30b-a3b-q4_K_M
+  secondary_coding_model: huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M
+  context_size: 32768
+  ollama_port: 11434
+  webui_port: 3000
+  extra_models: []   # additional Ollama tags to pull alongside the 4 slots
 ```
 
-Global config at `~/.config/ai-shell/config.toml` is also supported.
+Global config at `~/.ai-shell.yaml` or `~/.config/ai-shell/config.yaml` is
+also supported.
+
+> The previous `primary_model` / `fallback_model` keys were removed. They were
+> role-ambiguous (chat vs. coding). If you had them set, move them to the
+> matching slot above. ai-shell will refuse to start with those legacy keys
+> present and print a migration hint.
 
 `ai-shell` does not manage tool-specific config files for Codex, OpenCode, or
 Aider. Use `augint-opencodex` or the tools' native config files for those, and
 use `ai-shell` for container/runtime settings such as AWS profiles, local LLM
 ports, and Claude options.
+
+### Local LLM stack
+
+Four role-specific model slots, each sized for an RTX 4090 (24 GiB VRAM). All
+four defaults together total ~74 GB on disk.
+
+| Slot | Default | Size | Role | Routed to |
+|---|---|---|---|---|
+| `primary_chat_model` | `qwen3.5:27b` | 17 GB | Best chat model that fits a 4090 | Open WebUI default |
+| `secondary_chat_model` | `huihui_ai/qwen3.5-abliterated:27b` | 17 GB | Best uncensored chat (abliterated Qwen3.5) | Open WebUI (selectable) |
+| `primary_coding_model` | `qwen3-coder:30b-a3b-q4_K_M` | 19 GB | Best agentic coder with explicit Ollama tools badge | OpenCode / Aider default |
+| `secondary_coding_model` | `huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M` | 19 GB | Best uncensored coder (abliterated Qwen3-Coder) | OpenCode (selectable) |
+
+Each pair shares a base model — primary is the standard aligned release;
+secondary is the huihui.ai abliterated variant (refusal directions neutralized
+via weight surgery, benchmark quality preserved). Switching primary <->
+secondary within a slot keeps tool formats and context semantics identical.
+
+`ai-shell llm pull` / `ai-shell llm setup` downloads all 4 slots plus any
+`extra_models` entries, deduped.
+
+**Three caveats worth knowing:**
+
+1. **Qwen3.5 Ollama tool calling is broken** ([ollama #14493](https://github.com/ollama/ollama/issues/14493), open). This does not affect Open WebUI's default chat with web search and RAG — those run server-side in WebUI without touching Ollama's tools API. It does affect agent CLIs routed through Ollama's `/v1/chat/completions` tools array, which is why the chat slots are Qwen3.5 and the coding slots are Qwen3-Coder (explicit tools badge, working parser).
+2. **Ollama `num_ctx` defaults to 4096** for every model, well below what modern agent prompts need (Claude Code sends ~35K tokens). `context_size` in your config is applied via Modelfile override during `llm setup` — leave it at 32768 unless you have a reason.
+3. **Qwen3-Coder tool-count cliff**: reliable native `tool_calls` emission below ~5 registered tools; above that the model may emit XML inside content and some parsers miss it. Keep agent tool sets tight.
 
 ## How It Works
 

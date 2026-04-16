@@ -378,7 +378,7 @@ class TestToolCommands:
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
-        config.primary_model = "qwen3-coder:30b-a3b-q4_K_M"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
         config.ollama_port = 11434
         mock_config.return_value = config
 
@@ -405,7 +405,7 @@ class TestToolCommands:
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         config = MagicMock()
-        config.primary_model = "qwen3-coder:30b-a3b-q4_K_M"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
         config.ollama_port = 11434
         mock_config.return_value = config
 

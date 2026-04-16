@@ -1154,6 +1154,11 @@ def opencode(
     manager.ensure_tool_fresh(name, "opencode")
 
     cmd = ["/root/.opencode/bin/opencode"]
+    if not use_bedrock:
+        # Default OpenCode to the primary coding slot (benchmark-optimized,
+        # explicit Ollama tools badge). Users can switch to the secondary
+        # (uncensored) slot in the OpenCode model picker at runtime.
+        cmd.extend(["--model", f"ollama/{config.primary_coding_model}"])
     console.print(f"[bold]Launching opencode{bedrock_label} in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env)
 
@@ -1165,7 +1170,7 @@ def opencode(
 def aider(ctx, safe, extra_args):
     """Launch aider with local LLM in the dev container."""
     manager, name, exec_env, config = _get_manager(ctx)
-    aider_model = f"ollama_chat/{config.primary_model}"
+    aider_model = f"ollama_chat/{config.primary_coding_model}"
     cmd = ["aider", "--model", aider_model]
     if not safe:
         cmd.append("--yes-always")

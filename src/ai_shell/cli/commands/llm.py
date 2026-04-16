@@ -119,8 +119,8 @@ def _validate_models_or_abort(*model_refs: str) -> None:
     for ref in missing:
         console.print(f"  - [cyan]{ref}[/cyan]  (tags: {_tag_list_url(ref)})")
     console.print(
-        "\nUpdate [bold]primary_model[/bold] / [bold]fallback_model[/bold] in "
-        "your ai-shell config to a valid tag and retry."
+        "\nUpdate the relevant [bold]*_chat_model[/bold] / [bold]*_coding_model[/bold] "
+        "entry (or [bold]extra_models[/bold]) in your ai-shell config to a valid tag and retry."
     )
     raise click.Abort()
 
@@ -398,15 +398,13 @@ def llm_pull(ctx):
     manager = _get_manager(ctx)
     config = manager.config
 
-    _validate_models_or_abort(config.primary_model, config.fallback_model)
+    models = config.models_to_pull
+    _validate_models_or_abort(*models)
 
-    console.print(f"[bold]Pulling primary model: {config.primary_model}...[/bold]")
-    output = manager.exec_in_ollama(["ollama", "pull", config.primary_model])
-    console.print(output)
-
-    console.print(f"\n[bold]Pulling fallback model: {config.fallback_model}...[/bold]")
-    output = manager.exec_in_ollama(["ollama", "pull", config.fallback_model])
-    console.print(output)
+    for model in models:
+        console.print(f"[bold]Pulling {model}...[/bold]")
+        output = manager.exec_in_ollama(["ollama", "pull", model])
+        console.print(output)
 
     console.print("\n[bold]Available models:[/bold]")
     output = manager.exec_in_ollama(["ollama", "list"])
@@ -426,7 +424,8 @@ def llm_setup(ctx, webui: bool, voice: bool, no_voice: bool, n8n: bool, all_: bo
     manager = _get_manager(ctx)
     config = manager.config
 
-    _validate_models_or_abort(config.primary_model, config.fallback_model)
+    models = config.models_to_pull
+    _validate_models_or_abort(*models)
 
     console.print("[bold]Starting LLM stack...[/bold]")
     _warn_if_low_memory()
@@ -452,13 +451,10 @@ def llm_setup(ctx, webui: bool, voice: bool, no_voice: bool, n8n: bool, all_: bo
         console.print("[bold red]Ollama failed to start after 20s[/bold red]")
         raise click.Abort()
 
-    console.print(f"\n[bold]Pulling primary model: {config.primary_model}...[/bold]")
-    output = manager.exec_in_ollama(["ollama", "pull", config.primary_model])
-    console.print(output)
-
-    console.print(f"\n[bold]Pulling fallback model: {config.fallback_model}...[/bold]")
-    output = manager.exec_in_ollama(["ollama", "pull", config.fallback_model])
-    console.print(output)
+    for model in models:
+        console.print(f"\n[bold]Pulling {model}...[/bold]")
+        output = manager.exec_in_ollama(["ollama", "pull", model])
+        console.print(output)
 
     console.print("\n[bold green]============================================[/bold green]")
     console.print("[bold green] Setup complete![/bold green]")
@@ -469,9 +465,13 @@ def llm_setup(ctx, webui: bool, voice: bool, no_voice: bool, n8n: bool, all_: bo
         console.print(f"  Open WebUI:  http://localhost:{config.webui_port}")
     if n8n:
         console.print(f"  n8n:         http://localhost:{config.n8n_port}")
-    console.print(f"\n  Primary model:  {config.primary_model}")
-    console.print(f"  Fallback model: {config.fallback_model}")
-    console.print(f"  Context window: {config.context_size} tokens")
+    console.print(f"\n  Primary chat:      {config.primary_chat_model}")
+    console.print(f"  Secondary chat:    {config.secondary_chat_model}")
+    console.print(f"  Primary coding:    {config.primary_coding_model}")
+    console.print(f"  Secondary coding:  {config.secondary_coding_model}")
+    if config.extra_models:
+        console.print(f"  Extra models:      {', '.join(config.extra_models)}")
+    console.print(f"  Context window:    {config.context_size} tokens")
     console.print("[bold green]============================================[/bold green]")
 
 
@@ -530,9 +530,13 @@ def llm_status(ctx):
         console.print(f"  n8n:                http://{lan}:{config.n8n_port}")
 
     console.print("\n[bold]Configuration:[/bold]")
-    console.print(f"  Primary model:   {config.primary_model}")
-    console.print(f"  Fallback model:  {config.fallback_model}")
-    console.print(f"  Context window:  {config.context_size} tokens")
+    console.print(f"  Primary chat:      {config.primary_chat_model}")
+    console.print(f"  Secondary chat:    {config.secondary_chat_model}")
+    console.print(f"  Primary coding:    {config.primary_coding_model}")
+    console.print(f"  Secondary coding:  {config.secondary_coding_model}")
+    if config.extra_models:
+        console.print(f"  Extra models:      {', '.join(config.extra_models)}")
+    console.print(f"  Context window:    {config.context_size} tokens")
 
     vram = get_vram_info()
     if vram is not None:
