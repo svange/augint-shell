@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.76.0 (2026-04-16)
+
+### Features
+
+- Update Ollama model lineup - swap qwen3-coder-next for Qwen3-Coder-32B A3B and add Llama 3.3
+  Abliterated
+  ([`1184b89`](https://github.com/svange/augint-shell/commit/1184b89c59f348b79caf4023fc2ea7b6199183c0))
+
+
 ## v0.75.1 (2026-04-16)
 
 ### Refactoring
