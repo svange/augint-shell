@@ -212,9 +212,9 @@ def _resolve_stacks(
 # Shared decorators for stack flags on up/down/clean/setup.
 def _stack_flags(func):
     func = click.option("--all", "all_", is_flag=True, help="Enable every optional stack.")(func)
-    func = click.option(
-        "--n8n", is_flag=True, help="n8n workflow automation engine (port 5678)."
-    )(func)
+    func = click.option("--n8n", is_flag=True, help="n8n workflow automation engine (port 5678).")(
+        func
+    )
     func = click.option(
         "--no-voice",
         "no_voice",

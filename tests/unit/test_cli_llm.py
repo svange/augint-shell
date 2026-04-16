@@ -96,49 +96,67 @@ class TestParseModelRef:
 
 class TestResolveStacks:
     def test_no_flags(self):
-        assert _resolve_stacks(
-            webui=False, voice=False, no_voice=False, n8n=False, all_=False
-        ) == (False, False, False)
+        assert _resolve_stacks(webui=False, voice=False, no_voice=False, n8n=False, all_=False) == (
+            False,
+            False,
+            False,
+        )
 
     def test_webui_implies_voice(self):
-        assert _resolve_stacks(
-            webui=True, voice=False, no_voice=False, n8n=False, all_=False
-        ) == (True, True, False)
+        assert _resolve_stacks(webui=True, voice=False, no_voice=False, n8n=False, all_=False) == (
+            True,
+            True,
+            False,
+        )
 
     def test_voice_standalone(self):
-        assert _resolve_stacks(
-            webui=False, voice=True, no_voice=False, n8n=False, all_=False
-        ) == (False, True, False)
+        assert _resolve_stacks(webui=False, voice=True, no_voice=False, n8n=False, all_=False) == (
+            False,
+            True,
+            False,
+        )
 
     def test_no_voice_wins_over_webui(self):
-        assert _resolve_stacks(
-            webui=True, voice=False, no_voice=True, n8n=False, all_=False
-        ) == (True, False, False)
+        assert _resolve_stacks(webui=True, voice=False, no_voice=True, n8n=False, all_=False) == (
+            True,
+            False,
+            False,
+        )
 
     def test_no_voice_wins_over_explicit_voice(self):
-        assert _resolve_stacks(
-            webui=False, voice=True, no_voice=True, n8n=False, all_=False
-        ) == (False, False, False)
+        assert _resolve_stacks(webui=False, voice=True, no_voice=True, n8n=False, all_=False) == (
+            False,
+            False,
+            False,
+        )
 
     def test_all_enables_everything(self):
-        assert _resolve_stacks(
-            webui=False, voice=False, no_voice=False, n8n=False, all_=True
-        ) == (True, True, True)
+        assert _resolve_stacks(webui=False, voice=False, no_voice=False, n8n=False, all_=True) == (
+            True,
+            True,
+            True,
+        )
 
     def test_no_voice_wins_over_all(self):
-        assert _resolve_stacks(
-            webui=False, voice=False, no_voice=True, n8n=False, all_=True
-        ) == (True, False, True)
+        assert _resolve_stacks(webui=False, voice=False, no_voice=True, n8n=False, all_=True) == (
+            True,
+            False,
+            True,
+        )
 
     def test_n8n_standalone(self):
-        assert _resolve_stacks(
-            webui=False, voice=False, no_voice=False, n8n=True, all_=False
-        ) == (False, False, True)
+        assert _resolve_stacks(webui=False, voice=False, no_voice=False, n8n=True, all_=False) == (
+            False,
+            False,
+            True,
+        )
 
     def test_n8n_does_not_imply_other_stacks(self):
-        assert _resolve_stacks(
-            webui=False, voice=False, no_voice=False, n8n=True, all_=False
-        ) == (False, False, True)
+        assert _resolve_stacks(webui=False, voice=False, no_voice=False, n8n=True, all_=False) == (
+            False,
+            False,
+            True,
+        )
 
 
 @patch("ai_shell.cli.commands.llm.HTTPSConnection")
