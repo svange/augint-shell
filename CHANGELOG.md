@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.80.0 (2026-04-16)
+
+### Features
+
+- Update ai-shell.yaml configuration to include new LLM model slots and enhance test validation
+  ([`98fca03`](https://github.com/svange/augint-shell/commit/98fca03f5e6b86cebf61168a27122d94f0b8dbce))
+
+
 ## v0.79.0 (2026-04-16)
 
 ### Features
