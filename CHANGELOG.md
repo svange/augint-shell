@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.77.0 (2026-04-16)
+
+### Features
+
+- Add LobeChat container support and update fallback model
+  ([`d9dbf48`](https://github.com/svange/augint-shell/commit/d9dbf489a24bf3d06a1a8b2310b2a5a91874db70))
+
+
 ## v0.76.0 (2026-04-16)
 
 ### Features
