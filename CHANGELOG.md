@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.79.0 (2026-04-16)
+
+### Features
+
+- Refactor LLM configuration to support role-specific model slots and remove legacy keys
+  ([`78f49b4`](https://github.com/svange/augint-shell/commit/78f49b4c69577666b934c0b9073c975046e5867d))
+
+
 ## v0.78.0 (2026-04-16)
 
 ### Bug Fixes
