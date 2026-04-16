@@ -37,9 +37,7 @@ def _generate_worktree_name() -> str:
 def _print_tmux_quick_start() -> None:
     """Print a short tmux quick-start before attaching."""
     console.print("[dim]tmux: mouse click=focus drag=resize wheel=scroll[/dim]")
-    console.print(
-        "[dim]      Ctrl-a o=pane c=tab Space=layout z=zoom d=detach &=kill-tab[/dim]"
-    )
+    console.print("[dim]      Ctrl-a o=pane c=tab Space=layout z=zoom d=detach &=kill-tab[/dim]")
 
 
 def _setup_worktree(container_name: str, container_project_dir: str, name: str) -> str:

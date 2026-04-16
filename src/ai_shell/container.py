@@ -10,7 +10,6 @@ import logging
 import subprocess
 import sys
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
 from docker.errors import APIError, ImageNotFound, NotFound
@@ -18,9 +17,10 @@ from docker.types import DeviceRequest, Mount
 
 import docker
 from ai_shell.defaults import (
+    KOKORO_CONTAINER,
+    KOKORO_IMAGE_CPU,
+    KOKORO_IMAGE_GPU,
     LLM_NETWORK,
-    LOBECHAT_CONTAINER,
-    LOBECHAT_IMAGE,
     OLLAMA_CONTAINER,
     OLLAMA_CPU_SHARES,
     OLLAMA_DATA_VOLUME,
@@ -42,6 +42,8 @@ from ai_shell.exceptions import (
 from ai_shell.gpu import detect_gpu, get_vram_info
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from docker.models.containers import Container
 
     from ai_shell.config import AiShellConfig
@@ -278,6 +280,14 @@ class ContainerManager:
         device_requests = None
         env: dict[str, str] = {
             "OLLAMA_CONTEXT_LENGTH": str(self.config.context_size),
+            # Flash attention trims activation memory at no quality cost and
+            # is a prerequisite for KV cache quantization.
+            "OLLAMA_FLASH_ATTENTION": "1",
+            # Quantize the KV cache to 8-bit; near-lossless, halves cache
+            # size. Combined with Ollama's dynamic GPU/CPU offload, this
+            # buys significant headroom for large models without hard-pinning
+            # a num_gpu value in any Modelfile.
+            "OLLAMA_KV_CACHE_TYPE": "q8_0",
         }
         if gpu_available:
             device_requests = [DeviceRequest(count=1, capabilities=[["gpu"]])]
@@ -322,10 +332,12 @@ class ContainerManager:
         logger.info("Ollama container created on port %d", self.config.ollama_port)
         return OLLAMA_CONTAINER
 
-    def ensure_webui(self) -> str:
+    def ensure_webui(self, voice_enabled: bool = False) -> str:
         """Get or create the Open WebUI container.
 
-        Returns the container name.
+        When *voice_enabled* is True, pre-wires the container to use the
+        Kokoro TTS container as its OpenAI-compatible speech backend so
+        the user doesn't need to configure it in the UI.
         """
         container = self._get_container(WEBUI_CONTAINER)
 
@@ -339,14 +351,26 @@ class ContainerManager:
         self._pull_image_if_needed(WEBUI_IMAGE)
         network_name = self._ensure_llm_network()
 
+        environment = {
+            "OLLAMA_BASE_URL": f"http://{OLLAMA_CONTAINER}:11434",
+            "WEBUI_AUTH": "false",
+        }
+        if voice_enabled:
+            environment.update(
+                {
+                    "AUDIO_TTS_ENGINE": "openai",
+                    "AUDIO_TTS_OPENAI_API_BASE_URL": f"http://{KOKORO_CONTAINER}:8880/v1",
+                    "AUDIO_TTS_OPENAI_API_KEY": "dummy",
+                    "AUDIO_TTS_MODEL": "kokoro",
+                    "AUDIO_TTS_VOICE": self.config.kokoro_voice,
+                }
+            )
+
         self.client.containers.run(
             image=WEBUI_IMAGE,
             name=WEBUI_CONTAINER,
             ports={"8080/tcp": ("0.0.0.0", self.config.webui_port)},  # nosec B104
-            environment={
-                "OLLAMA_BASE_URL": f"http://{OLLAMA_CONTAINER}:11434",
-                "WEBUI_AUTH": "false",
-            },
+            environment=environment,
             mounts=[
                 Mount(
                     target="/app/backend/data",
@@ -362,50 +386,40 @@ class ContainerManager:
         logger.info("Open WebUI container created on port %d", self.config.webui_port)
         return WEBUI_CONTAINER
 
-    def ensure_lobechat(self) -> str:
-        """Get or create the LobeChat container.
+    def ensure_kokoro(self) -> str:
+        """Get or create the Kokoro-FastAPI (local TTS) container.
 
-        Client-DB mode: state lives in the browser's IndexedDB, so no
-        persistent server-side volume is needed.
-
-        Returns the container name.
+        Exposes an OpenAI-compatible ``/v1/audio/speech`` endpoint on the
+        configured port. GPU image is used when NVIDIA is detected;
+        otherwise the CPU image.
         """
-        container = self._get_container(LOBECHAT_CONTAINER)
-
+        container = self._get_container(KOKORO_CONTAINER)
         if container is not None:
             if container.status != "running":
-                logger.info("Starting existing LobeChat container")
+                logger.info("Starting existing Kokoro container")
                 container.start()
-            return LOBECHAT_CONTAINER
+            return KOKORO_CONTAINER
 
-        logger.info("Creating LobeChat container")
-        self._pull_image_if_needed(LOBECHAT_IMAGE)
+        gpu_available = detect_gpu()
+        image = KOKORO_IMAGE_GPU if gpu_available else KOKORO_IMAGE_CPU
+        logger.info("Creating Kokoro container (%s)", "GPU" if gpu_available else "CPU")
+        self._pull_image_if_needed(image)
         network_name = self._ensure_llm_network()
 
-        # LobeChat env-var notes:
-        # - OLLAMA_PROXY_URL: base URL only (no /v1); LobeChat appends /api/tags
-        #   etc. itself. Including /v1 breaks Ollama model auto-discovery.
-        # - DEFAULT_AGENT_CONFIG: semicolon-separated key=value pairs; sets the
-        #   provider/model used for new chats so the UI doesn't default to OpenAI.
-        # - ENABLED_OPENAI=0: hides the OpenAI provider entirely (this stack is
-        #   local-only).
-        self.client.containers.run(
-            image=LOBECHAT_IMAGE,
-            name=LOBECHAT_CONTAINER,
-            ports={"3210/tcp": ("0.0.0.0", self.config.lobechat_port)},  # nosec B104
-            environment={
-                "OLLAMA_PROXY_URL": f"http://{OLLAMA_CONTAINER}:11434",
-                "DEFAULT_AGENT_CONFIG": (f"model={self.config.fallback_model};provider=ollama"),
-                "ENABLED_OPENAI": "0",
-                "ACCESS_CODE": "",
-            },
-            restart_policy={"Name": "unless-stopped"},
-            detach=True,
-            network=network_name,
-        )
+        kwargs: dict = {
+            "image": image,
+            "name": KOKORO_CONTAINER,
+            "ports": {"8880/tcp": ("0.0.0.0", self.config.kokoro_port)},  # nosec B104
+            "restart_policy": {"Name": "unless-stopped"},
+            "detach": True,
+            "network": network_name,
+        }
+        if gpu_available:
+            kwargs["device_requests"] = [DeviceRequest(count=1, capabilities=[["gpu"]])]
 
-        logger.info("LobeChat container created on port %d", self.config.lobechat_port)
-        return LOBECHAT_CONTAINER
+        self.client.containers.run(**kwargs)
+        logger.info("Kokoro container created on port %d", self.config.kokoro_port)
+        return KOKORO_CONTAINER
 
     def exec_in_ollama(self, command: list[str]) -> str:
         """Run a command in the Ollama container and return stdout.
