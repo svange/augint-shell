@@ -43,9 +43,13 @@ def manage_status(ctx):
         console.print(f"[green]{name}: running[/green]")
         ports = manager.container_ports(name)
         if ports:
-            console.print("  [bold]Ports:[/bold]")
+            console.print("\n  [bold]Dev server URLs:[/bold]")
             for container_port, host_addr in ports.items():
-                console.print(f"    {container_port} -> {host_addr}")
+                host_port = host_addr.rsplit(":", 1)[-1]
+                label = container_port.split("/")[0]
+                console.print(
+                    f"    [cyan]http://localhost:{host_port}[/cyan]  [dim italic]({label})[/dim]"
+                )
     else:
         console.print(f"[yellow]{name}: {status}[/yellow]")
 

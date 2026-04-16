@@ -21,6 +21,7 @@ from ai_shell.defaults import (
     WHISPER_DATA_VOLUME,
     WHISPER_IMAGE_CPU,
     WHISPER_IMAGE_GPU,
+    project_dev_port,
 )
 from ai_shell.exceptions import ContainerNotFoundError, DockerNotAvailableError, ImagePullError
 
@@ -115,8 +116,12 @@ class TestEnsureDevContainer:
         assert call_kwargs["extra_hosts"] == {"host.docker.internal": "host-gateway"}
         assert call_kwargs["detach"] is True
 
-        # Verify all default dev ports are exposed with ephemeral host mapping
-        expected_ports = {f"{port}/tcp": None for port in sorted(DEFAULT_DEV_PORTS)}
+        # Verify all default dev ports have deterministic host mapping
+        project_dir = mock_container_manager.config.project_dir
+        expected_ports = {
+            f"{port}/tcp": ("0.0.0.0", project_dev_port(project_dir, port, "test-project"))
+            for port in sorted(DEFAULT_DEV_PORTS)
+        }
         assert call_kwargs["ports"] == expected_ports
 
     def test_creates_container_with_extra_ports(self, mock_docker_client):

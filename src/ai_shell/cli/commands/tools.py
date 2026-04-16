@@ -29,6 +29,19 @@ FAST_FAILURE_THRESHOLD = 5.0  # seconds — if claude -c exits faster, retry wit
 WORKTREE_BASE_DIR = ".claude/worktrees"
 
 
+def _print_dev_ports(manager: ContainerManager, container_name: str) -> None:
+    """Print dev container port mappings as browsable URLs."""
+    port_map = manager.container_ports(container_name)
+    if not port_map:
+        return
+    console.print("[dim]Dev server URLs:[/dim]")
+    for container_port, host_addr in port_map.items():
+        # host_addr is "0.0.0.0:27431" — extract just the port number
+        host_port = host_addr.rsplit(":", 1)[-1]
+        label = container_port.split("/")[0]  # "3000/tcp" -> "3000"
+        console.print(f"  [dim]http://localhost:{host_port}[/dim]  [dim italic]({label})[/dim]")
+
+
 def _generate_worktree_name() -> str:
     """Return a short random hex string for an auto-named worktree."""
     return uuid.uuid4().hex[:8]
@@ -220,6 +233,7 @@ def _get_manager(
 
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
+    _print_dev_ports(manager, container_name)
     exec_env = build_dev_environment(
         config.extra_env,
         config.project_dir,
@@ -292,6 +306,8 @@ def _launch_loaded_config_claude(
     use_bedrock = use_aws or config.claude_provider == "aws"
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
+    _print_dev_ports(manager, container_name)
+
     exec_env = build_dev_environment(
         config.extra_env,
         config.project_dir,
@@ -426,6 +442,7 @@ def _launch_interactive(
         if choice.pane_type == PaneType.BASH:
             manager = ContainerManager(config)
             container_name = manager.ensure_dev_container()
+            _print_dev_ports(manager, container_name)
             exec_env = build_dev_environment(
                 config.extra_env,
                 config.project_dir,
@@ -501,6 +518,7 @@ def _launch_interactive(
     use_bedrock = use_aws or config.claude_provider == "aws"
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
+    _print_dev_ports(manager, container_name)
     exec_env = build_dev_environment(
         config.extra_env,
         config.project_dir,
@@ -601,6 +619,7 @@ def _launch_team(
 
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
+    _print_dev_ports(manager, container_name)
     exec_env = build_dev_environment(
         config.extra_env,
         config.project_dir,
@@ -673,6 +692,7 @@ def _launch_single_repo_multi(
     use_bedrock = use_aws or config.claude_provider == "aws"
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
+    _print_dev_ports(manager, container_name)
     exec_env = build_dev_environment(
         config.extra_env,
         config.project_dir,
@@ -865,6 +885,7 @@ def _launch_multi(
     use_bedrock = use_aws or config.claude_provider == "aws"
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
+    _print_dev_ports(manager, container_name)
     exec_env = build_dev_environment(
         config.extra_env,
         config.project_dir,

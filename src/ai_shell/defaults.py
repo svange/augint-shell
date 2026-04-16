@@ -82,6 +82,10 @@ DEFAULT_VOICE_AGENT_PORT = 8010
 DEFAULT_KOKORO_VOICE = "af_bella"
 DEFAULT_DEV_PORTS = [3000, 4200, 5000, 5173, 5678, 8000, 8080, 8888]
 
+# Deterministic dev port mapping (avoids Chrome debug range 40000-60000)
+DEV_PORT_RANGE_START = 10000
+DEV_PORT_RANGE_SIZE = 30000  # 10000-39999
+
 # =============================================================================
 # Bedrock defaults
 # =============================================================================
@@ -142,6 +146,21 @@ def dev_container_name(project_name: str, project_dir: Path | None = None) -> st
     if project_dir is None:
         return f"{CONTAINER_PREFIX}-{project_name}-dev"
     return f"{CONTAINER_PREFIX}-{unique_project_name(project_dir, project_name)}-dev"
+
+
+def project_dev_port(
+    project_dir: Path, container_port: int, project_name: str | None = None
+) -> int:
+    """Map a container port to a stable per-project host port.
+
+    Uses the same project identity as container naming (unique_project_name)
+    combined with the container port to produce a deterministic host port
+    in the 10000-39999 range. Different projects get different host ports
+    for the same container port, so multiple projects can run simultaneously.
+    """
+    slug = unique_project_name(project_dir, project_name)
+    digest = sha1(f"{slug}:{container_port}".encode(), usedforsecurity=False).hexdigest()
+    return DEV_PORT_RANGE_START + (int(digest[:8], 16) % DEV_PORT_RANGE_SIZE)
 
 
 def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:

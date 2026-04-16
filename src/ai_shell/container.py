@@ -44,6 +44,7 @@ from ai_shell.defaults import (
     build_dev_environment,
     build_dev_mounts,
     dev_container_name,
+    project_dev_port,
 )
 from ai_shell.exceptions import (
     ContainerNotFoundError,
@@ -190,7 +191,17 @@ class ContainerManager:
             shm_size=SHM_SIZE,
             init=True,
             extra_hosts={"host.docker.internal": "host-gateway"},
-            ports={f"{port}/tcp": None for port in self.config.dev_ports},
+            ports={
+                f"{port}/tcp": (
+                    (
+                        "0.0.0.0",
+                        project_dev_port(self.config.project_dir, port, self.config.project_name),
+                    )  # nosec B104
+                    if self.config.project_dir
+                    else None
+                )
+                for port in self.config.dev_ports
+            },
             detach=True,
         )
         logger.info("Container created: %s", name)

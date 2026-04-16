@@ -5,12 +5,15 @@ from unittest.mock import patch
 
 from ai_shell.defaults import (
     CONTAINER_PREFIX,
+    DEV_PORT_RANGE_SIZE,
+    DEV_PORT_RANGE_START,
     GH_CONFIG_VOLUME,
     NPM_CACHE_VOLUME,
     UV_CACHE_VOLUME,
     build_dev_environment,
     build_dev_mounts,
     dev_container_name,
+    project_dev_port,
     sanitize_project_name,
     unique_project_name,
     uv_venv_path,
@@ -61,6 +64,37 @@ class TestDevContainerName:
             Path("/home/user/projects/woxom-ecosystem/woxom-infra"),
         )
         assert root != nested
+
+
+class TestProjectDevPort:
+    def test_deterministic(self, tmp_path):
+        port1 = project_dev_port(tmp_path, 3000)
+        port2 = project_dev_port(tmp_path, 3000)
+        assert port1 == port2
+
+    def test_in_range(self, tmp_path):
+        port = project_dev_port(tmp_path, 3000)
+        assert DEV_PORT_RANGE_START <= port < DEV_PORT_RANGE_START + DEV_PORT_RANGE_SIZE
+
+    def test_differs_per_project(self, tmp_path):
+        dir_a = tmp_path / "project-a"
+        dir_b = tmp_path / "project-b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+        assert project_dev_port(dir_a, 3000) != project_dev_port(dir_b, 3000)
+
+    def test_differs_per_container_port(self, tmp_path):
+        assert project_dev_port(tmp_path, 3000) != project_dev_port(tmp_path, 5173)
+
+    def test_accepts_project_name_override(self, tmp_path):
+        port_default = project_dev_port(tmp_path, 3000)
+        port_named = project_dev_port(tmp_path, 3000, project_name="custom")
+        assert port_default != port_named
+
+    def test_stable_across_calls_with_name(self, tmp_path):
+        port1 = project_dev_port(tmp_path, 8080, project_name="my-app")
+        port2 = project_dev_port(tmp_path, 8080, project_name="my-app")
+        assert port1 == port2
 
 
 class TestBuildDevMounts:
