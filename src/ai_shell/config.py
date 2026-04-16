@@ -28,6 +28,7 @@ from ai_shell.defaults import (
     DEFAULT_IMAGE,
     DEFAULT_KOKORO_PORT,
     DEFAULT_KOKORO_VOICE,
+    DEFAULT_N8N_PORT,
     DEFAULT_OLLAMA_PORT,
     DEFAULT_PRIMARY_MODEL,
     DEFAULT_WEBUI_PORT,
@@ -54,6 +55,7 @@ class AiShellConfig:
     webui_port: int = DEFAULT_WEBUI_PORT
     kokoro_port: int = DEFAULT_KOKORO_PORT
     kokoro_voice: str = DEFAULT_KOKORO_VOICE
+    n8n_port: int = DEFAULT_N8N_PORT
 
     # Extra configuration
     extra_env: dict[str, str] = field(default_factory=dict)
@@ -188,6 +190,8 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.kokoro_port = int(llm["kokoro_port"])
     if "kokoro_voice" in llm:
         config.kokoro_voice = str(llm["kokoro_voice"])
+    if "n8n_port" in llm:
+        config.n8n_port = int(llm["n8n_port"])
 
     # [aws] section
     aws = data.get("aws", {})
@@ -223,6 +227,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_WEBUI_PORT": ("webui_port", int),
         "AI_SHELL_KOKORO_PORT": ("kokoro_port", int),
         "AI_SHELL_KOKORO_VOICE": ("kokoro_voice", str),
+        "AI_SHELL_N8N_PORT": ("n8n_port", int),
         "AI_SHELL_AI_PROFILE": ("ai_profile", str),
         "AI_SHELL_AWS_REGION": ("aws_region", str),
         "AI_SHELL_BEDROCK_PROFILE": ("bedrock_profile", str),

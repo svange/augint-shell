@@ -13,6 +13,8 @@ from ai_shell.cli.commands.llm import (
 )
 from ai_shell.defaults import (
     KOKORO_CONTAINER,
+    N8N_CONTAINER,
+    N8N_DATA_VOLUME,
     OLLAMA_CONTAINER,
     OLLAMA_DATA_VOLUME,
     WEBUI_CONTAINER,
@@ -94,34 +96,49 @@ class TestParseModelRef:
 
 class TestResolveStacks:
     def test_no_flags(self):
-        assert _resolve_stacks(webui=False, voice=False, no_voice=False, all_=False) == (
-            False,
-            False,
-        )
+        assert _resolve_stacks(
+            webui=False, voice=False, no_voice=False, n8n=False, all_=False
+        ) == (False, False, False)
 
     def test_webui_implies_voice(self):
-        assert _resolve_stacks(webui=True, voice=False, no_voice=False, all_=False) == (True, True)
+        assert _resolve_stacks(
+            webui=True, voice=False, no_voice=False, n8n=False, all_=False
+        ) == (True, True, False)
 
     def test_voice_standalone(self):
-        assert _resolve_stacks(webui=False, voice=True, no_voice=False, all_=False) == (
-            False,
-            True,
-        )
+        assert _resolve_stacks(
+            webui=False, voice=True, no_voice=False, n8n=False, all_=False
+        ) == (False, True, False)
 
     def test_no_voice_wins_over_webui(self):
-        assert _resolve_stacks(webui=True, voice=False, no_voice=True, all_=False) == (True, False)
+        assert _resolve_stacks(
+            webui=True, voice=False, no_voice=True, n8n=False, all_=False
+        ) == (True, False, False)
 
     def test_no_voice_wins_over_explicit_voice(self):
-        assert _resolve_stacks(webui=False, voice=True, no_voice=True, all_=False) == (
-            False,
-            False,
-        )
+        assert _resolve_stacks(
+            webui=False, voice=True, no_voice=True, n8n=False, all_=False
+        ) == (False, False, False)
 
     def test_all_enables_everything(self):
-        assert _resolve_stacks(webui=False, voice=False, no_voice=False, all_=True) == (True, True)
+        assert _resolve_stacks(
+            webui=False, voice=False, no_voice=False, n8n=False, all_=True
+        ) == (True, True, True)
 
     def test_no_voice_wins_over_all(self):
-        assert _resolve_stacks(webui=False, voice=False, no_voice=True, all_=True) == (True, False)
+        assert _resolve_stacks(
+            webui=False, voice=False, no_voice=True, n8n=False, all_=True
+        ) == (True, False, True)
+
+    def test_n8n_standalone(self):
+        assert _resolve_stacks(
+            webui=False, voice=False, no_voice=False, n8n=True, all_=False
+        ) == (False, False, True)
+
+    def test_n8n_does_not_imply_other_stacks(self):
+        assert _resolve_stacks(
+            webui=False, voice=False, no_voice=False, n8n=True, all_=False
+        ) == (False, False, True)
 
 
 @patch("ai_shell.cli.commands.llm.HTTPSConnection")
@@ -190,6 +207,7 @@ def _make_manager_config() -> MagicMock:
     config.webui_port = 3000
     config.kokoro_port = 8880
     config.kokoro_voice = "af_bella"
+    config.n8n_port = 5678
     config.primary_model = "qwen3-coder:30b-a3b-q4_K_M"
     config.fallback_model = "huihui_ai/llama3.3-abliterated"
     config.context_size = 32768
@@ -290,8 +308,28 @@ class TestLlmCommands:
         manager.ensure_ollama.assert_called_once()
         manager.ensure_webui.assert_called_once()
         manager.ensure_kokoro.assert_called_once()
+        manager.ensure_n8n.assert_called_once()
         # WebUI is pre-wired to TTS.
         assert manager.ensure_webui.call_args.kwargs.get("voice_enabled") is True
+        assert "5678" in result.output
+
+    def test_llm_up_n8n_flag_standalone(self, mock_config, mock_manager_cls):
+        """--n8n alone starts n8n without WebUI or Kokoro."""
+        config = _make_manager_config()
+        mock_config.return_value = config
+
+        manager = MagicMock()
+        manager.config = config
+        mock_manager_cls.return_value = manager
+
+        result = self.runner.invoke(cli, ["llm", "up", "--n8n"])
+
+        assert result.exit_code == 0
+        manager.ensure_n8n.assert_called_once()
+        manager.ensure_webui.assert_not_called()
+        manager.ensure_kokoro.assert_not_called()
+        assert "n8n" in result.output
+        assert "5678" in result.output
 
     # ------------------------------------------------------------------
     # down
@@ -316,8 +354,22 @@ class TestLlmCommands:
 
         assert result.exit_code == 0
         stopped = [c.args[0] for c in manager.stop_container.call_args_list]
-        for name in (OLLAMA_CONTAINER, WEBUI_CONTAINER, KOKORO_CONTAINER):
+        for name in (OLLAMA_CONTAINER, WEBUI_CONTAINER, KOKORO_CONTAINER, N8N_CONTAINER):
             assert name in stopped
+
+    def test_llm_down_n8n_only_stops_ollama_and_n8n(self, mock_config, mock_manager_cls):
+        manager = MagicMock()
+        manager.container_status.return_value = "running"
+        mock_manager_cls.return_value = manager
+
+        result = self.runner.invoke(cli, ["llm", "down", "--n8n"])
+
+        assert result.exit_code == 0
+        stopped = [c.args[0] for c in manager.stop_container.call_args_list]
+        assert OLLAMA_CONTAINER in stopped
+        assert N8N_CONTAINER in stopped
+        assert WEBUI_CONTAINER not in stopped
+        assert KOKORO_CONTAINER not in stopped
 
     def test_llm_down_webui_no_voice_leaves_kokoro_alone(self, mock_config, mock_manager_cls):
         """--webui --no-voice stops WebUI but leaves Kokoro running."""
@@ -366,12 +418,13 @@ class TestLlmCommands:
 
         assert result.exit_code == 0
         removed_containers = [c.args[0] for c in manager.remove_container.call_args_list]
-        for name in (OLLAMA_CONTAINER, WEBUI_CONTAINER, KOKORO_CONTAINER):
+        for name in (OLLAMA_CONTAINER, WEBUI_CONTAINER, KOKORO_CONTAINER, N8N_CONTAINER):
             assert name in removed_containers
 
         removed_volumes = [c.args[0] for c in manager.remove_volume.call_args_list]
         assert OLLAMA_DATA_VOLUME in removed_volumes
         assert WEBUI_DATA_VOLUME in removed_volumes
+        assert N8N_DATA_VOLUME in removed_volumes
 
     def test_llm_clean_webui_wipe_only_removes_webui_volume(self, mock_config, mock_manager_cls):
         """--wipe without --all must not touch unrelated stack volumes."""
@@ -441,10 +494,12 @@ class TestLlmCommands:
         assert "Base stack" in result.output
         assert "WebUI stack" in result.output
         assert "Voice stack" in result.output
+        assert "n8n stack" in result.output
         assert "http://localhost:11434" in result.output
         assert "http://localhost:11434/v1" in result.output
         assert "http://localhost:3000" in result.output
         assert "http://localhost:8880" in result.output
+        assert "http://localhost:5678" in result.output
         # Configured model + context size.
         assert "qwen3-coder:30b-a3b-q4_K_M" in result.output
         assert "32768" in result.output

@@ -21,6 +21,9 @@ from ai_shell.defaults import (
     KOKORO_IMAGE_CPU,
     KOKORO_IMAGE_GPU,
     LLM_NETWORK,
+    N8N_CONTAINER,
+    N8N_DATA_VOLUME,
+    N8N_IMAGE,
     OLLAMA_CONTAINER,
     OLLAMA_CPU_SHARES,
     OLLAMA_DATA_VOLUME,
@@ -420,6 +423,50 @@ class ContainerManager:
         self.client.containers.run(**kwargs)
         logger.info("Kokoro container created on port %d", self.config.kokoro_port)
         return KOKORO_CONTAINER
+
+    def ensure_n8n(self) -> str:
+        """Get or create the n8n workflow automation container.
+
+        Standalone service; does not integrate with Ollama or Kokoro. Data
+        (workflows, credentials, settings) is persisted to a named volume.
+        """
+        container = self._get_container(N8N_CONTAINER)
+
+        if container is not None:
+            if container.status != "running":
+                logger.info("Starting existing n8n container")
+                container.start()
+            return N8N_CONTAINER
+
+        logger.info("Creating n8n container")
+        self._pull_image_if_needed(N8N_IMAGE)
+        network_name = self._ensure_llm_network()
+
+        environment = {
+            # Disable secure-cookie enforcement so the UI works over plain
+            # http://localhost without a reverse proxy.
+            "N8N_SECURE_COOKIE": "false",
+        }
+
+        self.client.containers.run(
+            image=N8N_IMAGE,
+            name=N8N_CONTAINER,
+            ports={"5678/tcp": ("0.0.0.0", self.config.n8n_port)},  # nosec B104
+            environment=environment,
+            mounts=[
+                Mount(
+                    target="/home/node/.n8n",
+                    source=N8N_DATA_VOLUME,
+                    type="volume",
+                )
+            ],
+            restart_policy={"Name": "unless-stopped"},
+            detach=True,
+            network=network_name,
+        )
+
+        logger.info("n8n container created on port %d", self.config.n8n_port)
+        return N8N_CONTAINER
 
     def exec_in_ollama(self, command: list[str]) -> str:
         """Run a command in the Ollama container and return stdout.

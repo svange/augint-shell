@@ -14,6 +14,7 @@ class TestAiShellConfig:
         assert config.ollama_port == 11434
         assert config.webui_port == 3000
         assert config.kokoro_port == 8880
+        assert config.n8n_port == 5678
 
     def test_full_image(self):
         config = AiShellConfig(image="svange/augint-shell", image_tag="1.2.3")
