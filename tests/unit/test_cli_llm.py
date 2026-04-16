@@ -17,6 +17,8 @@ from ai_shell.defaults import (
     N8N_DATA_VOLUME,
     OLLAMA_CONTAINER,
     OLLAMA_DATA_VOLUME,
+    VOICE_AGENT_CONTAINER,
+    VOICE_AGENT_DATA_VOLUME,
     WEBUI_CONTAINER,
     WEBUI_DATA_VOLUME,
     WHISPER_CONTAINER,
@@ -99,113 +101,146 @@ class TestParseModelRef:
 class TestResolveStacks:
     def test_no_flags(self):
         assert _resolve_stacks(
-            webui=False, voice=False, no_voice=False, whisper=False, n8n=False, all_=False
-        ) == (
-            False,
-            False,
-            False,
-            False,
-        )
+            webui=False,
+            voice=False,
+            no_voice=False,
+            whisper=False,
+            voice_agent=False,
+            n8n=False,
+            all_=False,
+        ) == (False, False, False, False, False)
 
     def test_webui_implies_voice(self):
         assert _resolve_stacks(
-            webui=True, voice=False, no_voice=False, whisper=False, n8n=False, all_=False
-        ) == (
-            True,
-            True,
-            False,
-            False,
-        )
+            webui=True,
+            voice=False,
+            no_voice=False,
+            whisper=False,
+            voice_agent=False,
+            n8n=False,
+            all_=False,
+        ) == (True, True, False, False, False)
 
     def test_voice_standalone(self):
         assert _resolve_stacks(
-            webui=False, voice=True, no_voice=False, whisper=False, n8n=False, all_=False
-        ) == (
-            False,
-            True,
-            False,
-            False,
-        )
+            webui=False,
+            voice=True,
+            no_voice=False,
+            whisper=False,
+            voice_agent=False,
+            n8n=False,
+            all_=False,
+        ) == (False, True, False, False, False)
 
     def test_no_voice_wins_over_webui(self):
         assert _resolve_stacks(
-            webui=True, voice=False, no_voice=True, whisper=False, n8n=False, all_=False
-        ) == (
-            True,
-            False,
-            False,
-            False,
-        )
+            webui=True,
+            voice=False,
+            no_voice=True,
+            whisper=False,
+            voice_agent=False,
+            n8n=False,
+            all_=False,
+        ) == (True, False, False, False, False)
 
     def test_no_voice_wins_over_explicit_voice(self):
         assert _resolve_stacks(
-            webui=False, voice=True, no_voice=True, whisper=False, n8n=False, all_=False
-        ) == (
-            False,
-            False,
-            False,
-            False,
-        )
+            webui=False,
+            voice=True,
+            no_voice=True,
+            whisper=False,
+            voice_agent=False,
+            n8n=False,
+            all_=False,
+        ) == (False, False, False, False, False)
 
     def test_all_enables_everything(self):
         assert _resolve_stacks(
-            webui=False, voice=False, no_voice=False, whisper=False, n8n=False, all_=True
-        ) == (
-            True,
-            True,
-            True,
-            True,
-        )
+            webui=False,
+            voice=False,
+            no_voice=False,
+            whisper=False,
+            voice_agent=False,
+            n8n=False,
+            all_=True,
+        ) == (True, True, True, True, True)
 
     def test_no_voice_wins_over_all(self):
         assert _resolve_stacks(
-            webui=False, voice=False, no_voice=True, whisper=False, n8n=False, all_=True
-        ) == (
-            True,
-            False,
-            True,
-            True,
-        )
+            webui=False,
+            voice=False,
+            no_voice=True,
+            whisper=False,
+            voice_agent=False,
+            n8n=False,
+            all_=True,
+        ) == (True, False, True, True, True)
 
     def test_n8n_standalone(self):
         assert _resolve_stacks(
-            webui=False, voice=False, no_voice=False, whisper=False, n8n=True, all_=False
-        ) == (
-            False,
-            False,
-            False,
-            True,
-        )
+            webui=False,
+            voice=False,
+            no_voice=False,
+            whisper=False,
+            voice_agent=False,
+            n8n=True,
+            all_=False,
+        ) == (False, False, False, False, True)
 
     def test_n8n_does_not_imply_other_stacks(self):
         assert _resolve_stacks(
-            webui=False, voice=False, no_voice=False, whisper=False, n8n=True, all_=False
-        ) == (
-            False,
-            False,
-            False,
-            True,
-        )
+            webui=False,
+            voice=False,
+            no_voice=False,
+            whisper=False,
+            voice_agent=False,
+            n8n=True,
+            all_=False,
+        ) == (False, False, False, False, True)
 
     def test_whisper_standalone(self):
         assert _resolve_stacks(
-            webui=False, voice=False, no_voice=False, whisper=True, n8n=False, all_=False
-        ) == (
-            False,
-            False,
-            True,
-            False,
-        )
+            webui=False,
+            voice=False,
+            no_voice=False,
+            whisper=True,
+            voice_agent=False,
+            n8n=False,
+            all_=False,
+        ) == (False, False, True, False, False)
 
     def test_whisper_does_not_imply_other_stacks(self):
         assert _resolve_stacks(
-            webui=False, voice=False, no_voice=False, whisper=True, n8n=False, all_=False
-        ) == (
-            False,
-            False,
-            True,
-            False,
-        )
+            webui=False,
+            voice=False,
+            no_voice=False,
+            whisper=True,
+            voice_agent=False,
+            n8n=False,
+            all_=False,
+        ) == (False, False, True, False, False)
+
+    def test_voice_agent_standalone(self):
+        assert _resolve_stacks(
+            webui=False,
+            voice=False,
+            no_voice=False,
+            whisper=False,
+            voice_agent=True,
+            n8n=False,
+            all_=False,
+        ) == (False, False, False, True, False)
+
+    def test_voice_agent_does_not_imply_other_stacks(self):
+        assert _resolve_stacks(
+            webui=False,
+            voice=False,
+            no_voice=False,
+            whisper=False,
+            voice_agent=True,
+            n8n=False,
+            all_=False,
+        ) == (False, False, False, True, False)
 
 
 @patch("ai_shell.cli.commands.llm.HTTPSConnection")
@@ -277,6 +312,8 @@ def _make_manager_config() -> MagicMock:
     config.n8n_port = 5678
     config.whisper_port = 8001
     config.whisper_model = "Systran/faster-distil-whisper-large-v3"
+    config.voice_agent = MagicMock()
+    config.voice_agent.port = 8010
     config.primary_chat_model = "qwen3.5:27b"
     config.secondary_chat_model = "huihui_ai/qwen3.5-abliterated:27b"
     config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
@@ -387,11 +424,13 @@ class TestLlmCommands:
         manager.ensure_webui.assert_called_once()
         manager.ensure_kokoro.assert_called_once()
         manager.ensure_whisper.assert_called_once()
+        manager.ensure_voice_agent.assert_called_once()
         manager.ensure_n8n.assert_called_once()
         # WebUI is pre-wired to TTS.
         assert manager.ensure_webui.call_args.kwargs.get("voice_enabled") is True
         assert "5678" in result.output
         assert "8001" in result.output
+        assert "8010" in result.output
 
     def test_llm_up_whisper_flag_standalone(self, mock_config, mock_manager_cls):
         """--whisper alone starts Speaches without WebUI or Kokoro."""
@@ -410,6 +449,25 @@ class TestLlmCommands:
         manager.ensure_kokoro.assert_not_called()
         assert "Speaches" in result.output
         assert "8001" in result.output
+
+    def test_llm_up_voice_agent_flag_standalone(self, mock_config, mock_manager_cls):
+        """--voice-agent alone starts the voice-agent without WebUI or Kokoro."""
+        config = _make_manager_config()
+        mock_config.return_value = config
+
+        manager = MagicMock()
+        manager.config = config
+        mock_manager_cls.return_value = manager
+
+        result = self.runner.invoke(cli, ["llm", "up", "--voice-agent"])
+
+        assert result.exit_code == 0
+        manager.ensure_voice_agent.assert_called_once()
+        manager.ensure_webui.assert_not_called()
+        manager.ensure_kokoro.assert_not_called()
+        manager.ensure_whisper.assert_not_called()
+        assert "Voice agent" in result.output
+        assert "8010" in result.output
 
     def test_llm_up_n8n_flag_standalone(self, mock_config, mock_manager_cls):
         """--n8n alone starts n8n without WebUI or Kokoro."""
@@ -457,9 +515,28 @@ class TestLlmCommands:
             WEBUI_CONTAINER,
             KOKORO_CONTAINER,
             WHISPER_CONTAINER,
+            VOICE_AGENT_CONTAINER,
             N8N_CONTAINER,
         ):
             assert name in stopped
+
+    def test_llm_down_voice_agent_only_stops_ollama_and_voice_agent(
+        self, mock_config, mock_manager_cls
+    ):
+        manager = MagicMock()
+        manager.container_status.return_value = "running"
+        mock_manager_cls.return_value = manager
+
+        result = self.runner.invoke(cli, ["llm", "down", "--voice-agent"])
+
+        assert result.exit_code == 0
+        stopped = [c.args[0] for c in manager.stop_container.call_args_list]
+        assert OLLAMA_CONTAINER in stopped
+        assert VOICE_AGENT_CONTAINER in stopped
+        assert WEBUI_CONTAINER not in stopped
+        assert KOKORO_CONTAINER not in stopped
+        assert WHISPER_CONTAINER not in stopped
+        assert N8N_CONTAINER not in stopped
 
     def test_llm_down_whisper_only_stops_ollama_and_whisper(self, mock_config, mock_manager_cls):
         manager = MagicMock()
@@ -542,6 +619,7 @@ class TestLlmCommands:
             WEBUI_CONTAINER,
             KOKORO_CONTAINER,
             WHISPER_CONTAINER,
+            VOICE_AGENT_CONTAINER,
             N8N_CONTAINER,
         ):
             assert name in removed_containers
@@ -550,6 +628,7 @@ class TestLlmCommands:
         assert OLLAMA_DATA_VOLUME in removed_volumes
         assert WEBUI_DATA_VOLUME in removed_volumes
         assert WHISPER_DATA_VOLUME in removed_volumes
+        assert VOICE_AGENT_DATA_VOLUME in removed_volumes
         assert N8N_DATA_VOLUME in removed_volumes
 
     def test_llm_clean_whisper_removes_container_only(self, mock_config, mock_manager_cls):
@@ -580,6 +659,37 @@ class TestLlmCommands:
         assert OLLAMA_DATA_VOLUME in removed_volumes
         assert WHISPER_DATA_VOLUME in removed_volumes
         assert WEBUI_DATA_VOLUME not in removed_volumes
+        assert N8N_DATA_VOLUME not in removed_volumes
+
+    def test_llm_clean_voice_agent_removes_container_only(self, mock_config, mock_manager_cls):
+        """--voice-agent without --wipe removes the container but keeps sqlite."""
+        manager = MagicMock()
+        manager.container_status.return_value = "running"
+        mock_manager_cls.return_value = manager
+
+        result = self.runner.invoke(cli, ["llm", "clean", "--voice-agent", "--yes"])
+
+        assert result.exit_code == 0
+        removed = [c.args[0] for c in manager.remove_container.call_args_list]
+        assert OLLAMA_CONTAINER in removed
+        assert VOICE_AGENT_CONTAINER in removed
+        manager.remove_volume.assert_not_called()
+
+    def test_llm_clean_voice_agent_wipe_removes_data_volume(self, mock_config, mock_manager_cls):
+        """--voice-agent --wipe removes the sqlite volume alongside Ollama's."""
+        manager = MagicMock()
+        manager.container_status.return_value = "running"
+        manager.remove_volume.return_value = True
+        mock_manager_cls.return_value = manager
+
+        result = self.runner.invoke(cli, ["llm", "clean", "--voice-agent", "--wipe", "--yes"])
+
+        assert result.exit_code == 0
+        removed_volumes = [c.args[0] for c in manager.remove_volume.call_args_list]
+        assert OLLAMA_DATA_VOLUME in removed_volumes
+        assert VOICE_AGENT_DATA_VOLUME in removed_volumes
+        assert WEBUI_DATA_VOLUME not in removed_volumes
+        assert WHISPER_DATA_VOLUME not in removed_volumes
         assert N8N_DATA_VOLUME not in removed_volumes
 
     def test_llm_clean_webui_wipe_only_removes_webui_volume(self, mock_config, mock_manager_cls):
@@ -651,6 +761,7 @@ class TestLlmCommands:
         assert "WebUI stack" in result.output
         assert "Voice stack" in result.output
         assert "Speaches stack" in result.output
+        assert "Voice-agent stack" in result.output
         assert "n8n stack" in result.output
         assert "http://localhost:11434" in result.output
         assert "http://localhost:11434/v1" in result.output
@@ -658,6 +769,7 @@ class TestLlmCommands:
         assert "http://localhost:8880" in result.output
         assert "http://localhost:8001" in result.output
         assert "/v1/audio/transcriptions" in result.output
+        assert "http://localhost:8010" in result.output
         assert "http://localhost:5678" in result.output
         # Configured model + context size.
         assert "qwen3-coder:30b-a3b-q4_K_M" in result.output

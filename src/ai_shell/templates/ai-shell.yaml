@@ -31,6 +31,59 @@ llm:
     # - qwen2.5-coder:14b-instruct          # ~9 GB   smaller Qwen2.5-Coder
 
 # -----------------------------------------------------------------------------
+# voice_agent - Experimental Pipecat-based voice assistant (built locally).
+# -----------------------------------------------------------------------------
+# Most fields below are **placeholders for future phases** and are harmless
+# if left commented out -- the container uses the dataclass defaults. Only
+# uncomment the ones you need to override. See VOICE_AGENT_PLAN.md for the
+# phase-by-phase rollout.
+#
+# voice_agent:
+#   port: 8010
+#   # domain:  "voice.svrd.link"      # set once you put NPM in front of it
+#   # profile: "resident"              # "resident" (14B+14B) or "swap" (27B+8B)
+#   #
+#   # profiles:
+#   #   resident:
+#   #     primary:   "qwen3.5:14b-instruct"
+#   #     secondary: "huihui_ai/qwen3.5-abliterated:14b"
+#   #   swap:
+#   #     primary:   "qwen3.5:27b"
+#   #     secondary: "dolphin3:8b"
+#   #
+#   # vad:
+#   #   silence_timeout_ms: 2500
+#   #   barge_in: true
+#   #
+#   # filesystem:                      # Phase 4 -- MCP filesystem tool scope
+#   #   root:  "~/gigachad"
+#   #   read:  ["~/gigachad"]
+#   #   write: ["~/gigachad"]
+#   #   deny_glob: ["**/.env*", "**/.git/**"]
+#   #
+#   # memory:                          # Phase 5 -- sqlite two-tier memory
+#   #   enabled: true
+#   #   summarize_after_turns: 20
+#   #
+#   # auth:                            # Phase 3 -- session auth before NPM exposure
+#   #   username: ""
+#   #   password_bcrypt: ""
+#   #   session_secret: ""             # generated on first `voice-agent init`
+#   #
+#   # providers:                       # Phase 6 -- provider swap
+#   #   default: "ollama"
+#   #   available: ["ollama"]          # add "anthropic", "openai" later
+#   #
+#   # tools:                           # Phase 4 -- per-tool enable
+#   #   filesystem: {enabled: false}
+#   #   web_search: {enabled: false, provider: "brave"}
+#   #   github:     {enabled: false}
+#   #
+#   # wake_word:                       # Phase 3 -- server-side openwakeword
+#   #   enabled: false
+#   #   name: "hey_jarvis"
+
+# -----------------------------------------------------------------------------
 # aws - AWS profile + region. Uncomment to override defaults.
 # -----------------------------------------------------------------------------
 # ai_profile:      AWS profile for infra tools (terraform/cdk). Sets AWS_PROFILE

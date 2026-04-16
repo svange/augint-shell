@@ -411,4 +411,3 @@ coverage at or above floor.
   always-on `openwakeword` process exceeds 20% of one core sustained, or
   if we add a second concurrent user, revisit `dnavarrom/openwakeword_wasm`
   for client-side detection.
-

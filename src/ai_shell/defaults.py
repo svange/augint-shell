@@ -49,6 +49,7 @@ OLLAMA_DATA_VOLUME = "augint-shell-ollama-data"
 WEBUI_DATA_VOLUME = "augint-shell-webui-data"
 N8N_DATA_VOLUME = "augint-shell-n8n-data"
 WHISPER_DATA_VOLUME = "augint-shell-whisper-cache"
+VOICE_AGENT_DATA_VOLUME = "augint-shell-voice-agent-data"
 
 # =============================================================================
 # LLM defaults
@@ -60,6 +61,9 @@ KOKORO_IMAGE_GPU = "ghcr.io/remsky/kokoro-fastapi-gpu:latest"
 N8N_IMAGE = "docker.n8n.io/n8nio/n8n"
 WHISPER_IMAGE_CPU = "ghcr.io/speaches-ai/speaches:latest-cpu"
 WHISPER_IMAGE_GPU = "ghcr.io/speaches-ai/speaches:latest-cuda"
+# Voice-agent image is built locally from docker/voice-agent/ on first
+# ensure call. Not pulled. The local tag keeps `images.get` fast once built.
+VOICE_AGENT_IMAGE = "augint-shell/voice-agent:local"
 # Model slots (RTX 4090-sized, validated April 2026). Primary = best available for
 # the role; secondary = best uncensored alternative. See README "Local LLM stack"
 # and the generated .ai-shell.yaml for per-slot rationale and caveats.
@@ -74,6 +78,7 @@ DEFAULT_KOKORO_PORT = 8880
 DEFAULT_N8N_PORT = 5678
 DEFAULT_WHISPER_PORT = 8001
 DEFAULT_WHISPER_MODEL = "Systran/faster-distil-whisper-large-v3"
+DEFAULT_VOICE_AGENT_PORT = 8010
 DEFAULT_KOKORO_VOICE = "af_bella"
 DEFAULT_DEV_PORTS = [3000, 4200, 5000, 5173, 5678, 8000, 8080, 8888]
 
@@ -96,6 +101,7 @@ WEBUI_CONTAINER = "augint-shell-webui"
 KOKORO_CONTAINER = "augint-shell-kokoro"
 N8N_CONTAINER = "augint-shell-n8n"
 WHISPER_CONTAINER = "augint-shell-whisper"
+VOICE_AGENT_CONTAINER = "augint-shell-voice-agent"
 
 # =============================================================================
 # Docker network

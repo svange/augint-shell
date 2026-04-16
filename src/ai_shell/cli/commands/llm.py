@@ -1,14 +1,15 @@
 """LLM stack management commands: up, down, pull, setup, status, logs, shell.
 
 Stack flags (applied to up/down/clean/setup):
-    --webui     Open WebUI (OpenAI-style chat UI backed by Ollama). Kokoro
-                TTS starts with it by default (wired as WebUI's "read aloud"
-                backend); use --no-voice to skip.
-    --voice     Kokoro-FastAPI (local OpenAI-compatible TTS) standalone.
-    --no-voice  Opt-out: skip Kokoro even when --webui is set.
-    --whisper   Speaches (local OpenAI-compatible STT) standalone.
-    --n8n       n8n workflow automation engine (standalone).
-    --all       Enable every optional stack.
+    --webui        Open WebUI (OpenAI-style chat UI backed by Ollama). Kokoro
+                   TTS starts with it by default (wired as WebUI's "read aloud"
+                   backend); use --no-voice to skip.
+    --voice        Kokoro-FastAPI (local OpenAI-compatible TTS) standalone.
+    --no-voice     Opt-out: skip Kokoro even when --webui is set.
+    --whisper      Speaches (local OpenAI-compatible STT) standalone.
+    --voice-agent  Experimental Pipecat-based voice agent (built locally).
+    --n8n          n8n workflow automation engine (standalone).
+    --all          Enable every optional stack.
 
 ``llm up`` with no flags starts only the base Ollama container.
 """
@@ -30,6 +31,8 @@ from ai_shell.defaults import (
     N8N_DATA_VOLUME,
     OLLAMA_CONTAINER,
     OLLAMA_DATA_VOLUME,
+    VOICE_AGENT_CONTAINER,
+    VOICE_AGENT_DATA_VOLUME,
     WEBUI_CONTAINER,
     WEBUI_DATA_VOLUME,
     WHISPER_CONTAINER,
@@ -188,15 +191,23 @@ def _get_manager(ctx) -> ContainerManager:
 
 
 def _resolve_stacks(
-    webui: bool, voice: bool, no_voice: bool, whisper: bool, n8n: bool, all_: bool
-) -> tuple[bool, bool, bool, bool]:
-    """Resolve stack flags into concrete (webui, voice, whisper, n8n) enablement.
+    webui: bool,
+    voice: bool,
+    no_voice: bool,
+    whisper: bool,
+    voice_agent: bool,
+    n8n: bool,
+    all_: bool,
+) -> tuple[bool, bool, bool, bool, bool]:
+    """Resolve stack flags into concrete ``(webui, voice, whisper, voice_agent, n8n)``.
 
     Rules:
     - ``--all`` turns on every optional stack.
     - ``--webui`` implies ``--voice`` (Kokoro is wired as WebUI's TTS backend).
     - ``--no-voice`` is the opt-out and always wins.
     - ``--whisper`` is standalone with no implied sibling stacks.
+    - ``--voice-agent`` is standalone; it does NOT auto-start Whisper/Kokoro/Ollama
+      because those are independent singletons (start them yourself if needed).
     - ``--n8n`` is standalone with no implied sibling stacks.
 
     Extension pattern: when we add ``--libre`` / ``--dify`` / ``--hands``,
@@ -206,12 +217,13 @@ def _resolve_stacks(
         webui = True
         voice = True
         whisper = True
+        voice_agent = True
         n8n = True
     if webui:
         voice = True
     if no_voice:
         voice = False
-    return webui, voice, whisper, n8n
+    return webui, voice, whisper, voice_agent, n8n
 
 
 # Shared decorators for stack flags on up/down/clean/setup.
@@ -220,6 +232,12 @@ def _stack_flags(func):
     func = click.option("--n8n", is_flag=True, help="n8n workflow automation engine (port 5678).")(
         func
     )
+    func = click.option(
+        "--voice-agent",
+        "voice_agent",
+        is_flag=True,
+        help="Experimental Pipecat voice agent (built locally, port 8010).",
+    )(func)
     func = click.option(
         "--whisper",
         is_flag=True,
@@ -251,16 +269,28 @@ def llm_group(ctx):
 @llm_group.command("up")
 @_stack_flags
 @click.pass_context
-def llm_up(ctx, webui: bool, voice: bool, no_voice: bool, whisper: bool, n8n: bool, all_: bool):
+def llm_up(
+    ctx,
+    webui: bool,
+    voice: bool,
+    no_voice: bool,
+    whisper: bool,
+    voice_agent: bool,
+    n8n: bool,
+    all_: bool,
+):
     """Start the LLM stack.
 
     With no flags, starts only Ollama. ``--webui`` brings up Open WebUI and
     (by default) wires Kokoro TTS as its "read aloud" backend; pass
     ``--no-voice`` to skip TTS. ``--voice`` alone runs Kokoro standalone.
-    ``--whisper`` brings up Speaches STT. ``--n8n`` brings up n8n workflow
+    ``--whisper`` brings up Speaches STT. ``--voice-agent`` brings up the
+    experimental Pipecat voice agent. ``--n8n`` brings up n8n workflow
     automation.
     """
-    webui, voice, whisper, n8n = _resolve_stacks(webui, voice, no_voice, whisper, n8n, all_)
+    webui, voice, whisper, voice_agent, n8n = _resolve_stacks(
+        webui, voice, no_voice, whisper, voice_agent, n8n, all_
+    )
     manager = _get_manager(ctx)
     config = manager.config
     console.print("[bold]Starting LLM stack...[/bold]")
@@ -281,6 +311,10 @@ def llm_up(ctx, webui: bool, voice: bool, no_voice: bool, whisper: bool, n8n: bo
         manager.ensure_webui(voice_enabled=voice)
         console.print(f"  Open WebUI:  http://localhost:{config.webui_port}")
 
+    if voice_agent:
+        manager.ensure_voice_agent()
+        console.print(f"  Voice agent: http://localhost:{config.voice_agent.port}")
+
     if n8n:
         manager.ensure_n8n()
         console.print(f"  n8n:         http://localhost:{config.n8n_port}")
@@ -295,6 +329,8 @@ def llm_up(ctx, webui: bool, voice: bool, no_voice: bool, whisper: bool, n8n: bo
             console.print(f"  Speaches STT: http://{lan}:{config.whisper_port}")
         if webui:
             console.print(f"  Open WebUI:  http://{lan}:{config.webui_port}")
+        if voice_agent:
+            console.print(f"  Voice agent: http://{lan}:{config.voice_agent.port}")
         if n8n:
             console.print(f"  n8n:         http://{lan}:{config.n8n_port}")
 
@@ -304,13 +340,24 @@ def llm_up(ctx, webui: bool, voice: bool, no_voice: bool, whisper: bool, n8n: bo
 @llm_group.command("down")
 @_stack_flags
 @click.pass_context
-def llm_down(ctx, webui: bool, voice: bool, no_voice: bool, whisper: bool, n8n: bool, all_: bool):
+def llm_down(
+    ctx,
+    webui: bool,
+    voice: bool,
+    no_voice: bool,
+    whisper: bool,
+    voice_agent: bool,
+    n8n: bool,
+    all_: bool,
+):
     """Stop containers in the LLM stack.
 
     With no flags, stops only Ollama. Use stack flags or --all to stop
     additional stacks.
     """
-    webui, voice, whisper, n8n = _resolve_stacks(webui, voice, no_voice, whisper, n8n, all_)
+    webui, voice, whisper, voice_agent, n8n = _resolve_stacks(
+        webui, voice, no_voice, whisper, voice_agent, n8n, all_
+    )
     manager = _get_manager(ctx)
     console.print("[bold]Stopping LLM stack...[/bold]")
 
@@ -321,6 +368,8 @@ def llm_down(ctx, webui: bool, voice: bool, no_voice: bool, whisper: bool, n8n: 
         targets.append(KOKORO_CONTAINER)
     if whisper:
         targets.append(WHISPER_CONTAINER)
+    if voice_agent:
+        targets.append(VOICE_AGENT_CONTAINER)
     if n8n:
         targets.append(N8N_CONTAINER)
 
@@ -352,6 +401,7 @@ def llm_clean(
     voice: bool,
     no_voice: bool,
     whisper: bool,
+    voice_agent: bool,
     n8n: bool,
     all_: bool,
     wipe: bool,
@@ -363,7 +413,9 @@ def llm_clean(
     flags or --all to also remove other stacks. --wipe additionally deletes
     named Docker volumes.
     """
-    webui, voice, whisper, n8n = _resolve_stacks(webui, voice, no_voice, whisper, n8n, all_)
+    webui, voice, whisper, voice_agent, n8n = _resolve_stacks(
+        webui, voice, no_voice, whisper, voice_agent, n8n, all_
+    )
     manager = _get_manager(ctx)
 
     targets = [OLLAMA_CONTAINER]
@@ -373,6 +425,8 @@ def llm_clean(
         targets.append(KOKORO_CONTAINER)
     if whisper:
         targets.append(WHISPER_CONTAINER)
+    if voice_agent:
+        targets.append(VOICE_AGENT_CONTAINER)
     if n8n:
         targets.append(N8N_CONTAINER)
 
@@ -383,6 +437,8 @@ def llm_clean(
             volumes.append(WEBUI_DATA_VOLUME)
         if whisper:
             volumes.append(WHISPER_DATA_VOLUME)
+        if voice_agent:
+            volumes.append(VOICE_AGENT_DATA_VOLUME)
         if n8n:
             volumes.append(N8N_DATA_VOLUME)
 
@@ -438,13 +494,24 @@ def llm_pull(ctx):
 @llm_group.command("setup")
 @_stack_flags
 @click.pass_context
-def llm_setup(ctx, webui: bool, voice: bool, no_voice: bool, whisper: bool, n8n: bool, all_: bool):
+def llm_setup(
+    ctx,
+    webui: bool,
+    voice: bool,
+    no_voice: bool,
+    whisper: bool,
+    voice_agent: bool,
+    n8n: bool,
+    all_: bool,
+):
     """First-time setup: start stack, pull models, configure context.
 
     Accepts the same stack flags as ``llm up``. With no flags, sets up only
     the base Ollama container and pulls the configured primary/fallback models.
     """
-    webui, voice, whisper, n8n = _resolve_stacks(webui, voice, no_voice, whisper, n8n, all_)
+    webui, voice, whisper, voice_agent, n8n = _resolve_stacks(
+        webui, voice, no_voice, whisper, voice_agent, n8n, all_
+    )
     manager = _get_manager(ctx)
     config = manager.config
 
@@ -460,6 +527,8 @@ def llm_setup(ctx, webui: bool, voice: bool, no_voice: bool, whisper: bool, n8n:
         manager.ensure_whisper()
     if webui:
         manager.ensure_webui(voice_enabled=voice)
+    if voice_agent:
+        manager.ensure_voice_agent()
     if n8n:
         manager.ensure_n8n()
 
@@ -491,6 +560,8 @@ def llm_setup(ctx, webui: bool, voice: bool, no_voice: bool, whisper: bool, n8n:
         console.print(f"  Speaches STT: http://localhost:{config.whisper_port}")
     if webui:
         console.print(f"  Open WebUI:  http://localhost:{config.webui_port}")
+    if voice_agent:
+        console.print(f"  Voice agent: http://localhost:{config.voice_agent.port}")
     if n8n:
         console.print(f"  n8n:         http://localhost:{config.n8n_port}")
     console.print(f"\n  Primary chat:      {config.primary_chat_model}")
@@ -535,6 +606,9 @@ def llm_status(ctx):
     console.print("\n[bold]Speaches stack[/bold]")
     _render_container_row(manager, WHISPER_CONTAINER, "Speaches STT")
 
+    console.print("\n[bold]Voice-agent stack[/bold]")
+    _render_container_row(manager, VOICE_AGENT_CONTAINER, "Voice agent")
+
     console.print("\n[bold]n8n stack[/bold]")
     _render_container_row(manager, N8N_CONTAINER, "n8n")
 
@@ -556,6 +630,7 @@ def llm_status(ctx):
         WHISPER_CONTAINER,
         f"http://localhost:{config.whisper_port}/v1/audio/transcriptions",
     )
+    _url("Voice agent:", VOICE_AGENT_CONTAINER, f"http://localhost:{config.voice_agent.port}")
     _url("n8n:", N8N_CONTAINER, f"http://localhost:{config.n8n_port}")
 
     lan = _lan_ip()
@@ -565,6 +640,7 @@ def llm_status(ctx):
         console.print(f"  Open WebUI:         http://{lan}:{config.webui_port}")
         console.print(f"  Kokoro TTS:         http://{lan}:{config.kokoro_port}/v1")
         console.print(f"  Speaches STT:       http://{lan}:{config.whisper_port}")
+        console.print(f"  Voice agent:        http://{lan}:{config.voice_agent.port}")
         console.print(f"  n8n:                http://{lan}:{config.n8n_port}")
 
     console.print("\n[bold]Configuration:[/bold]")
@@ -612,6 +688,7 @@ def llm_logs(ctx, follow):
             WEBUI_CONTAINER,
             KOKORO_CONTAINER,
             WHISPER_CONTAINER,
+            VOICE_AGENT_CONTAINER,
             N8N_CONTAINER,
         ]:
             status = manager.container_status(name)

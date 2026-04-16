@@ -26,6 +26,16 @@ class TestAiShellConfig:
         assert config.n8n_port == 5678
         assert config.whisper_port == 8001
         assert config.whisper_model == "Systran/faster-distil-whisper-large-v3"
+        # Voice-agent defaults (Phase 2 wires only `port`; tree is present
+        # for future phases).
+        assert config.voice_agent.port == 8010
+        assert config.voice_agent.profile == "resident"
+        assert config.voice_agent.profiles["resident"].primary == "qwen3.5:14b-instruct"
+        assert config.voice_agent.vad.silence_timeout_ms == 2500
+        assert config.voice_agent.vad.barge_in is True
+        assert config.voice_agent.wake_word.enabled is False
+        assert config.voice_agent.providers.default == "ollama"
+        assert config.voice_agent.tools.web_search.provider == "brave"
 
     def test_models_to_pull_dedupes_slots(self):
         # Same tag in primary and extras should dedupe to one entry.
@@ -382,6 +392,72 @@ whisper_model = "Systran/faster-whisper-tiny"
             config = load_config(project_dir=tmp_path)
         assert config.whisper_port == 9400
         assert config.whisper_model == "env-model"
+
+
+class TestVoiceAgentConfig:
+    def test_voice_agent_yaml_overrides(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "voice_agent:\n"
+            "  port: 9010\n"
+            "  profile: swap\n"
+            "  vad:\n"
+            "    silence_timeout_ms: 1500\n"
+            "    barge_in: false\n"
+            "  wake_word:\n"
+            "    enabled: true\n"
+            "    name: hey_gigachad\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.voice_agent.port == 9010
+        assert config.voice_agent.profile == "swap"
+        assert config.voice_agent.vad.silence_timeout_ms == 1500
+        assert config.voice_agent.vad.barge_in is False
+        assert config.voice_agent.wake_word.enabled is True
+        assert config.voice_agent.wake_word.name == "hey_gigachad"
+
+    def test_voice_agent_nested_profiles_merge(self, tmp_path):
+        """Partial profile overrides must leave other profiles intact."""
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "voice_agent:\n  profiles:\n    resident:\n      primary: my-model:latest\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        # Overridden.
+        assert config.voice_agent.profiles["resident"].primary == "my-model:latest"
+        # Untouched fields keep defaults.
+        assert (
+            config.voice_agent.profiles["resident"].secondary == "huihui_ai/qwen3.5-abliterated:14b"
+        )
+        assert config.voice_agent.profiles["swap"].primary == "qwen3.5:27b"
+
+    def test_voice_agent_tools_partial_override(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "voice_agent:\n  tools:\n    filesystem:\n      enabled: true\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.voice_agent.tools.filesystem.enabled is True
+        # Other tools keep defaults.
+        assert config.voice_agent.tools.web_search.enabled is False
+        assert config.voice_agent.tools.web_search.provider == "brave"
+        assert config.voice_agent.tools.github.enabled is False
+
+    def test_voice_agent_env_var_overrides(self, tmp_path):
+        env = {
+            "AI_SHELL_VOICE_AGENT_PORT": "9999",
+            "AI_SHELL_VOICE_AGENT_DOMAIN": "voice.example.com",
+            "AI_SHELL_VOICE_AGENT_PROFILE": "swap",
+        }
+        with patch.dict("os.environ", env):
+            config = load_config(project_dir=tmp_path)
+        assert config.voice_agent.port == 9999
+        assert config.voice_agent.domain == "voice.example.com"
+        assert config.voice_agent.profile == "swap"
+
+    def test_voice_agent_env_overrides_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("voice_agent:\n  port: 7000\n")
+        env = {"AI_SHELL_VOICE_AGENT_PORT": "9000"}
+        with patch.dict("os.environ", env):
+            config = load_config(project_dir=tmp_path)
+        assert config.voice_agent.port == 9000
 
 
 class TestAwsConfig:

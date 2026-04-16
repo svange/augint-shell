@@ -14,6 +14,9 @@ from ai_shell.defaults import (
     N8N_CONTAINER,
     N8N_IMAGE,
     SHM_SIZE,
+    VOICE_AGENT_CONTAINER,
+    VOICE_AGENT_DATA_VOLUME,
+    VOICE_AGENT_IMAGE,
     WHISPER_CONTAINER,
     WHISPER_DATA_VOLUME,
     WHISPER_IMAGE_CPU,
@@ -734,6 +737,73 @@ class TestEnsureN8n:
         name = mock_container_manager.ensure_n8n()
         stopped.start.assert_called_once()
         assert name == N8N_CONTAINER
+
+
+class TestEnsureVoiceAgent:
+    def test_builds_image_on_first_run(self, mock_container_manager, mock_docker_client):
+        from docker.errors import ImageNotFound
+
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_docker_client.images.get.side_effect = ImageNotFound(f"{VOICE_AGENT_IMAGE} not found")
+
+        name = mock_container_manager.ensure_voice_agent()
+
+        assert name == VOICE_AGENT_CONTAINER
+        # Image is built locally, not pulled.
+        mock_docker_client.images.build.assert_called_once()
+        build_kwargs = mock_docker_client.images.build.call_args[1]
+        assert build_kwargs["tag"] == VOICE_AGENT_IMAGE
+        assert build_kwargs["path"].endswith("docker/voice-agent")
+        call_kwargs = mock_docker_client.containers.run.call_args[1]
+        assert call_kwargs["image"] == VOICE_AGENT_IMAGE
+        assert call_kwargs["network"] == LLM_NETWORK
+
+    def test_skips_build_when_image_exists(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        # images.get returns successfully => no build needed
+        mock_docker_client.images.get.return_value = MagicMock()
+
+        mock_container_manager.ensure_voice_agent()
+
+        mock_docker_client.images.build.assert_not_called()
+        mock_docker_client.containers.run.assert_called_once()
+
+    def test_starts_stopped_voice_agent(self, mock_container_manager):
+        stopped = MagicMock()
+        stopped.status = "exited"
+        mock_container_manager._get_container = MagicMock(return_value=stopped)
+
+        name = mock_container_manager.ensure_voice_agent()
+
+        stopped.start.assert_called_once()
+        assert name == VOICE_AGENT_CONTAINER
+
+    def test_publishes_port_8000_to_configured_host_port(
+        self, mock_container_manager, mock_docker_client
+    ):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._build_image_if_needed = MagicMock()
+        mock_container_manager.config.voice_agent.port = 9010
+
+        mock_container_manager.ensure_voice_agent()
+
+        ports = mock_docker_client.containers.run.call_args[1]["ports"]
+        assert "8000/tcp" in ports
+        host_ip, host_port = ports["8000/tcp"]
+        assert host_ip == "0.0.0.0"  # nosec B104
+        assert host_port == 9010
+
+    def test_mounts_data_volume_at_slash_data(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._build_image_if_needed = MagicMock()
+
+        mock_container_manager.ensure_voice_agent()
+
+        mounts = mock_docker_client.containers.run.call_args[1]["mounts"]
+        targets = {m["Target"]: m for m in mounts}
+        assert "/data" in targets
+        assert targets["/data"]["Source"] == VOICE_AGENT_DATA_VOLUME
+        assert targets["/data"]["Type"] == "volume"
 
 
 class TestExecInOllama:

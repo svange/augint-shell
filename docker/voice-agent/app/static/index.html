@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>augint-shell voice agent</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #0c0c10;
+      color: #e7e7ea;
+    }
+    main { text-align: center; padding: 2rem; }
+    h1 { font-weight: 500; font-size: 1.25rem; margin-bottom: 1.5rem; }
+    #btn {
+      width: 10rem; height: 10rem;
+      border-radius: 50%;
+      border: 2px solid #4a4a55;
+      background: #1a1a22;
+      color: inherit;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 120ms ease;
+    }
+    #btn:active, #btn.active { background: #2b6ef6; border-color: #2b6ef6; }
+    #btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #state { margin-top: 1rem; font-size: 0.9rem; opacity: 0.7; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Push and hold to talk</h1>
+    <button id="btn">Hold</button>
+    <div id="state">idle</div>
+  </main>
+  <script>
+    const btn = document.getElementById("btn");
+    const stateEl = document.getElementById("state");
+    let ws = null;
+    let audioCtx = null;
+    let processor = null;
+    let source = null;
+    let stream = null;
+    let playCtx = null;
+    let playTime = 0;
+
+    function setState(s) { stateEl.textContent = s; }
+
+    function wsUrl() {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      return `${proto}//${location.host}/ws`;
+    }
+
+    function floatToPcm16(input) {
+      const out = new Int16Array(input.length);
+      for (let i = 0; i < input.length; i++) {
+        const s = Math.max(-1, Math.min(1, input[i]));
+        out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      return out;
+    }
+
+    async function startCapture() {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000 } });
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      source = audioCtx.createMediaStreamSource(stream);
+      processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (ev) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const pcm = floatToPcm16(ev.inputBuffer.getChannelData(0));
+        ws.send(pcm.buffer);
+      };
+      source.connect(processor);
+      processor.connect(audioCtx.destination);
+    }
+
+    function stopCapture() {
+      if (processor) { processor.disconnect(); processor.onaudioprocess = null; }
+      if (source) source.disconnect();
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (audioCtx) audioCtx.close();
+      processor = source = stream = audioCtx = null;
+    }
+
+    function playPcm16(buf) {
+      if (!playCtx) {
+        playCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        playTime = playCtx.currentTime;
+      }
+      const pcm = new Int16Array(buf);
+      const f = new Float32Array(pcm.length);
+      for (let i = 0; i < pcm.length; i++) f[i] = pcm[i] / 0x8000;
+      const audioBuf = playCtx.createBuffer(1, f.length, 16000);
+      audioBuf.getChannelData(0).set(f);
+      const src = playCtx.createBufferSource();
+      src.buffer = audioBuf;
+      src.connect(playCtx.destination);
+      const startAt = Math.max(playTime, playCtx.currentTime);
+      src.start(startAt);
+      playTime = startAt + audioBuf.duration;
+    }
+
+    async function begin() {
+      setState("connecting");
+      btn.classList.add("active");
+      ws = new WebSocket(wsUrl());
+      ws.binaryType = "arraybuffer";
+      ws.onopen = async () => { setState("listening"); await startCapture(); };
+      ws.onmessage = (ev) => {
+        if (ev.data instanceof ArrayBuffer) { setState("speaking"); playPcm16(ev.data); }
+      };
+      ws.onclose = () => { setState("idle"); stopCapture(); btn.classList.remove("active"); };
+      ws.onerror = () => setState("error");
+    }
+
+    function end() {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+      stopCapture();
+      btn.classList.remove("active");
+      setState("idle");
+    }
+
+    btn.addEventListener("pointerdown", begin);
+    btn.addEventListener("pointerup", end);
+    btn.addEventListener("pointerleave", end);
+  </script>
+</body>
+</html>

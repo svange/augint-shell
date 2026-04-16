@@ -63,7 +63,7 @@ ai-shell opencode
 
 | Command | Description |
 |---|---|
-| `ai-shell llm up` | Start Ollama (add `--webui`, `--whisper`, `--n8n`, or `--all` for optional stacks) |
+| `ai-shell llm up` | Start Ollama (add `--webui`, `--whisper`, `--voice-agent`, `--n8n`, or `--all` for optional stacks) |
 | `ai-shell llm down` | Stop LLM stack |
 | `ai-shell llm pull` | Pull configured models |
 | `ai-shell llm setup` | First-time setup (up + pull + configure) |
@@ -151,6 +151,7 @@ secondary within a slot keeps tool formats and context semantics identical.
 | `--webui` | Open WebUI | 3000 | Implies `--voice` so Kokoro is wired as the "read aloud" backend. Use `--no-voice` to skip. |
 | `--voice` | Kokoro TTS | 8880 | OpenAI-compatible `/v1/audio/speech`. |
 | `--whisper` | Speaches STT | 8001 | OpenAI-compatible `/v1/audio/transcriptions`. Default model: `Systran/faster-distil-whisper-large-v3` (preloaded). GPU image used automatically when NVIDIA is detected. |
+| `--voice-agent` | Pipecat voice agent | 8010 | Experimental. Built locally on first use from `docker/voice-agent/`. Push-to-talk PWA over WebSocket (Speaches STT -> Ollama -> Kokoro TTS). See `VOICE_AGENT_PLAN.md`. |
 | `--n8n` | n8n | 5678 | Workflow automation, standalone. |
 
 ## How It Works

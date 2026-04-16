@@ -31,6 +31,9 @@ from ai_shell.defaults import (
     OLLAMA_IMAGE,
     OLLAMA_VRAM_BUFFER_BYTES,
     SHM_SIZE,
+    VOICE_AGENT_CONTAINER,
+    VOICE_AGENT_DATA_VOLUME,
+    VOICE_AGENT_IMAGE,
     WEBUI_CONTAINER,
     WEBUI_DATA_VOLUME,
     WEBUI_IMAGE,
@@ -487,6 +490,59 @@ class ContainerManager:
         logger.info("Whisper container created on port %d", self.config.whisper_port)
         return WHISPER_CONTAINER
 
+    def ensure_voice_agent(self) -> str:
+        """Get or create the voice-agent container.
+
+        The image is **built locally** from ``docker/voice-agent/`` on first
+        call because Phase 2 doesn't publish it. Later phases may switch to
+        a pulled tag. Phase 2 scope: no filesystem / auth / provider-key
+        mounts — those land in Phases 3-4. A named volume is mounted at
+        ``/data`` so the Phase 5 sqlite file will survive container
+        recreations from the start.
+        """
+        container = self._get_container(VOICE_AGENT_CONTAINER)
+        if container is not None:
+            if container.status != "running":
+                logger.info("Starting existing voice-agent container")
+                container.start()
+            return VOICE_AGENT_CONTAINER
+
+        logger.info("Creating voice-agent container")
+        self._build_image_if_needed(VOICE_AGENT_IMAGE, self._voice_agent_build_context())
+        network_name = self._ensure_llm_network()
+
+        kwargs: dict = {
+            "image": VOICE_AGENT_IMAGE,
+            "name": VOICE_AGENT_CONTAINER,
+            "ports": {"8000/tcp": ("0.0.0.0", self.config.voice_agent.port)},  # nosec B104
+            "mounts": [
+                Mount(
+                    target="/data",
+                    source=VOICE_AGENT_DATA_VOLUME,
+                    type="volume",
+                )
+            ],
+            "restart_policy": {"Name": "unless-stopped"},
+            "detach": True,
+            "network": network_name,
+        }
+
+        self.client.containers.run(**kwargs)
+        logger.info("voice-agent container created on port %d", self.config.voice_agent.port)
+        return VOICE_AGENT_CONTAINER
+
+    @staticmethod
+    def _voice_agent_build_context() -> str:
+        """Return the path to the voice-agent Dockerfile build context."""
+        from pathlib import Path as _Path
+
+        # Package layout: src/ai_shell/container.py — the Dockerfile lives in
+        # <repo root>/docker/voice-agent. When installed as a wheel the user
+        # is expected to have the source checked out; voice-agent is
+        # experimental and locally built for now.
+        here = _Path(__file__).resolve()
+        return str(here.parents[2] / "docker" / "voice-agent")
+
     def ensure_n8n(self) -> str:
         """Get or create the n8n workflow automation container.
 
@@ -700,6 +756,28 @@ class ContainerManager:
         else:
             console.print(f"[yellow]Update for {tool_name} had issues, continuing anyway[/yellow]")
             logger.debug("Update stderr: %s", update_result.stderr)
+
+    def _build_image_if_needed(self, image: str, context_path: str) -> None:
+        """Build a Docker image locally if it isn't already present.
+
+        Used for images we don't pull from a registry (experimental
+        components shipped as a Dockerfile in this repo). The local tag
+        is cached between runs; a rebuild requires removing the image
+        first (``docker rmi <tag>``).
+        """
+        try:
+            self.client.images.get(image)
+            logger.debug("Image already built: %s", image)
+            return
+        except ImageNotFound:
+            pass
+
+        logger.info("Building image: %s from %s ...", image, context_path)
+        try:
+            self.client.images.build(path=context_path, tag=image, rm=True)
+            logger.info("Image built: %s", image)
+        except APIError as e:
+            raise ImagePullError(image, f"build failed: {e}") from e
 
     def _pull_image_if_needed(self, image: str) -> None:
         """Pull a Docker image if not available locally.
