@@ -559,8 +559,17 @@ class TestEnsureLobechat:
         call_kwargs = mock_docker_client.containers.run.call_args[1]
         assert call_kwargs["image"] == "lobehub/lobe-chat:latest"
         assert call_kwargs["name"] == "augint-shell-lobechat"
-        assert "OLLAMA_PROXY_URL" in call_kwargs["environment"]
-        assert call_kwargs["environment"]["OLLAMA_PROXY_URL"].endswith(":11434/v1")
+        env = call_kwargs["environment"]
+        # Ollama proxy URL must be base URL only (no /v1) for LobeChat to
+        # discover models via /api/tags.
+        assert env["OLLAMA_PROXY_URL"].endswith(":11434")
+        assert not env["OLLAMA_PROXY_URL"].endswith("/v1")
+        # New chats default to the local fallback (chat) model on Ollama.
+        assert env["DEFAULT_AGENT_CONFIG"] == (
+            "model=huihui_ai/llama3.3-abliterated;provider=ollama"
+        )
+        # OpenAI provider must be hidden in the local-only stack.
+        assert env["ENABLED_OPENAI"] == "0"
         assert call_kwargs["network"] == LLM_NETWORK
         assert "network_mode" not in call_kwargs
         assert "mounts" not in call_kwargs  # client-DB mode, no server-side state

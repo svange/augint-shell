@@ -382,12 +382,21 @@ class ContainerManager:
         self._pull_image_if_needed(LOBECHAT_IMAGE)
         network_name = self._ensure_llm_network()
 
+        # LobeChat env-var notes:
+        # - OLLAMA_PROXY_URL: base URL only (no /v1); LobeChat appends /api/tags
+        #   etc. itself. Including /v1 breaks Ollama model auto-discovery.
+        # - DEFAULT_AGENT_CONFIG: semicolon-separated key=value pairs; sets the
+        #   provider/model used for new chats so the UI doesn't default to OpenAI.
+        # - ENABLED_OPENAI=0: hides the OpenAI provider entirely (this stack is
+        #   local-only).
         self.client.containers.run(
             image=LOBECHAT_IMAGE,
             name=LOBECHAT_CONTAINER,
             ports={"3210/tcp": ("0.0.0.0", self.config.lobechat_port)},  # nosec B104
             environment={
-                "OLLAMA_PROXY_URL": f"http://{OLLAMA_CONTAINER}:11434/v1",
+                "OLLAMA_PROXY_URL": f"http://{OLLAMA_CONTAINER}:11434",
+                "DEFAULT_AGENT_CONFIG": (f"model={self.config.fallback_model};provider=ollama"),
+                "ENABLED_OPENAI": "0",
                 "ACCESS_CODE": "",
             },
             restart_policy={"Name": "unless-stopped"},
@@ -440,6 +449,19 @@ class ContainerManager:
             logger.info("Stopped container: %s", name)
         container.remove()
         logger.info("Removed container: %s", name)
+
+    def remove_volume(self, name: str) -> bool:
+        """Remove a named Docker volume.
+
+        Returns True if a volume was removed, False if it did not exist.
+        """
+        try:
+            volume = self.client.volumes.get(name)
+        except NotFound:
+            return False
+        volume.remove()
+        logger.info("Removed volume: %s", name)
+        return True
 
     def container_ports(self, name: str) -> dict[str, str] | None:
         """Get the port mappings for a container.

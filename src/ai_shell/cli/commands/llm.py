@@ -11,7 +11,13 @@ from rich.console import Console
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import load_config
 from ai_shell.container import ContainerManager
-from ai_shell.defaults import LOBECHAT_CONTAINER, OLLAMA_CONTAINER, WEBUI_CONTAINER
+from ai_shell.defaults import (
+    LOBECHAT_CONTAINER,
+    OLLAMA_CONTAINER,
+    OLLAMA_DATA_VOLUME,
+    WEBUI_CONTAINER,
+    WEBUI_DATA_VOLUME,
+)
 from ai_shell.gpu import get_vram_info, get_vram_processes
 
 console = Console(stderr=True)
@@ -218,6 +224,59 @@ def llm_down(ctx):
             console.print(f"  Not found: {name}")
 
     console.print("[bold green]LLM stack stopped.[/bold green]")
+
+
+@llm_group.command("clean")
+@click.option(
+    "--volumes",
+    "-v",
+    "remove_volumes",
+    is_flag=True,
+    help="Also remove named volumes (deletes downloaded models + WebUI chat history).",
+)
+@click.option(
+    "--yes",
+    "-y",
+    "assume_yes",
+    is_flag=True,
+    help="Skip the confirmation prompt.",
+)
+@click.pass_context
+def llm_clean(ctx, remove_volumes: bool, assume_yes: bool):
+    """Stop and remove all LLM containers (LobeChat, Open WebUI, Ollama).
+
+    By default, named volumes are preserved so downloaded models survive.
+    Pass --volumes to also wipe volumes (requires re-pulling models).
+    """
+    manager = _get_manager(ctx)
+
+    if not assume_yes:
+        scope = "containers + volumes (downloaded models will be deleted)"
+        if not remove_volumes:
+            scope = "containers only (volumes preserved)"
+        console.print(f"[bold]About to remove:[/bold] {scope}")
+        if not click.confirm("Continue?", default=False):
+            console.print("Aborted.")
+            return
+
+    console.print("[bold]Cleaning LLM stack...[/bold]")
+
+    for name in [LOBECHAT_CONTAINER, WEBUI_CONTAINER, OLLAMA_CONTAINER]:
+        if manager.container_status(name) is None:
+            console.print(f"  Not found: {name}")
+            continue
+        manager.remove_container(name)
+        console.print(f"  Removed: {name}")
+
+    if remove_volumes:
+        for volume in [OLLAMA_DATA_VOLUME, WEBUI_DATA_VOLUME]:
+            if manager.remove_volume(volume):
+                console.print(f"  Removed volume: {volume}")
+            else:
+                console.print(f"  Volume not found: {volume}")
+
+    console.print("[bold green]LLM stack cleaned.[/bold green]")
+    console.print("Run [bold]ai-shell llm up[/bold] to recreate containers.")
 
 
 @llm_group.command("pull")

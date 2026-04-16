@@ -10,7 +10,13 @@ from ai_shell.cli.commands.llm import (
     _parse_model_ref,
     _warn_if_low_memory,
 )
-from ai_shell.defaults import LOBECHAT_CONTAINER, OLLAMA_CONTAINER, WEBUI_CONTAINER
+from ai_shell.defaults import (
+    LOBECHAT_CONTAINER,
+    OLLAMA_CONTAINER,
+    OLLAMA_DATA_VOLUME,
+    WEBUI_CONTAINER,
+    WEBUI_DATA_VOLUME,
+)
 
 
 def _fake_meminfo(mem_total_kb: int, swap_total_kb: int) -> str:
@@ -184,6 +190,71 @@ class TestLlmCommands:
         assert LOBECHAT_CONTAINER in stopped_names
         assert WEBUI_CONTAINER in stopped_names
         assert OLLAMA_CONTAINER in stopped_names
+
+    def test_llm_clean_removes_containers_preserves_volumes(self, mock_config, mock_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.container_status.return_value = "running"
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["llm", "clean", "--yes"])
+
+        assert result.exit_code == 0
+        assert mock_manager.remove_container.call_count == 3
+        removed = [c.args[0] for c in mock_manager.remove_container.call_args_list]
+        assert LOBECHAT_CONTAINER in removed
+        assert WEBUI_CONTAINER in removed
+        assert OLLAMA_CONTAINER in removed
+        # Volumes must be preserved without --volumes flag.
+        mock_manager.remove_volume.assert_not_called()
+
+    def test_llm_clean_with_volumes_removes_both(self, mock_config, mock_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.container_status.return_value = "running"
+        mock_manager.remove_volume.return_value = True
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["llm", "clean", "--volumes", "--yes"])
+
+        assert result.exit_code == 0
+        assert mock_manager.remove_container.call_count == 3
+        removed_volumes = [c.args[0] for c in mock_manager.remove_volume.call_args_list]
+        assert OLLAMA_DATA_VOLUME in removed_volumes
+        assert WEBUI_DATA_VOLUME in removed_volumes
+
+    def test_llm_clean_skips_missing_containers(self, mock_config, mock_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.container_status.return_value = None
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["llm", "clean", "--yes"])
+
+        assert result.exit_code == 0
+        mock_manager.remove_container.assert_not_called()
+        assert "Not found" in result.output
+
+    def test_llm_clean_aborts_without_confirmation(self, mock_config, mock_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager_cls.return_value = mock_manager
+
+        # Simulate user typing "n" at the prompt.
+        result = self.runner.invoke(cli, ["llm", "clean"], input="n\n")
+
+        assert result.exit_code == 0
+        assert "Aborted" in result.output
+        mock_manager.remove_container.assert_not_called()
+        mock_manager.remove_volume.assert_not_called()
+
+    def test_llm_clean_confirmation_mentions_volumes_when_flag_set(
+        self, mock_config, mock_manager_cls
+    ):
+        mock_manager = MagicMock()
+        mock_manager.container_status.return_value = None
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["llm", "clean", "--volumes"], input="y\n")
+
+        assert result.exit_code == 0
+        assert "models will be deleted" in result.output
 
     def test_llm_status_running(self, mock_config, mock_manager_cls):
         config = MagicMock()
