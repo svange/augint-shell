@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.81.0 (2026-04-16)
+
+### Documentation
+
+- **container**: Update docs to reflect GPU auto-recreation and full LLM stack
+  ([`d26d3c5`](https://github.com/svange/augint-shell/commit/d26d3c5082dd7dc61ffe1dc0c26a9bc90cc98ea4))
+
+### Features
+
+- **container**: Add GPU detection and container recreation logic
+  ([`0043a4e`](https://github.com/svange/augint-shell/commit/0043a4efb2bdb233241de9f7d3d7850dbe43a9a3))
+
+- **llm**: Add Speaches STT as opt-in --whisper stack
+  ([`17f9bec`](https://github.com/svange/augint-shell/commit/17f9bec5bd7c3937ca180eb9b530074b8d1e250b))
+
+- **voice-agent**: Add Phase 2 scaffold (Pipecat push-to-talk over WebSocket)
+  ([`82aed85`](https://github.com/svange/augint-shell/commit/82aed8592154bc6bc124916de0c1af91b5a8760d))
+
+
 ## v0.80.0 (2026-04-16)
 
 ### Features
