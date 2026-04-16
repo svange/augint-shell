@@ -1,5 +1,6 @@
 """LLM stack management commands: up, down, pull, setup, status, logs, shell."""
 
+import socket
 import time
 from pathlib import Path
 
@@ -9,12 +10,32 @@ from rich.console import Console
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import load_config
 from ai_shell.container import ContainerManager
-from ai_shell.defaults import OLLAMA_CONTAINER, WEBUI_CONTAINER
+from ai_shell.defaults import LOBECHAT_CONTAINER, OLLAMA_CONTAINER, WEBUI_CONTAINER
 from ai_shell.gpu import get_vram_info, get_vram_processes
 
 console = Console(stderr=True)
 
 _LOW_MEMORY_THRESHOLD_GIB = 30  # 27B+ models need ~30 GiB
+
+
+def _lan_ip() -> str | None:
+    """Return the host's primary LAN IPv4 address, or None if undetectable.
+
+    Uses a UDP socket's routing-table selection without actually sending
+    traffic. Works on Linux, Mac, and WSL2. On WSL2 this returns the
+    WSL VM's eth0 address (typically 172.x.x.x), which is reachable from
+    the Windows host but not the broader LAN unless WSL mirrored mode or
+    a Windows portproxy is configured.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            ip = str(s.getsockname()[0])
+    except OSError:
+        return None
+    if ip.startswith("127."):
+        return None
+    return ip
 
 
 def _warn_if_low_memory() -> None:
@@ -59,13 +80,13 @@ def _get_manager(ctx) -> ContainerManager:
 @click.group("llm", context_settings=CONTEXT_SETTINGS)
 @click.pass_context
 def llm_group(ctx):
-    """Manage the local LLM stack (Ollama + Open WebUI)."""
+    """Manage the local LLM stack (Ollama + Open WebUI + LobeChat)."""
 
 
 @llm_group.command("up")
 @click.pass_context
 def llm_up(ctx):
-    """Start the LLM stack (Ollama + Open WebUI)."""
+    """Start the LLM stack (Ollama + Open WebUI + LobeChat)."""
     manager = _get_manager(ctx)
     console.print("[bold]Starting LLM stack...[/bold]")
     _warn_if_low_memory()
@@ -75,6 +96,18 @@ def llm_up(ctx):
 
     manager.ensure_webui()
     console.print(f"  Open WebUI:  http://localhost:{manager.config.webui_port}")
+
+    manager.ensure_lobechat()
+    console.print(
+        f"  LobeChat:    http://localhost:{manager.config.lobechat_port}  [dim](recommended)[/dim]"
+    )
+
+    lan = _lan_ip()
+    if lan:
+        console.print("\n[bold]LAN access[/bold] (bound to 0.0.0.0):")
+        console.print(f"  Ollama API:  http://{lan}:{manager.config.ollama_port}")
+        console.print(f"  Open WebUI:  http://{lan}:{manager.config.webui_port}")
+        console.print(f"  LobeChat:    http://{lan}:{manager.config.lobechat_port}")
 
     console.print("\n[bold green]LLM stack is running.[/bold green]")
     console.print("If this is your first time, run: [bold]ai-shell llm setup[/bold]")
@@ -87,7 +120,7 @@ def llm_down(ctx):
     manager = _get_manager(ctx)
     console.print("[bold]Stopping LLM stack...[/bold]")
 
-    for name in [WEBUI_CONTAINER, OLLAMA_CONTAINER]:
+    for name in [LOBECHAT_CONTAINER, WEBUI_CONTAINER, OLLAMA_CONTAINER]:
         status = manager.container_status(name)
         if status == "running":
             manager.stop_container(name)
@@ -132,6 +165,7 @@ def llm_setup(ctx):
     _warn_if_low_memory()
     manager.ensure_ollama()
     manager.ensure_webui()
+    manager.ensure_lobechat()
 
     # Wait for Ollama to be ready
     console.print("[bold]Waiting for Ollama to be ready...[/bold]")
@@ -157,23 +191,10 @@ def llm_setup(ctx):
     output = manager.exec_in_ollama(["ollama", "pull", config.fallback_model])
     console.print(output)
 
-    # Configure context window
-    console.print(f"\n[bold]Configuring context window ({config.context_size} tokens)...[/bold]")
-    for model in [config.primary_model, config.fallback_model]:
-        modelfile = f"FROM {model}\nPARAMETER num_ctx {config.context_size}\n"
-        # Write modelfile and create model
-        manager.exec_in_ollama(
-            [
-                "sh",
-                "-c",
-                f'printf "{modelfile}" > /tmp/Modelfile && '
-                f"ollama create {model} -f /tmp/Modelfile && rm -f /tmp/Modelfile",
-            ]
-        )
-
     console.print("\n[bold green]============================================[/bold green]")
     console.print("[bold green] Setup complete![/bold green]")
-    console.print(f"\n  Open WebUI:  http://localhost:{config.webui_port}")
+    console.print(f"\n  LobeChat:    http://localhost:{config.lobechat_port}  (recommended)")
+    console.print(f"  Open WebUI:  http://localhost:{config.webui_port}")
     console.print(f"  Ollama API:  http://localhost:{config.ollama_port}")
     console.print(f"\n  Primary model:  {config.primary_model}")
     console.print(f"  Fallback model: {config.fallback_model}")
@@ -189,9 +210,14 @@ def llm_status(ctx):
     config = manager.config
     ollama_running = manager.container_status(OLLAMA_CONTAINER) == "running"
     webui_running = manager.container_status(WEBUI_CONTAINER) == "running"
+    lobechat_running = manager.container_status(LOBECHAT_CONTAINER) == "running"
 
     console.print("[bold]Container status:[/bold]")
-    for name, running in [(OLLAMA_CONTAINER, ollama_running), (WEBUI_CONTAINER, webui_running)]:
+    for name, running in [
+        (OLLAMA_CONTAINER, ollama_running),
+        (WEBUI_CONTAINER, webui_running),
+        (LOBECHAT_CONTAINER, lobechat_running),
+    ]:
         status = manager.container_status(name)
         if running:
             console.print(f"  {name}: [green]{status}[/green]")
@@ -203,6 +229,13 @@ def llm_status(ctx):
     console.print("\n[bold]Access URLs:[/bold]")
     ollama_url = f"http://localhost:{config.ollama_port}"
     webui_url = f"http://localhost:{config.webui_port}"
+    lobechat_url = f"http://localhost:{config.lobechat_port}"
+    if lobechat_running:
+        console.print(
+            f"  LobeChat:           [cyan]{lobechat_url}[/cyan]  [bold](recommended)[/bold]"
+        )
+    else:
+        console.print(f"  LobeChat:           [dim]{lobechat_url}[/dim] (not running)")
     if ollama_running:
         console.print(f"  Ollama API:         [cyan]{ollama_url}[/cyan]")
         console.print(f"  OpenAI-compatible:  [cyan]{ollama_url}/v1[/cyan]")
@@ -211,10 +244,15 @@ def llm_status(ctx):
         console.print(f"  OpenAI-compatible:  [dim]{ollama_url}/v1[/dim] (not running)")
     if webui_running:
         console.print(f"  Open WebUI:         [cyan]{webui_url}[/cyan]")
-        console.print(f"  Chat interface:     [cyan]{webui_url}[/cyan]")
     else:
         console.print(f"  Open WebUI:         [dim]{webui_url}[/dim] (not running)")
-        console.print(f"  Chat interface:     [dim]{webui_url}[/dim] (not running)")
+
+    lan = _lan_ip()
+    if lan:
+        console.print("\n[bold]LAN access[/bold] (bound to 0.0.0.0):")
+        console.print(f"  Ollama API:         [cyan]http://{lan}:{config.ollama_port}[/cyan]")
+        console.print(f"  Open WebUI:         [cyan]http://{lan}:{config.webui_port}[/cyan]")
+        console.print(f"  LobeChat:           [cyan]http://{lan}:{config.lobechat_port}[/cyan]")
 
     console.print("\n[bold]Configuration:[/bold]")
     console.print(f"  Primary model:   {config.primary_model}")
@@ -252,7 +290,7 @@ def llm_logs(ctx, follow):
     if follow:
         manager.container_logs(OLLAMA_CONTAINER, follow=True)
     else:
-        for name in [OLLAMA_CONTAINER, WEBUI_CONTAINER]:
+        for name in [OLLAMA_CONTAINER, WEBUI_CONTAINER, LOBECHAT_CONTAINER]:
             status = manager.container_status(name)
             if status is not None:
                 console.print(f"\n[bold]--- {name} ---[/bold]")

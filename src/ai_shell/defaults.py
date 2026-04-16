@@ -53,11 +53,13 @@ WEBUI_DATA_VOLUME = "augint-shell-webui-data"
 # =============================================================================
 OLLAMA_IMAGE = "ollama/ollama"
 WEBUI_IMAGE = "ghcr.io/open-webui/open-webui:main"
+LOBECHAT_IMAGE = "lobehub/lobe-chat:latest"
 DEFAULT_PRIMARY_MODEL = "qwen3-coder:32b-a3b-q4_K_M"
-DEFAULT_FALLBACK_MODEL = "qwen3.5:27b"
+DEFAULT_FALLBACK_MODEL = "huihui_ai/llama3.3-abliterated"
 DEFAULT_CONTEXT_SIZE = 32768
 DEFAULT_OLLAMA_PORT = 11434
 DEFAULT_WEBUI_PORT = 3000
+DEFAULT_LOBECHAT_PORT = 3210
 DEFAULT_DEV_PORTS = [3000, 4200, 5000, 5173, 5678, 8000, 8080, 8888]
 
 # =============================================================================
@@ -76,6 +78,7 @@ OLLAMA_CPU_SHARES = 1024  # Docker CPU scheduling priority (default 0 = fair-sha
 # =============================================================================
 OLLAMA_CONTAINER = "augint-shell-ollama"
 WEBUI_CONTAINER = "augint-shell-webui"
+LOBECHAT_CONTAINER = "augint-shell-lobechat"
 
 # =============================================================================
 # Docker network

@@ -428,7 +428,7 @@ class TestEnsureOllama:
         overhead = int(call_kwargs["environment"]["OLLAMA_GPU_OVERHEAD"])
         assert overhead == 4 * 1024**3 + 1 * 1024**3  # used + 1 GiB buffer
 
-    def test_no_environment_when_vram_info_unavailable(
+    def test_no_gpu_overhead_when_vram_info_unavailable(
         self, mock_container_manager, mock_docker_client
     ):
         mock_container_manager._get_container = MagicMock(return_value=None)
@@ -441,9 +441,11 @@ class TestEnsureOllama:
             mock_container_manager.ensure_ollama()
 
         call_kwargs = mock_docker_client.containers.run.call_args[1]
-        assert "environment" not in call_kwargs
+        # OLLAMA_CONTEXT_LENGTH is always set; GPU overhead is not
+        assert call_kwargs["environment"].get("OLLAMA_CONTEXT_LENGTH")
+        assert "OLLAMA_GPU_OVERHEAD" not in call_kwargs["environment"]
 
-    def test_no_environment_when_no_gpu(self, mock_container_manager, mock_docker_client):
+    def test_no_gpu_overhead_when_no_gpu(self, mock_container_manager, mock_docker_client):
         mock_container_manager._get_container = MagicMock(return_value=None)
         mock_container_manager._pull_image_if_needed = MagicMock()
 
@@ -454,7 +456,8 @@ class TestEnsureOllama:
             mock_container_manager.ensure_ollama()
 
         call_kwargs = mock_docker_client.containers.run.call_args[1]
-        assert "environment" not in call_kwargs
+        assert call_kwargs["environment"].get("OLLAMA_CONTEXT_LENGTH")
+        assert "OLLAMA_GPU_OVERHEAD" not in call_kwargs["environment"]
 
     def test_always_sets_cpu_shares(self, mock_container_manager, mock_docker_client):
         mock_container_manager._get_container = MagicMock(return_value=None)
@@ -542,6 +545,34 @@ class TestEnsureWebui:
         name = mock_container_manager.ensure_webui()
         stopped.start.assert_called_once()
         assert name == "augint-shell-webui"
+
+
+class TestEnsureLobechat:
+    def test_creates_lobechat_container(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        name = mock_container_manager.ensure_lobechat()
+
+        assert name == "augint-shell-lobechat"
+        mock_docker_client.containers.run.assert_called_once()
+        call_kwargs = mock_docker_client.containers.run.call_args[1]
+        assert call_kwargs["image"] == "lobehub/lobe-chat:latest"
+        assert call_kwargs["name"] == "augint-shell-lobechat"
+        assert "OLLAMA_PROXY_URL" in call_kwargs["environment"]
+        assert call_kwargs["environment"]["OLLAMA_PROXY_URL"].endswith(":11434/v1")
+        assert call_kwargs["network"] == LLM_NETWORK
+        assert "network_mode" not in call_kwargs
+        assert "mounts" not in call_kwargs  # client-DB mode, no server-side state
+
+    def test_starts_stopped_lobechat(self, mock_container_manager):
+        stopped = MagicMock()
+        stopped.status = "exited"
+        mock_container_manager._get_container = MagicMock(return_value=stopped)
+
+        name = mock_container_manager.ensure_lobechat()
+        stopped.start.assert_called_once()
+        assert name == "augint-shell-lobechat"
 
 
 class TestExecInOllama:

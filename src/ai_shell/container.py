@@ -19,6 +19,8 @@ from docker.types import DeviceRequest, Mount
 import docker
 from ai_shell.defaults import (
     LLM_NETWORK,
+    LOBECHAT_CONTAINER,
+    LOBECHAT_IMAGE,
     OLLAMA_CONTAINER,
     OLLAMA_CPU_SHARES,
     OLLAMA_DATA_VOLUME,
@@ -274,7 +276,9 @@ class ContainerManager:
         # GPU auto-detection
         gpu_available = detect_gpu()
         device_requests = None
-        env: dict[str, str] = {}
+        env: dict[str, str] = {
+            "OLLAMA_CONTEXT_LENGTH": str(self.config.context_size),
+        }
         if gpu_available:
             device_requests = [DeviceRequest(count=1, capabilities=[["gpu"]])]
             vram = get_vram_info()
@@ -357,6 +361,42 @@ class ContainerManager:
 
         logger.info("Open WebUI container created on port %d", self.config.webui_port)
         return WEBUI_CONTAINER
+
+    def ensure_lobechat(self) -> str:
+        """Get or create the LobeChat container.
+
+        Client-DB mode: state lives in the browser's IndexedDB, so no
+        persistent server-side volume is needed.
+
+        Returns the container name.
+        """
+        container = self._get_container(LOBECHAT_CONTAINER)
+
+        if container is not None:
+            if container.status != "running":
+                logger.info("Starting existing LobeChat container")
+                container.start()
+            return LOBECHAT_CONTAINER
+
+        logger.info("Creating LobeChat container")
+        self._pull_image_if_needed(LOBECHAT_IMAGE)
+        network_name = self._ensure_llm_network()
+
+        self.client.containers.run(
+            image=LOBECHAT_IMAGE,
+            name=LOBECHAT_CONTAINER,
+            ports={"3210/tcp": ("0.0.0.0", self.config.lobechat_port)},  # nosec B104
+            environment={
+                "OLLAMA_PROXY_URL": f"http://{OLLAMA_CONTAINER}:11434/v1",
+                "ACCESS_CODE": "",
+            },
+            restart_policy={"Name": "unless-stopped"},
+            detach=True,
+            network=network_name,
+        )
+
+        logger.info("LobeChat container created on port %d", self.config.lobechat_port)
+        return LOBECHAT_CONTAINER
 
     def exec_in_ollama(self, command: list[str]) -> str:
         """Run a command in the Ollama container and return stdout.

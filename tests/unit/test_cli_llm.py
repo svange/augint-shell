@@ -6,7 +6,7 @@ from click.testing import CliRunner
 
 from ai_shell.cli.__main__ import cli
 from ai_shell.cli.commands.llm import _warn_if_low_memory
-from ai_shell.defaults import OLLAMA_CONTAINER, WEBUI_CONTAINER
+from ai_shell.defaults import LOBECHAT_CONTAINER, OLLAMA_CONTAINER, WEBUI_CONTAINER
 
 
 def _fake_meminfo(mem_total_kb: int, swap_total_kb: int) -> str:
@@ -65,8 +65,10 @@ class TestLlmCommands:
         mock_manager = MagicMock()
         mock_manager.config.ollama_port = 11434
         mock_manager.config.webui_port = 3000
+        mock_manager.config.lobechat_port = 3210
         mock_manager.ensure_ollama.return_value = OLLAMA_CONTAINER
         mock_manager.ensure_webui.return_value = WEBUI_CONTAINER
+        mock_manager.ensure_lobechat.return_value = LOBECHAT_CONTAINER
         mock_manager_cls.return_value = mock_manager
 
         result = self.runner.invoke(cli, ["llm", "up"])
@@ -74,8 +76,11 @@ class TestLlmCommands:
         assert result.exit_code == 0
         mock_manager.ensure_ollama.assert_called_once()
         mock_manager.ensure_webui.assert_called_once()
+        mock_manager.ensure_lobechat.assert_called_once()
         assert "11434" in result.output
         assert "3000" in result.output
+        assert "3210" in result.output
+        assert "LobeChat" in result.output
 
     def test_llm_down(self, mock_config, mock_manager_cls):
         mock_manager = MagicMock()
@@ -85,21 +90,28 @@ class TestLlmCommands:
         result = self.runner.invoke(cli, ["llm", "down"])
 
         assert result.exit_code == 0
-        assert mock_manager.stop_container.call_count == 2
+        assert mock_manager.stop_container.call_count == 3
+        stopped_names = [c.args[0] for c in mock_manager.stop_container.call_args_list]
+        assert LOBECHAT_CONTAINER in stopped_names
+        assert WEBUI_CONTAINER in stopped_names
+        assert OLLAMA_CONTAINER in stopped_names
 
     def test_llm_status_running(self, mock_config, mock_manager_cls):
         config = MagicMock()
         config.ollama_port = 11434
         config.webui_port = 3000
+        config.lobechat_port = 3210
         config.primary_model = "qwen3-coder:32b-a3b-q4_K_M"
-        config.fallback_model = "qwen3.5:27b"
+        config.fallback_model = "huihui_ai/llama3.3-abliterated"
         config.context_size = 32768
         mock_config.return_value = config
 
         mock_manager = MagicMock()
         mock_manager.config = config
         mock_manager.container_status.return_value = "running"
-        mock_manager.exec_in_ollama.return_value = "NAME\tSIZE\nqwen3.5:27b\t16GB"
+        mock_manager.exec_in_ollama.return_value = (
+            "NAME\tSIZE\nhuihui_ai/llama3.3-abliterated\t16GB"
+        )
         mock_manager_cls.return_value = mock_manager
 
         result = self.runner.invoke(cli, ["llm", "status"])
@@ -109,7 +121,9 @@ class TestLlmCommands:
         assert "http://localhost:11434" in result.output
         assert "http://localhost:11434/v1" in result.output
         assert "http://localhost:3000" in result.output
-        assert "Chat interface" in result.output
+        assert "http://localhost:3210" in result.output
+        assert "LobeChat" in result.output
+        assert "recommended" in result.output
         assert "qwen3-coder:32b-a3b-q4_K_M" in result.output
         assert "32768" in result.output
 
@@ -117,8 +131,9 @@ class TestLlmCommands:
         config = MagicMock()
         config.ollama_port = 11434
         config.webui_port = 3000
+        config.lobechat_port = 3210
         config.primary_model = "qwen3-coder:32b-a3b-q4_K_M"
-        config.fallback_model = "qwen3.5:27b"
+        config.fallback_model = "huihui_ai/llama3.3-abliterated"
         config.context_size = 32768
         mock_config.return_value = config
 
@@ -132,13 +147,14 @@ class TestLlmCommands:
         assert result.exit_code == 0
         assert "not found" in result.output
         assert "http://localhost:11434" in result.output
-        assert "Chat interface" in result.output
+        assert "http://localhost:3210" in result.output
+        assert "LobeChat" in result.output
         assert "not running" in result.output
 
     def test_llm_pull(self, mock_config, mock_manager_cls):
         config = MagicMock()
         config.primary_model = "qwen3-coder:32b-a3b-q4_K_M"
-        config.fallback_model = "qwen3.5:27b"
+        config.fallback_model = "huihui_ai/llama3.3-abliterated"
         mock_config.return_value = config
 
         mock_manager = MagicMock()

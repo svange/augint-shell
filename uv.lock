@@ -13,7 +13,7 @@ wheels = [
 
 [[package]]
 name = "augint-github"
-version = "1.12.0"
+version = "1.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -22,9 +22,9 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/20/fb/3b1cd03e36c7e63e8f2f4a98fa08791f9d36715d5c057de3b5def6a3cd6e/augint_github-1.12.0.tar.gz", hash = "sha256:40a902f62dbdecd9078d5ac9b6fd3ac319a7c6a9dabc2237a3d192e518a84bee", size = 19402, upload-time = "2026-04-14T23:05:51.328Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c2/ef/5dcedaa32f4183eef1fde6ae25b024418da83077fe1fd4193c7730d7af47/augint_github-1.13.0.tar.gz", hash = "sha256:9c345fb894e3c9835f4079e752d50eb4894d685e0e29eb982320a3a5495df3cf", size = 80217, upload-time = "2026-04-16T00:07:03.064Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/d2/e2b7d93957a0c0a605de23fb972ad55488f95fe10c76b4dd5291ec33e370/augint_github-1.12.0-py3-none-any.whl", hash = "sha256:22c051e59c84a3c7c2cd029b11344babb6af06dcf7c38d9cf61be3735af7a07e", size = 27500, upload-time = "2026-04-14T23:05:49.839Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/db/6ad9e123ba0abb186bd4928822b5fdf6382128e620c94ce285bf138c5de5/augint_github-1.13.0-py3-none-any.whl", hash = "sha256:7184431583b0c366d95ba5fe85f99c20373062438520dc6c7d9c81695198da17", size = 108222, upload-time = "2026-04-16T00:07:01.502Z" },
 ]
 
 [[package]]
@@ -88,7 +88,7 @@ dev = [
 
 [[package]]
 name = "augint-tools"
-version = "4.8.0"
+version = "4.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -96,9 +96,9 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/61/fd/cdb2d18d18a806a39046ab7a382abf18f615131193a4b389a67a4f230410/augint_tools-4.8.0.tar.gz", hash = "sha256:8de87b27dd57d8aa7e3c73279f4e713fe956a4144e628ccabdb5653f254eb8e4", size = 44861, upload-time = "2026-04-14T22:17:12.072Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/39/8b099b586a52e94e86619b894002ae0568acd9dd8c4c05a2ad24f4c8a4c8/augint_tools-4.10.0.tar.gz", hash = "sha256:a4f264f8df28468f384b4e55f43d8499c4f11ffb410e5b8da557f84e178255da", size = 47760, upload-time = "2026-04-15T19:08:43.223Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ed/f4/18036b46ae86538140ccb8f4d4605aa1f1b87b4ae86ee1b122b1a40c00d6/augint_tools-4.8.0-py3-none-any.whl", hash = "sha256:8acf67883bc6acdb20d24876d5b0ec4a3f12be10d9ad15fbdd0abc68c7817983", size = 61473, upload-time = "2026-04-14T22:17:10.83Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/70/3c39764a1475dd07f699dedeea7993d720aae7dada6f58a93b90612d9878/augint_tools-4.10.0-py3-none-any.whl", hash = "sha256:2574621a82daf576ca27839a1d73b9c8a7efa047ad7a8388493e29d5bb75f5e1", size = 64601, upload-time = "2026-04-15T19:08:41.665Z" },
 ]
 
 [[package]]
