@@ -45,5 +45,16 @@ class TestProjectYamlOutput:
         scaffold_project(tmp_path)
         content = (tmp_path / ".ai-shell.yaml").read_text()
         parsed = yaml.safe_load(content)
-        # All content is commented out, so parsed should be None
-        assert parsed is None
+        # llm section is live (4 slots + extras); other sections stay commented.
+        assert parsed is not None
+        assert "llm" in parsed
+        for key in (
+            "primary_chat_model",
+            "secondary_chat_model",
+            "primary_coding_model",
+            "secondary_coding_model",
+        ):
+            assert key in parsed["llm"]
+        assert "container" not in parsed
+        assert "aws" not in parsed
+        assert "claude" not in parsed

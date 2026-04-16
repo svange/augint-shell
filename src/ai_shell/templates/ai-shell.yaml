@@ -1,70 +1,64 @@
 # =============================================================================
 # .ai-shell.yaml - Project configuration for ai-shell
 # =============================================================================
-# Uncomment and modify settings you want to override.
 # Priority (highest wins): CLI flags > env vars > this file > global config > defaults
-# Global config: ~/.config/ai-shell/config.yaml (same format, applies to all projects)
-# Docs: https://github.com/svange/augint-shell
+# Global config: ~/.ai-shell.yaml (applies to all projects)
+# Full docs:     https://github.com/svange/augint-shell#local-llm-stack
 
-# =============================================================================
-# aws - Amazon Web Services configuration
-# =============================================================================
-# ai_profile: AWS profile for the AI's working environment (aws cli, terraform,
-#   cdk). Sets AWS_PROFILE in the container. This is the account the AI uses
-#   when running infrastructure commands.
-#   Override with env var: AI_SHELL_AI_PROFILE
-#
-# bedrock_profile: AWS profile for Bedrock LLM API calls. Often a different
-#   account than ai_profile. Overrides AWS_PROFILE specifically for AI tool
-#   processes launched with `--aws`.
-#   Override with env var: AI_SHELL_BEDROCK_PROFILE
-#   Override per-session with: --profile <name> on the CLI
-#
-# region: AWS region for Bedrock API calls. Default: us-east-1
-#   Override with env var: AI_SHELL_AWS_REGION
-#
-# Authentication: ~/.aws is bind-mounted into the container (read-write).
-# SSO, credential files, and config are available automatically.
-# If SSO tokens expire, run 'aws sso login --profile <name>' on the host.
+# -----------------------------------------------------------------------------
+# llm - Local LLM stack (Ollama + Open WebUI + optional TTS / n8n)
+# -----------------------------------------------------------------------------
+# Four role-specific model slots. Primary = best-available; secondary =
+# best uncensored (abliterated) alternative of the same base. Chat slots
+# route to Open WebUI (DEFAULT_MODELS); coding slots route to OpenCode /
+# Aider (--model). `ai-shell llm pull` pulls all 4 slots plus any
+# `extra_models` entries, deduped. See README for per-slot rationale and
+# caveats (Qwen3.5 Ollama tool-call bug, num_ctx trap, tool-count cliff).
+llm:
+  primary_chat_model: qwen3.5:27b
+  secondary_chat_model: huihui_ai/qwen3.5-abliterated:27b
+  primary_coding_model: qwen3-coder:30b-a3b-q4_K_M
+  secondary_coding_model: huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M
+  context_size: 32768
+  # Additional Ollama tags to pull alongside the 4 slots (deduped).
+  # Uncomment any line to enable -- indentation is already correct.
+  extra_models:
+    # - llama3.1:8b                         # ~5 GB   fast general chat
+    # - llama3.2:latest                     # ~2 GB   Llama 3.2 3B, very fast
+    # - dolphin3:8b                         # ~5 GB   uncensored Llama 3.1 8B
+    # - qwen3:30b-a3b-instruct-2507-q4_K_M  # ~19 GB  Qwen3 MoE chat alt (~196 tok/s)
+    # - qwen2.5-coder:32b-q4_k_m            # ~19 GB  Qwen2.5-Coder (previous gen)
+    # - qwen2.5-coder:14b-instruct          # ~9 GB   smaller Qwen2.5-Coder
+
+# -----------------------------------------------------------------------------
+# aws - AWS profile + region. Uncomment to override defaults.
+# -----------------------------------------------------------------------------
+# ai_profile:      AWS profile for infra tools (terraform/cdk). Sets AWS_PROFILE
+#                  in the container.
+# bedrock_profile: AWS profile for Bedrock LLM calls (--aws mode). Often a
+#                  different account than ai_profile.
+# region:          Region for Bedrock. Default: us-east-1
+# Auth: ~/.aws is bind-mounted read-write. `aws sso login` on the host as needed.
 #
 # aws:
 #   ai_profile: my-infra-account
 #   bedrock_profile: my-ai-account
 #   region: us-east-1
 
-# =============================================================================
-# claude - Claude Code settings
-# =============================================================================
-# provider: API backend for Claude Code.
-#   "anthropic" - Direct Anthropic API (default, uses ~/.claude credentials)
-#   "aws"       - Amazon Bedrock (uses bedrock_profile from aws section)
-#
-# When provider is "aws":
-#   - CLAUDE_CODE_USE_BEDROCK=1 is set in the environment
-#   - AWS_PROFILE is set to bedrock_profile for Claude's process
-#   - Quick switch with CLI: ai-shell claude --aws
-#   - Override per-session:   ai-shell claude --aws --profile <name>
-#   - Tip: pin Bedrock model versions with ANTHROPIC_DEFAULT_SONNET_MODEL env var
-#
-# Override with env var: AI_SHELL_CLAUDE_PROVIDER
-#
+# -----------------------------------------------------------------------------
+# claude - Claude Code backend selection. Uncomment to use Bedrock instead of
+# the Anthropic API. Equivalent per-session flag: `ai-shell claude --aws`.
+# -----------------------------------------------------------------------------
 # claude:
 #   provider: aws
 
-# Codex runtime note:
-#   ai-shell does not manage Codex's own config file, but `ai-shell codex --aws`
-#   launches Codex with Bedrock by injecting `CLAUDE_CODE_USE_BEDROCK=1` and
-#   setting `AWS_PROFILE` to `aws.bedrock_profile` (or `--profile` if passed).
-#   Local-LLM Codex configuration is not managed in this file.
-
-# =============================================================================
-# container - Docker container settings
-# =============================================================================
-# image: Docker image (default: svange/augint-shell)
-# image_tag: Image tag (default: current ai-shell version)
-# extra_env: Additional environment variables for the container
-# extra_volumes: Additional bind mounts ("/host/path:/container/path" or ":/path:ro")
-# ports: Additional ports to expose (extends the default dev port set)
+# -----------------------------------------------------------------------------
+# container - Docker image, env, mounts, ports. Uncomment to override.
+# -----------------------------------------------------------------------------
+# image / image_tag:  Override the default svange/augint-shell:latest image.
+# extra_env:          Additional env vars injected into the dev container.
+# extra_volumes:      Additional bind mounts ("/host:/container" or ":/path:ro").
+# ports:              Extra host ports to expose on the dev container.
 #
 # container:
 #   image: svange/augint-shell
@@ -76,154 +70,3 @@
 #   ports:
 #     - 9000
 #     - 9229
-
-# =============================================================================
-# llm - Local LLM stack (Ollama + Open WebUI + optional TTS / n8n)
-# =============================================================================
-# Four role-specific model slots. Primary = best-available for the role;
-# secondary = best uncensored alternative (abliterated: refusal weights
-# surgically removed, benchmark quality preserved). Same base model family
-# within each role pair so switching primary <-> secondary keeps token
-# behavior, tool formats, and context semantics consistent.
-#
-# Routing:
-#   chat slots   -> Open WebUI (DEFAULT_MODELS env seeds the default chat model)
-#   coding slots -> OpenCode / Aider (--model flag sets primary coding model)
-#
-# `ai-shell llm pull` and `llm setup` download all 4 slots plus any
-# `extra_models` entries, deduped.
-#
-# All four defaults fit an RTX 4090 (24 GiB VRAM) with headroom for a 32K KV
-# cache. Total disk footprint ~74 GB across the four models.
-#
-# --- Slot 1: primary_chat_model ---------------------------------------------
-# Default: qwen3.5:27b  (~17 GB, dense, 256K context)
-#
-# Why this model:
-#   Qwen3.5-27B is Alibaba's Feb 2026 dense chat/reasoning release. Best
-#   benchmark scores in the under-20 GiB tier: MMLU-Pro 86.1, GPQA 85.5,
-#   SWE-bench Verified 72.4. Hybrid Gated DeltaNet + full-attention (3:1)
-#   gives near-linear long-context scaling — 256K context is genuinely
-#   usable, not just advertised.
-#
-# Used by:
-#   Open WebUI (set as DEFAULT_MODELS so new chats open against it).
-#
-# Caveats:
-#   Ollama's native tool-calling for Qwen3.5 is broken (Ollama issue #14493,
-#   open as of 2026-04). Not a problem for WebUI chat: WebUI's built-in web
-#   search and RAG do server-side fetch + context injection — they don't
-#   route through Ollama's tools API. If you flip WebUI's per-chat
-#   "Function Calling: Native" toggle, tool-using chats will break for
-#   this slot; leave it on "Default".
-#
-# --- Slot 2: secondary_chat_model -------------------------------------------
-# Default: huihui_ai/qwen3.5-abliterated:27b  (~17 GB, dense, 256K context)
-#
-# Why this model:
-#   Same Qwen3.5-27B base as the primary chat slot, abliterated by
-#   huihui.ai: refusal-direction vectors neutralized via weight surgery
-#   (no retraining), so benchmark capacity is preserved. Use this slot
-#   when the aligned model refuses legitimate requests (security research,
-#   red-team write-ups, creative fiction, etc.).
-#
-# Used by:
-#   Open WebUI — selectable in the model dropdown; does NOT auto-default.
-#
-# Caveats:
-#   Same Ollama tool-calling bug as the primary (same base). Expect slightly
-#   higher hallucination and occasional instruction drift vs the aligned
-#   base; don't use for ground-truth factual Q&A.
-#
-# --- Slot 3: primary_coding_model -------------------------------------------
-# Default: qwen3-coder:30b-a3b-q4_K_M  (~19 GB, MoE 30.5B/3.3B active, 256K ctx)
-#
-# Why this model:
-#   Alibaba's Qwen3-Coder 30B-A3B (July 2025) — first Qwen model explicitly
-#   trained for *agentic* software engineering rather than autocomplete.
-#   SWE-bench Verified 51.6, best-in-class at this VRAM tier. Purpose-built
-#   XML tool-call format with first-class support in Claude Code, OpenCode,
-#   Aider, Goose. Ollama registry explicitly declares the "tools"
-#   capability on this tag.
-#   MoE routing (3.3B active per token) gives ~8B-class throughput — fast
-#   enough for interactive agent loops on a single 4090.
-#
-# Used by:
-#   OpenCode (`ai-shell opencode` launches with --model ollama/<this slot>).
-#   Aider  (`ai-shell aider` uses ollama_chat/<this slot>).
-#
-# Caveats:
-#   Tool-count cliff: reliable native tool_calls below ~5 tools; above that
-#   the model may emit XML inside content and some parsers miss them. Use
-#   recent Ollama (>= Aug 2025 with the Unsloth chat-template fix).
-#   Defaults to num_ctx=4096 in raw Ollama — the `context_size` setting
-#   below raises this to 32768 via Modelfile override.
-#
-# --- Slot 4: secondary_coding_model -----------------------------------------
-# Default: huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M  (~19 GB)
-#
-# Why this model:
-#   Same Qwen3-Coder 30B-A3B base as the primary coding slot, abliterated.
-#   Keeps the XML tool-call template intact, so function calling still works
-#   via Ollama's tools API (though no explicit "tools" badge on the
-#   abliterated page — smoke-test before relying on it in a production
-#   agent loop). Use when the aligned coder refuses legitimate work
-#   (deobfuscation, pentest automation, security research).
-#
-# Used by:
-#   OpenCode — swap in via the runtime model picker when needed; does NOT
-#   auto-default.
-#
-# Caveats:
-#   Same tool-count cliff as primary coding. Same abliteration drift
-#   caveat as the secondary chat slot.
-#
-# --- num_ctx (context_size) -------------------------------------------------
-# Ollama defaults to num_ctx=4096 per model — far below what modern agent
-# tool prompts need (Claude Code alone sends ~35K tokens). `context_size`
-# below is applied via Modelfile overrides during `ai-shell llm setup`.
-# 32768 is a safe default; raise for longer conversations (256K is the
-# native limit across all four default slots).
-#
-# --- extra_models -----------------------------------------------------------
-# Free-form list of additional Ollama tags to pull alongside the 4 slots.
-# Uncomment to enable; each entry is pulled once (deduped against the
-# 4 slots).
-#
-# Commented suggestions below are curated for an RTX 4090. Flip them to
-# uncommented entries and re-run `ai-shell llm pull` to add them.
-#
-# Override with env vars:
-#   AI_SHELL_PRIMARY_CHAT_MODEL
-#   AI_SHELL_SECONDARY_CHAT_MODEL
-#   AI_SHELL_PRIMARY_CODING_MODEL
-#   AI_SHELL_SECONDARY_CODING_MODEL
-#   AI_SHELL_CONTEXT_SIZE
-#   AI_SHELL_OLLAMA_PORT / WEBUI_PORT / KOKORO_PORT / N8N_PORT
-#   AI_SHELL_KOKORO_VOICE
-#
-# llm:
-#   primary_chat_model: qwen3.5:27b
-#   secondary_chat_model: huihui_ai/qwen3.5-abliterated:27b
-#   primary_coding_model: qwen3-coder:30b-a3b-q4_K_M
-#   secondary_coding_model: huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M
-#   context_size: 32768
-#   ollama_port: 11434
-#   webui_port: 3000
-#   kokoro_port: 8880
-#   n8n_port: 5678
-#   extra_models: []
-#     # --- Lightweight / fast (good for quick tasks, low VRAM load) ---
-#     # - llama3.1:8b                          # ~5 GB, Meta Llama 3.1 8B instruct
-#     # - llama3.2:latest                      # ~2 GB, Llama 3.2 3B, very fast
-#     # - dolphin3:8b                          # ~5 GB, uncensored Llama 3.1 8B
-#     #
-#     # --- Alternative MoE chat (different architecture for A/B) ---
-#     # - qwen3:30b-a3b-instruct-2507-q4_K_M  # ~19 GB, Qwen3 MoE, ~196 tok/s on 4090
-#     #
-#     # --- Previous-generation coders (for comparison / Qwen2.5 family) ---
-#     # - qwen2.5-coder:32b-q4_k_m             # ~19 GB, Qwen2.5-Coder 32B dense
-#     # - qwen2.5-coder:14b-instruct           # ~9 GB, smaller Qwen2.5-Coder
-#     #
-#     # --- Alternative uncensored chat (older Llama 3.3 abliterated, tight on 4090) ---
-#     # - huihui_ai/llama3.3-abliterated       # 43+ GB, does NOT fit 4090 comfortably

@@ -95,3 +95,4 @@ runtime-requirements.txt
 # === ai-shell project config (may contain API keys) ===
 .ai-shell.toml
 ai-shell.toml
+.ai-shell.yaml
