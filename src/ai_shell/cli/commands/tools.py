@@ -1,4 +1,4 @@
-"""AI tool subcommands: claude, codex, opencode, aider, bash."""
+"""AI tool subcommands: claude, codex, opencode, aider, shell."""
 
 from __future__ import annotations
 
@@ -1208,13 +1208,39 @@ def aider(ctx, safe, extra_args):
     manager.exec_interactive(name, cmd, extra_env=exec_env)
 
 
+SUPPORTED_SHELLS: dict[str, str] = {
+    "bash": "/bin/bash",
+    "zsh": "/usr/bin/zsh",
+    "fish": "/usr/bin/fish",
+}
+
+
 @click.command(context_settings=CONTEXT_SETTINGS)
+@click.argument(
+    "shell_name",
+    required=False,
+    type=click.Choice(list(SUPPORTED_SHELLS.keys()), case_sensitive=False),
+)
 @click.pass_context
-def bash(ctx):
-    """Open a bash shell in the dev container."""
+def shell(ctx, shell_name):
+    """Open an interactive shell in the dev container.
+
+    SHELL_NAME is one of bash, zsh, fish.  If omitted, an interactive
+    prompt asks which shell to launch.  All three shells come pre-configured
+    with modern defaults (Starship prompt, useful aliases, history tuning)
+    plus Oh My Zsh for zsh and Fisher for fish.
+    """
     manager, name, exec_env, _config = _get_manager(ctx)
-    console.print(f"[bold]Opening bash in {name}...[/bold]")
-    manager.exec_interactive(name, ["/bin/bash"], extra_env=exec_env)
+    if not shell_name:
+        shell_name = click.prompt(
+            "Choose shell",
+            type=click.Choice(list(SUPPORTED_SHELLS.keys()), case_sensitive=False),
+            default="bash",
+        )
+    shell_name = shell_name.lower()
+    shell_path = SUPPORTED_SHELLS[shell_name]
+    console.print(f"[bold]Opening {shell_name} in {name}...[/bold]")
+    manager.exec_interactive(name, [shell_path], extra_env=exec_env)
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)

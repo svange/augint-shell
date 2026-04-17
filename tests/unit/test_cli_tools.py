@@ -360,18 +360,63 @@ class TestToolCommands:
 
         mock_check_bedrock.assert_called_once()
 
-    def test_bash_command(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
+    def test_shell_bash(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
         mock_manager.exec_interactive.side_effect = SystemExit(0)
         mock_manager_cls.return_value = mock_manager
 
-        self.runner.invoke(cli, ["bash"])
+        self.runner.invoke(cli, ["shell", "bash"])
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert cmd == ["/bin/bash"]
         assert mock_manager.exec_interactive.call_args[1]["extra_env"] == TEST_EXEC_ENV
+
+    def test_shell_zsh(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["shell", "zsh"])
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert cmd == ["/usr/bin/zsh"]
+
+    def test_shell_fish(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["shell", "fish"])
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert cmd == ["/usr/bin/fish"]
+
+    def test_shell_prompts_when_no_arg(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        # Simulate user selecting "zsh" at the prompt.
+        self.runner.invoke(cli, ["shell"], input="zsh\n")
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert cmd == ["/usr/bin/zsh"]
+
+    def test_shell_rejects_invalid(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        result = self.runner.invoke(cli, ["shell", "csh"])
+        assert result.exit_code != 0
 
     def test_aider_passes_model_and_env(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
