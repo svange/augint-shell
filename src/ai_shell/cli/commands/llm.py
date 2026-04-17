@@ -14,6 +14,7 @@ Stack flags (applied to up/down/clean/setup):
 ``llm up`` with no flags starts only the base Ollama container.
 """
 
+import re
 import socket
 import time
 from http.client import HTTPException, HTTPSConnection
@@ -44,6 +45,7 @@ from ai_shell.gpu import get_vram_info, get_vram_processes
 
 console = Console(stderr=True)
 
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 _LOW_MEMORY_THRESHOLD_GIB = 30  # 27B+ models need ~30 GiB
 _OLLAMA_REGISTRY_HOST = "registry.ollama.ai"
 _MANIFEST_PROBE_TIMEOUT = 5.0
@@ -131,6 +133,38 @@ def _validate_models_or_abort(*model_refs: str) -> None:
         "entry (or [bold]extra_models[/bold]) in your ai-shell config to a valid tag and retry."
     )
     raise click.Abort()
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences and collapse carriage-return overwrites.
+
+    ``ollama pull`` emits VT100 codes (bold, erase-line) and ``\\r``-based
+    progress bars that render as garbage in non-VT100 terminals (e.g.
+    PowerShell). This function strips all of that and returns only the
+    final state of each progress line.
+    """
+    text = _ANSI_ESCAPE_RE.sub("", text)
+    # Progress bars use \r to overwrite the line; keep only the last segment.
+    lines: list[str] = []
+    for line in text.split("\n"):
+        segments = line.split("\r")
+        final = segments[-1].strip()
+        if final:
+            lines.append(final)
+    return "\n".join(lines)
+
+
+def _pull_models(manager: ContainerManager, models: tuple[str, ...] | list[str]) -> None:
+    """Pull one or more Ollama models with a spinner and clean output."""
+    for model in models:
+        with console.status(f"[bold]Pulling {model}...[/bold]", spinner="dots"):
+            output = manager.exec_in_ollama(["ollama", "pull", model])
+        clean = _strip_ansi(output)
+        if "success" in clean.lower():
+            console.print(f"  [green]Pulled {model}[/green]")
+        else:
+            console.print(f"  [yellow]{model}:[/yellow]")
+            console.print(clean)
 
 
 def _lan_ip() -> str | None:
@@ -526,10 +560,7 @@ def llm_pull(ctx):
     models = config.models_to_pull
     _validate_models_or_abort(*models)
 
-    for model in models:
-        console.print(f"[bold]Pulling {model}...[/bold]")
-        output = manager.exec_in_ollama(["ollama", "pull", model])
-        console.print(output)
+    _pull_models(manager, models)
 
     console.print("\n[bold]Available models:[/bold]")
     output = manager.exec_in_ollama(["ollama", "list"])
@@ -635,10 +666,7 @@ def llm_setup(
         console.print("[bold red]Ollama failed to start after 20s[/bold red]")
         raise click.Abort()
 
-    for model in models:
-        console.print(f"\n[bold]Pulling {model}...[/bold]")
-        output = manager.exec_in_ollama(["ollama", "pull", model])
-        console.print(output)
+    _pull_models(manager, models)
 
     console.print("\n[bold green]============================================[/bold green]")
     console.print("[bold green] Setup complete![/bold green]")
