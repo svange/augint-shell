@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.83.0 (2026-04-17)
+
+### Features
+
+- **container**: Add ComfyUI image generation to the LLM stack
+  ([`38174d2`](https://github.com/svange/augint-shell/commit/38174d2d5feb368c84ea6bae0ee83ed36cd961e8))
+
+
 ## v0.82.0 (2026-04-17)
 
 ### Features
