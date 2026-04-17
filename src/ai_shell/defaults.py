@@ -357,3 +357,127 @@ def build_dev_environment(
         env.update(extra_env)
 
     return env
+
+
+def _resolve_env(dotenv: dict[str, str | None], key: str, default: str = "") -> str:
+    """Resolve a value: dotenv > os.environ > default."""
+    dotenv_val = dotenv.get(key)
+    if dotenv_val is not None and dotenv_val != "":
+        return dotenv_val
+    return os.environ.get(key, default)
+
+
+def build_n8n_environment(
+    env_file: Path | None = None,
+    *,
+    aws_profile: str = "",
+    aws_region: str = "",
+) -> dict[str, str]:
+    """Build environment variables for the n8n workflow automation container.
+
+    Loads API keys from *env_file* (``--env`` flag, e.g. ``.env.augint-shell``),
+    then falls back to host environment variables.
+
+    Service discovery URLs use internal Docker network hostnames so n8n
+    workflows can reference them via ``{{ $env.OLLAMA_BASE_URL }}`` etc.
+    """
+    from dotenv import dotenv_values
+
+    dotenv: dict[str, str | None] = {}
+    if env_file is not None:
+        dotenv = dotenv_values(env_file)
+
+    env: dict[str, str] = {
+        # Disable secure-cookie so the UI works over plain http://localhost.
+        "N8N_SECURE_COOKIE": "false",
+        # Service discovery (internal Docker network URLs).
+        "OLLAMA_BASE_URL": f"http://{OLLAMA_CONTAINER}:11434",
+        "KOKORO_BASE_URL": f"http://{KOKORO_CONTAINER}:8880",
+        "WHISPER_BASE_URL": f"http://{WHISPER_CONTAINER}:8000",
+        "VOICE_AGENT_BASE_URL": f"http://{VOICE_AGENT_CONTAINER}:8000",
+        "WEBUI_BASE_URL": f"http://{WEBUI_CONTAINER}:8080",
+    }
+
+    # AWS credentials
+    aws_prof = aws_profile or _resolve_env(dotenv, "AWS_PROFILE")
+    aws_reg = aws_region or _resolve_env(dotenv, "AWS_REGION", "us-east-1")
+    if aws_prof:
+        env["AWS_PROFILE"] = aws_prof
+    env["AWS_REGION"] = aws_reg
+    env["AWS_DEFAULT_REGION"] = aws_reg
+
+    # API keys — only include when non-empty.
+    for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+        val = _resolve_env(dotenv, key)
+        if val:
+            env[key] = val
+
+    gh_token = _resolve_env(dotenv, "GH_TOKEN")
+    if gh_token:
+        env["GH_TOKEN"] = gh_token
+        env["GITHUB_TOKEN"] = gh_token
+        # GitHub Models endpoint for Copilot LLM access.
+        env["GITHUB_MODELS_BASE_URL"] = "https://models.inference.ai.azure.com"
+
+    return env
+
+
+def build_n8n_mounts(
+    workflow_dir: Path | None = None,
+) -> list[Mount]:
+    """Build the mount list for the n8n container.
+
+    n8n runs as user ``node`` (UID 1000).  Credential directories are mounted
+    read-only under ``/home/node/`` so the AWS and GitHub CLIs resolve auth
+    the same way the dev container does.
+    """
+    from docker.types import Mount
+
+    home = Path.home()
+
+    mounts: list[Mount] = [
+        # Persistent data (workflows, credentials DB, settings).
+        Mount(
+            target="/home/node/.n8n",
+            source=N8N_DATA_VOLUME,
+            type="volume",
+        ),
+    ]
+
+    # Optional credential bind mounts (read-only).
+    aws_dir = home / ".aws"
+    if aws_dir.exists():
+        mounts.append(
+            Mount(
+                target="/home/node/.aws",
+                source=str(aws_dir),
+                type="bind",
+                read_only=True,
+            )
+        )
+    else:
+        logger.debug("Skipping n8n AWS mount (not found): %s", aws_dir)
+
+    gh_config = _find_gh_config_dir()
+    if gh_config is not None:
+        mounts.append(
+            Mount(
+                target="/home/node/.config/gh",
+                source=str(gh_config),
+                type="bind",
+                read_only=True,
+            )
+        )
+
+    # Starter workflow templates (read-only bind mount).
+    if workflow_dir is not None and workflow_dir.is_dir():
+        mounts.append(
+            Mount(
+                target="/workflows",
+                source=str(workflow_dir),
+                type="bind",
+                read_only=True,
+            )
+        )
+
+    return mounts

@@ -48,7 +48,7 @@ def manage_status(ctx):
                 host_port = host_addr.rsplit(":", 1)[-1]
                 label = container_port.split("/")[0]
                 console.print(
-                    f"    [cyan]http://localhost:{host_port}[/cyan]  [dim italic]({label})[/dim]"
+                    f"    [cyan]http://localhost:{host_port}[/cyan]  [dim italic]({label})[/dim italic]"
                 )
     else:
         console.print(f"[yellow]{name}: {status}[/yellow]")

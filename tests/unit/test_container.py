@@ -583,6 +583,66 @@ class TestEnsureWebui:
         # Default voice from config flows through.
         assert env["AUDIO_TTS_VOICE"] == mock_container_manager.config.kokoro_voice
 
+    def test_whisper_enabled_wires_stt(self, mock_container_manager, mock_docker_client):
+        """When whisper_enabled=True, WebUI is pre-wired to the Speaches container."""
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        mock_container_manager.ensure_webui(whisper_enabled=True)
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert env["AUDIO_STT_ENGINE"] == "openai"
+        assert env["AUDIO_STT_OPENAI_API_BASE_URL"] == f"http://{WHISPER_CONTAINER}:8000/v1"
+        assert env["AUDIO_STT_OPENAI_API_KEY"] == "dummy"
+        assert env["AUDIO_STT_MODEL"] == mock_container_manager.config.whisper_model
+
+    def test_no_whisper_no_stt(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        mock_container_manager.ensure_webui()
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert "AUDIO_STT_ENGINE" not in env
+
+    def test_env_file_passes_openai_key(self, mock_container_manager, mock_docker_client, tmp_path):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+        env_file = tmp_path / ".env.augint-shell"
+        env_file.write_text("OPENAI_API_KEY=sk-test\n")
+
+        with patch.dict("os.environ", {}, clear=True):
+            mock_container_manager.ensure_webui(env_file=env_file)
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert "OPENAI_API_BASE_URLS" in env
+        assert "sk-test" in env["OPENAI_API_KEYS"]
+
+    def test_env_file_passes_anthropic_key(
+        self, mock_container_manager, mock_docker_client, tmp_path
+    ):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+        env_file = tmp_path / ".env.augint-shell"
+        env_file.write_text("ANTHROPIC_API_KEY=sk-ant-test\n")
+
+        with patch.dict("os.environ", {}, clear=True):
+            mock_container_manager.ensure_webui(env_file=env_file)
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert env["ANTHROPIC_API_KEY"] == "sk-ant-test"
+
+    def test_gh_token_adds_github_models(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with patch.dict("os.environ", {"GH_TOKEN": "ghp_test"}, clear=True):
+            mock_container_manager.ensure_webui()
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert "models.inference.ai.azure.com" in env["OPENAI_API_BASE_URLS"]
+        assert "ghp_test" in env["OPENAI_API_KEYS"]
+
     def test_starts_stopped_webui(self, mock_container_manager):
         stopped = MagicMock()
         stopped.status = "exited"
@@ -719,7 +779,8 @@ class TestEnsureN8n:
         mock_container_manager._get_container = MagicMock(return_value=None)
         mock_container_manager._pull_image_if_needed = MagicMock()
 
-        name = mock_container_manager.ensure_n8n()
+        with patch.dict("os.environ", {}, clear=True):
+            name = mock_container_manager.ensure_n8n()
 
         assert name == N8N_CONTAINER
         mock_docker_client.containers.run.assert_called_once()
@@ -733,6 +794,31 @@ class TestEnsureN8n:
         # Mount targets the n8n data directory.
         mount_targets = [m["Target"] for m in call_kwargs["mounts"]]
         assert "/home/node/.n8n" in mount_targets
+
+    def test_env_includes_service_urls(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with patch.dict("os.environ", {}, clear=True):
+            mock_container_manager.ensure_n8n()
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert "OLLAMA_BASE_URL" in env
+        assert "KOKORO_BASE_URL" in env
+        assert "WHISPER_BASE_URL" in env
+        assert env["N8N_SECURE_COOKIE"] == "false"
+
+    def test_env_file_passes_api_keys(self, mock_container_manager, mock_docker_client, tmp_path):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+        env_file = tmp_path / ".env.augint-shell"
+        env_file.write_text("OPENAI_API_KEY=sk-test\n")
+
+        with patch.dict("os.environ", {}, clear=True):
+            mock_container_manager.ensure_n8n(env_file=env_file)
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert env["OPENAI_API_KEY"] == "sk-test"
 
     def test_starts_stopped_n8n(self, mock_container_manager):
         stopped = MagicMock()

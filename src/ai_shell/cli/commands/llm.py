@@ -229,6 +229,13 @@ def _resolve_stacks(
 # Shared decorators for stack flags on up/down/clean/setup.
 def _stack_flags(func):
     func = click.option("--all", "all_", is_flag=True, help="Enable every optional stack.")(func)
+    func = click.option(
+        "--env",
+        "env_file",
+        type=click.Path(exists=True, dir_okay=False),
+        default=None,
+        help="Env file with API keys (e.g. .env.augint-shell). Keys are passed to n8n and WebUI.",
+    )(func)
     func = click.option("--n8n", is_flag=True, help="n8n workflow automation engine (port 5678).")(
         func
     )
@@ -278,6 +285,7 @@ def llm_up(
     voice_agent: bool,
     n8n: bool,
     all_: bool,
+    env_file: str | None,
 ):
     """Start the LLM stack.
 
@@ -286,11 +294,12 @@ def llm_up(
     ``--no-voice`` to skip TTS. ``--voice`` alone runs Kokoro standalone.
     ``--whisper`` brings up Speaches STT. ``--voice-agent`` brings up the
     experimental Pipecat voice agent. ``--n8n`` brings up n8n workflow
-    automation.
+    automation. ``--env <file>`` passes API keys to n8n and WebUI.
     """
     webui, voice, whisper, voice_agent, n8n = _resolve_stacks(
         webui, voice, no_voice, whisper, voice_agent, n8n, all_
     )
+    env_path = Path(env_file) if env_file else None
     manager = _get_manager(ctx)
     config = manager.config
     console.print("[bold]Starting LLM stack...[/bold]")
@@ -308,7 +317,7 @@ def llm_up(
         console.print(f"  Speaches STT: http://localhost:{config.whisper_port}")
 
     if webui:
-        manager.ensure_webui(voice_enabled=voice)
+        manager.ensure_webui(voice_enabled=voice, whisper_enabled=whisper, env_file=env_path)
         console.print(f"  Open WebUI:  http://localhost:{config.webui_port}")
 
     if voice_agent:
@@ -316,7 +325,7 @@ def llm_up(
         console.print(f"  Voice agent: http://localhost:{config.voice_agent.port}")
 
     if n8n:
-        manager.ensure_n8n()
+        manager.ensure_n8n(env_file=env_path)
         console.print(f"  n8n:         http://localhost:{config.n8n_port}")
 
     lan = _lan_ip()
@@ -349,6 +358,7 @@ def llm_down(
     voice_agent: bool,
     n8n: bool,
     all_: bool,
+    env_file: str | None,  # noqa: ARG001 — unused; present because _stack_flags adds it
 ):
     """Stop containers in the LLM stack.
 
@@ -404,6 +414,7 @@ def llm_clean(
     voice_agent: bool,
     n8n: bool,
     all_: bool,
+    env_file: str | None,  # noqa: ARG001 — unused; present because _stack_flags adds it
     wipe: bool,
     assume_yes: bool,
 ):
@@ -503,6 +514,7 @@ def llm_setup(
     voice_agent: bool,
     n8n: bool,
     all_: bool,
+    env_file: str | None,
 ):
     """First-time setup: start stack, pull models, configure context.
 
@@ -512,6 +524,7 @@ def llm_setup(
     webui, voice, whisper, voice_agent, n8n = _resolve_stacks(
         webui, voice, no_voice, whisper, voice_agent, n8n, all_
     )
+    env_path = Path(env_file) if env_file else None
     manager = _get_manager(ctx)
     config = manager.config
 
@@ -526,11 +539,11 @@ def llm_setup(
     if whisper:
         manager.ensure_whisper()
     if webui:
-        manager.ensure_webui(voice_enabled=voice)
+        manager.ensure_webui(voice_enabled=voice, whisper_enabled=whisper, env_file=env_path)
     if voice_agent:
         manager.ensure_voice_agent()
     if n8n:
-        manager.ensure_n8n()
+        manager.ensure_n8n(env_file=env_path)
 
     console.print("[bold]Waiting for Ollama to be ready...[/bold]")
     for i in range(10):

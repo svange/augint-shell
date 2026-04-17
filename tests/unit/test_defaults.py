@@ -8,10 +8,14 @@ from ai_shell.defaults import (
     DEV_PORT_RANGE_SIZE,
     DEV_PORT_RANGE_START,
     GH_CONFIG_VOLUME,
+    N8N_DATA_VOLUME,
     NPM_CACHE_VOLUME,
+    OLLAMA_CONTAINER,
     UV_CACHE_VOLUME,
     build_dev_environment,
     build_dev_mounts,
+    build_n8n_environment,
+    build_n8n_mounts,
     dev_container_name,
     project_dev_port,
     sanitize_project_name,
@@ -432,3 +436,134 @@ class TestFindGhConfigDir:
         ):
             result = _find_gh_config_dir()
         assert result is None
+
+
+class TestBuildN8nEnvironment:
+    def test_always_sets_n8n_secure_cookie(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_n8n_environment()
+        assert env["N8N_SECURE_COOKIE"] == "false"
+
+    def test_includes_service_discovery_urls(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_n8n_environment()
+        assert env["OLLAMA_BASE_URL"] == f"http://{OLLAMA_CONTAINER}:11434"
+        assert "KOKORO_BASE_URL" in env
+        assert "WHISPER_BASE_URL" in env
+        assert "VOICE_AGENT_BASE_URL" in env
+        assert "WEBUI_BASE_URL" in env
+
+    def test_uses_internal_container_ports(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_n8n_environment()
+        # Must use container hostnames, not localhost
+        for key in ("OLLAMA_BASE_URL", "KOKORO_BASE_URL", "WHISPER_BASE_URL"):
+            assert "localhost" not in env[key]
+
+    def test_passes_through_openai_key(self):
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-test"}, clear=True):
+            env = build_n8n_environment()
+        assert env["OPENAI_API_KEY"] == "sk-test"
+
+    def test_passes_through_anthropic_key(self):
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-test"}, clear=True):
+            env = build_n8n_environment()
+        assert env["ANTHROPIC_API_KEY"] == "sk-ant-test"
+
+    def test_omits_keys_when_not_in_environment(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_n8n_environment()
+        assert "OPENAI_API_KEY" not in env
+        assert "ANTHROPIC_API_KEY" not in env
+        assert "GH_TOKEN" not in env
+
+    def test_gh_token_sets_github_models_url(self):
+        with patch.dict("os.environ", {"GH_TOKEN": "ghp_test"}, clear=True):
+            env = build_n8n_environment()
+        assert env["GH_TOKEN"] == "ghp_test"
+        assert env["GITHUB_TOKEN"] == "ghp_test"
+        assert env["GITHUB_MODELS_BASE_URL"] == "https://models.inference.ai.azure.com"
+
+    def test_aws_profile_and_region(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_n8n_environment(aws_profile="my-profile", aws_region="eu-west-1")
+        assert env["AWS_PROFILE"] == "my-profile"
+        assert env["AWS_REGION"] == "eu-west-1"
+        assert env["AWS_DEFAULT_REGION"] == "eu-west-1"
+
+    def test_aws_profile_empty_omitted(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_n8n_environment()
+        assert "AWS_PROFILE" not in env
+
+    def test_loads_from_env_file(self, tmp_path):
+        env_file = tmp_path / ".env.augint-shell"
+        env_file.write_text("OPENAI_API_KEY=sk-from-file\nGH_TOKEN=ghp_file\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_n8n_environment(env_file=env_file)
+        assert env["OPENAI_API_KEY"] == "sk-from-file"
+        assert env["GH_TOKEN"] == "ghp_file"
+
+    def test_env_file_overrides_os_environ(self, tmp_path):
+        env_file = tmp_path / ".env.augint-shell"
+        env_file.write_text("OPENAI_API_KEY=sk-from-file\n")
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-from-os"}):
+            env = build_n8n_environment(env_file=env_file)
+        assert env["OPENAI_API_KEY"] == "sk-from-file"
+
+
+class TestBuildN8nMounts:
+    def test_always_includes_data_volume(self, tmp_path):
+        with patch("ai_shell.defaults.Path.home", return_value=tmp_path):
+            mounts = build_n8n_mounts()
+        targets = [m["Target"] for m in mounts]
+        assert "/home/node/.n8n" in targets
+
+    def test_data_volume_name(self, tmp_path):
+        with patch("ai_shell.defaults.Path.home", return_value=tmp_path):
+            mounts = build_n8n_mounts()
+        data_mount = next(m for m in mounts if m["Target"] == "/home/node/.n8n")
+        assert data_mount["Source"] == N8N_DATA_VOLUME
+
+    def test_mounts_aws_when_exists(self, tmp_path):
+        (tmp_path / ".aws").mkdir()
+        with patch("ai_shell.defaults.Path.home", return_value=tmp_path):
+            mounts = build_n8n_mounts()
+        targets = [m["Target"] for m in mounts]
+        assert "/home/node/.aws" in targets
+        aws_mount = next(m for m in mounts if m["Target"] == "/home/node/.aws")
+        assert aws_mount["ReadOnly"] is True
+
+    def test_skips_aws_when_missing(self, tmp_path):
+        with patch("ai_shell.defaults.Path.home", return_value=tmp_path):
+            mounts = build_n8n_mounts()
+        targets = [m["Target"] for m in mounts]
+        assert "/home/node/.aws" not in targets
+
+    def test_mounts_gh_config_when_exists(self, tmp_path):
+        gh_dir = tmp_path / ".config" / "gh"
+        gh_dir.mkdir(parents=True)
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            mounts = build_n8n_mounts()
+        targets = [m["Target"] for m in mounts]
+        assert "/home/node/.config/gh" in targets
+
+    def test_mounts_workflow_dir(self, tmp_path):
+        wf_dir = tmp_path / "workflows"
+        wf_dir.mkdir()
+        with patch("ai_shell.defaults.Path.home", return_value=tmp_path):
+            mounts = build_n8n_mounts(workflow_dir=wf_dir)
+        targets = [m["Target"] for m in mounts]
+        assert "/workflows" in targets
+        wf_mount = next(m for m in mounts if m["Target"] == "/workflows")
+        assert wf_mount["ReadOnly"] is True
+
+    def test_skips_workflow_dir_when_missing(self, tmp_path):
+        missing = tmp_path / "no-such-dir"
+        with patch("ai_shell.defaults.Path.home", return_value=tmp_path):
+            mounts = build_n8n_mounts(workflow_dir=missing)
+        targets = [m["Target"] for m in mounts]
+        assert "/workflows" not in targets

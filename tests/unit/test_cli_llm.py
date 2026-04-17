@@ -426,8 +426,9 @@ class TestLlmCommands:
         manager.ensure_whisper.assert_called_once()
         manager.ensure_voice_agent.assert_called_once()
         manager.ensure_n8n.assert_called_once()
-        # WebUI is pre-wired to TTS.
+        # WebUI is pre-wired to TTS and STT.
         assert manager.ensure_webui.call_args.kwargs.get("voice_enabled") is True
+        assert manager.ensure_webui.call_args.kwargs.get("whisper_enabled") is True
         assert "5678" in result.output
         assert "8001" in result.output
         assert "8010" in result.output

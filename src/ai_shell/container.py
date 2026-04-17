@@ -11,6 +11,7 @@ import logging
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
 from docker.errors import APIError, ImageNotFound, NotFound
@@ -23,7 +24,6 @@ from ai_shell.defaults import (
     KOKORO_IMAGE_GPU,
     LLM_NETWORK,
     N8N_CONTAINER,
-    N8N_DATA_VOLUME,
     N8N_IMAGE,
     OLLAMA_CONTAINER,
     OLLAMA_CPU_SHARES,
@@ -43,6 +43,8 @@ from ai_shell.defaults import (
     WHISPER_IMAGE_GPU,
     build_dev_environment,
     build_dev_mounts,
+    build_n8n_environment,
+    build_n8n_mounts,
     dev_container_name,
     project_dev_port,
 )
@@ -54,8 +56,6 @@ from ai_shell.exceptions import (
 from ai_shell.gpu import detect_gpu, get_vram_info
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from docker.models.containers import Container
 
     from ai_shell.config import AiShellConfig
@@ -385,12 +385,19 @@ class ContainerManager:
         logger.info("Ollama container created on port %d", self.config.ollama_port)
         return OLLAMA_CONTAINER
 
-    def ensure_webui(self, voice_enabled: bool = False) -> str:
+    def ensure_webui(
+        self,
+        voice_enabled: bool = False,
+        whisper_enabled: bool = False,
+        env_file: Path | None = None,
+    ) -> str:
         """Get or create the Open WebUI container.
 
-        When *voice_enabled* is True, pre-wires the container to use the
-        Kokoro TTS container as its OpenAI-compatible speech backend so
-        the user doesn't need to configure it in the UI.
+        When *voice_enabled* is True, pre-wires Kokoro TTS as the speech
+        backend.  When *whisper_enabled* is True, pre-wires Speaches STT
+        as the transcription backend.  API keys from *env_file* (or host
+        environment) are passed through so WebUI can offer external LLM
+        providers alongside Ollama.
         """
         container = self._get_container(WEBUI_CONTAINER)
 
@@ -404,11 +411,19 @@ class ContainerManager:
         self._pull_image_if_needed(WEBUI_IMAGE)
         network_name = self._ensure_llm_network()
 
-        environment = {
+        from dotenv import dotenv_values
+
+        from ai_shell.defaults import _resolve_env
+
+        dotenv: dict[str, str | None] = {}
+        if env_file is not None:
+            dotenv = dotenv_values(env_file)
+
+        environment: dict[str, str] = {
             "OLLAMA_BASE_URL": f"http://{OLLAMA_CONTAINER}:11434",
             "WEBUI_AUTH": "false",
             # DEFAULT_MODELS is a PersistentConfig: env seeds the DB on first
-            # boot and UI edits win after that. Point new chats at the
+            # boot and UI edits win after that.  Point new chats at the
             # primary chat slot; users can pick the secondary (uncensored)
             # from the model dropdown.
             "DEFAULT_MODELS": self.config.primary_chat_model,
@@ -423,6 +438,37 @@ class ContainerManager:
                     "AUDIO_TTS_VOICE": self.config.kokoro_voice,
                 }
             )
+        if whisper_enabled:
+            environment.update(
+                {
+                    "AUDIO_STT_ENGINE": "openai",
+                    "AUDIO_STT_OPENAI_API_BASE_URL": f"http://{WHISPER_CONTAINER}:8000/v1",
+                    "AUDIO_STT_OPENAI_API_KEY": "dummy",
+                    "AUDIO_STT_MODEL": self.config.whisper_model,
+                }
+            )
+
+        # External LLM providers — pass through API keys when available.
+        openai_urls: list[str] = []
+        openai_keys: list[str] = []
+
+        openai_key = _resolve_env(dotenv, "OPENAI_API_KEY")
+        if openai_key:
+            openai_urls.append("https://api.openai.com/v1")
+            openai_keys.append(openai_key)
+
+        gh_token = _resolve_env(dotenv, "GH_TOKEN")
+        if gh_token:
+            openai_urls.append("https://models.inference.ai.azure.com/v1")
+            openai_keys.append(gh_token)
+
+        if openai_urls:
+            environment["OPENAI_API_BASE_URLS"] = ";".join(openai_urls)
+            environment["OPENAI_API_KEYS"] = ";".join(openai_keys)
+
+        anthropic_key = _resolve_env(dotenv, "ANTHROPIC_API_KEY")
+        if anthropic_key:
+            environment["ANTHROPIC_API_KEY"] = anthropic_key
 
         self.client.containers.run(
             image=WEBUI_IMAGE,
@@ -580,20 +626,21 @@ class ContainerManager:
     @staticmethod
     def _voice_agent_build_context() -> str:
         """Return the path to the voice-agent Dockerfile build context."""
-        from pathlib import Path as _Path
-
         # Package layout: src/ai_shell/container.py — the Dockerfile lives in
         # <repo root>/docker/voice-agent. When installed as a wheel the user
         # is expected to have the source checked out; voice-agent is
         # experimental and locally built for now.
-        here = _Path(__file__).resolve()
+        here = Path(__file__).resolve()
         return str(here.parents[2] / "docker" / "voice-agent")
 
-    def ensure_n8n(self) -> str:
+    def ensure_n8n(self, env_file: Path | None = None) -> str:
         """Get or create the n8n workflow automation container.
 
-        Standalone service; does not integrate with Ollama or Kokoro. Data
-        (workflows, credentials, settings) is persisted to a named volume.
+        Pre-wires service discovery URLs (Ollama, Kokoro, Speaches,
+        Voice Agent, WebUI) and passes through API keys (OpenAI,
+        Anthropic, GitHub, AWS) from *env_file* or the host environment.
+        Credential directories (``~/.aws``, ``~/.config/gh``) are mounted
+        read-only so n8n's AWS and GitHub nodes authenticate automatically.
         """
         container = self._get_container(N8N_CONTAINER)
 
@@ -607,31 +654,83 @@ class ContainerManager:
         self._pull_image_if_needed(N8N_IMAGE)
         network_name = self._ensure_llm_network()
 
-        environment = {
-            # Disable secure-cookie enforcement so the UI works over plain
-            # http://localhost without a reverse proxy.
-            "N8N_SECURE_COOKIE": "false",
-        }
+        environment = build_n8n_environment(
+            env_file=env_file,
+            aws_profile=self.config.ai_profile,
+            aws_region=self.config.aws_region,
+        )
 
+        workflow_dir = Path(__file__).parent / "templates" / "n8n" / "workflows"
+        mounts = build_n8n_mounts(
+            workflow_dir=workflow_dir if workflow_dir.is_dir() else None,
+        )
+
+        created = True
         self.client.containers.run(
             image=N8N_IMAGE,
             name=N8N_CONTAINER,
             ports={"5678/tcp": ("0.0.0.0", self.config.n8n_port)},  # nosec B104
             environment=environment,
-            mounts=[
-                Mount(
-                    target="/home/node/.n8n",
-                    source=N8N_DATA_VOLUME,
-                    type="volume",
-                )
-            ],
+            mounts=mounts,
             restart_policy={"Name": "unless-stopped"},
             detach=True,
             network=network_name,
         )
 
         logger.info("n8n container created on port %d", self.config.n8n_port)
+
+        if created and workflow_dir.is_dir():
+            self._seed_n8n_workflows()
+
         return N8N_CONTAINER
+
+    def _seed_n8n_workflows(self) -> None:
+        """Import starter workflow templates into a freshly-created n8n.
+
+        Workflows are mounted at ``/workflows`` inside the container.  We
+        wait for n8n to be ready, then use ``n8n import:workflow`` to load
+        each JSON file.  Failures are logged but never fatal.
+        """
+        container = self._get_container(N8N_CONTAINER)
+        if container is None:
+            return
+
+        # Wait for n8n to become ready (max ~30 s).
+        for _i in range(15):
+            try:
+                exit_code, _ = container.exec_run("curl -sf http://localhost:5678/healthz")
+                if exit_code == 0:
+                    break
+            except Exception:
+                pass
+            time.sleep(2)
+        else:
+            logger.warning("n8n did not become healthy in 30 s; skipping workflow seed")
+            return
+
+        # Check for the seed marker to avoid duplicate imports.
+        exit_code, _ = container.exec_run("test -f /home/node/.n8n/.workflows-seeded")
+        if exit_code == 0:
+            logger.debug("n8n workflows already seeded; skipping")
+            return
+
+        # Import each workflow template.
+        exit_code, output = container.exec_run("ls /workflows/")
+        if exit_code != 0:
+            logger.debug("No /workflows directory in n8n container")
+            return
+
+        for line in output.decode().strip().splitlines():
+            fname = line.strip()
+            if not fname.endswith(".json"):
+                continue
+            logger.info("Importing n8n workflow: %s", fname)
+            exit_code, out = container.exec_run(f"n8n import:workflow --input=/workflows/{fname}")
+            if exit_code != 0:
+                logger.warning("Failed to import %s: %s", fname, out.decode())
+
+        # Write seed marker so we don't re-import on next restart.
+        container.exec_run("touch /home/node/.n8n/.workflows-seeded")
 
     def exec_in_ollama(self, command: list[str]) -> str:
         """Run a command in the Ollama container and return stdout.

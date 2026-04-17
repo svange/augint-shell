@@ -39,7 +39,9 @@ def _print_dev_ports(manager: ContainerManager, container_name: str) -> None:
         # host_addr is "0.0.0.0:27431" — extract just the port number
         host_port = host_addr.rsplit(":", 1)[-1]
         label = container_port.split("/")[0]  # "3000/tcp" -> "3000"
-        console.print(f"  [dim]http://localhost:{host_port}[/dim]  [dim italic]({label})[/dim]")
+        console.print(
+            f"  [dim]http://localhost:{host_port}[/dim]  [dim italic]({label})[/dim italic]"
+        )
 
 
 def _generate_worktree_name() -> str:
