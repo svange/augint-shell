@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.84.0 (2026-04-17)
+
+### Features
+
+- **shell**: Rename bash subcommand to shell, add zsh/fish support
+  ([`35e22d1`](https://github.com/svange/augint-shell/commit/35e22d1250c7378e6b24df077e9bdc93cf3d369f))
+
+
 ## v0.83.0 (2026-04-17)
 
 ### Features
