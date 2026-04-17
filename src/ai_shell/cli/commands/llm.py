@@ -26,6 +26,8 @@ from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import (
+    COMFYUI_CONTAINER,
+    COMFYUI_DATA_VOLUME,
     KOKORO_CONTAINER,
     N8N_CONTAINER,
     N8N_DATA_VOLUME,
@@ -197,9 +199,10 @@ def _resolve_stacks(
     whisper: bool,
     voice_agent: bool,
     n8n: bool,
+    image_gen: bool,
     all_: bool,
-) -> tuple[bool, bool, bool, bool, bool]:
-    """Resolve stack flags into concrete ``(webui, voice, whisper, voice_agent, n8n)``.
+) -> tuple[bool, bool, bool, bool, bool, bool]:
+    """Resolve stack flags into ``(webui, voice, whisper, voice_agent, n8n, image_gen)``.
 
     Rules:
     - ``--all`` turns on every optional stack.
@@ -209,6 +212,8 @@ def _resolve_stacks(
     - ``--voice-agent`` is standalone; it does NOT auto-start Whisper/Kokoro/Ollama
       because those are independent singletons (start them yourself if needed).
     - ``--n8n`` is standalone with no implied sibling stacks.
+    - ``--image-gen`` is standalone (runs ComfyUI); when combined with
+      ``--webui`` WebUI is pre-wired to use it.
 
     Extension pattern: when we add ``--libre`` / ``--dify`` / ``--hands``,
     they become additional parameters here with the same ``all_`` expansion.
@@ -219,11 +224,12 @@ def _resolve_stacks(
         whisper = True
         voice_agent = True
         n8n = True
+        image_gen = True
     if webui:
         voice = True
     if no_voice:
         voice = False
-    return webui, voice, whisper, voice_agent, n8n
+    return webui, voice, whisper, voice_agent, n8n, image_gen
 
 
 # Shared decorators for stack flags on up/down/clean/setup.
@@ -235,6 +241,12 @@ def _stack_flags(func):
         type=click.Path(exists=True, dir_okay=False),
         default=None,
         help="Env file with API keys (e.g. .env.augint-shell). Keys are passed to n8n and WebUI.",
+    )(func)
+    func = click.option(
+        "--image-gen",
+        "image_gen",
+        is_flag=True,
+        help="ComfyUI image generation (port 8188). Wires into WebUI when --webui is set.",
     )(func)
     func = click.option("--n8n", is_flag=True, help="n8n workflow automation engine (port 5678).")(
         func
@@ -284,6 +296,7 @@ def llm_up(
     whisper: bool,
     voice_agent: bool,
     n8n: bool,
+    image_gen: bool,
     all_: bool,
     env_file: str | None,
 ):
@@ -294,10 +307,12 @@ def llm_up(
     ``--no-voice`` to skip TTS. ``--voice`` alone runs Kokoro standalone.
     ``--whisper`` brings up Speaches STT. ``--voice-agent`` brings up the
     experimental Pipecat voice agent. ``--n8n`` brings up n8n workflow
-    automation. ``--env <file>`` passes API keys to n8n and WebUI.
+    automation. ``--image-gen`` brings up ComfyUI (wired into WebUI when
+    ``--webui`` is also set). ``--env <file>`` passes API keys to n8n and
+    WebUI, and ``HF_TOKEN`` to ComfyUI for FLUX.1-dev downloads.
     """
-    webui, voice, whisper, voice_agent, n8n = _resolve_stacks(
-        webui, voice, no_voice, whisper, voice_agent, n8n, all_
+    webui, voice, whisper, voice_agent, n8n, image_gen = _resolve_stacks(
+        webui, voice, no_voice, whisper, voice_agent, n8n, image_gen, all_
     )
     env_path = Path(env_file) if env_file else None
     manager = _get_manager(ctx)
@@ -316,8 +331,17 @@ def llm_up(
         manager.ensure_whisper()
         console.print(f"  Speaches STT: http://localhost:{config.whisper_port}")
 
+    if image_gen:
+        manager.ensure_comfyui(env_file=env_path)
+        console.print(f"  ComfyUI:     http://localhost:{config.comfyui_port}")
+
     if webui:
-        manager.ensure_webui(voice_enabled=voice, whisper_enabled=whisper, env_file=env_path)
+        manager.ensure_webui(
+            voice_enabled=voice,
+            whisper_enabled=whisper,
+            image_gen_enabled=image_gen,
+            env_file=env_path,
+        )
         console.print(f"  Open WebUI:  http://localhost:{config.webui_port}")
 
     if voice_agent:
@@ -336,6 +360,8 @@ def llm_up(
             console.print(f"  Kokoro TTS:  http://{lan}:{config.kokoro_port}/v1")
         if whisper:
             console.print(f"  Speaches STT: http://{lan}:{config.whisper_port}")
+        if image_gen:
+            console.print(f"  ComfyUI:     http://{lan}:{config.comfyui_port}")
         if webui:
             console.print(f"  Open WebUI:  http://{lan}:{config.webui_port}")
         if voice_agent:
@@ -357,6 +383,7 @@ def llm_down(
     whisper: bool,
     voice_agent: bool,
     n8n: bool,
+    image_gen: bool,
     all_: bool,
     env_file: str | None,  # noqa: ARG001 — unused; present because _stack_flags adds it
 ):
@@ -365,8 +392,8 @@ def llm_down(
     With no flags, stops only Ollama. Use stack flags or --all to stop
     additional stacks.
     """
-    webui, voice, whisper, voice_agent, n8n = _resolve_stacks(
-        webui, voice, no_voice, whisper, voice_agent, n8n, all_
+    webui, voice, whisper, voice_agent, n8n, image_gen = _resolve_stacks(
+        webui, voice, no_voice, whisper, voice_agent, n8n, image_gen, all_
     )
     manager = _get_manager(ctx)
     console.print("[bold]Stopping LLM stack...[/bold]")
@@ -382,6 +409,8 @@ def llm_down(
         targets.append(VOICE_AGENT_CONTAINER)
     if n8n:
         targets.append(N8N_CONTAINER)
+    if image_gen:
+        targets.append(COMFYUI_CONTAINER)
 
     for name in targets:
         status = manager.container_status(name)
@@ -413,6 +442,7 @@ def llm_clean(
     whisper: bool,
     voice_agent: bool,
     n8n: bool,
+    image_gen: bool,
     all_: bool,
     env_file: str | None,  # noqa: ARG001 — unused; present because _stack_flags adds it
     wipe: bool,
@@ -424,8 +454,8 @@ def llm_clean(
     flags or --all to also remove other stacks. --wipe additionally deletes
     named Docker volumes.
     """
-    webui, voice, whisper, voice_agent, n8n = _resolve_stacks(
-        webui, voice, no_voice, whisper, voice_agent, n8n, all_
+    webui, voice, whisper, voice_agent, n8n, image_gen = _resolve_stacks(
+        webui, voice, no_voice, whisper, voice_agent, n8n, image_gen, all_
     )
     manager = _get_manager(ctx)
 
@@ -440,6 +470,8 @@ def llm_clean(
         targets.append(VOICE_AGENT_CONTAINER)
     if n8n:
         targets.append(N8N_CONTAINER)
+    if image_gen:
+        targets.append(COMFYUI_CONTAINER)
 
     volumes: list[str] = []
     if wipe:
@@ -452,6 +484,8 @@ def llm_clean(
             volumes.append(VOICE_AGENT_DATA_VOLUME)
         if n8n:
             volumes.append(N8N_DATA_VOLUME)
+        if image_gen:
+            volumes.append(COMFYUI_DATA_VOLUME)
 
     if not assume_yes:
         if wipe:
@@ -502,6 +536,40 @@ def llm_pull(ctx):
     console.print(output)
 
 
+@llm_group.command("unload")
+@click.argument("model", required=False)
+@click.pass_context
+def llm_unload(ctx, model: str | None):
+    """Unload running Ollama models from VRAM.
+
+    With no argument, unloads every currently running model (parsed from
+    ``ollama ps``). With a model name, unloads just that one. Useful
+    before running ComfyUI / FLUX so both don't fight over GPU memory.
+    """
+    manager = _get_manager(ctx)
+    if manager.container_status(OLLAMA_CONTAINER) != "running":
+        console.print("[yellow]Ollama is not running — nothing to unload.[/yellow]")
+        return
+
+    if model:
+        targets = [model]
+    else:
+        ps_output = manager.exec_in_ollama(["ollama", "ps"])
+        targets = []
+        for line in ps_output.splitlines()[1:]:  # skip header
+            parts = line.split()
+            if parts:
+                targets.append(parts[0])
+        if not targets:
+            console.print("[dim]No models currently loaded.[/dim]")
+            return
+
+    for target in targets:
+        console.print(f"  Unloading [cyan]{target}[/cyan]...")
+        manager.exec_in_ollama(["ollama", "stop", target])
+    console.print("[bold green]Done.[/bold green]")
+
+
 @llm_group.command("setup")
 @_stack_flags
 @click.pass_context
@@ -513,6 +581,7 @@ def llm_setup(
     whisper: bool,
     voice_agent: bool,
     n8n: bool,
+    image_gen: bool,
     all_: bool,
     env_file: str | None,
 ):
@@ -521,8 +590,8 @@ def llm_setup(
     Accepts the same stack flags as ``llm up``. With no flags, sets up only
     the base Ollama container and pulls the configured primary/fallback models.
     """
-    webui, voice, whisper, voice_agent, n8n = _resolve_stacks(
-        webui, voice, no_voice, whisper, voice_agent, n8n, all_
+    webui, voice, whisper, voice_agent, n8n, image_gen = _resolve_stacks(
+        webui, voice, no_voice, whisper, voice_agent, n8n, image_gen, all_
     )
     env_path = Path(env_file) if env_file else None
     manager = _get_manager(ctx)
@@ -538,8 +607,15 @@ def llm_setup(
         manager.ensure_kokoro()
     if whisper:
         manager.ensure_whisper()
+    if image_gen:
+        manager.ensure_comfyui(env_file=env_path)
     if webui:
-        manager.ensure_webui(voice_enabled=voice, whisper_enabled=whisper, env_file=env_path)
+        manager.ensure_webui(
+            voice_enabled=voice,
+            whisper_enabled=whisper,
+            image_gen_enabled=image_gen,
+            env_file=env_path,
+        )
     if voice_agent:
         manager.ensure_voice_agent()
     if n8n:
@@ -571,6 +647,8 @@ def llm_setup(
         console.print(f"  Kokoro TTS:  http://localhost:{config.kokoro_port}/v1")
     if whisper:
         console.print(f"  Speaches STT: http://localhost:{config.whisper_port}")
+    if image_gen:
+        console.print(f"  ComfyUI:     http://localhost:{config.comfyui_port}")
     if webui:
         console.print(f"  Open WebUI:  http://localhost:{config.webui_port}")
     if voice_agent:
@@ -625,6 +703,9 @@ def llm_status(ctx):
     console.print("\n[bold]n8n stack[/bold]")
     _render_container_row(manager, N8N_CONTAINER, "n8n")
 
+    console.print("\n[bold]Image-gen stack[/bold]")
+    _render_container_row(manager, COMFYUI_CONTAINER, "ComfyUI")
+
     console.print("\n[bold]Access URLs:[/bold]")
 
     def _url(label: str, name: str, url: str) -> None:
@@ -645,6 +726,7 @@ def llm_status(ctx):
     )
     _url("Voice agent:", VOICE_AGENT_CONTAINER, f"http://localhost:{config.voice_agent.port}")
     _url("n8n:", N8N_CONTAINER, f"http://localhost:{config.n8n_port}")
+    _url("ComfyUI:", COMFYUI_CONTAINER, f"http://localhost:{config.comfyui_port}")
 
     lan = _lan_ip()
     if lan:
@@ -655,6 +737,7 @@ def llm_status(ctx):
         console.print(f"  Speaches STT:       http://{lan}:{config.whisper_port}")
         console.print(f"  Voice agent:        http://{lan}:{config.voice_agent.port}")
         console.print(f"  n8n:                http://{lan}:{config.n8n_port}")
+        console.print(f"  ComfyUI:            http://{lan}:{config.comfyui_port}")
 
     console.print("\n[bold]Configuration:[/bold]")
     console.print(f"  Primary chat:      {config.primary_chat_model}")
@@ -703,6 +786,7 @@ def llm_logs(ctx, follow):
             WHISPER_CONTAINER,
             VOICE_AGENT_CONTAINER,
             N8N_CONTAINER,
+            COMFYUI_CONTAINER,
         ]:
             status = manager.container_status(name)
             if status is not None:

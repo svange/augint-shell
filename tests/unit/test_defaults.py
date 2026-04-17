@@ -452,6 +452,8 @@ class TestBuildN8nEnvironment:
         assert "WHISPER_BASE_URL" in env
         assert "VOICE_AGENT_BASE_URL" in env
         assert "WEBUI_BASE_URL" in env
+        assert "COMFYUI_BASE_URL" in env
+        assert env["COMFYUI_BASE_URL"].endswith(":8188")
 
     def test_uses_internal_container_ports(self):
         with patch.dict("os.environ", {}, clear=True):

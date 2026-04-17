@@ -6,6 +6,9 @@ import pytest
 
 from ai_shell.config import AiShellConfig
 from ai_shell.defaults import (
+    COMFYUI_CONTAINER,
+    COMFYUI_DATA_VOLUME,
+    COMFYUI_IMAGE,
     DEFAULT_DEV_PORTS,
     KOKORO_CONTAINER,
     KOKORO_IMAGE_CPU,
@@ -23,7 +26,12 @@ from ai_shell.defaults import (
     WHISPER_IMAGE_GPU,
     project_dev_port,
 )
-from ai_shell.exceptions import ContainerNotFoundError, DockerNotAvailableError, ImagePullError
+from ai_shell.exceptions import (
+    ContainerNotFoundError,
+    DockerNotAvailableError,
+    GpuRequiredError,
+    ImagePullError,
+)
 
 
 class TestContainerManagerInit:
@@ -605,6 +613,29 @@ class TestEnsureWebui:
         env = mock_docker_client.containers.run.call_args[1]["environment"]
         assert "AUDIO_STT_ENGINE" not in env
 
+    def test_image_gen_enabled_wires_comfyui(self, mock_container_manager, mock_docker_client):
+        """When image_gen_enabled=True, WebUI is pre-wired to the ComfyUI container."""
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        mock_container_manager.ensure_webui(image_gen_enabled=True)
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert env["ENABLE_IMAGE_GENERATION"] == "true"
+        assert env["IMAGE_GENERATION_ENGINE"] == "comfyui"
+        assert env["COMFYUI_BASE_URL"] == f"http://{COMFYUI_CONTAINER}:8188"
+
+    def test_no_image_gen_no_image_vars(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        mock_container_manager.ensure_webui()
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert "ENABLE_IMAGE_GENERATION" not in env
+        assert "IMAGE_GENERATION_ENGINE" not in env
+        assert "COMFYUI_BASE_URL" not in env
+
     def test_env_file_passes_openai_key(self, mock_container_manager, mock_docker_client, tmp_path):
         mock_container_manager._get_container = MagicMock(return_value=None)
         mock_container_manager._pull_image_if_needed = MagicMock()
@@ -1084,6 +1115,90 @@ class TestExtraVolumes:
             assert "/container/path" in targets
 
 
+class TestEnsureComfyui:
+    def test_creates_with_gpu(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with patch("ai_shell.container.detect_gpu", return_value=True):
+            name = mock_container_manager.ensure_comfyui()
+
+        assert name == COMFYUI_CONTAINER
+        kwargs = mock_docker_client.containers.run.call_args[1]
+        assert kwargs["image"] == COMFYUI_IMAGE
+        assert "device_requests" in kwargs
+        assert kwargs["network"] == LLM_NETWORK
+        env = kwargs["environment"]
+        assert "CLI_ARGS" in env
+        assert "--lowvram" in env["CLI_ARGS"]
+        assert env["PROVISIONING_SCRIPT"] == "/opt/augint/provision.sh"
+
+    def test_raises_when_no_gpu(self, mock_container_manager):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with patch("ai_shell.container.detect_gpu", return_value=False):
+            with pytest.raises(GpuRequiredError):
+                mock_container_manager.ensure_comfyui()
+
+    def test_passes_hf_token_from_env_file(
+        self, mock_container_manager, mock_docker_client, tmp_path
+    ):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        env_file = tmp_path / "secrets.env"
+        env_file.write_text("HF_TOKEN=hf_abc123\n")
+
+        with patch("ai_shell.container.detect_gpu", return_value=True):
+            mock_container_manager.ensure_comfyui(env_file=env_file)
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        # Both aliases are set so upstream HF libs and ai-dock provisioner both find the token.
+        assert env["HF_TOKEN"] == "hf_abc123"
+        assert env["HUGGING_FACE_HUB_TOKEN"] == "hf_abc123"
+
+    def test_mounts_data_volume_at_models_path(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with patch("ai_shell.container.detect_gpu", return_value=True):
+            mock_container_manager.ensure_comfyui()
+
+        mounts = mock_docker_client.containers.run.call_args[1]["mounts"]
+        # Named volume for model weights is always present.
+        vol_mounts = [m for m in mounts if m.get("Type") == "volume"]
+        assert len(vol_mounts) == 1
+        assert vol_mounts[0]["Target"] == "/opt/ComfyUI/models"
+        assert vol_mounts[0]["Source"] == COMFYUI_DATA_VOLUME
+
+    def test_publishes_port_8188(self, mock_container_manager, mock_docker_client):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+        mock_container_manager.config.comfyui_port = 9999
+
+        with patch("ai_shell.container.detect_gpu", return_value=True):
+            mock_container_manager.ensure_comfyui()
+
+        ports = mock_docker_client.containers.run.call_args[1]["ports"]
+        assert "8188/tcp" in ports
+        host_ip, host_port = ports["8188/tcp"]
+        assert host_ip == "0.0.0.0"  # nosec B104
+        assert host_port == 9999
+
+    def test_starts_existing_stopped_container(self, mock_container_manager):
+        stopped = MagicMock()
+        stopped.status = "exited"
+        mock_container_manager._get_container = MagicMock(return_value=stopped)
+        mock_container_manager._recreate_if_gpu_changed = MagicMock(return_value=False)
+
+        with patch("ai_shell.container.detect_gpu", return_value=True):
+            name = mock_container_manager.ensure_comfyui()
+
+        stopped.start.assert_called_once()
+        assert name == COMFYUI_CONTAINER
+
+
 class TestExceptions:
     def test_image_pull_error(self):
         err = ImagePullError("my-image:latest", "network timeout")
@@ -1095,3 +1210,9 @@ class TestExceptions:
         err = ContainerNotFoundError("my-container")
         assert "my-container" in str(err)
         assert err.name == "my-container"
+
+    def test_gpu_required_error(self):
+        err = GpuRequiredError("ComfyUI")
+        assert "ComfyUI" in str(err)
+        assert "NVIDIA" in str(err)
+        assert err.service == "ComfyUI"

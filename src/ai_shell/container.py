@@ -19,6 +19,9 @@ from docker.types import DeviceRequest, Mount
 
 import docker
 from ai_shell.defaults import (
+    COMFYUI_CONTAINER,
+    COMFYUI_DATA_VOLUME,
+    COMFYUI_IMAGE,
     KOKORO_CONTAINER,
     KOKORO_IMAGE_CPU,
     KOKORO_IMAGE_GPU,
@@ -41,6 +44,7 @@ from ai_shell.defaults import (
     WHISPER_DATA_VOLUME,
     WHISPER_IMAGE_CPU,
     WHISPER_IMAGE_GPU,
+    _resolve_env,
     build_dev_environment,
     build_dev_mounts,
     build_n8n_environment,
@@ -51,6 +55,7 @@ from ai_shell.defaults import (
 from ai_shell.exceptions import (
     ContainerNotFoundError,
     DockerNotAvailableError,
+    GpuRequiredError,
     ImagePullError,
 )
 from ai_shell.gpu import detect_gpu, get_vram_info
@@ -389,15 +394,17 @@ class ContainerManager:
         self,
         voice_enabled: bool = False,
         whisper_enabled: bool = False,
+        image_gen_enabled: bool = False,
         env_file: Path | None = None,
     ) -> str:
         """Get or create the Open WebUI container.
 
         When *voice_enabled* is True, pre-wires Kokoro TTS as the speech
         backend.  When *whisper_enabled* is True, pre-wires Speaches STT
-        as the transcription backend.  API keys from *env_file* (or host
-        environment) are passed through so WebUI can offer external LLM
-        providers alongside Ollama.
+        as the transcription backend.  When *image_gen_enabled* is True,
+        pre-wires ComfyUI as the image-generation backend.  API keys from
+        *env_file* (or host environment) are passed through so WebUI can
+        offer external LLM providers alongside Ollama.
         """
         container = self._get_container(WEBUI_CONTAINER)
 
@@ -445,6 +452,19 @@ class ContainerManager:
                     "AUDIO_STT_OPENAI_API_BASE_URL": f"http://{WHISPER_CONTAINER}:8000/v1",
                     "AUDIO_STT_OPENAI_API_KEY": "dummy",
                     "AUDIO_STT_MODEL": self.config.whisper_model,
+                }
+            )
+        if image_gen_enabled:
+            # ENABLE_IMAGE_GENERATION + IMAGE_GENERATION_ENGINE=comfyui are
+            # PersistentConfig keys; they seed the DB on first boot. Users can
+            # later override the default workflow or model via Settings > Images.
+            environment.update(
+                {
+                    "ENABLE_IMAGE_GENERATION": "true",
+                    "IMAGE_GENERATION_ENGINE": "comfyui",
+                    "COMFYUI_BASE_URL": f"http://{COMFYUI_CONTAINER}:8188",
+                    "IMAGE_SIZE": "1024x1024",
+                    "IMAGE_STEPS": "25",
                 }
             )
 
@@ -590,7 +610,9 @@ class ContainerManager:
         a pulled tag. Phase 2 scope: no filesystem / auth / provider-key
         mounts — those land in Phases 3-4. A named volume is mounted at
         ``/data`` so the Phase 5 sqlite file will survive container
-        recreations from the start.
+        recreations from the start. Service-discovery URLs for sibling
+        stacks (ComfyUI, etc.) are exported so later phases can dispatch
+        tool calls without re-reading config.
         """
         container = self._get_container(VOICE_AGENT_CONTAINER)
         if container is not None:
@@ -607,6 +629,9 @@ class ContainerManager:
             "image": VOICE_AGENT_IMAGE,
             "name": VOICE_AGENT_CONTAINER,
             "ports": {"8000/tcp": ("0.0.0.0", self.config.voice_agent.port)},  # nosec B104
+            "environment": {
+                "COMFYUI_BASE_URL": f"http://{COMFYUI_CONTAINER}:8188",
+            },
             "mounts": [
                 Mount(
                     target="/data",
@@ -632,6 +657,100 @@ class ContainerManager:
         # experimental and locally built for now.
         here = Path(__file__).resolve()
         return str(here.parents[2] / "docker" / "voice-agent")
+
+    def ensure_comfyui(self, env_file: Path | None = None) -> str:
+        """Get or create the ComfyUI image-generation container.
+
+        GPU-required (the ai-dock image has no CPU variant). On first
+        boot, ai-dock runs the bind-mounted provisioning script which
+        downloads SDXL unconditionally and FLUX.1-dev when ``HF_TOKEN``
+        is present in *env_file* or the host environment. Model files
+        persist in a named volume so subsequent containers start without
+        re-downloading ~25 GB. Recreates the container when GPU
+        availability toggles, matching the Kokoro/Whisper pattern.
+        """
+        from dotenv import dotenv_values
+
+        gpu_available = detect_gpu()
+        container = self._get_container(COMFYUI_CONTAINER)
+        if container is not None:
+            if self._recreate_if_gpu_changed(container, gpu_available, "ComfyUI"):
+                pass  # fall through to creation
+            else:
+                if container.status != "running":
+                    logger.info("Starting existing ComfyUI container")
+                    container.start()
+                return COMFYUI_CONTAINER
+
+        if not gpu_available:
+            raise GpuRequiredError("ComfyUI")
+
+        logger.info("Creating ComfyUI container")
+        self._pull_image_if_needed(COMFYUI_IMAGE)
+        network_name = self._ensure_llm_network()
+
+        dotenv: dict[str, str | None] = {}
+        if env_file is not None:
+            dotenv = dotenv_values(env_file)
+
+        hf_token = _resolve_env(dotenv, "HF_TOKEN") or _resolve_env(
+            dotenv, "HUGGING_FACE_HUB_TOKEN"
+        )
+
+        environment: dict[str, str] = {
+            # --lowvram keeps FLUX's 12B weights offloading through CPU RAM so
+            # Ollama can keep a chat model resident on the same GPU. --listen
+            # binds on 0.0.0.0 so other containers on the LLM network can reach
+            # the API.
+            "CLI_ARGS": "--lowvram --listen 0.0.0.0",
+            # ai-dock runs PROVISIONING_SCRIPT once per workspace. We bind-mount
+            # our own script at a known path rather than hosting one remotely.
+            "PROVISIONING_SCRIPT": "/opt/augint/provision.sh",
+            # Local-dev deployment: disable ai-dock's Caddy basic-auth layer so
+            # the port-8188 service is reachable without redirect-to-/login.
+            # Matches WEBUI_AUTH=false on Open WebUI.
+            "WEB_ENABLE_AUTH": "false",
+            "CF_QUICK_TUNNELS": "false",
+        }
+        if hf_token:
+            # ai-dock's provisioner reads HF_TOKEN; upstream HF libs read
+            # HUGGING_FACE_HUB_TOKEN. Set both to avoid edge cases.
+            environment["HF_TOKEN"] = hf_token
+            environment["HUGGING_FACE_HUB_TOKEN"] = hf_token
+
+        provision_path = Path(__file__).parent / "assets" / "comfyui" / "provision.sh"
+        mounts: list[Mount] = [
+            Mount(
+                target="/opt/ComfyUI/models",
+                source=COMFYUI_DATA_VOLUME,
+                type="volume",
+            )
+        ]
+        if provision_path.is_file():
+            mounts.append(
+                Mount(
+                    target="/opt/augint/provision.sh",
+                    source=str(provision_path),
+                    type="bind",
+                    read_only=True,
+                )
+            )
+
+        kwargs: dict = {
+            "image": COMFYUI_IMAGE,
+            "name": COMFYUI_CONTAINER,
+            "ports": {"8188/tcp": ("0.0.0.0", self.config.comfyui_port)},  # nosec B104
+            "environment": environment,
+            "mounts": mounts,
+            "restart_policy": {"Name": "unless-stopped"},
+            "detach": True,
+            "network": network_name,
+            "device_requests": [DeviceRequest(count=1, capabilities=[["gpu"]])],
+        }
+
+        self.client.containers.run(**kwargs)
+        logger.info("ComfyUI container created on port %d", self.config.comfyui_port)
+        return COMFYUI_CONTAINER
 
     def ensure_n8n(self, env_file: Path | None = None) -> str:
         """Get or create the n8n workflow automation container.

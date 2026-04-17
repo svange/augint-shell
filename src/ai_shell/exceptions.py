@@ -28,3 +28,14 @@ class ContainerNotFoundError(AiShellError):
 
 class ConfigError(AiShellError):
     """Invalid configuration."""
+
+
+class GpuRequiredError(AiShellError):
+    """A container that requires an NVIDIA GPU was requested without one."""
+
+    def __init__(self, service: str) -> None:
+        self.service = service
+        super().__init__(
+            f"{service} requires an NVIDIA GPU (no CPU-only image is available). "
+            f"Install NVIDIA drivers + the NVIDIA Container Toolkit and retry."
+        )
