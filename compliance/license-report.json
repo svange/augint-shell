@@ -62,12 +62,12 @@
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.80.0"
+    "Version": "0.81.0"
   },
   {
     "License": "UNKNOWN",
     "Name": "augint-tools",
-    "Version": "4.11.1"
+    "Version": "5.0.0"
   },
   {
     "License": "Apache-2.0",
