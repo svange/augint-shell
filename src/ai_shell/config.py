@@ -22,6 +22,7 @@ import yaml
 
 from ai_shell import __version__
 from ai_shell.defaults import (
+    DEFAULT_COMFYUI_PORT,
     DEFAULT_CONTEXT_SIZE,
     DEFAULT_DEV_PORTS,
     DEFAULT_IMAGE,
@@ -180,6 +181,7 @@ class AiShellConfig:
     n8n_port: int = DEFAULT_N8N_PORT
     whisper_port: int = DEFAULT_WHISPER_PORT
     whisper_model: str = DEFAULT_WHISPER_MODEL
+    comfyui_port: int = DEFAULT_COMFYUI_PORT
 
     # Voice agent (Phase 2 wires `port`; remaining fields are schema
     # placeholders that Phases 3-6 consume — see VoiceAgentConfig).
@@ -462,6 +464,8 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.whisper_port = int(llm["whisper_port"])
     if "whisper_model" in llm:
         config.whisper_model = str(llm["whisper_model"])
+    if "comfyui_port" in llm:
+        config.comfyui_port = int(llm["comfyui_port"])
 
     # [voice_agent] section (top-level, not under llm)
     if "voice_agent" in data:
@@ -519,6 +523,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_N8N_PORT": ("n8n_port", int),
         "AI_SHELL_WHISPER_PORT": ("whisper_port", int),
         "AI_SHELL_WHISPER_MODEL": ("whisper_model", str),
+        "AI_SHELL_COMFYUI_PORT": ("comfyui_port", int),
         "AI_SHELL_AI_PROFILE": ("ai_profile", str),
         "AI_SHELL_AWS_REGION": ("aws_region", str),
         "AI_SHELL_BEDROCK_PROFILE": ("bedrock_profile", str),

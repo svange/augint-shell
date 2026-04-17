@@ -25,6 +25,7 @@ class TestAiShellConfig:
         assert config.kokoro_port == 8880
         assert config.n8n_port == 5678
         assert config.whisper_port == 8001
+        assert config.comfyui_port == 8188
         assert config.whisper_model == "Systran/faster-distil-whisper-large-v3"
         # Voice-agent defaults (Phase 2 wires only `port`; tree is present
         # for future phases).

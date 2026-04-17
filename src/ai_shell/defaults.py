@@ -50,6 +50,7 @@ WEBUI_DATA_VOLUME = "augint-shell-webui-data"
 N8N_DATA_VOLUME = "augint-shell-n8n-data"
 WHISPER_DATA_VOLUME = "augint-shell-whisper-cache"
 VOICE_AGENT_DATA_VOLUME = "augint-shell-voice-agent-data"
+COMFYUI_DATA_VOLUME = "augint-shell-comfyui-data"
 
 # =============================================================================
 # LLM defaults
@@ -64,6 +65,9 @@ WHISPER_IMAGE_GPU = "ghcr.io/speaches-ai/speaches:latest-cuda"
 # Voice-agent image is built locally from docker/voice-agent/ on first
 # ensure call. Not pulled. The local tag keeps `images.get` fast once built.
 VOICE_AGENT_IMAGE = "augint-shell/voice-agent:local"
+# ComfyUI: ai-dock/comfyui is actively maintained and exposes PROVISIONING_SCRIPT
+# which we use to download FLUX.1-dev + SDXL on first boot. GPU-only (no CPU variant).
+COMFYUI_IMAGE = "ghcr.io/ai-dock/comfyui:latest-cuda"
 # Model slots (RTX 4090-sized, validated April 2026). Primary = best available for
 # the role; secondary = best uncensored alternative. See README "Local LLM stack"
 # and the generated .ai-shell.yaml for per-slot rationale and caveats.
@@ -79,6 +83,7 @@ DEFAULT_N8N_PORT = 5678
 DEFAULT_WHISPER_PORT = 8001
 DEFAULT_WHISPER_MODEL = "Systran/faster-distil-whisper-large-v3"
 DEFAULT_VOICE_AGENT_PORT = 8010
+DEFAULT_COMFYUI_PORT = 8188
 DEFAULT_KOKORO_VOICE = "af_bella"
 DEFAULT_DEV_PORTS = [3000, 4200, 5000, 5173, 5678, 8000, 8080, 8888]
 
@@ -106,6 +111,7 @@ KOKORO_CONTAINER = "augint-shell-kokoro"
 N8N_CONTAINER = "augint-shell-n8n"
 WHISPER_CONTAINER = "augint-shell-whisper"
 VOICE_AGENT_CONTAINER = "augint-shell-voice-agent"
+COMFYUI_CONTAINER = "augint-shell-comfyui"
 
 # =============================================================================
 # Docker network
@@ -396,6 +402,7 @@ def build_n8n_environment(
         "WHISPER_BASE_URL": f"http://{WHISPER_CONTAINER}:8000",
         "VOICE_AGENT_BASE_URL": f"http://{VOICE_AGENT_CONTAINER}:8000",
         "WEBUI_BASE_URL": f"http://{WEBUI_CONTAINER}:8080",
+        "COMFYUI_BASE_URL": f"http://{COMFYUI_CONTAINER}:8188",
     }
 
     # AWS credentials
