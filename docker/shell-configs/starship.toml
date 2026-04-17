@@ -1,0 +1,70 @@
+# Starship config -- ASCII-friendly glyphs (no Nerd Font required)
+# Docs: https://starship.rs/config/
+
+format = """
+[>>](bold blue) $username$hostname$directory$git_branch$git_status$python$nodejs$rust$golang$docker_context$cmd_duration
+$character """
+
+add_newline = false
+command_timeout = 1000
+
+[character]
+success_symbol = "[>](bold green)"
+error_symbol = "[x](bold red)"
+vicmd_symbol = "[<](bold yellow)"
+
+[username]
+style_user = "bold cyan"
+style_root = "bold red"
+format = "[$user]($style)"
+show_always = true
+
+[hostname]
+ssh_only = false
+format = "@[$hostname](bold purple) "
+disabled = false
+
+[directory]
+style = "bold blue"
+truncation_length = 4
+truncate_to_repo = true
+format = "in [$path]($style) "
+
+[git_branch]
+symbol = "git:"
+style = "bold yellow"
+format = "on [$symbol$branch]($style) "
+
+[git_status]
+style = "bold red"
+format = '([\[$all_status$ahead_behind\]]($style) )'
+conflicted = "!"
+ahead = ">"
+behind = "<"
+diverged = "<>"
+untracked = "?"
+stashed = "$"
+modified = "*"
+staged = "+"
+renamed = "r"
+deleted = "x"
+
+[cmd_duration]
+min_time = 2_000
+format = "took [$duration](bold yellow) "
+
+[python]
+symbol = "py:"
+format = 'via [${symbol}${pyv}(\($virtualenv\) )]($style)'
+
+[nodejs]
+symbol = "node:"
+
+[rust]
+symbol = "rust:"
+
+[golang]
+symbol = "go:"
+
+[docker_context]
+symbol = "docker:"

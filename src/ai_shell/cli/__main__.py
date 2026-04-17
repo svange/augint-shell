@@ -9,7 +9,7 @@ from ai_shell import __version__
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.cli.commands.llm import llm_group
 from ai_shell.cli.commands.manage import manage_group
-from ai_shell.cli.commands.tools import aider, bash, claude, codex, init, opencode
+from ai_shell.cli.commands.tools import aider, claude, codex, init, opencode, shell
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -44,7 +44,7 @@ cli.add_command(claude)
 cli.add_command(codex)
 cli.add_command(opencode)
 cli.add_command(aider)
-cli.add_command(bash)
+cli.add_command(shell)
 cli.add_command(init)
 
 # Command groups

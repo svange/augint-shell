@@ -1,0 +1,105 @@
+# ~/.bashrc -- interactive shell config
+case $- in *i*) ;; *) return;; esac
+
+# ---------- History ----------
+HISTCONTROL=ignoreboth:erasedups
+HISTSIZE=100000
+HISTFILESIZE=200000
+HISTTIMEFORMAT="%F %T "
+shopt -s histappend
+shopt -s cmdhist
+PROMPT_COMMAND="history -a; history -n; ${PROMPT_COMMAND}"
+
+# ---------- Shell options ----------
+shopt -s checkwinsize
+shopt -s globstar 2>/dev/null
+shopt -s autocd 2>/dev/null
+shopt -s cdspell 2>/dev/null
+shopt -s dirspell 2>/dev/null
+
+# ---------- Environment ----------
+export CLICOLOR=1
+export LESS='-R -i -M -w -z-4'
+export PAGER=less
+export EDITOR=vim
+
+# ---------- Colors ----------
+if [ -x /usr/bin/dircolors ]; then
+    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+    alias ls='ls --color=auto'
+    alias grep='grep --color=auto'
+    alias fgrep='fgrep --color=auto'
+    alias egrep='egrep --color=auto'
+    alias diff='diff --color=auto'
+    alias ip='ip -color=auto'
+fi
+
+# ---------- Aliases ----------
+alias ll='ls -alhF'
+alias la='ls -A'
+alias l='ls -CF'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias h='history'
+alias gs='git status -sb'
+alias gd='git diff'
+alias gdc='git diff --cached'
+alias gco='git checkout'
+alias gcm='git commit -m'
+alias gp='git push'
+alias gl='git pull'
+alias glog='git log --oneline --graph --decorate --all'
+alias gb='git branch'
+alias ga='git add'
+alias dc='docker compose'
+
+# ---------- Functions ----------
+mkcd() { mkdir -p "$1" && cd "$1"; }
+extract() {
+    if [ -f "$1" ]; then
+        case "$1" in
+            *.tar.bz2) tar xjf "$1" ;;
+            *.tar.gz)  tar xzf "$1" ;;
+            *.tar.xz)  tar xJf "$1" ;;
+            *.tar)     tar xf  "$1" ;;
+            *.tbz2)    tar xjf "$1" ;;
+            *.tgz)     tar xzf "$1" ;;
+            *.zip)     unzip   "$1" ;;
+            *.gz)      gunzip  "$1" ;;
+            *.bz2)     bunzip2 "$1" ;;
+            *)         echo "Unknown archive format: $1" ;;
+        esac
+    fi
+}
+
+# ---------- Completion ----------
+if ! shopt -oq posix; then
+    if [ -f /usr/share/bash-completion/bash_completion ]; then
+        . /usr/share/bash-completion/bash_completion
+    elif [ -f /etc/bash_completion ]; then
+        . /etc/bash_completion
+    fi
+fi
+
+# ---------- fzf ----------
+if [ -f /usr/share/doc/fzf/examples/key-bindings.bash ]; then
+    . /usr/share/doc/fzf/examples/key-bindings.bash
+fi
+if [ -f /usr/share/doc/fzf/examples/completion.bash ]; then
+    . /usr/share/doc/fzf/examples/completion.bash
+fi
+
+# ---------- Prompt ----------
+if command -v starship >/dev/null 2>&1; then
+    eval "$(starship init bash)"
+else
+    # Fallback with git branch
+    __git_branch() {
+        git branch 2>/dev/null | sed -n 's/^\* \(.*\)/ (\1)/p'
+    }
+    PS1='\[\e[1;31m\]\u@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0;33m\]$(__git_branch)\[\e[0m\]\$ '
+fi
+
+# ---------- Local overrides ----------
+[ -f ~/.bashrc.local ] && . ~/.bashrc.local

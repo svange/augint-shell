@@ -1,0 +1,55 @@
+# ~/.tmux.conf.local -- overlays on gpakosz/.tmux defaults.
+#
+# The ai-shell multi-Claude launcher sets session-scoped options (prefix C-a,
+# mouse on, status style, pane-border-status top with amber/mauve) using
+# `set-option -t <session>`. Those per-session values take precedence over
+# anything set here, so this file is safe for interactive single-session use.
+
+# ---------- Key bindings ----------
+# Default prefix (C-b) kept globally; the app switches to C-a per-session.
+
+# Reload config
+bind r source-file ~/.tmux.conf \; display-message "tmux.conf reloaded"
+
+# Vi-style pane navigation with prefix + h/j/k/l
+bind h select-pane -L
+bind j select-pane -D
+bind k select-pane -U
+bind l select-pane -R
+
+# Split panes using | and - (keep current path)
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
+unbind '"'
+unbind %
+
+# ---------- General ----------
+tmux_conf_copy_to_os_clipboard=true
+set -g mouse on
+set -g history-limit 50000
+set -g base-index 1
+set -g pane-base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+set -g escape-time 10
+set -g focus-events on
+set -g default-terminal "tmux-256color"
+set -ga terminal-overrides ",xterm-256color:Tc,alacritty:Tc,*:RGB"
+
+# ---------- gpakosz theme toggles ----------
+tmux_conf_theme_24b_colour=true
+tmux_conf_theme_window_fg="default"
+tmux_conf_theme_window_bg="default"
+
+# Keep pane-border-status off globally; the app turns it on per-session.
+set -g pane-border-status off
+set -g pane-border-lines single
+
+# ---------- Copy-mode ----------
+setw -g mode-keys vi
+bind -T copy-mode-vi v send -X begin-selection
+bind -T copy-mode-vi y send -X copy-pipe-and-cancel
+
+# ---------- Activity ----------
+set -g monitor-activity on
+set -g visual-activity off

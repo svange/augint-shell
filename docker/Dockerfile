@@ -136,43 +136,49 @@ WORKDIR /root/projects/${PROJECT_DIR}
 # Switch to root and configure environment
 USER root
 
-# Set up root's bash environment with useful aliases and settings
-RUN echo '# Useful aliases' >> /root/.bashrc && \
-    echo 'alias ll="ls -la"' >> /root/.bashrc && \
-    echo 'alias la="ls -A"' >> /root/.bashrc && \
-    echo 'alias l="ls -CF"' >> /root/.bashrc && \
-    echo 'alias ..="cd .."' >> /root/.bashrc && \
-    echo 'alias ...="cd ../.."' >> /root/.bashrc && \
-    echo 'alias gs="git status"' >> /root/.bashrc && \
-    echo 'alias gd="git diff"' >> /root/.bashrc && \
-    echo 'alias gl="git log --oneline -10"' >> /root/.bashrc && \
-    echo 'alias dc="docker compose"' >> /root/.bashrc && \
-    echo '' >> /root/.bashrc && \
-    echo '# Environment settings' >> /root/.bashrc && \
-    echo 'export EDITOR=vim' >> /root/.bashrc && \
-    echo 'export HISTSIZE=10000' >> /root/.bashrc && \
-    echo 'export HISTFILESIZE=20000' >> /root/.bashrc && \
-    echo 'export HISTCONTROL=ignoreboth:erasedups' >> /root/.bashrc && \
-    echo '' >> /root/.bashrc && \
-    echo '# Better prompt showing git branch' >> /root/.bashrc && \
-    echo 'parse_git_branch() {' >> /root/.bashrc && \
-    echo '    git branch 2> /dev/null | sed -e "/^[^*]/d" -e "s/* \(.*\)/ (\1)/"' >> /root/.bashrc && \
-    echo '}' >> /root/.bashrc && \
-    echo 'export PS1="\[\033[01;31m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[33m\]\$(parse_git_branch)\[\033[00m\]\$ "' >> /root/.bashrc && \
-    echo '' >> /root/.bashrc && \
-    echo '# Useful functions' >> /root/.bashrc && \
-    echo 'mkcd() { mkdir -p "$1" && cd "$1"; }' >> /root/.bashrc && \
-    echo 'extract() {' >> /root/.bashrc && \
-    echo '    if [ -f "$1" ]; then' >> /root/.bashrc && \
-    echo '        case "$1" in' >> /root/.bashrc && \
-    echo '            *.tar.bz2) tar xjf "$1" ;;' >> /root/.bashrc && \
-    echo '            *.tar.gz) tar xzf "$1" ;;' >> /root/.bashrc && \
-    echo '            *.tar) tar xf "$1" ;;' >> /root/.bashrc && \
-    echo '            *.zip) unzip "$1" ;;' >> /root/.bashrc && \
-    echo '            *) echo "Unknown archive format" ;;' >> /root/.bashrc && \
-    echo '        esac' >> /root/.bashrc && \
-    echo '    fi' >> /root/.bashrc && \
-    echo '}' >> /root/.bashrc
+# Install zsh, fish, and bash-completion for multi-shell support
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    zsh \
+    fish \
+    bash-completion \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Starship (cross-shell prompt, used by bash/zsh/fish)
+RUN curl -sS https://starship.rs/install.sh | sh -s -- --yes --bin-dir /usr/local/bin
+
+# Install Oh My Zsh (unattended) + popular plugins
+RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended && \
+    git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions \
+        /root/.oh-my-zsh/custom/plugins/zsh-autosuggestions && \
+    git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting \
+        /root/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting && \
+    git clone --depth=1 https://github.com/zsh-users/zsh-completions \
+        /root/.oh-my-zsh/custom/plugins/zsh-completions
+
+# Install Fisher (fish plugin manager) + popular plugins
+RUN mkdir -p /root/.config/fish/functions /root/.config/fish/completions /root/.config/fish/conf.d && \
+    curl -sSL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish \
+        -o /root/.config/fish/functions/fisher.fish && \
+    fish -c "fisher install jorgebucaran/fisher jorgebucaran/autopair.fish PatrickF1/fzf.fish" || true
+
+# Install Oh My Tmux (gpakosz/.tmux)
+RUN git clone --depth=1 https://github.com/gpakosz/.tmux.git /root/.tmux && \
+    ln -sf /root/.tmux/.tmux.conf /root/.tmux.conf
+
+# Install vim-plug
+RUN curl -fLo /root/.vim/autoload/plug.vim --create-dirs \
+    https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+
+# Copy shell configs into place
+COPY shell-configs/bashrc /root/.bashrc
+COPY shell-configs/zshrc /root/.zshrc
+COPY shell-configs/fish-config.fish /root/.config/fish/config.fish
+COPY shell-configs/starship.toml /root/.config/starship.toml
+COPY shell-configs/vimrc /root/.vimrc
+COPY shell-configs/tmux.conf.local /root/.tmux.conf.local
+
+# Pre-install vim plugins headlessly so first launch is instant
+RUN vim -es -u /root/.vimrc -i NONE -c "PlugInstall --sync" -c "qa" || true
 
 # Install additional useful development tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -214,14 +220,6 @@ RUN git config --global --add safe.directory '*' && \
     # Disable git hooks in container - AI tools commit frequently; pre-commit is run explicitly
     git config --global core.hooksPath /dev/null && \
     git config --global --unset-all http.sslbackend || true
-
-# Set up vim with basic config
-RUN echo 'set number' >> /root/.vimrc && \
-    echo 'set autoindent' >> /root/.vimrc && \
-    echo 'set expandtab' >> /root/.vimrc && \
-    echo 'set tabstop=4' >> /root/.vimrc && \
-    echo 'set shiftwidth=4' >> /root/.vimrc && \
-    echo 'syntax on' >> /root/.vimrc
 
 # Note: Running as root to avoid Windows/Docker permission issues
 # The docker-compose.yml should NOT specify user: "1000:1000"

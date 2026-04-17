@@ -1,0 +1,99 @@
+" ~/.vimrc -- sensible defaults + vim-plug
+
+" ---------- Plugins ----------
+call plug#begin('~/.vim/plugged')
+Plug 'tpope/vim-sensible'
+Plug 'tpope/vim-surround'
+Plug 'tpope/vim-commentary'
+Plug 'tpope/vim-fugitive'
+Plug 'tpope/vim-repeat'
+Plug 'airblade/vim-gitgutter'
+Plug 'itchyny/lightline.vim'
+Plug 'preservim/nerdtree'
+Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
+Plug 'junegunn/fzf.vim'
+Plug 'morhetz/gruvbox'
+call plug#end()
+
+" ---------- Basics ----------
+set nocompatible
+syntax on
+filetype plugin indent on
+set number
+set relativenumber
+set cursorline
+set ruler
+set showcmd
+set showmatch
+set wildmenu
+set wildmode=longest:full,full
+set mouse=a
+if has('mouse_sgr')
+    set ttymouse=sgr
+endif
+set termguicolors
+set t_Co=256
+set background=dark
+set encoding=utf-8
+set fileencoding=utf-8
+set hidden
+set scrolloff=5
+set sidescrolloff=8
+set laststatus=2
+set noshowmode
+set clipboard=unnamedplus
+set updatetime=300
+set signcolumn=yes
+set backspace=indent,eol,start
+set nowrap
+set list
+set listchars=tab:>-,trail:.,extends:>,precedes:<,nbsp:+
+
+" ---------- Search ----------
+set ignorecase
+set smartcase
+set incsearch
+set hlsearch
+
+" ---------- Indentation ----------
+set expandtab
+set tabstop=4
+set softtabstop=4
+set shiftwidth=4
+set smartindent
+set autoindent
+
+" ---------- Files ----------
+set nobackup
+set nowritebackup
+set noswapfile
+set undofile
+set undodir=~/.vim/undo//
+if !isdirectory(expand('~/.vim/undo'))
+    call mkdir(expand('~/.vim/undo'), 'p')
+endif
+
+" ---------- Colorscheme ----------
+silent! colorscheme gruvbox
+
+" ---------- Leader + mappings ----------
+let mapleader = " "
+nnoremap <leader>w :w<CR>
+nnoremap <leader>q :q<CR>
+nnoremap <leader>x :x<CR>
+nnoremap <leader>h :nohlsearch<CR>
+nnoremap <leader>n :NERDTreeToggle<CR>
+nnoremap <leader>f :Files<CR>
+nnoremap <leader>b :Buffers<CR>
+nnoremap <leader>g :Rg<CR>
+nnoremap <leader>l :Lines<CR>
+nnoremap <C-h> <C-w>h
+nnoremap <C-j> <C-w>j
+nnoremap <C-k> <C-w>k
+nnoremap <C-l> <C-w>l
+
+" ---------- Plugin config ----------
+let g:lightline = { 'colorscheme': 'gruvbox' }
+let g:NERDTreeShowHidden = 1
+let g:NERDTreeMinimalUI  = 1
+let g:gitgutter_sign_column_always = 1
