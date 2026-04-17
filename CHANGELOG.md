@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v0.82.0 (2026-04-17)
+
+### Features
+
+- **container**: Enhance WebUI and n8n integration with API key support and STT configuration
+  ([`e4edc9c`](https://github.com/svange/augint-shell/commit/e4edc9c98bc653b0917f74bfc5e58cd507f24d9d))
+
+- **container**: Implement deterministic port mapping for development containers
+  ([`51f7bd4`](https://github.com/svange/augint-shell/commit/51f7bd4998a9e517641e2efc69c0bda8b6f28522))
+
+
 ## v0.81.0 (2026-04-16)
 
 ### Documentation
