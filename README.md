@@ -57,15 +57,17 @@ ai-shell opencode
 | `ai-shell codex` | Launch Codex |
 | `ai-shell opencode` | Launch opencode |
 | `ai-shell aider` | Launch aider with local LLM |
-| `ai-shell shell` | Bash shell in dev container |
+| `ai-shell shell [bash\|zsh\|fish]` | Interactive shell in dev container (Starship prompt, Oh My Zsh, Fisher) |
 
 ### LLM Stack
 
 | Command | Description |
 |---|---|
-| `ai-shell llm up` | Start Ollama (add `--webui`, `--whisper`, `--voice-agent`, `--n8n`, or `--all` for optional stacks) |
+| `ai-shell llm up` | Start Ollama (add `--webui`, `--whisper`, `--voice-agent`, `--n8n`, `--image-gen`, or `--all`) |
 | `ai-shell llm down` | Stop LLM stack |
 | `ai-shell llm pull` | Pull configured models |
+| `ai-shell llm models` | Browse curated model catalog with config/pulled/available status |
+| `ai-shell llm unload [MODEL]` | Unload models from VRAM (frees GPU for ComfyUI, etc.) |
 | `ai-shell llm setup` | First-time setup (up + pull + configure) |
 | `ai-shell llm status` | Show status and available models |
 | `ai-shell llm logs` | Tail LLM stack logs |
@@ -80,6 +82,7 @@ ai-shell opencode
 | `ai-shell manage clean` | Remove container and volumes |
 | `ai-shell manage logs` | Tail dev container logs |
 | `ai-shell manage pull` | Pull latest Docker image |
+| `ai-shell manage env` | Show resolved environment variables (add `--aws` for Bedrock env) |
 
 ## Configuration
 
@@ -93,6 +96,11 @@ container:
   image_tag: latest
   extra_env:
     MY_VAR: value
+  dev_ports: [3000, 4200, 5000, 5173, 5678, 8000, 8080, 8888]  # forwarded from container
+  extra_ports: []  # additional container ports to forward
+
+openai:
+  profile: work  # resolves OPENAI_API_KEY_WORK from .env (see --openai-profile)
 
 llm:
   primary_chat_model: qwen3.5:27b
@@ -102,6 +110,7 @@ llm:
   context_size: 32768
   ollama_port: 11434
   webui_port: 3000
+  comfyui_port: 8188
   extra_models: []   # additional Ollama tags to pull alongside the 4 slots
 ```
 
@@ -152,6 +161,7 @@ secondary within a slot keeps tool formats and context semantics identical.
 | `--voice` | Kokoro TTS | 8880 | OpenAI-compatible `/v1/audio/speech`. |
 | `--whisper` | Speaches STT | 8001 | OpenAI-compatible `/v1/audio/transcriptions`. Default model: `Systran/faster-distil-whisper-large-v3` (preloaded). GPU image used automatically when NVIDIA is detected; container auto-recreates if GPU availability changes. |
 | `--voice-agent` | Pipecat voice agent | 8010 | Experimental. Built locally on first use from `docker/voice-agent/`. Push-to-talk PWA over WebSocket (Speaches STT -> Ollama -> Kokoro TTS). See `VOICE_AGENT_PLAN.md`. |
+| `--image-gen` | ComfyUI | 8188 | GPU image generation. Wires into WebUI when combined with `--webui`. Pass `HF_TOKEN` via `--env` for FLUX.1-dev downloads. |
 | `--n8n` | n8n | 5678 | Workflow automation, standalone. |
 
 ## How It Works
@@ -161,7 +171,38 @@ secondary within a slot keeps tool formats and context semantics identical.
 - Mounts your project directory, SSH keys, AWS credentials, and tool configs
 - Runs AI tools interactively inside the container
 - Supports concurrent instances across multiple projects
-- GPU-capable containers (Ollama, Kokoro, Whisper) auto-detect NVIDIA GPUs and recreate themselves if GPU availability changes
+- **Deterministic port mapping**: each project gets stable, unique host ports via hash so multiple projects can run simultaneously without conflicts
+- **Stale image detection**: when using the `latest` tag, automatically detects outdated container images and recreates with the latest pull
+- **MOTD dashboard**: on shell entry, displays tool versions, GitHub pipeline status, masked API keys, mount availability, LLM service status, and port mappings
+- GPU-capable containers (Ollama, Kokoro, Whisper, ComfyUI) auto-detect NVIDIA GPUs and recreate themselves if GPU availability changes
+
+## OpenAI multi-account switching (`--openai-profile`)
+
+Codex and opencode support switching between multiple OpenAI accounts via named
+profiles stored in your `.env` file:
+
+```bash
+# .env
+OPENAI_API_KEY_WORK=sk-proj-...
+OPENAI_ORG_ID_WORK=org-...
+OPENAI_API_KEY_PERSONAL=sk-proj-...
+```
+
+```bash
+ai-shell codex --openai-profile work
+ai-shell opencode --openai-profile personal
+```
+
+`--openai-profile <NAME>` resolves `OPENAI_API_KEY_{NAME}` (and optionally
+`OPENAI_ORG_ID_{NAME}`) from `.env` and injects them as `OPENAI_API_KEY` /
+`OPENAI_ORG_ID` into the container. You can also set a default in config:
+
+```yaml
+openai:
+  profile: work
+```
+
+Or via environment variable: `AI_SHELL_OPENAI_PROFILE=work`.
 
 ## Attaching to your Windows Chrome (`--local-chrome`)
 
@@ -212,122 +253,6 @@ chrome.exe --remote-debugging-port=<project-port> --remote-debugging-address=127
 - **Tabs appear empty / not logged in** -- Sign in to the accounts you need inside the auto-launched Chrome for that project. Cookies persist in that project's profile across sessions.
 - **A different repo opened the wrong Chrome window** -- Each project now gets its own Chrome profile and debug port. Re-run from the correct repo so `ai-shell` attaches to that repo's browser instance.
 - **Firefox / Safari** -- not supported. `chrome-devtools-mcp` requires a Chromium-based browser. Edge works with the same flags but has not been tested here.
-
-## Standardization architecture
-
-`augint-shell` also ships the skill bundle and Python machinery for
-repository standardization. The system distributes work across three
-repositories:
-
-- **augint-shell** — content owner: canonical vocabulary, templates,
-  generators, and the orchestration skills.
-- **augint-github** (`ai-gh`) — thin GitHub-state mutation API: rulesets
-  apply, config standardize, OIDC trust.
-- **augint-tools** (`ai-tools`) — multi-repo workflow helpers and
-  workspace enumeration via `workspace.yaml`.
-
-Each repo releases independently. Changing a gate name is a one-repo
-change in augint-shell — downstream tools read the canon at runtime.
-
-### Ownership matrix
-
-| Concern | Owner | Surface |
-|---|---|---|
-| Gate canon (`gates.json`) | augint-shell | `templates/claude/skills/ai-standardize-repo/gates.json` |
-| Ruleset spec generation | augint-shell | `ai_shell.standardize.rulesets` |
-| Ruleset application to GitHub | augint-github | `ai-gh rulesets apply <spec>` |
-| Workflow job snippets + minimum specs | augint-shell | `templates/.../ai-standardize-pipeline/jobs/` |
-| Workflow file generation | augint-shell (AI-mediated prose) | `/ai-standardize-pipeline` skill |
-| Renovate config | augint-shell | `ai-shell standardize renovate` |
-| Pre-commit config | augint-shell | `ai-shell standardize precommit` |
-| Semantic-release config | augint-shell | `ai-shell standardize release` (tomlkit merge for python) |
-| Dotfiles (`.editorconfig`, `.gitignore`) | augint-shell | `ai-shell standardize dotfiles` |
-| Repo merge settings | augint-github | `ai-gh config --standardize` |
-| OIDC trust | augint-shell + augint-github | `/ai-setup-oidc` skill orchestrates |
-| Secrets / variables | augint-github | `chezmoi` + `ai-gh sync` |
-| Workspace enumeration | augint-tools | `workspace.yaml` + `ai-tools workspace inspect/graph/foreach/...` |
-| Repo / workspace workflow helpers | augint-tools | `ai-tools repo`, `ai-tools workspace` |
-| Standardization orchestration (single-repo) | augint-shell | `/ai-standardize-repo` |
-| Standardization orchestration (workspace) | augint-shell | `/ai-workspace-standardize` |
-| Workspace bulk verify | augint-shell skill layer | `/ai-workspace-standardize --verify` loops over children calling `ai-tools standardize <child-path> --verify --json` |
-| AI agent configuration | augint-shell (`.ai-shell.toml`) | container/runtime settings only — NOT tool-specific Codex/OpenCode/Aider config |
-
-### Canonical gate vocabulary
-
-Every repo enforces the same 5 pre-merge gates as required status checks
-via branch rulesets. iac repos additionally enforce 1 post-deploy gate on
-the production branch. Source of truth:
-`templates/claude/skills/ai-standardize-repo/gates.json`. Skills that
-name a gate read it from there; they never hardcode.
-
-| Gate | Scope | What it checks |
-|---|---|---|
-| **Code quality** | all repos | linting, formatting, type checking, file hygiene |
-| **Security** | all repos | Bandit/Semgrep SAST, dependency vulnerabilities |
-| **Unit tests** | all repos | tests + coverage floor (>=80%) |
-| **Compliance** | all repos | GPL/AGPL/LGPL license rejection |
-| **Build validation** | all repos | `uv build` / `sam build` / `cdk synth` / `npm run build` / `terraform validate` |
-| **Acceptance tests** | iac production only | runs on dev's tip after deploy; required context on `iac_production` ruleset; satisfied on the promotion PR |
-
-### Repo type and language detection
-
-Detection is code-based via `ai-shell standardize detect --json`. There
-is no `.ai-shell.toml` dependency for repo-shape decisions.
-
-**Language:**
-- **Python** — `pyproject.toml` with `[project].name` AND **no** `[tool.uv].package = false`
-- **Node** — `package.json` AND (no `pyproject.toml` OR `pyproject.toml` has `[tool.uv].package = false`)
-- The `package = false` marker is authoritative — it says "this
-  pyproject is a dependency container, not a buildable Python package"
-
-**Repo type:**
-- **iac** if ANY of: `samconfig.toml`, `cdk.json`, `*.tf` at root,
-  `serverless.yml`, OR a workflow file contains `sam deploy`, `cdk
-  deploy`, `terraform apply`, `aws s3 sync`, or
-  `aws-actions/configure-aws-credentials`
-- **library** if a workflow file publishes via
-  `pypa/gh-action-pypi-publish`, `twine upload`, `uv publish`, or `npm
-  publish`
-- **Publish wins over deploy** when both signals are present — a
-  library with SAM-based test infrastructure (e.g. `ai-lls-lib`) is
-  still a library
-
-### Pipeline architecture principles
-
-- **Single `pipeline.yaml` per repo.** All canonical gates inline as
-  jobs in one workflow. No reusable workflow split (`_gate-*.yaml`).
-  This preserves the unified GitHub Actions DAG view per CI run.
-- **AI-mediated merge, not Python.** The Python layer is read-only:
-  `validate(path)` returns a `DriftReport`; `canonical_jobs(language,
-  repo_type)` returns inline job snippets the AI uses as reference. The
-  `/ai-standardize-pipeline` skill drives Claude through the merge,
-  handling legacy renames (`Pre-commit checks` -> `Code quality`,
-  `Integration tests`/`Smoke tests`/`E2E *` -> `Acceptance tests`),
-  missing gate insertion, custom job preservation, and special patterns
-  like parallelized post-deploy tests (synthetic `Acceptance tests`
-  aggregator that `needs: [<parallel test jobs>]`).
-- **Minimum-spec validation.** Each canonical gate declares required
-  steps in order. Users may add custom steps anywhere as long as
-  required ones appear in the declared order. Action SHAs and step
-  `name:` fields are ignored; only `uses:` (action path substring) and
-  `run:` (regex, MULTILINE+DOTALL for multi-line shell continuations)
-  count.
-- **One-shot, no two-phase migration.** Standardization is a single
-  invocation per repo. No "run once to scaffold, edit by hand, run
-  again to verify."
-
-### Execution scopes
-
-| Command | Scope |
-|---|---|
-| `/ai-standardize-pipeline [<path>]` | Single section: `pipeline.yaml` merge (AI-mediated) |
-| `/ai-standardize-precommit [<path>]` | Single section: pre-commit config |
-| `/ai-standardize-renovate [<path>]` | Single section: Renovate config |
-| `/ai-standardize-release [<path>]` | Single section: semantic-release config |
-| `/ai-standardize-dotfiles [<path>]` | Single section: `.editorconfig`, `.gitignore` |
-| `/ai-standardize-repo --all [<path>]` | Full single-repo 10-step sequence |
-| `/ai-standardize-repo --verify [<path>]` | Read-only drift report for a single repo |
-| `/ai-workspace-standardize [--verify] [--only ...]` | Workspace-level orchestration over every child repo in dep order |
 
 ## Requirements
 

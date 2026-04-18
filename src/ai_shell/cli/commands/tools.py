@@ -1103,7 +1103,14 @@ def claude(
     "--openai-profile",
     "openai_profile",
     default=None,
-    help="OpenAI .env profile name (resolves OPENAI_API_KEY_{NAME}).",
+    help=(
+        "OpenAI .env profile name for multi-account switching.  "
+        "Store per-account keys in .env as OPENAI_API_KEY_{NAME} "
+        "(e.g. OPENAI_API_KEY_WORK, OPENAI_API_KEY_PERSONAL).  "
+        "Optionally add OPENAI_ORG_ID_{NAME}.  "
+        "Set a default in .ai-shell.yaml under openai.profile or "
+        "via AI_SHELL_OPENAI_PROFILE env var."
+    ),
 )
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
@@ -1138,6 +1145,9 @@ def codex(
     else:
         bedrock_label = ""
 
+    resolved_openai_profile = openai_profile or config.openai_profile
+    openai_label = f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
+
     # AUTO-UPDATE: Check tool freshness before launch
     manager.ensure_tool_fresh(name, "codex")
 
@@ -1146,7 +1156,9 @@ def codex(
         cmd.extend(["--dangerously-bypass-approvals-and-sandbox"])
     cmd.extend(extra_args)
     mode_label = " (safe mode)" if safe else ""
-    console.print(f"[bold]Launching Codex{mode_label}{bedrock_label} in {name}...[/bold]")
+    console.print(
+        f"[bold]Launching Codex{mode_label}{bedrock_label}{openai_label} in {name}...[/bold]"
+    )
     manager.exec_interactive(name, cmd, extra_env=exec_env)
 
 
@@ -1158,7 +1170,14 @@ def codex(
     "--openai-profile",
     "openai_profile",
     default=None,
-    help="OpenAI .env profile name (resolves OPENAI_API_KEY_{NAME}).",
+    help=(
+        "OpenAI .env profile name for multi-account switching.  "
+        "Store per-account keys in .env as OPENAI_API_KEY_{NAME} "
+        "(e.g. OPENAI_API_KEY_WORK, OPENAI_API_KEY_PERSONAL).  "
+        "Optionally add OPENAI_ORG_ID_{NAME}.  "
+        "Set a default in .ai-shell.yaml under openai.profile or "
+        "via AI_SHELL_OPENAI_PROFILE env var."
+    ),
 )
 @click.pass_context
 def opencode(
@@ -1191,6 +1210,9 @@ def opencode(
     else:
         bedrock_label = ""
 
+    resolved_openai_profile = openai_profile or config.openai_profile
+    openai_label = f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
+
     # AUTO-UPDATE: Check tool freshness before launch
     manager.ensure_tool_fresh(name, "opencode")
 
@@ -1200,7 +1222,7 @@ def opencode(
         # explicit Ollama tools badge). Users can switch to the secondary
         # (uncensored) slot in the OpenCode model picker at runtime.
         cmd.extend(["--model", f"ollama/{config.primary_coding_model}"])
-    console.print(f"[bold]Launching opencode{bedrock_label} in {name}...[/bold]")
+    console.print(f"[bold]Launching opencode{bedrock_label}{openai_label} in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env)
 
 
