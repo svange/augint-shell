@@ -6,7 +6,7 @@ format = """
 $character """
 
 add_newline = false
-command_timeout = 1000
+command_timeout = 500
 
 [character]
 success_symbol = "[>](bold green)"
@@ -17,10 +17,10 @@ vicmd_symbol = "[<](bold yellow)"
 style_user = "bold cyan"
 style_root = "bold red"
 format = "[$user]($style)"
-show_always = true
+show_always = false
 
 [hostname]
-ssh_only = false
+ssh_only = true
 format = "@[$hostname](bold purple) "
 disabled = false
 
