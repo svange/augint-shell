@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.86.0 (2026-04-18)
+
+### Features
+
+- **llm**: Add model catalog and `llm models` browsing command
+  ([#90](https://github.com/svange/augint-shell/pull/90),
+  [`73bc65a`](https://github.com/svange/augint-shell/commit/73bc65a40d5598a1ef46f3b312c9b6e5adf7b7ad))
+
+
 ## v0.85.0 (2026-04-18)
 
 ### Features
