@@ -62,7 +62,7 @@
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.86.0"
+    "Version": "0.87.0"
   },
   {
     "License": "UNKNOWN",
@@ -157,7 +157,7 @@
   {
     "License": "MIT",
     "Name": "identify",
-    "Version": "2.6.18"
+    "Version": "2.6.19"
   },
   {
     "License": "BSD-3-Clause",
@@ -287,12 +287,12 @@
   {
     "License": "MIT",
     "Name": "pydantic",
-    "Version": "2.13.1"
+    "Version": "2.13.2"
   },
   {
     "License": "MIT",
     "Name": "pydantic_core",
-    "Version": "2.46.1"
+    "Version": "2.46.2"
   },
   {
     "License": "MIT",
