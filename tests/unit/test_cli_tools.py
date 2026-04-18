@@ -125,6 +125,7 @@ class TestToolCommands:
         config.project_name = "my-project"
         config.claude_provider = ""
         config.bedrock_profile = ""
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -165,6 +166,7 @@ class TestToolCommands:
         config.project_name = "my-project"
         config.claude_provider = ""
         config.bedrock_profile = ""
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -200,6 +202,7 @@ class TestToolCommands:
         config.project_name = "my-project"
         config.claude_provider = ""
         config.bedrock_profile = ""
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -241,6 +244,7 @@ class TestToolCommands:
 
         config = MagicMock()
         config.bedrock_profile = ""
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -265,6 +269,7 @@ class TestToolCommands:
     ):
         config = MagicMock()
         config.bedrock_profile = ""
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -287,6 +292,7 @@ class TestToolCommands:
     ):
         config = MagicMock()
         config.bedrock_profile = ""
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -313,6 +319,7 @@ class TestToolCommands:
     ):
         config = MagicMock()
         config.bedrock_profile = "rd"
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -336,11 +343,60 @@ class TestToolCommands:
         assert call_kwargs["bedrock"] is True
         assert call_kwargs["bedrock_profile"] == "rd"
 
+    def test_codex_openai_profile_flag_passed_to_build_env(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["codex", "--openai-profile", "aillc"])
+
+        mock_build_env.assert_called_once()
+        call_kwargs = mock_build_env.call_args[1]
+        assert call_kwargs["openai_profile"] == "aillc"
+
+    def test_codex_openai_profile_from_config(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = "personal"
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["codex"])
+
+        mock_build_env.assert_called_once()
+        call_kwargs = mock_build_env.call_args[1]
+        assert call_kwargs["openai_profile"] == "personal"
+
     def test_codex_bedrock_preflight_called(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
         config.bedrock_profile = ""
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -484,6 +540,7 @@ class TestToolCommands:
         config = MagicMock()
         config.claude_provider = ""
         config.bedrock_profile = ""
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -531,6 +588,7 @@ class TestToolCommands:
         config = MagicMock()
         config.claude_provider = ""
         config.bedrock_profile = ""
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -573,6 +631,7 @@ class TestToolCommands:
         config = MagicMock()
         config.claude_provider = ""
         config.bedrock_profile = ""
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
@@ -622,6 +681,7 @@ class TestToolCommands:
         config = MagicMock()
         config.claude_provider = "aws"
         config.bedrock_profile = "rd"
+        config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}

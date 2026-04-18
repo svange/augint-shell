@@ -99,6 +99,20 @@ llm:
 #   region: us-east-1
 
 # -----------------------------------------------------------------------------
+# openai - OpenAI multi-account switching via suffixed .env keys.
+# -----------------------------------------------------------------------------
+# Store per-account API keys in .env:
+#   OPENAI_API_KEY_PERSONAL=sk-...
+#   OPENAI_API_KEY_AILLC=sk-...
+#   OPENAI_ORG_ID_AILLC=org-...
+#
+# Set a default profile here; override per-session with --openai-profile.
+# The profile name is uppercased to resolve OPENAI_API_KEY_{NAME}.
+#
+# openai:
+#   profile: personal
+
+# -----------------------------------------------------------------------------
 # claude - Claude Code backend selection. Uncomment to use Bedrock instead of
 # the Anthropic API. Equivalent per-session flag: `ai-shell claude --aws`.
 # -----------------------------------------------------------------------------

@@ -211,6 +211,7 @@ def _get_manager(
     *,
     bedrock: bool = False,
     bedrock_profile: str = "",
+    openai_profile: str = "",
 ) -> tuple[ContainerManager, str, dict[str, str], AiShellConfig]:
     """Create ContainerManager from Click context and ensure dev container.
 
@@ -244,6 +245,7 @@ def _get_manager(
         aws_profile=config.ai_profile,
         aws_region=config.aws_region,
         bedrock_profile=bedrock_profile or config.bedrock_profile,
+        openai_profile=openai_profile or config.openai_profile,
     )
     return manager, container_name, exec_env, config
 
@@ -1097,6 +1099,12 @@ def claude(
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
+@click.option(
+    "--openai-profile",
+    "openai_profile",
+    default=None,
+    help="OpenAI .env profile name (resolves OPENAI_API_KEY_{NAME}).",
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def codex(
@@ -1104,6 +1112,7 @@ def codex(
     safe,
     use_aws,
     cli_profile,
+    openai_profile,
     extra_args,
 ):
     """Launch Codex in the dev container."""
@@ -1115,6 +1124,7 @@ def codex(
         ctx,
         bedrock=use_bedrock,
         bedrock_profile=cli_profile or config.bedrock_profile,
+        openai_profile=openai_profile or config.openai_profile,
     )
 
     if use_bedrock:
@@ -1144,12 +1154,19 @@ def codex(
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
+@click.option(
+    "--openai-profile",
+    "openai_profile",
+    default=None,
+    help="OpenAI .env profile name (resolves OPENAI_API_KEY_{NAME}).",
+)
 @click.pass_context
 def opencode(
     ctx,
     safe,
     use_aws,
     cli_profile,
+    openai_profile,
 ):
     """Launch opencode in the dev container."""
     project = ctx.obj.get("project") if ctx.obj else None
@@ -1160,6 +1177,7 @@ def opencode(
         ctx,
         bedrock=use_bedrock,
         bedrock_profile=cli_profile or config.bedrock_profile,
+        openai_profile=openai_profile or config.openai_profile,
     )
 
     if use_bedrock:

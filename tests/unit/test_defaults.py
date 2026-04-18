@@ -3,6 +3,8 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from ai_shell.defaults import (
     CONTAINER_PREFIX,
     DEV_PORT_RANGE_SIZE,
@@ -333,6 +335,45 @@ class TestBuildDevEnvironmentBedrock:
             env = build_dev_environment()
         assert env["AWS_DEFAULT_REGION"] == "us-east-1"
         assert env["AWS_DEFAULT_REGION"] == env["AWS_REGION"]
+
+
+class TestBuildDevEnvironmentOpenAIProfile:
+    def test_openai_profile_sets_api_key(self, tmp_path):
+        dotenv_path = tmp_path / ".env"
+        dotenv_path.write_text("OPENAI_API_KEY_AILLC=sk-test-123\n")
+        env = build_dev_environment(project_dir=tmp_path, openai_profile="aillc")
+        assert env["OPENAI_API_KEY"] == "sk-test-123"
+
+    def test_openai_profile_sets_org_id_when_present(self, tmp_path):
+        dotenv_path = tmp_path / ".env"
+        dotenv_path.write_text("OPENAI_API_KEY_AILLC=sk-test-123\nOPENAI_ORG_ID_AILLC=org-abc\n")
+        env = build_dev_environment(project_dir=tmp_path, openai_profile="aillc")
+        assert env["OPENAI_API_KEY"] == "sk-test-123"
+        assert env["OPENAI_ORG_ID"] == "org-abc"
+
+    def test_openai_profile_no_org_id(self, tmp_path):
+        dotenv_path = tmp_path / ".env"
+        dotenv_path.write_text("OPENAI_API_KEY_PERSONAL=sk-personal\n")
+        env = build_dev_environment(project_dir=tmp_path, openai_profile="personal")
+        assert env["OPENAI_API_KEY"] == "sk-personal"
+        assert "OPENAI_ORG_ID" not in env
+
+    def test_openai_profile_uppercases_name(self, tmp_path):
+        dotenv_path = tmp_path / ".env"
+        dotenv_path.write_text("OPENAI_API_KEY_MYACCT=sk-myacct\n")
+        env = build_dev_environment(project_dir=tmp_path, openai_profile="myacct")
+        assert env["OPENAI_API_KEY"] == "sk-myacct"
+
+    def test_openai_profile_missing_key_raises(self, tmp_path):
+        dotenv_path = tmp_path / ".env"
+        dotenv_path.write_text("OPENAI_API_KEY_OTHER=sk-other\n")
+        with pytest.raises(ValueError, match="OPENAI_API_KEY_AILLC"):
+            build_dev_environment(project_dir=tmp_path, openai_profile="aillc")
+
+    def test_openai_profile_empty_string_is_noop(self):
+        env = build_dev_environment(openai_profile="")
+        assert "OPENAI_API_KEY" not in env
+        assert "OPENAI_ORG_ID" not in env
 
 
 class TestUvVenvPath:

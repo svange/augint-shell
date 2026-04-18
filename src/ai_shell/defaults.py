@@ -302,6 +302,7 @@ def build_dev_environment(
     aws_profile: str = "",
     aws_region: str = "",
     bedrock_profile: str = "",
+    openai_profile: str = "",
     team_mode: bool = False,
 ) -> dict[str, str]:
     """Build environment variables matching docker-compose.yml dev service.
@@ -314,6 +315,10 @@ def build_dev_environment(
     When *bedrock* is True, ``CLAUDE_CODE_USE_BEDROCK=1`` is injected and
     *bedrock_profile* (if set) overrides ``AWS_PROFILE`` so the LLM provider
     authenticates with the correct AWS account.
+
+    When *openai_profile* is set, the suffixed env vars
+    ``OPENAI_API_KEY_{NAME}`` and ``OPENAI_ORG_ID_{NAME}`` are resolved from
+    ``.env`` and injected as ``OPENAI_API_KEY`` / ``OPENAI_ORG_ID``.
 
     When *team_mode* is True, ``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` is
     injected to enable Claude Code's Agent Teams feature.
@@ -355,6 +360,18 @@ def build_dev_environment(
         env["CLAUDE_CODE_USE_BEDROCK"] = "1"
         if bedrock_profile:
             env["AWS_PROFILE"] = bedrock_profile
+
+    if openai_profile:
+        suffix = openai_profile.upper()
+        key_var = f"OPENAI_API_KEY_{suffix}"
+        api_key = dotenv.get(key_var)
+        if not api_key:
+            raise ValueError(f"OpenAI profile '{openai_profile}' requires {key_var} in .env")
+        env["OPENAI_API_KEY"] = api_key
+        org_var = f"OPENAI_ORG_ID_{suffix}"
+        org_id = dotenv.get(org_var)
+        if org_id:
+            env["OPENAI_ORG_ID"] = org_id
 
     if team_mode:
         env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
