@@ -10,33 +10,38 @@ if status is-interactive
     # ---------- Greeting ----------
     set -g fish_greeting ""
 
-    # ---------- Aliases ----------
-    alias ll 'ls -alhF --color=auto'
-    alias la 'ls -A --color=auto'
-    alias l  'ls -CF --color=auto'
-    alias grep 'grep --color=auto'
+    # ---------- History ----------
+    set -g fish_history default
+    set -g fish_history_max 100000
+
+    # ---------- Abbreviations ----------
+    # Fish handles --color=auto natively via built-in wrapper functions.
+    # Abbreviations expand in-place, giving readable history and real commands.
+
+    # Listing
+    abbr -a ll 'ls -alhF'
+    abbr -a la 'ls -A'
+    abbr -a l  'ls -CF'
 
     # Navigation
-    alias ..  'cd ..'
-    alias ... 'cd ../..'
-    alias .... 'cd ../../..'
+    abbr -a .. 'cd ..'
+    abbr -a ... 'cd ../..'
+    abbr -a .... 'cd ../../..'
 
     # Git
-    alias gs 'git status -sb'
-    alias gd 'git diff'
-    alias gdc 'git diff --cached'
-    alias gco 'git checkout'
-    alias gcm 'git commit -m'
-    alias gp 'git push'
-    alias gl 'git pull'
-    alias glog 'git log --oneline --graph --decorate --all'
-    alias gb 'git branch'
-    alias ga 'git add'
+    abbr -a gs 'git status -sb'
+    abbr -a gd 'git diff'
+    abbr -a gdc 'git diff --cached'
+    abbr -a gco 'git checkout'
+    abbr -a gcm 'git commit -m'
+    abbr -a gp 'git push'
+    abbr -a gl 'git pull'
+    abbr -a glog 'git log --oneline --graph --decorate --all'
+    abbr -a gb 'git branch'
+    abbr -a ga 'git add'
 
     # Docker
-    alias dc 'docker compose'
-
-    # ---------- fzf.fish key-bindings auto-register from the plugin ----------
+    abbr -a dc 'docker compose'
 
     # ---------- Prompt ----------
     if type -q starship

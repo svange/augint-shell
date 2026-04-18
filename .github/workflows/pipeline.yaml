@@ -359,33 +359,59 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      needs.release.outputs.released == 'true'
+      github.ref == 'refs/heads/main'
     permissions:
       contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Detect Docker file changes
+        id: changes
+        run: |
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q '^docker/'; then
+            echo "docker_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "docker_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine image tags
+        id: tags
+        if: needs.release.outputs.released == 'true' || steps.changes.outputs.docker_changed == 'true'
+        run: |
+          TAGS="svange/augint-shell:latest"
+          if [ "${{ needs.release.outputs.released }}" = "true" ]; then
+            TAGS="${TAGS}
+          svange/augint-shell:${{ needs.release.outputs.version }}"
+          fi
+          {
+            echo "tags<<EOF"
+            echo "$TAGS"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
+        if: needs.release.outputs.released == 'true' || steps.changes.outputs.docker_changed == 'true'
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Login to Docker Hub
+        if: needs.release.outputs.released == 'true' || steps.changes.outputs.docker_changed == 'true'
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
+        if: needs.release.outputs.released == 'true' || steps.changes.outputs.docker_changed == 'true'
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: docker/
           file: docker/Dockerfile
           push: true
-          tags: |
-            svange/augint-shell:${{ needs.release.outputs.version }}
-            svange/augint-shell:latest
+          tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
