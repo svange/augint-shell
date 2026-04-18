@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.85.0 (2026-04-18)
+
+### Features
+
+- **llm**: Add ANSI escape sequence stripping and refactor model pulling logic
+  ([#88](https://github.com/svange/augint-shell/pull/88),
+  [`ed026a3`](https://github.com/svange/augint-shell/commit/ed026a3e1c1986b54a0d0e2039ad3af6fcb48267))
+
+- **shell**: Add MOTD environment dashboard at container launch
+  ([#89](https://github.com/svange/augint-shell/pull/89),
+  [`c76a184`](https://github.com/svange/augint-shell/commit/c76a184583309c4284628ebf085725ecd8c6ded6))
+
+
 ## v0.84.4 (2026-04-18)
 
 ### Bug Fixes
