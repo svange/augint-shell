@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.84.4 (2026-04-18)
+
+### Bug Fixes
+
+- **shell**: Use # as prompt character since $ is reserved by starship
+  ([`fa6764e`](https://github.com/svange/augint-shell/commit/fa6764e38bb03cc611633866dc87fc063ba58cda))
+
+
 ## v0.84.3 (2026-04-18)
 
 ### Bug Fixes
