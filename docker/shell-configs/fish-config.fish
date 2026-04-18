@@ -2,6 +2,7 @@
 
 if status is-interactive
     # ---------- Environment ----------
+    set -gx SHELL /usr/bin/fish
     set -gx EDITOR vim
     set -gx PAGER less
     set -gx LESS '-R -i -M -w -z-4'

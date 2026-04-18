@@ -370,7 +370,7 @@ class TestToolCommands:
         self.runner.invoke(cli, ["shell", "bash"])
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert cmd == ["/bin/bash"]
+        assert cmd == ["/bin/bash", "-l"]
         assert mock_manager.exec_interactive.call_args[1]["extra_env"] == TEST_EXEC_ENV
 
     def test_shell_zsh(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
@@ -383,7 +383,7 @@ class TestToolCommands:
         self.runner.invoke(cli, ["shell", "zsh"])
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert cmd == ["/usr/bin/zsh"]
+        assert cmd == ["/usr/bin/zsh", "-l"]
 
     def test_shell_fish(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
@@ -395,7 +395,7 @@ class TestToolCommands:
         self.runner.invoke(cli, ["shell", "fish"])
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert cmd == ["/usr/bin/fish"]
+        assert cmd == ["/usr/bin/fish", "-l"]
 
     def test_shell_prompts_when_no_arg(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
@@ -410,7 +410,7 @@ class TestToolCommands:
         self.runner.invoke(cli, ["shell"], input="zsh\n")
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert cmd == ["/usr/bin/zsh"]
+        assert cmd == ["/usr/bin/zsh", "-l"]
 
     def test_shell_rejects_invalid(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock

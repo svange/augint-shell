@@ -22,6 +22,7 @@ shopt -s dirspell 2>/dev/null
 export CLICOLOR=1
 export LESS='-R -i -M -w -z-4'
 export PAGER=less
+export SHELL=/bin/bash
 export EDITOR=vim
 
 # ---------- Colors ----------

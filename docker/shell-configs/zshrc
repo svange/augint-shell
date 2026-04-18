@@ -58,6 +58,7 @@ setopt CORRECT
 setopt INTERACTIVE_COMMENTS
 
 # ---------- Environment ----------
+export SHELL=/usr/bin/zsh
 export EDITOR=vim
 export PAGER=less
 export LESS='-R -i -M -w -z-4'
