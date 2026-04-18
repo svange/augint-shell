@@ -25,6 +25,7 @@ from ai_shell.defaults import (
     DEFAULT_COMFYUI_PORT,
     DEFAULT_CONTEXT_SIZE,
     DEFAULT_DEV_PORTS,
+    DEFAULT_EXTRA_MODELS,
     DEFAULT_IMAGE,
     DEFAULT_KOKORO_PORT,
     DEFAULT_KOKORO_VOICE,
@@ -136,8 +137,8 @@ class VoiceAgentConfig:
     profiles: dict[str, VoiceAgentModelProfile] = field(
         default_factory=lambda: {
             "resident": VoiceAgentModelProfile(
-                primary="qwen3.5:14b-instruct",
-                secondary="huihui_ai/qwen3.5-abliterated:14b",
+                primary="qwen3.5:9b",
+                secondary="huihui_ai/qwen3.5-abliterated:9b",
             ),
             "swap": VoiceAgentModelProfile(
                 primary="qwen3.5:27b",
@@ -172,7 +173,7 @@ class AiShellConfig:
     secondary_chat_model: str = DEFAULT_SECONDARY_CHAT_MODEL
     primary_coding_model: str = DEFAULT_PRIMARY_CODING_MODEL
     secondary_coding_model: str = DEFAULT_SECONDARY_CODING_MODEL
-    extra_models: list[str] = field(default_factory=list)
+    extra_models: list[str] = field(default_factory=lambda: list(DEFAULT_EXTRA_MODELS))
     context_size: int = DEFAULT_CONTEXT_SIZE
     ollama_port: int = DEFAULT_OLLAMA_PORT
     webui_port: int = DEFAULT_WEBUI_PORT
@@ -450,7 +451,7 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
     if "secondary_coding_model" in llm:
         config.secondary_coding_model = llm["secondary_coding_model"]
     if "extra_models" in llm:
-        config.extra_models.extend(str(m) for m in llm["extra_models"])
+        config.extra_models = [str(m) for m in llm["extra_models"]]
     if "context_size" in llm:
         config.context_size = int(llm["context_size"])
     if "ollama_port" in llm:

@@ -40,8 +40,8 @@ class Settings:
     profiles: dict[str, ModelProfile] = field(
         default_factory=lambda: {
             "resident": ModelProfile(
-                primary="qwen3.5:14b-instruct",
-                secondary="huihui_ai/qwen3.5-abliterated:14b",
+                primary="qwen3.5:9b",
+                secondary="huihui_ai/qwen3.5-abliterated:9b",
             ),
             "swap": ModelProfile(
                 primary="qwen3.5:27b",
@@ -53,7 +53,7 @@ class Settings:
 
     def active_model(self) -> str:
         profile = self.profiles.get(self.profile) or ModelProfile()
-        return profile.primary or "qwen3.5:14b-instruct"
+        return profile.primary or "qwen3.5:9b"
 
 
 def _load_raw() -> dict[str, Any]:

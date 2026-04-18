@@ -75,6 +75,10 @@ DEFAULT_PRIMARY_CHAT_MODEL = "qwen3.5:27b"
 DEFAULT_SECONDARY_CHAT_MODEL = "huihui_ai/qwen3.5-abliterated:27b"
 DEFAULT_PRIMARY_CODING_MODEL = "qwen3-coder:30b-a3b-q4_K_M"
 DEFAULT_SECONDARY_CODING_MODEL = "huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M"
+DEFAULT_EXTRA_MODELS: list[str] = [
+    "qwen3.5:9b",  # ~6.6 GB  mid-range chat, fast + capable
+    "devstral:24b",  # ~15 GB  Mistral agentic coding, dense 24B
+]
 DEFAULT_CONTEXT_SIZE = 32768
 DEFAULT_OLLAMA_PORT = 11434
 DEFAULT_WEBUI_PORT = 3000

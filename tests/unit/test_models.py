@@ -69,13 +69,13 @@ class TestClassifyStatus:
 
     def test_pulled_but_not_config(self):
         config_tags: set[str] = set()
-        pulled_tags = {"qwen3.5:14b-instruct"}
-        assert classify_status("qwen3.5:14b-instruct", config_tags, pulled_tags) == "pulled"
+        pulled_tags = {"qwen3.5:9b"}
+        assert classify_status("qwen3.5:9b", config_tags, pulled_tags) == "pulled"
 
     def test_available_in_catalog_only(self):
         config_tags: set[str] = set()
         pulled_tags: set[str] = set()
-        assert classify_status("qwen3.5:14b-instruct", config_tags, pulled_tags) == "available"
+        assert classify_status("qwen3.5:9b", config_tags, pulled_tags) == "available"
 
     def test_untracked_not_in_catalog(self):
         config_tags: set[str] = set()
@@ -204,7 +204,7 @@ class TestLlmModelsCommand:
         result = self.runner.invoke(cli, ["llm", "models", "--pulled"])
 
         assert result.exit_code == 0
-        # Should NOT show models that aren't pulled (e.g. qwen3.5:14b-instruct)
+        # Should NOT show models that aren't pulled (e.g. qwen3.5:9b)
         assert "available" not in result.output
 
     def test_role_filter_chat(self, mock_config, mock_manager_cls):
