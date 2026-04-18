@@ -204,8 +204,8 @@ Deliverables:
     profile: "resident"
     profiles:
       resident:
-        primary:   "qwen3.5:14b-instruct"
-        secondary: "huihui_ai/qwen3.5-abliterated:14b"
+        primary:   "qwen3.5:9b"
+        secondary: "huihui_ai/qwen3.5-abliterated:9b"
       swap:
         primary:   "qwen3.5:27b"
         secondary: "dolphin3:8b"

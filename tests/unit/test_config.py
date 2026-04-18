@@ -19,7 +19,10 @@ class TestAiShellConfig:
             config.secondary_coding_model
             == "huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M"
         )
-        assert config.extra_models == []
+        assert config.extra_models == [
+            "qwen3.5:9b",
+            "devstral:24b",
+        ]
         assert config.ollama_port == 11434
         assert config.webui_port == 3000
         assert config.kokoro_port == 8880
@@ -31,7 +34,7 @@ class TestAiShellConfig:
         # for future phases).
         assert config.voice_agent.port == 8010
         assert config.voice_agent.profile == "resident"
-        assert config.voice_agent.profiles["resident"].primary == "qwen3.5:14b-instruct"
+        assert config.voice_agent.profiles["resident"].primary == "qwen3.5:9b"
         assert config.voice_agent.vad.silence_timeout_ms == 2500
         assert config.voice_agent.vad.barge_in is True
         assert config.voice_agent.wake_word.enabled is False
@@ -55,6 +58,7 @@ class TestAiShellConfig:
             secondary_chat_model="",
             primary_coding_model="bar:1",
             secondary_coding_model="",
+            extra_models=[],
         )
         assert config.models_to_pull == ["foo:1", "bar:1"]
 
@@ -426,7 +430,7 @@ class TestVoiceAgentConfig:
         assert config.voice_agent.profiles["resident"].primary == "my-model:latest"
         # Untouched fields keep defaults.
         assert (
-            config.voice_agent.profiles["resident"].secondary == "huihui_ai/qwen3.5-abliterated:14b"
+            config.voice_agent.profiles["resident"].secondary == "huihui_ai/qwen3.5-abliterated:9b"
         )
         assert config.voice_agent.profiles["swap"].primary == "qwen3.5:27b"
 

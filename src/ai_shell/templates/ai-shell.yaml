@@ -21,8 +21,11 @@ llm:
   secondary_coding_model: huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M
   context_size: 32768
   # Additional Ollama tags to pull alongside the 4 slots (deduped).
-  # Uncomment any line to enable -- indentation is already correct.
+  # The two uncommented entries are the defaults -- mid-range models that
+  # fill the gap between 3B-speed (MoE coder) and 27B-quality (chat).
   extra_models:
+    - qwen3.5:9b                             # ~6.6 GB mid-range chat, fast + capable
+    - devstral:24b                           # ~15 GB  Mistral agentic coding, dense 24B
     # - llama3.1:8b                         # ~5 GB   fast general chat
     # - llama3.2:latest                     # ~2 GB   Llama 3.2 3B, very fast
     # - dolphin3:8b                         # ~5 GB   uncensored Llama 3.1 8B
@@ -45,8 +48,8 @@ llm:
 #   #
 #   # profiles:
 #   #   resident:
-#   #     primary:   "qwen3.5:14b-instruct"
-#   #     secondary: "huihui_ai/qwen3.5-abliterated:14b"
+#   #     primary:   "qwen3.5:9b"
+#   #     secondary: "huihui_ai/qwen3.5-abliterated:9b"
 #   #   swap:
 #   #     primary:   "qwen3.5:27b"
 #   #     secondary: "dolphin3:8b"
