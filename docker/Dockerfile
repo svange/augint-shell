@@ -256,6 +256,10 @@ COPY update-tools.sh /usr/local/bin/update-tools.sh
 RUN chmod +x /usr/local/bin/update-tools.sh && \
     mkdir -p /var/run/ai-shell/update-markers /var/log/ai-shell
 
+# MOTD: Environment status dashboard shown at container launch
+COPY motd.sh /usr/local/bin/motd.sh
+RUN chmod +x /usr/local/bin/motd.sh
+
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 

@@ -175,6 +175,29 @@ class ContainerManager:
             aws_region=self.config.aws_region,
         )
 
+        # MOTD metadata — injected at creation time so the in-container
+        # motd.sh script can display version, container identity, and port
+        # mappings without querying Docker from inside the container.
+        from ai_shell import __version__
+
+        environment["AUGINT_SHELL_VERSION"] = __version__
+        environment["AUGINT_CONTAINER_NAME"] = name
+        environment["AUGINT_PROJECT_NAME"] = self.config.project_name
+        environment["AUGINT_DEV_PORTS"] = ",".join(
+            f"{port}:{project_dev_port(self.config.project_dir, port, self.config.project_name)}"
+            for port in self.config.dev_ports
+        )
+        environment["AUGINT_LLM_PORTS"] = ",".join(
+            [
+                f"ollama:{self.config.ollama_port}",
+                f"webui:{self.config.webui_port}",
+                f"kokoro:{self.config.kokoro_port}",
+                f"whisper:{self.config.whisper_port}",
+                f"n8n:{self.config.n8n_port}",
+                f"comfyui:{self.config.comfyui_port}",
+            ]
+        )
+
         # Add any extra volumes from config
         for vol_spec in self.config.extra_volumes:
             parts = vol_spec.split(":")
