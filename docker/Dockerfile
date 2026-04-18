@@ -158,10 +158,12 @@ RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master
         /root/.oh-my-zsh/custom/plugins/zsh-history-substring-search
 
 # Install Fisher (fish plugin manager) + plugins
+# Bootstrap fisher by downloading it, then install plugins individually.
+# Do NOT run "fisher install jorgebucaran/fisher" -- it conflicts with the
+# manually downloaded fisher.fish file.
 RUN mkdir -p /root/.config/fish/functions /root/.config/fish/completions /root/.config/fish/conf.d && \
     curl -sSL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish \
         -o /root/.config/fish/functions/fisher.fish
-RUN fish -c "source /root/.config/fish/functions/fisher.fish && fisher install jorgebucaran/fisher"
 RUN fish -c "fisher install jorgebucaran/autopair.fish"
 RUN fish -c "fisher install PatrickF1/fzf.fish"
 RUN fish -c "fisher install meaningful-ooo/sponge"
