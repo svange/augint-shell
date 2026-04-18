@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v0.84.3 (2026-04-18)
+
+### Bug Fixes
+
+- **docker**: Remove self-referential Fisher install that conflicts with bootstrap
+  ([`96b7d85`](https://github.com/svange/augint-shell/commit/96b7d8584d4e968ba7e12ea4d8cb6cbb656e8fce))
+
+- **shell**: Escape stashed dollar sign in starship git_status config
+  ([`35fe17f`](https://github.com/svange/augint-shell/commit/35fe17fea3aac9ad616ba3159461cd72b816fd5f))
+
+- **shell**: Launch shells as login shells and fix prompt configuration
+  ([`726b00d`](https://github.com/svange/augint-shell/commit/726b00d9a02d70f951c323b945966a41ad83a361))
+
+
 ## v0.84.2 (2026-04-18)
 
 ### Bug Fixes
