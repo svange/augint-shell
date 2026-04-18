@@ -538,6 +538,28 @@ provider = "aws"
             config = load_config(project_dir=tmp_path)
         assert config.ai_profile == "infra-acct"
 
+    def test_openai_profile_from_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("openai:\n  profile: personal\n")
+        config = load_config(project_dir=tmp_path)
+        assert config.openai_profile == "personal"
+
+    def test_openai_profile_from_toml(self, tmp_path):
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
+[openai]
+profile = "aillc"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.openai_profile == "aillc"
+
+    def test_openai_profile_env_var(self, tmp_path):
+        with patch.dict("os.environ", {"AI_SHELL_OPENAI_PROFILE": "woxom"}):
+            config = load_config(project_dir=tmp_path)
+        assert config.openai_profile == "woxom"
+
+    def test_openai_profile_default_empty(self, tmp_path):
+        config = load_config(project_dir=tmp_path)
+        assert config.openai_profile == ""
+
     def test_env_overrides_toml(self, tmp_path):
         (tmp_path / ".ai-shell.toml").write_bytes(b"""
 [claude]
