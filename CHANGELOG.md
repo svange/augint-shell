@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.84.2 (2026-04-18)
+
+### Bug Fixes
+
+- **docker**: Remove self-referential Fisher install that conflicts with bootstrap
+  ([#84](https://github.com/svange/augint-shell/pull/84),
+  [`b076c53`](https://github.com/svange/augint-shell/commit/b076c53dede5c0061770a4203506928f73afad66))
+
+
 ## v0.84.1 (2026-04-18)
 
 ### Bug Fixes
