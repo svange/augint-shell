@@ -88,5 +88,10 @@ if [ -x /usr/local/bin/update-tools.sh ] && command -v cron >/dev/null 2>&1; the
 fi
 # =========================================================================
 
+# Display MOTD (environment status dashboard)
+if [ -x /usr/local/bin/motd.sh ]; then
+    /usr/local/bin/motd.sh || true
+fi
+
 # Note: No cd command - Docker Compose working_dir handles the directory
 exec "$@"
