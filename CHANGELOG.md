@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.88.0 (2026-04-18)
+
+### Documentation
+
+- Update README with recent features and remove stale standardization section
+  ([`20fe56e`](https://github.com/svange/augint-shell/commit/20fe56e454f9807ffb711e2bfbbd08c1620ca0cf))
+
+- **tools**: Expand --openai-profile help text and show profile in launch banner
+  ([`8ba5701`](https://github.com/svange/augint-shell/commit/8ba5701e1a36202b3add0186286db97d93d315de))
+
+### Features
+
+- **llm**: Add qwen3.5:9b and devstral:24b to default extra_models
+  ([`4eda01f`](https://github.com/svange/augint-shell/commit/4eda01f53987c118230d883eeb84080ea26ec233))
+
+
 ## v0.87.0 (2026-04-18)
 
 ### Features
