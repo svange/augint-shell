@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.87.0 (2026-04-18)
+
+### Features
+
+- **tools**: Add --openai-profile flag for multi-account switching
+  ([#85](https://github.com/svange/augint-shell/pull/85),
+  [`39f35a7`](https://github.com/svange/augint-shell/commit/39f35a75d070a6be95d5ca6d3931c7b19582ddd0))
+
+
 ## v0.86.0 (2026-04-18)
 
 ### Features
