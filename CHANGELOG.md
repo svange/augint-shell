@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v0.84.2 (2026-04-18)
+
+### Bug Fixes
+
+- **docker**: Remove self-referential Fisher install that conflicts with bootstrap
+  ([#84](https://github.com/svange/augint-shell/pull/84),
+  [`b076c53`](https://github.com/svange/augint-shell/commit/b076c53dede5c0061770a4203506928f73afad66))
+
+
+## v0.84.1 (2026-04-18)
+
+### Bug Fixes
+
+- **container**: Auto-detect stale Docker images and fix shell configurations
+  ([#83](https://github.com/svange/augint-shell/pull/83),
+  [`d829c5e`](https://github.com/svange/augint-shell/commit/d829c5ed31035489a73508c68f6f52d97bb1d3d2))
+
+
 ## v0.84.0 (2026-04-17)
 
 ### Features

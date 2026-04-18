@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from docker.errors import APIError
 
 from ai_shell.config import AiShellConfig
 from ai_shell.defaults import (
@@ -161,6 +162,7 @@ class TestEnsureDevContainer:
         stopped_container = MagicMock()
         stopped_container.status = "exited"
         mock_container_manager._get_container = MagicMock(return_value=stopped_container)
+        mock_container_manager._recreate_if_image_stale = MagicMock(return_value=False)
 
         name = mock_container_manager.ensure_dev_container()
 
@@ -172,6 +174,7 @@ class TestEnsureDevContainer:
         running_container = MagicMock()
         running_container.status = "running"
         mock_container_manager._get_container = MagicMock(return_value=running_container)
+        mock_container_manager._recreate_if_image_stale = MagicMock(return_value=False)
 
         name = mock_container_manager.ensure_dev_container()
 
@@ -192,6 +195,7 @@ class TestEnsureDevContainer:
             return None
 
         mock_container_manager._get_container = MagicMock(side_effect=get_container)
+        mock_container_manager._recreate_if_image_stale = MagicMock(return_value=False)
 
         name = mock_container_manager.ensure_dev_container()
 
@@ -212,6 +216,44 @@ class TestEnsureDevContainer:
         assert name.endswith("-dev")
         assert name != "augint-shell-test-project-dev"
         legacy_container.start.assert_not_called()
+
+
+class TestRecreateIfImageStale:
+    def test_skips_for_pinned_tag(self, mock_container_manager):
+        mock_container_manager.config.image_tag = "0.84.0"
+        container = MagicMock()
+        assert mock_container_manager._recreate_if_image_stale(container, "test") is False
+        container.remove.assert_not_called()
+
+    def test_skips_when_image_matches(self, mock_container_manager):
+        mock_container_manager.config.image_tag = "latest"
+        pulled_image = MagicMock()
+        pulled_image.id = "sha256:abc123"
+        mock_container_manager.client.images.pull.return_value = pulled_image
+        container = MagicMock()
+        container.image.id = "sha256:abc123"
+
+        assert mock_container_manager._recreate_if_image_stale(container, "test") is False
+        container.remove.assert_not_called()
+
+    def test_recreates_when_image_outdated(self, mock_container_manager):
+        mock_container_manager.config.image_tag = "latest"
+        pulled_image = MagicMock()
+        pulled_image.id = "sha256:new456"
+        mock_container_manager.client.images.pull.return_value = pulled_image
+        container = MagicMock()
+        container.image.id = "sha256:old123"
+
+        assert mock_container_manager._recreate_if_image_stale(container, "test") is True
+        container.remove.assert_called_once_with(force=True)
+
+    def test_skips_on_pull_failure(self, mock_container_manager):
+        mock_container_manager.config.image_tag = "latest"
+        mock_container_manager.client.images.pull.side_effect = APIError("network error")
+        container = MagicMock()
+
+        assert mock_container_manager._recreate_if_image_stale(container, "test") is False
+        container.remove.assert_not_called()
 
 
 class TestExecInteractive:

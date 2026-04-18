@@ -153,13 +153,22 @@ RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master
     git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting \
         /root/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting && \
     git clone --depth=1 https://github.com/zsh-users/zsh-completions \
-        /root/.oh-my-zsh/custom/plugins/zsh-completions
+        /root/.oh-my-zsh/custom/plugins/zsh-completions && \
+    git clone --depth=1 https://github.com/zsh-users/zsh-history-substring-search \
+        /root/.oh-my-zsh/custom/plugins/zsh-history-substring-search
 
-# Install Fisher (fish plugin manager) + popular plugins
+# Install Fisher (fish plugin manager) + plugins
+# Bootstrap fisher by downloading it, then install plugins individually.
+# Do NOT run "fisher install jorgebucaran/fisher" -- it conflicts with the
+# manually downloaded fisher.fish file.
 RUN mkdir -p /root/.config/fish/functions /root/.config/fish/completions /root/.config/fish/conf.d && \
     curl -sSL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish \
-        -o /root/.config/fish/functions/fisher.fish && \
-    fish -c "fisher install jorgebucaran/fisher jorgebucaran/autopair.fish PatrickF1/fzf.fish" || true
+        -o /root/.config/fish/functions/fisher.fish
+RUN fish -c "fisher install jorgebucaran/autopair.fish"
+RUN fish -c "fisher install PatrickF1/fzf.fish"
+RUN fish -c "fisher install meaningful-ooo/sponge"
+RUN fish -c "fisher install jorgebucaran/replay.fish"
+RUN fish -c "fisher install jethrokuan/z"
 
 # Install Oh My Tmux (gpakosz/.tmux)
 RUN git clone --depth=1 https://github.com/gpakosz/.tmux.git /root/.tmux && \
@@ -179,6 +188,9 @@ COPY shell-configs/tmux.conf.local /root/.tmux.conf.local
 
 # Pre-install vim plugins headlessly so first launch is instant
 RUN vim -es -u /root/.vimrc -i NONE -c "PlugInstall --sync" -c "qa" || true
+
+# Pre-generate zsh completion dump so first launch is fast
+RUN zsh -c "autoload -Uz compinit && compinit" || true
 
 # Install additional useful development tools
 RUN apt-get update && apt-get install -y --no-install-recommends \

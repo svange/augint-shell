@@ -142,16 +142,22 @@ class ContainerManager:
 
         If the container exists but is stopped, it is started.
         If it doesn't exist, it is created with the full configuration.
+        If using the ``latest`` tag and a newer image is available, the
+        existing container is replaced automatically.
 
         Returns the container name.
         """
         name, container = self.resolve_dev_container()
 
         if container is not None:
-            if container.status != "running":
-                logger.info("Starting existing container: %s", name)
-                container.start()
-            return name
+            if self._recreate_if_image_stale(container, name):
+                # Container was removed; fall through to create a new one.
+                container = None
+            else:
+                if container.status != "running":
+                    logger.info("Starting existing container: %s", name)
+                    container.start()
+                return name
 
         logger.info("Creating dev container: %s", name)
         self._pull_image_if_needed(self.config.full_image)
@@ -302,6 +308,39 @@ class ContainerManager:
             label,
             had,
             want,
+        )
+        container.remove(force=True)
+        return True
+
+    def _recreate_if_image_stale(self, container: Container, name: str) -> bool:
+        """Pull the latest image and recreate the container if it is outdated.
+
+        Only acts when the configured tag is ``latest``.  For pinned
+        version tags the image is immutable so staleness doesn't apply.
+
+        Returns True if the container was removed (caller must recreate).
+        """
+        tag = self.config.image_tag
+        if tag != "latest":
+            return False
+
+        image_ref = self.config.full_image
+        try:
+            pulled = self.client.images.pull(*image_ref.rsplit(":", 1))
+        except APIError:
+            logger.debug("Could not pull %s — skipping staleness check", image_ref)
+            return False
+
+        container_image_id = container.image.id
+        pulled_image_id = pulled.id
+
+        if container_image_id == pulled_image_id:
+            return False
+
+        logger.warning(
+            "Dev container %s uses an outdated image — recreating with %s",
+            name,
+            image_ref,
         )
         container.remove(force=True)
         return True
