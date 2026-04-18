@@ -567,6 +567,126 @@ def llm_pull(ctx):
     console.print(output)
 
 
+@llm_group.command("models")
+@click.option("--pulled", is_flag=True, help="Only show models that are downloaded in Ollama.")
+@click.option(
+    "--role",
+    type=click.Choice(["chat", "coding"], case_sensitive=False),
+    default=None,
+    help="Filter by model role.",
+)
+@click.option("--uncensored", is_flag=True, help="Only show uncensored / abliterated models.")
+@click.pass_context
+def llm_models(ctx, pulled: bool, role: str | None, uncensored: bool):
+    """Browse available LLM models with metadata.
+
+    Shows a table of curated models cross-referenced against the active
+    config and Ollama state. Each row shows the model tag, role, parameter
+    count, disk size, uncensored marker, status, and description.
+
+    \b
+    Status meanings:
+      config     in one of the 4 config slots or extra_models
+      pulled     downloaded in Ollama but not in active config
+      available  in catalog but not yet pulled
+      untracked  in Ollama but not in the curated catalog
+    """
+    from ai_shell.models import MODEL_CATALOG, ModelInfo, classify_status
+
+    manager = _get_manager(ctx)
+    config = manager.config
+
+    # Gather config tags (all 4 slots + extra_models)
+    config_tags: set[str] = set(config.models_to_pull)
+
+    # Gather pulled tags from Ollama (if running)
+    pulled_tags: set[str] = set()
+    ollama_running = manager.container_status(OLLAMA_CONTAINER) == "running"
+    if ollama_running:
+        output = manager.exec_in_ollama(["ollama", "list"])
+        for line in output.splitlines()[1:]:  # skip header
+            parts = line.split()
+            if parts:
+                # ollama list shows "name:tag" in first column
+                pulled_tags.add(parts[0])
+
+    # Build row list: catalog entries first, then untracked Ollama models
+    rows: list[tuple[ModelInfo | None, str, str]] = []
+
+    for info in MODEL_CATALOG:
+        status = classify_status(info.tag, config_tags, pulled_tags)
+        rows.append((info, info.tag, status))
+
+    # Untracked models (in Ollama but not in catalog)
+    catalog_tags = {m.tag for m in MODEL_CATALOG}
+    for tag in sorted(pulled_tags - catalog_tags - config_tags):
+        rows.append((None, tag, "untracked"))
+    # Config tags that are pulled but not in catalog
+    for tag in sorted(config_tags & pulled_tags - catalog_tags):
+        rows.append((None, tag, "config"))
+
+    # Apply filters
+    if pulled:
+        rows = [(i, t, s) for i, t, s in rows if t in pulled_tags]
+    if role:
+        rows = [(i, t, s) for i, t, s in rows if i is not None and i.role == role.lower()]
+    if uncensored:
+        rows = [(i, t, s) for i, t, s in rows if i is not None and i.uncensored]
+
+    if not rows:
+        console.print("[dim]No models match the given filters.[/dim]")
+        return
+
+    _STATUS_STYLE = {
+        "config": "bold green",
+        "pulled": "yellow",
+        "available": "dim",
+        "untracked": "dim italic",
+    }
+
+    console.print("[bold]LLM Model Catalog[/bold]\n")
+
+    current_role: str | None = None
+    for info, tag, status in rows:  # type: ignore[assignment]
+        style = _STATUS_STYLE.get(status, "")
+
+        if info is not None:
+            # Group header when role changes
+            if info.role != current_role:
+                if current_role is not None:
+                    console.print()
+                current_role = info.role
+                console.print(f"[bold underline]{info.role.upper()} models[/bold underline]")
+
+            uncensored_mark = " [bold red](U)[/bold red]" if info.uncensored else ""
+            status_text = f"[{style}]{status}[/{style}]"
+            if status == "available":
+                console.print(f"  [dim cyan]{tag}[/dim cyan]{uncensored_mark}  {status_text}")
+                console.print(
+                    f"    [dim]{info.params}  {info.size_gb:.0f} GB  {info.description}[/dim]"
+                )
+            else:
+                console.print(f"  [cyan]{tag}[/cyan]{uncensored_mark}  {status_text}")
+                console.print(f"    {info.params}  {info.size_gb:.0f} GB  {info.description}")
+            if info.caveats and status == "config":
+                console.print(f"    [dim yellow]caveat: {info.caveats}[/dim yellow]")
+        else:
+            # Untracked or config-but-not-cataloged model
+            if current_role != "_untracked":
+                if current_role is not None:
+                    console.print()
+                current_role = "_untracked"
+                console.print("[bold underline]OTHER models (not in catalog)[/bold underline]")
+            status_text = f"[{style}]{status}[/{style}]"
+            console.print(f"  [dim cyan]{tag}[/dim cyan]  {status_text}")
+
+    if not ollama_running:
+        console.print(
+            "\n[yellow]Ollama is not running — pulled status may be incomplete. "
+            "Run [bold]ai-shell llm up[/bold] first.[/yellow]"
+        )
+
+
 @llm_group.command("unload")
 @click.argument("model", required=False)
 @click.pass_context
