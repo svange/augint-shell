@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-04-18T18:35:54Z",
+  "generated_at": "2026-04-18T19:56:21Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 46,
@@ -11,7 +11,7 @@
       "SEVERITY.LOW": 46,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 4654,
+      "loc": 4694,
       "nosec": 0,
       "skipped_tests": 8
     },
@@ -102,7 +102,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 704,
+      "loc": 726,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -154,7 +154,7 @@
       "SEVERITY.LOW": 10,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 909,
+      "loc": 927,
       "nosec": 0,
       "skipped_tests": 8
     },
@@ -330,7 +330,7 @@
   },
   "results": [
     {
-      "code": "629                 break\n630         except Exception:\n631             pass\n632         console.print(f\"  Waiting... ({i + 1}/10)\")\n",
+      "code": "660                 break\n661         except Exception:\n662             pass\n663         console.print(f\"  Waiting... ({i + 1}/10)\")\n",
       "col_offset": 8,
       "end_col_offset": 16,
       "filename": "src/ai_shell/cli/commands/llm.py",
@@ -341,10 +341,10 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Try, Except, Pass detected.",
-      "line_number": 630,
+      "line_number": 661,
       "line_range": [
-        630,
-        631
+        661,
+        662
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
       "test_id": "B110",
@@ -887,7 +887,7 @@
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "861                     break\n862             except Exception:\n863                 pass\n864             time.sleep(2)\n",
+      "code": "884                     break\n885             except Exception:\n886                 pass\n887             time.sleep(2)\n",
       "col_offset": 12,
       "end_col_offset": 20,
       "filename": "src/ai_shell/container.py",
@@ -898,17 +898,17 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Try, Except, Pass detected.",
-      "line_number": 862,
+      "line_number": 885,
       "line_range": [
-        862,
-        863
+        885,
+        886
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
       "test_id": "B110",
       "test_name": "try_except_pass"
     },
     {
-      "code": "1025         # Check if update script exists in the container\n1026         check_exists = subprocess.run(\n1027             [\"docker\", \"exec\", container_name, \"test\", \"-x\", update_script],\n1028             capture_output=True,\n1029         )\n1030         if check_exists.returncode != 0:\n",
+      "code": "1048         # Check if update script exists in the container\n1049         check_exists = subprocess.run(\n1050             [\"docker\", \"exec\", container_name, \"test\", \"-x\", update_script],\n1051             capture_output=True,\n1052         )\n1053         if check_exists.returncode != 0:\n",
       "col_offset": 23,
       "end_col_offset": 9,
       "filename": "src/ai_shell/container.py",
@@ -919,19 +919,19 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 1026,
+      "line_number": 1049,
       "line_range": [
-        1026,
-        1027,
-        1028,
-        1029
+        1049,
+        1050,
+        1051,
+        1052
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "1025         # Check if update script exists in the container\n1026         check_exists = subprocess.run(\n1027             [\"docker\", \"exec\", container_name, \"test\", \"-x\", update_script],\n1028             capture_output=True,\n1029         )\n1030         if check_exists.returncode != 0:\n",
+      "code": "1048         # Check if update script exists in the container\n1049         check_exists = subprocess.run(\n1050             [\"docker\", \"exec\", container_name, \"test\", \"-x\", update_script],\n1051             capture_output=True,\n1052         )\n1053         if check_exists.returncode != 0:\n",
       "col_offset": 23,
       "end_col_offset": 9,
       "filename": "src/ai_shell/container.py",
@@ -942,19 +942,19 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 1026,
+      "line_number": 1049,
       "line_range": [
-        1026,
-        1027,
-        1028,
-        1029
+        1049,
+        1050,
+        1051,
+        1052
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "1037         # Check freshness\n1038         check_result = subprocess.run(\n1039             [\"docker\", \"exec\", container_name, update_script, \"--check\", tool_name],\n1040             capture_output=True,\n1041         )\n1042         if check_result.returncode == 0:\n",
+      "code": "1060         # Check freshness\n1061         check_result = subprocess.run(\n1062             [\"docker\", \"exec\", container_name, update_script, \"--check\", tool_name],\n1063             capture_output=True,\n1064         )\n1065         if check_result.returncode == 0:\n",
       "col_offset": 23,
       "end_col_offset": 9,
       "filename": "src/ai_shell/container.py",
@@ -965,19 +965,19 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 1038,
+      "line_number": 1061,
       "line_range": [
-        1038,
-        1039,
-        1040,
-        1041
+        1061,
+        1062,
+        1063,
+        1064
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "1037         # Check freshness\n1038         check_result = subprocess.run(\n1039             [\"docker\", \"exec\", container_name, update_script, \"--check\", tool_name],\n1040             capture_output=True,\n1041         )\n1042         if check_result.returncode == 0:\n",
+      "code": "1060         # Check freshness\n1061         check_result = subprocess.run(\n1062             [\"docker\", \"exec\", container_name, update_script, \"--check\", tool_name],\n1063             capture_output=True,\n1064         )\n1065         if check_result.returncode == 0:\n",
       "col_offset": 23,
       "end_col_offset": 9,
       "filename": "src/ai_shell/container.py",
@@ -988,19 +988,19 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 1038,
+      "line_number": 1061,
       "line_range": [
-        1038,
-        1039,
-        1040,
-        1041
+        1061,
+        1062,
+        1063,
+        1064
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "1050         with console.status(f\"[bold]Updating {tool_name}...[/bold]\", spinner=\"dots\"):\n1051             update_result = subprocess.run(\n1052                 [\"docker\", \"exec\", container_name, update_script, \"--tool\", tool_name],\n1053                 capture_output=True,\n1054                 text=True,\n1055                 timeout=300,  # 5 minute timeout\n1056             )\n1057         if update_result.returncode == 0:\n",
+      "code": "1073         with console.status(f\"[bold]Updating {tool_name}...[/bold]\", spinner=\"dots\"):\n1074             update_result = subprocess.run(\n1075                 [\"docker\", \"exec\", container_name, update_script, \"--tool\", tool_name],\n1076                 capture_output=True,\n1077                 text=True,\n1078                 timeout=300,  # 5 minute timeout\n1079             )\n1080         if update_result.returncode == 0:\n",
       "col_offset": 28,
       "end_col_offset": 13,
       "filename": "src/ai_shell/container.py",
@@ -1011,21 +1011,21 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 1051,
+      "line_number": 1074,
       "line_range": [
-        1051,
-        1052,
-        1053,
-        1054,
-        1055,
-        1056
+        1074,
+        1075,
+        1076,
+        1077,
+        1078,
+        1079
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "1050         with console.status(f\"[bold]Updating {tool_name}...[/bold]\", spinner=\"dots\"):\n1051             update_result = subprocess.run(\n1052                 [\"docker\", \"exec\", container_name, update_script, \"--tool\", tool_name],\n1053                 capture_output=True,\n1054                 text=True,\n1055                 timeout=300,  # 5 minute timeout\n1056             )\n1057         if update_result.returncode == 0:\n",
+      "code": "1073         with console.status(f\"[bold]Updating {tool_name}...[/bold]\", spinner=\"dots\"):\n1074             update_result = subprocess.run(\n1075                 [\"docker\", \"exec\", container_name, update_script, \"--tool\", tool_name],\n1076                 capture_output=True,\n1077                 text=True,\n1078                 timeout=300,  # 5 minute timeout\n1079             )\n1080         if update_result.returncode == 0:\n",
       "col_offset": 28,
       "end_col_offset": 13,
       "filename": "src/ai_shell/container.py",
@@ -1036,14 +1036,14 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 1051,
+      "line_number": 1074,
       "line_range": [
-        1051,
-        1052,
-        1053,
-        1054,
-        1055,
-        1056
+        1074,
+        1075,
+        1076,
+        1077,
+        1078,
+        1079
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
