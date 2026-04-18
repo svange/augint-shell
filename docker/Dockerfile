@@ -179,6 +179,7 @@ RUN curl -fLo /root/.vim/autoload/plug.vim --create-dirs \
     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 
 # Copy shell configs into place
+COPY shell-configs/bash_profile /root/.bash_profile
 COPY shell-configs/bashrc /root/.bashrc
 COPY shell-configs/zshrc /root/.zshrc
 COPY shell-configs/fish-config.fish /root/.config/fish/config.fish

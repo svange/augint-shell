@@ -1240,7 +1240,7 @@ def shell(ctx, shell_name):
     shell_name = shell_name.lower()
     shell_path = SUPPORTED_SHELLS[shell_name]
     console.print(f"[bold]Opening {shell_name} in {name}...[/bold]")
-    manager.exec_interactive(name, [shell_path], extra_env=exec_env)
+    manager.exec_interactive(name, [shell_path, "-l"], extra_env=exec_env)
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)

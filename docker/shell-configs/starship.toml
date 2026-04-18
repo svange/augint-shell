@@ -2,22 +2,30 @@
 # Docs: https://starship.rs/config/
 
 format = """
-[>>](bold blue) $username$hostname$directory$git_branch$git_status$python$nodejs$rust$golang$docker_context$cmd_duration
-$character """
+$shell$username$hostname$directory$git_branch$git_status$python$nodejs$rust$golang$docker_context$cmd_duration
+$character"""
 
-add_newline = false
+add_newline = true
 command_timeout = 500
 
 [character]
-success_symbol = "[>](bold green)"
-error_symbol = "[x](bold red)"
-vicmd_symbol = "[<](bold yellow)"
+success_symbol = '[$](bold green)'
+error_symbol = '[!](bold red)'
+vicmd_symbol = '[<](bold yellow)'
+
+[shell]
+disabled = false
+bash_indicator = "bash"
+zsh_indicator = "zsh"
+fish_indicator = "fish"
+format = "[$indicator]($style) "
+style = "cyan"
 
 [username]
 style_user = "bold cyan"
 style_root = "bold red"
-format = "[$user]($style)"
-show_always = false
+format = "[$user]($style) "
+show_always = true
 
 [hostname]
 ssh_only = true

@@ -1,0 +1,3 @@
+# ~/.bash_profile -- login shell setup
+# Source .bashrc for interactive login shells (standard Debian pattern)
+[[ -f ~/.bashrc ]] && . ~/.bashrc
