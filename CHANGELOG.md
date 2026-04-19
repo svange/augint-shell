@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.88.1 (2026-04-19)
+
+### Bug Fixes
+
+- **tools**: Default shell command to bash instead of prompting
+  ([`a9251db`](https://github.com/svange/augint-shell/commit/a9251db4733acdf88125320198705cf0bba60035))
+
+
 ## v0.88.0 (2026-04-18)
 
 ### Documentation
