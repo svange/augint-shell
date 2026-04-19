@@ -9,12 +9,16 @@
     "helpers:pinGitHubActionDigestsToSemver"
   ],
 
+  "rebaseWhen": "behind-base-branch",
+
   // Weekly Sunday night, so PRs merge before Monday 7am API deploy
   "schedule": ["before 11:59pm on Sunday"],
   "timezone": "America/Los_Angeles",
 
   // Use GitHub's native auto-merge (respects branch protection)
   "platformAutomerge": true,
+  // "auto" defers to repo merge method settings
+  "automergeStrategy": "auto",
 
   // Let Renovate decide based on range specifiers (>= only touches lockfile for in-range)
   "rangeStrategy": "auto",
@@ -88,7 +92,7 @@
       "matchDepTypes": ["project.optional-dependencies", "dependency-groups"],
       "matchManagers": ["pep621"],
       "matchUpdateTypes": ["patch", "minor"],
-      "commitMessagePrefix": "ci(deps-dev):",
+      "commitMessagePrefix": "chore(deps-dev):",
       "automerge": true,
       "groupName": "dev dependency updates",
       "groupSlug": "dev-deps"
@@ -99,7 +103,7 @@
       "matchDepTypes": ["project.optional-dependencies", "dependency-groups"],
       "matchManagers": ["pep621"],
       "matchUpdateTypes": ["major"],
-      "commitMessagePrefix": "ci(deps-dev):",
+      "commitMessagePrefix": "chore(deps-dev):",
       "automerge": false
     },
 
