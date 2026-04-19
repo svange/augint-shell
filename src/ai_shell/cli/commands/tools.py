@@ -1265,18 +1265,14 @@ SUPPORTED_SHELLS: dict[str, str] = {
 def shell(ctx, shell_name):
     """Open an interactive shell in the dev container.
 
-    SHELL_NAME is one of bash, zsh, fish.  If omitted, an interactive
-    prompt asks which shell to launch.  All three shells come pre-configured
-    with modern defaults (Starship prompt, useful aliases, history tuning)
-    plus Oh My Zsh for zsh and Fisher for fish.
+    SHELL_NAME is one of bash, zsh, fish.  Defaults to bash if omitted.
+    All three shells come pre-configured with modern defaults (Starship
+    prompt, useful aliases, history tuning) plus Oh My Zsh for zsh and
+    Fisher for fish.
     """
     manager, name, exec_env, _config = _get_manager(ctx)
     if not shell_name:
-        shell_name = click.prompt(
-            "Choose shell",
-            type=click.Choice(list(SUPPORTED_SHELLS.keys()), case_sensitive=False),
-            default="bash",
-        )
+        shell_name = "bash"
     shell_name = shell_name.lower()
     shell_path = SUPPORTED_SHELLS[shell_name]
     console.print(f"[bold]Opening {shell_name} in {name}...[/bold]")

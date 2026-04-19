@@ -453,7 +453,7 @@ class TestToolCommands:
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert cmd == ["/usr/bin/fish", "-l"]
 
-    def test_shell_prompts_when_no_arg(
+    def test_shell_defaults_to_bash_when_no_arg(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
@@ -462,11 +462,10 @@ class TestToolCommands:
         mock_manager.exec_interactive.side_effect = SystemExit(0)
         mock_manager_cls.return_value = mock_manager
 
-        # Simulate user selecting "zsh" at the prompt.
-        self.runner.invoke(cli, ["shell"], input="zsh\n")
+        self.runner.invoke(cli, ["shell"])
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert cmd == ["/usr/bin/zsh", "-l"]
+        assert cmd == ["/bin/bash", "-l"]
 
     def test_shell_rejects_invalid(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
