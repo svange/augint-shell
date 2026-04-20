@@ -21,245 +21,173 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  pre-commit:
-    name: Pre-commit checks
+  code-quality:
+    name: Code quality
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Install UV
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-
       - name: Install dependencies
         run: uv sync --frozen --all-extras
-
       - name: Run pre-commit hooks
         run: uv run pre-commit run --all-files
 
-  security-scan:
-    name: Security scanning
+  security:
+    name: Security
     runs-on: ubuntu-latest
-    needs: [pre-commit]
+    needs: [code-quality]
     permissions:
       contents: read
-
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Install UV
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-
       - name: Install dependencies
         run: uv sync --frozen --all-extras
-
-      - name: Run Bandit security scan
+      - name: Bandit
         run: |
           uv run bandit -r src/ -f json -o bandit-report.json || true
           uv run bandit -r src/ -ll
-        continue-on-error: false
-
-      - name: Run pip-audit
+      - name: pip-audit
         run: |
           uv export --no-dev --no-hashes -o prod-requirements.txt
-          uv run pip-audit --desc --format json --output pip-audit-report.json \
-            -r prod-requirements.txt --no-deps
-        continue-on-error: false
-
-      - name: Generate security HTML report
-        if: always()
-        run: |
-          cat > security-reports.html << 'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-              <title>Security Scan Results</title>
-              <style>
-                  body { font-family: Arial, sans-serif; margin: 20px; background: #0d1117; color: #c9d1d9; }
-                  .report { margin: 20px 0; padding: 15px; border: 1px solid #30363d; border-radius: 8px; background: #161b22; }
-                  .report h2 { color: #58a6ff; margin-top: 0; }
-                  pre { background: #0d1117; padding: 10px; border-radius: 4px; overflow-x: auto; border: 1px solid #30363d; font-size: 12px; }
-                  .error { color: #ff7b72; }
-                  .warning { color: #ffa657; }
-                  .info { color: #79c0ff; }
-              </style>
-          </head>
-          <body>
-              <h1>Security Scan Results</h1>
-              <div class="report">
-                  <h2>Bandit Security Scan</h2>
-                  <pre id="bandit-content"></pre>
-              </div>
-              <div class="report">
-                  <h2>Pip-Audit Results</h2>
-                  <pre id="audit-content"></pre>
-              </div>
-              <script>
-                  const reports = [
-                      {id: 'bandit-content', file: 'bandit-report.json'},
-                      {id: 'audit-content', file: 'pip-audit-report.json'}
-                  ];
-                  reports.forEach(report => {
-                      fetch(report.file)
-                          .then(response => response.json())
-                          .then(data => {
-                              document.getElementById(report.id).textContent = JSON.stringify(data, null, 2);
-                          })
-                          .catch(error => {
-                              document.getElementById(report.id).textContent = 'Report not available';
-                          });
-                  });
-              </script>
-          </body>
-          </html>
-          EOF
-
-      - name: Upload security scan results
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+          uv run pip-audit --desc --format json --output pip-audit-report.json -r prod-requirements.txt --no-deps
+      - name: Semgrep
+        uses: semgrep/semgrep-action@v1
         with:
-          name: security-scan-results
+          config: >-
+            p/python
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        with:
+          name: security-reports
           path: |
             bandit-report.json
             pip-audit-report.json
-            security-reports.html
 
-  compliance-reports:
-    name: License compliance
+  compliance:
+    name: Compliance
     runs-on: ubuntu-latest
-    needs: [pre-commit]
+    needs: [code-quality]
     permissions:
       contents: read
-
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Install UV
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-
       - name: Install dependencies
         run: uv sync --frozen --all-extras
-
       - name: Generate license reports
         run: |
-          uv export --no-hashes --no-dev > runtime-requirements.txt
           uv run pip-licenses --from=mixed --format=json --output-file=license-report.json
           uv run pip-licenses --from=mixed --format=html --output-file=license-report.html
-          uv run pip-licenses --from=mixed --summary
-
-      - name: Check license compatibility
-        run: |
-          python -c "
-          import json
-          with open('license-report.json', 'r') as f:
-              deps = json.load(f)
-          incompatible = []
-          for dep in deps:
-              license = dep.get('License', '')
-              if any(gpl in license.upper() for gpl in ['GPL', 'AGPL'] if 'LGPL' not in license.upper()):
-                  incompatible.append(f\"{dep['Name']}: {license}\")
-          if incompatible:
-              print('Incompatible licenses found:')
-              for item in incompatible:
-                  print(f'  - {item}')
-              exit(1)
-          else:
-              print('All licenses compatible')
-          "
-
-      - name: Upload compliance reports
+          uv run pip-licenses --from=mixed --fail-on 'GPL;AGPL;LGPL' --summary
+      - name: Upload license reports
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
-          name: compliance-reports
+          name: license-reports
           path: |
             license-report.json
             license-report.html
 
   unit-tests:
     name: Unit tests
-    needs: [pre-commit]
     runs-on: ubuntu-latest
+    needs: [code-quality]
     permissions:
       contents: read
-
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Install UV
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-
       - name: Install dependencies
         run: uv sync --frozen --all-extras
-
-      - name: Run type checking
-        run: uv run mypy src/ || true
-
-      - name: Run unit tests
+      - name: Run pytest with coverage
         run: |
           uv run pytest \
             --cov=src --cov-report=html --cov-report=xml --cov-fail-under=80 \
             --html=test-report.html --self-contained-html \
             --css=ci-resources/pytest-html.css \
             -v
-
       - name: Upload coverage reports
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: coverage-reports
           path: |
             htmlcov/
             coverage.xml
+            test-report.html
 
-      - name: Upload test report
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+  build-validation:
+    name: Build validation
+    runs-on: ubuntu-latest
+    needs: [code-quality]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          name: unit-test-reports
-          path: test-report.html
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install UV
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: uv build
+        run: uv build
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        with:
+          name: dist
+          path: dist/
 
   release:
     name: Semantic release
-    needs: [unit-tests, security-scan, compliance-reports]
+    needs: [code-quality, security, compliance, unit-tests, build-validation]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
@@ -273,7 +201,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           token: ${{ secrets.GH_TOKEN }}
           ref: ${{ github.ref_name }}
@@ -283,12 +211,12 @@ jobs:
         run: git reset --hard ${{ github.sha }}
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install UV
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -320,7 +248,7 @@ jobs:
 
       - name: Upload distribution artifacts
         if: steps.release.outputs.released == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: distribution-artifacts
           path: dist/
@@ -342,13 +270,13 @@ jobs:
 
     steps:
       - name: Download distribution artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: distribution-artifacts
           path: dist/
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # release/v1
         with:
           packages-dir: dist/
           skip-existing: true
@@ -365,7 +293,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 0
 
@@ -395,18 +323,18 @@ jobs:
 
       - name: Set up Docker Buildx
         if: needs.release.outputs.released == 'true' || steps.changes.outputs.docker_changed == 'true'
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
 
       - name: Login to Docker Hub
         if: needs.release.outputs.released == 'true' || steps.changes.outputs.docker_changed == 'true'
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4.1.0
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
         if: needs.release.outputs.released == 'true' || steps.changes.outputs.docker_changed == 'true'
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7.1.0
         with:
           context: docker/
           file: docker/Dockerfile
@@ -428,15 +356,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install UV
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -452,35 +380,28 @@ jobs:
             src/ai_shell || true
 
       - name: Download coverage reports
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: coverage-reports
           path: docs/coverage
         continue-on-error: true
 
-      - name: Download security scan results
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Download security reports
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: security-scan-results
+          name: security-reports
           path: docs/security
         continue-on-error: true
 
-      - name: Download compliance reports
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Download license reports
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: compliance-reports
+          name: license-reports
           path: docs/compliance
         continue-on-error: true
 
-      - name: Download unit test report
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: unit-test-reports
-          path: docs/tests
-        continue-on-error: true
-
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4
+        uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e  # v4
         with:
           github_token: ${{ secrets.GH_TOKEN }}
           publish_dir: ./docs
