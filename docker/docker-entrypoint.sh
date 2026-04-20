@@ -59,6 +59,20 @@ if [ -f "uv.lock" ]; then
     # Commands should be run with "uv run" prefix or use the activated venv
 fi
 
+# Install pre-commit hooks into the local .git/hooks directory.
+# Container-local: PRE_COMMIT_HOME points to a named volume so this does not
+# touch the Windows host's ~/.cache/pre-commit. Best-effort; never fail the
+# entrypoint because of pre-commit issues (set -e is active).
+if [ -f ".pre-commit-config.yaml" ] && [ -d ".git" ]; then
+    echo "===================================="
+    echo "Installing pre-commit hooks..."
+    echo "===================================="
+    uv run pre-commit install || true
+    echo "===================================="
+    echo "Pre-commit hooks installed!"
+    echo "===================================="
+fi
+
 if [ -f "package-lock.json" ]; then
     echo "===================================="
     echo "Installing Node.js dependencies..."

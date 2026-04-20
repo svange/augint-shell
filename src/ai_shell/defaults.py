@@ -45,6 +45,8 @@ def uv_venv_path(repo_name: str, worktree_name: str | None = None) -> str:
 
 
 NPM_CACHE_VOLUME = "augint-shell-npm-cache"
+PRE_COMMIT_CACHE_VOLUME = "augint-shell-pre-commit-cache"
+PRE_COMMIT_CACHE_PATH = "/root/.cache/pre-commit-container"
 OLLAMA_DATA_VOLUME = "augint-shell-ollama-data"
 WEBUI_DATA_VOLUME = "augint-shell-webui-data"
 N8N_DATA_VOLUME = "augint-shell-n8n-data"
@@ -271,6 +273,17 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
         )
     )
 
+    # Named volume: pre-commit cache (shared across all projects).
+    # Isolates the container's hook environments from the Windows host's
+    # ~/.cache/pre-commit so the two installs don't clobber each other.
+    mounts.append(
+        Mount(
+            target=PRE_COMMIT_CACHE_PATH,
+            source=PRE_COMMIT_CACHE_VOLUME,
+            type="volume",
+        )
+    )
+
     return mounts
 
 
@@ -350,6 +363,7 @@ def build_dev_environment(
         "GITHUB_TOKEN": gh_token,
         "HUSKY": "0",
         "IS_SANDBOX": "1",
+        "PRE_COMMIT_HOME": PRE_COMMIT_CACHE_PATH,
     }
 
     # Mirror AWS_REGION to AWS_DEFAULT_REGION so both Node.js SDK paths resolve
