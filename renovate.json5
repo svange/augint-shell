@@ -113,27 +113,18 @@
     {
       "matchPackageNames": ["python-semantic-release"],
       "automerge": false,
-      "commitMessagePrefix": "ci(deps-dev):"
+      "commitMessagePrefix": "chore(deps-dev):"
     },
 
     // ---------------------------------------------------------------
-    // GitHub Actions (minor/patch: automerge; major: manual review)
+    // GitHub Actions (automerge all; gates + staging catch regressions)
     // ---------------------------------------------------------------
     {
       "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "commitMessagePrefix": "ci(deps):",
       "automerge": true,
       "groupName": "GitHub Actions",
       "groupSlug": "gh-actions"
-    },
-    {
-      "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["major"],
-      "commitMessagePrefix": "ci(deps):",
-      "automerge": false,
-      "groupName": "GitHub Actions (major)",
-      "groupSlug": "gh-actions-major"
     },
 
     // ---------------------------------------------------------------
