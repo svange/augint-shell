@@ -88,7 +88,7 @@ dev = [
 
 [[package]]
 name = "augint-tools"
-version = "5.1.0"
+version = "5.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -99,9 +99,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/44/2b/f91b0937ecbe610b9e9ef51f29c221b66d85ce6a9524143c9bbbb624283c/augint_tools-5.1.0.tar.gz", hash = "sha256:8825004c64bf2f78783bb159f55a8c9b2dc2cdcb8836679b8dd06f4a75964313", size = 96388, upload-time = "2026-04-17T01:57:35.685Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/24/67/6296acaa07efcc2086cb88f7a5195627623a5abdbf3cbad7b2168b4ff82b/augint_tools-5.5.0.tar.gz", hash = "sha256:ede7629489de3b190f33eaf322abc8dcedf25ada17cbb8654e9042932c3f350d", size = 112147, upload-time = "2026-04-20T02:09:34.944Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c9/70/6b566eee05e133f4c9fff18b1436ec91c460a81e34f06c031f6c210e0374/augint_tools-5.1.0-py3-none-any.whl", hash = "sha256:614ec485623ffdc70026632dbcd70a0fc4608d037c965d036985723b43956478", size = 134289, upload-time = "2026-04-17T01:57:34.3Z" },
+    { url = "https://files.pythonhosted.org/packages/44/18/8e188aa040c38c041ae6d980193d091c77e1c558993d308d67d923428e6a/augint_tools-5.5.0-py3-none-any.whl", hash = "sha256:401d3f96819b03aa48a1a4e906233b33582ab10f89790c1840fa7c2f85b38aca", size = 155124, upload-time = "2026-04-20T02:09:33.461Z" },
 ]
 
 [[package]]
@@ -535,11 +535,11 @@ wheels = [
 
 [[package]]
 name = "filelock"
-version = "3.28.0"
+version = "3.29.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d6/17/6e8890271880903e3538660a21d63a6c1fea969ac71d0d6b608b78727fa9/filelock-3.28.0.tar.gz", hash = "sha256:4ed1010aae813c4ee8d9c660e4792475ee60c4a0ba76073ceaf862bd317e3ca6", size = 56474, upload-time = "2026-04-14T22:54:33.625Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b5/fe/997687a931ab51049acce6fa1f23e8f01216374ea81374ddee763c493db5/filelock-3.29.0.tar.gz", hash = "sha256:69974355e960702e789734cb4871f884ea6fe50bd8404051a3530bc07809cf90", size = 57571, upload-time = "2026-04-19T15:39:10.068Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/21/2f728888c45033d34a417bfcd248ea2564c9e08ab1bfd301377cf05d5586/filelock-3.28.0-py3-none-any.whl", hash = "sha256:de9af6712788e7171df1b28b15eba2446c69721433fa427a9bee07b17820a9db", size = 39189, upload-time = "2026-04-14T22:54:32.037Z" },
+    { url = "https://files.pythonhosted.org/packages/81/47/dd9a212ef6e343a6857485ffe25bba537304f1913bdbed446a23f7f592e1/filelock-3.29.0-py3-none-any.whl", hash = "sha256:96f5f6344709aa1572bbf631c640e4ebeeb519e08da902c39a001882f30ac258", size = 39812, upload-time = "2026-04-19T15:39:08.752Z" },
 ]
 
 [[package]]
