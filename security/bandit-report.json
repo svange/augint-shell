@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-04-19T19:35:41Z",
+  "generated_at": "2026-04-20T01:08:29Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 46,
+      "CONFIDENCE.HIGH": 47,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 46,
+      "SEVERITY.LOW": 47,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 5002,
+      "loc": 5225,
       "nosec": 0,
       "skipped_tests": 8
     },
@@ -128,7 +128,7 @@
       "SEVERITY.LOW": 20,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1061,
+      "loc": 1097,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -146,15 +146,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/container.py": {
-      "CONFIDENCE.HIGH": 10,
+      "CONFIDENCE.HIGH": 11,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 10,
+      "SEVERITY.LOW": 11,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 927,
+      "loc": 1026,
       "nosec": 0,
       "skipped_tests": 8
     },
@@ -167,7 +167,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 375,
+      "loc": 385,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -339,11 +339,24 @@
       "loc": 189,
       "nosec": 0,
       "skipped_tests": 0
+    },
+    "src/ai_shell/typeahead.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 78,
+      "nosec": 0,
+      "skipped_tests": 0
     }
   },
   "results": [
     {
-      "code": "780                 break\n781         except Exception:\n782             pass\n783         console.print(f\"  Waiting... ({i + 1}/10)\")\n",
+      "code": "781                 break\n782         except Exception:\n783             pass\n784         console.print(f\"  Waiting... ({i + 1}/10)\")\n",
       "col_offset": 8,
       "end_col_offset": 16,
       "filename": "src/ai_shell/cli/commands/llm.py",
@@ -354,10 +367,10 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Try, Except, Pass detected.",
-      "line_number": 781,
+      "line_number": 782,
       "line_range": [
-        781,
-        782
+        782,
+        783
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
       "test_id": "B110",
@@ -384,7 +397,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "73     # First attempt: create new worktree + new branch\n74     result = subprocess.run(\n75         [\n76             \"docker\",\n77             \"exec\",\n78             \"-w\",\n79             container_project_dir,\n80             container_name,\n81             \"git\",\n82             \"worktree\",\n83             \"add\",\n84             worktree_rel,\n85             \"-b\",\n86             branch,\n87         ],\n88         capture_output=True,\n89         text=True,\n90     )\n91 \n",
+      "code": "74     # First attempt: create new worktree + new branch\n75     result = subprocess.run(\n76         [\n77             \"docker\",\n78             \"exec\",\n79             \"-w\",\n80             container_project_dir,\n81             container_name,\n82             \"git\",\n83             \"worktree\",\n84             \"add\",\n85             worktree_rel,\n86             \"-b\",\n87             branch,\n88         ],\n89         capture_output=True,\n90         text=True,\n91     )\n92 \n",
       "col_offset": 13,
       "end_col_offset": 5,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -395,9 +408,8 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 74,
+      "line_number": 75,
       "line_range": [
-        74,
         75,
         76,
         77,
@@ -413,14 +425,15 @@
         87,
         88,
         89,
-        90
+        90,
+        91
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "73     # First attempt: create new worktree + new branch\n74     result = subprocess.run(\n75         [\n76             \"docker\",\n77             \"exec\",\n78             \"-w\",\n79             container_project_dir,\n80             container_name,\n81             \"git\",\n82             \"worktree\",\n83             \"add\",\n84             worktree_rel,\n85             \"-b\",\n86             branch,\n87         ],\n88         capture_output=True,\n89         text=True,\n90     )\n91 \n",
+      "code": "74     # First attempt: create new worktree + new branch\n75     result = subprocess.run(\n76         [\n77             \"docker\",\n78             \"exec\",\n79             \"-w\",\n80             container_project_dir,\n81             container_name,\n82             \"git\",\n83             \"worktree\",\n84             \"add\",\n85             worktree_rel,\n86             \"-b\",\n87             branch,\n88         ],\n89         capture_output=True,\n90         text=True,\n91     )\n92 \n",
       "col_offset": 13,
       "end_col_offset": 5,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -431,9 +444,8 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 74,
+      "line_number": 75,
       "line_range": [
-        74,
         75,
         76,
         77,
@@ -449,14 +461,15 @@
         87,
         88,
         89,
-        90
+        90,
+        91
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "95         if \"already exists\" in stderr or \"already checked out\" in stderr:\n96             result2 = subprocess.run(\n97                 [\n98                     \"docker\",\n99                     \"exec\",\n100                     \"-w\",\n101                     container_project_dir,\n102                     container_name,\n103                     \"git\",\n104                     \"worktree\",\n105                     \"add\",\n106                     worktree_rel,\n107                     branch,\n108                 ],\n109                 capture_output=True,\n110                 text=True,\n111             )\n112             stderr2 = result2.stderr.strip()\n",
+      "code": "96         if \"already exists\" in stderr or \"already checked out\" in stderr:\n97             result2 = subprocess.run(\n98                 [\n99                     \"docker\",\n100                     \"exec\",\n101                     \"-w\",\n102                     container_project_dir,\n103                     container_name,\n104                     \"git\",\n105                     \"worktree\",\n106                     \"add\",\n107                     worktree_rel,\n108                     branch,\n109                 ],\n110                 capture_output=True,\n111                 text=True,\n112             )\n113             stderr2 = result2.stderr.strip()\n",
       "col_offset": 22,
       "end_col_offset": 13,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -467,9 +480,8 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 96,
+      "line_number": 97,
       "line_range": [
-        96,
         97,
         98,
         99,
@@ -484,14 +496,15 @@
         108,
         109,
         110,
-        111
+        111,
+        112
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "95         if \"already exists\" in stderr or \"already checked out\" in stderr:\n96             result2 = subprocess.run(\n97                 [\n98                     \"docker\",\n99                     \"exec\",\n100                     \"-w\",\n101                     container_project_dir,\n102                     container_name,\n103                     \"git\",\n104                     \"worktree\",\n105                     \"add\",\n106                     worktree_rel,\n107                     branch,\n108                 ],\n109                 capture_output=True,\n110                 text=True,\n111             )\n112             stderr2 = result2.stderr.strip()\n",
+      "code": "96         if \"already exists\" in stderr or \"already checked out\" in stderr:\n97             result2 = subprocess.run(\n98                 [\n99                     \"docker\",\n100                     \"exec\",\n101                     \"-w\",\n102                     container_project_dir,\n103                     container_name,\n104                     \"git\",\n105                     \"worktree\",\n106                     \"add\",\n107                     worktree_rel,\n108                     branch,\n109                 ],\n110                 capture_output=True,\n111                 text=True,\n112             )\n113             stderr2 = result2.stderr.strip()\n",
       "col_offset": 22,
       "end_col_offset": 13,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -502,9 +515,8 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 96,
+      "line_number": 97,
       "line_range": [
-        96,
         97,
         98,
         99,
@@ -519,14 +531,15 @@
         108,
         109,
         110,
-        111
+        111,
+        112
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "135     parent = container_path.rsplit(\"/\", 1)[0]\n136     subprocess.run(\n137         [\"docker\", \"exec\", container_name, \"mkdir\", \"-p\", parent],\n138         capture_output=True,\n139     )\n140     result = subprocess.run(\n",
+      "code": "136     parent = container_path.rsplit(\"/\", 1)[0]\n137     subprocess.run(\n138         [\"docker\", \"exec\", container_name, \"mkdir\", \"-p\", parent],\n139         capture_output=True,\n140     )\n141     result = subprocess.run(\n",
       "col_offset": 4,
       "end_col_offset": 5,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -537,19 +550,19 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 136,
+      "line_number": 137,
       "line_range": [
-        136,
         137,
         138,
-        139
+        139,
+        140
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "135     parent = container_path.rsplit(\"/\", 1)[0]\n136     subprocess.run(\n137         [\"docker\", \"exec\", container_name, \"mkdir\", \"-p\", parent],\n138         capture_output=True,\n139     )\n140     result = subprocess.run(\n",
+      "code": "136     parent = container_path.rsplit(\"/\", 1)[0]\n137     subprocess.run(\n138         [\"docker\", \"exec\", container_name, \"mkdir\", \"-p\", parent],\n139         capture_output=True,\n140     )\n141     result = subprocess.run(\n",
       "col_offset": 4,
       "end_col_offset": 5,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -560,19 +573,19 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 136,
+      "line_number": 137,
       "line_range": [
-        136,
         137,
         138,
-        139
+        139,
+        140
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "139     )\n140     result = subprocess.run(\n141         [\"docker\", \"cp\", host_path, f\"{container_name}:{container_path}\"],\n142         capture_output=True,\n143         text=True,\n144     )\n145     if result.returncode != 0:\n",
+      "code": "140     )\n141     result = subprocess.run(\n142         [\"docker\", \"cp\", host_path, f\"{container_name}:{container_path}\"],\n143         capture_output=True,\n144         text=True,\n145     )\n146     if result.returncode != 0:\n",
       "col_offset": 13,
       "end_col_offset": 5,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -583,20 +596,20 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 140,
+      "line_number": 141,
       "line_range": [
-        140,
         141,
         142,
         143,
-        144
+        144,
+        145
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "139     )\n140     result = subprocess.run(\n141         [\"docker\", \"cp\", host_path, f\"{container_name}:{container_path}\"],\n142         capture_output=True,\n143         text=True,\n144     )\n145     if result.returncode != 0:\n",
+      "code": "140     )\n141     result = subprocess.run(\n142         [\"docker\", \"cp\", host_path, f\"{container_name}:{container_path}\"],\n143         capture_output=True,\n144         text=True,\n145     )\n146     if result.returncode != 0:\n",
       "col_offset": 13,
       "end_col_offset": 5,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -607,20 +620,20 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 140,
+      "line_number": 141,
       "line_range": [
-        140,
         141,
         142,
         143,
-        144
+        144,
+        145
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "193     logger.debug(\"bedrock preflight: %s\", \" \".join(args))\n194     result = subprocess.run(args, capture_output=True, text=True, timeout=30)\n195 \n",
+      "code": "194     logger.debug(\"bedrock preflight: %s\", \" \".join(args))\n195     result = subprocess.run(args, capture_output=True, text=True, timeout=30)\n196 \n",
       "col_offset": 13,
       "end_col_offset": 77,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -631,16 +644,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 194,
+      "line_number": 195,
       "line_range": [
-        194
+        195
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "500     check_cmd = build_check_session_command(container_name, session_name)\n501     has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0\n502 \n",
+      "code": "526     check_cmd = build_check_session_command(container_name, session_name)\n527     has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0\n528 \n",
       "col_offset": 18,
       "end_col_offset": 64,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -651,16 +664,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 501,
+      "line_number": 527,
       "line_range": [
-        501
+        527
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "515             sys.stderr.flush()\n516             attach = subprocess.run(attach_cmd)\n517             sys.exit(attach.returncode)\n",
+      "code": "544             sys.stderr.flush()\n545             attach = subprocess.run(attach_cmd)\n546             sys.exit(attach.returncode)\n",
       "col_offset": 21,
       "end_col_offset": 47,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -671,16 +684,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 516,
+      "line_number": 545,
       "line_range": [
-        516
+        545
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "566     for cmd_args in cmds[:-1]:\n567         result = subprocess.run(cmd_args, capture_output=True, text=True)\n568         if result.returncode != 0 and \"kill-session\" not in \" \".join(cmd_args):\n",
+      "code": "595     for cmd_args in cmds[:-1]:\n596         result = subprocess.run(cmd_args, capture_output=True, text=True)\n597         if result.returncode != 0 and \"kill-session\" not in \" \".join(cmd_args):\n",
       "col_offset": 17,
       "end_col_offset": 73,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -691,16 +704,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 567,
+      "line_number": 596,
       "line_range": [
-        567
+        596
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "575     sys.stderr.flush()\n576     attach = subprocess.run(final_cmd)\n577     sys.exit(attach.returncode)\n",
+      "code": "606     sys.stderr.flush()\n607     attach = subprocess.run(final_cmd)\n608     sys.exit(attach.returncode)\n",
       "col_offset": 13,
       "end_col_offset": 38,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -711,16 +724,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 576,
+      "line_number": 607,
       "line_range": [
-        576
+        607
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "739     for cmd_args in cmds[:-1]:\n740         result = subprocess.run(cmd_args, capture_output=True, text=True)\n741         if result.returncode != 0 and \"kill-session\" not in \" \".join(cmd_args):\n",
+      "code": "773     for cmd_args in cmds[:-1]:\n774         result = subprocess.run(cmd_args, capture_output=True, text=True)\n775         if result.returncode != 0 and \"kill-session\" not in \" \".join(cmd_args):\n",
       "col_offset": 17,
       "end_col_offset": 73,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -731,16 +744,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 740,
+      "line_number": 774,
       "line_range": [
-        740
+        774
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "748     sys.stderr.flush()\n749     attach = subprocess.run(final_cmd)\n750     sys.exit(attach.returncode)\n",
+      "code": "784     sys.stderr.flush()\n785     attach = subprocess.run(final_cmd)\n786     sys.exit(attach.returncode)\n",
       "col_offset": 13,
       "end_col_offset": 38,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -751,16 +764,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 749,
+      "line_number": 785,
       "line_range": [
-        749
+        785
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "791     check_cmd = build_check_session_command(container_name, session_name)\n792     has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0\n793 \n",
+      "code": "827     check_cmd = build_check_session_command(container_name, session_name)\n828     has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0\n829 \n",
       "col_offset": 18,
       "end_col_offset": 64,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -771,16 +784,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 792,
+      "line_number": 828,
       "line_range": [
-        792
+        828
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "806             sys.stderr.flush()\n807             attach = subprocess.run(attach_cmd)\n808             sys.exit(attach.returncode)\n",
+      "code": "844             sys.stderr.flush()\n845             attach = subprocess.run(attach_cmd)\n846             sys.exit(attach.returncode)\n",
       "col_offset": 21,
       "end_col_offset": 47,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -791,16 +804,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 807,
+      "line_number": 845,
       "line_range": [
-        807
+        845
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "945     for cmd_args in cmds[:-1]:\n946         result = subprocess.run(cmd_args, capture_output=True, text=True)\n947         # kill-session may fail (no existing session) -- that's fine\n",
+      "code": "983     for cmd_args in cmds[:-1]:\n984         result = subprocess.run(cmd_args, capture_output=True, text=True)\n985         # kill-session may fail (no existing session) -- that's fine\n",
       "col_offset": 17,
       "end_col_offset": 73,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -811,16 +824,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 946,
+      "line_number": 984,
       "line_range": [
-        946
+        984
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "956     sys.stderr.flush()\n957     attach = subprocess.run(final_cmd)\n958     sys.exit(attach.returncode)\n",
+      "code": "996     sys.stderr.flush()\n997     attach = subprocess.run(final_cmd)\n998     sys.exit(attach.returncode)\n",
       "col_offset": 13,
       "end_col_offset": 38,
       "filename": "src/ai_shell/cli/commands/tools.py",
@@ -831,16 +844,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 957,
+      "line_number": 997,
       "line_range": [
-        957
+        997
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "10 import logging\n11 import subprocess\n12 import sys\n",
+      "code": "11 import os\n12 import subprocess\n13 import sys\n",
       "col_offset": 0,
       "end_col_offset": 17,
       "filename": "src/ai_shell/container.py",
@@ -851,16 +864,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Consider possible security implications associated with the subprocess module.",
-      "line_number": 11,
+      "line_number": 12,
       "line_range": [
-        11
+        12
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess",
       "test_id": "B404",
       "test_name": "blacklist"
     },
     {
-      "code": "79     sys.stderr.flush()\n80     result = subprocess.run(args)\n81     sys.exit(result.returncode)\n",
+      "code": "80     sys.stderr.flush()\n81     result = subprocess.run(args)\n82     sys.exit(result.returncode)\n",
       "col_offset": 13,
       "end_col_offset": 33,
       "filename": "src/ai_shell/container.py",
@@ -871,16 +884,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 80,
+      "line_number": 81,
       "line_range": [
-        80
+        81
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "92     start = time.monotonic()\n93     result = subprocess.run(args)\n94     elapsed = time.monotonic() - start\n",
+      "code": "93     start = time.monotonic()\n94     result = subprocess.run(args)\n95     elapsed = time.monotonic() - start\n",
       "col_offset": 13,
       "end_col_offset": 33,
       "filename": "src/ai_shell/container.py",
@@ -891,16 +904,42 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 93,
+      "line_number": 94,
       "line_range": [
-        93
+        94
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "884                     break\n885             except Exception:\n886                 pass\n887             time.sleep(2)\n",
+      "code": "142     start = time.monotonic()\n143     proc = subprocess.Popen(\n144         args,\n145         stdin=slave_fd,\n146         stdout=slave_fd,\n147         stderr=slave_fd,\n148         close_fds=True,\n149     )\n150     os.close(slave_fd)\n",
+      "col_offset": 11,
+      "end_col_offset": 5,
+      "filename": "src/ai_shell/container.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "subprocess call - check for execution of untrusted input.",
+      "line_number": 143,
+      "line_range": [
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
+      "test_id": "B603",
+      "test_name": "subprocess_without_shell_equals_true"
+    },
+    {
+      "code": "1001                     break\n1002             except Exception:\n1003                 pass\n1004             time.sleep(2)\n",
       "col_offset": 12,
       "end_col_offset": 20,
       "filename": "src/ai_shell/container.py",
@@ -911,17 +950,17 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Try, Except, Pass detected.",
-      "line_number": 885,
+      "line_number": 1002,
       "line_range": [
-        885,
-        886
+        1002,
+        1003
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
       "test_id": "B110",
       "test_name": "try_except_pass"
     },
     {
-      "code": "1048         # Check if update script exists in the container\n1049         check_exists = subprocess.run(\n1050             [\"docker\", \"exec\", container_name, \"test\", \"-x\", update_script],\n1051             capture_output=True,\n1052         )\n1053         if check_exists.returncode != 0:\n",
+      "code": "1165         # Check if update script exists in the container\n1166         check_exists = subprocess.run(\n1167             [\"docker\", \"exec\", container_name, \"test\", \"-x\", update_script],\n1168             capture_output=True,\n1169         )\n1170         if check_exists.returncode != 0:\n",
       "col_offset": 23,
       "end_col_offset": 9,
       "filename": "src/ai_shell/container.py",
@@ -932,19 +971,19 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 1049,
+      "line_number": 1166,
       "line_range": [
-        1049,
-        1050,
-        1051,
-        1052
+        1166,
+        1167,
+        1168,
+        1169
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "1048         # Check if update script exists in the container\n1049         check_exists = subprocess.run(\n1050             [\"docker\", \"exec\", container_name, \"test\", \"-x\", update_script],\n1051             capture_output=True,\n1052         )\n1053         if check_exists.returncode != 0:\n",
+      "code": "1165         # Check if update script exists in the container\n1166         check_exists = subprocess.run(\n1167             [\"docker\", \"exec\", container_name, \"test\", \"-x\", update_script],\n1168             capture_output=True,\n1169         )\n1170         if check_exists.returncode != 0:\n",
       "col_offset": 23,
       "end_col_offset": 9,
       "filename": "src/ai_shell/container.py",
@@ -955,19 +994,19 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 1049,
+      "line_number": 1166,
       "line_range": [
-        1049,
-        1050,
-        1051,
-        1052
+        1166,
+        1167,
+        1168,
+        1169
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "1060         # Check freshness\n1061         check_result = subprocess.run(\n1062             [\"docker\", \"exec\", container_name, update_script, \"--check\", tool_name],\n1063             capture_output=True,\n1064         )\n1065         if check_result.returncode == 0:\n",
+      "code": "1177         # Check freshness\n1178         check_result = subprocess.run(\n1179             [\"docker\", \"exec\", container_name, update_script, \"--check\", tool_name],\n1180             capture_output=True,\n1181         )\n1182         if check_result.returncode == 0:\n",
       "col_offset": 23,
       "end_col_offset": 9,
       "filename": "src/ai_shell/container.py",
@@ -978,19 +1017,19 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 1061,
+      "line_number": 1178,
       "line_range": [
-        1061,
-        1062,
-        1063,
-        1064
+        1178,
+        1179,
+        1180,
+        1181
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "1060         # Check freshness\n1061         check_result = subprocess.run(\n1062             [\"docker\", \"exec\", container_name, update_script, \"--check\", tool_name],\n1063             capture_output=True,\n1064         )\n1065         if check_result.returncode == 0:\n",
+      "code": "1177         # Check freshness\n1178         check_result = subprocess.run(\n1179             [\"docker\", \"exec\", container_name, update_script, \"--check\", tool_name],\n1180             capture_output=True,\n1181         )\n1182         if check_result.returncode == 0:\n",
       "col_offset": 23,
       "end_col_offset": 9,
       "filename": "src/ai_shell/container.py",
@@ -1001,19 +1040,19 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 1061,
+      "line_number": 1178,
       "line_range": [
-        1061,
-        1062,
-        1063,
-        1064
+        1178,
+        1179,
+        1180,
+        1181
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "1073         with console.status(f\"[bold]Updating {tool_name}...[/bold]\", spinner=\"dots\"):\n1074             update_result = subprocess.run(\n1075                 [\"docker\", \"exec\", container_name, update_script, \"--tool\", tool_name],\n1076                 capture_output=True,\n1077                 text=True,\n1078                 timeout=300,  # 5 minute timeout\n1079             )\n1080         if update_result.returncode == 0:\n",
+      "code": "1190         with console.status(f\"[bold]Updating {tool_name}...[/bold]\", spinner=\"dots\"):\n1191             update_result = subprocess.run(\n1192                 [\"docker\", \"exec\", container_name, update_script, \"--tool\", tool_name],\n1193                 capture_output=True,\n1194                 text=True,\n1195                 timeout=300,  # 5 minute timeout\n1196             )\n1197         if update_result.returncode == 0:\n",
       "col_offset": 28,
       "end_col_offset": 13,
       "filename": "src/ai_shell/container.py",
@@ -1024,21 +1063,21 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Starting a process with a partial executable path",
-      "line_number": 1074,
+      "line_number": 1191,
       "line_range": [
-        1074,
-        1075,
-        1076,
-        1077,
-        1078,
-        1079
+        1191,
+        1192,
+        1193,
+        1194,
+        1195,
+        1196
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html",
       "test_id": "B607",
       "test_name": "start_process_with_partial_path"
     },
     {
-      "code": "1073         with console.status(f\"[bold]Updating {tool_name}...[/bold]\", spinner=\"dots\"):\n1074             update_result = subprocess.run(\n1075                 [\"docker\", \"exec\", container_name, update_script, \"--tool\", tool_name],\n1076                 capture_output=True,\n1077                 text=True,\n1078                 timeout=300,  # 5 minute timeout\n1079             )\n1080         if update_result.returncode == 0:\n",
+      "code": "1190         with console.status(f\"[bold]Updating {tool_name}...[/bold]\", spinner=\"dots\"):\n1191             update_result = subprocess.run(\n1192                 [\"docker\", \"exec\", container_name, update_script, \"--tool\", tool_name],\n1193                 capture_output=True,\n1194                 text=True,\n1195                 timeout=300,  # 5 minute timeout\n1196             )\n1197         if update_result.returncode == 0:\n",
       "col_offset": 28,
       "end_col_offset": 13,
       "filename": "src/ai_shell/container.py",
@@ -1049,14 +1088,14 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 1074,
+      "line_number": 1191,
       "line_range": [
-        1074,
-        1075,
-        1076,
-        1077,
-        1078,
-        1079
+        1191,
+        1192,
+        1193,
+        1194,
+        1195,
+        1196
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
@@ -1369,7 +1408,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "161         )\n162     subprocess.Popen(  # noqa: S603\n163         args,\n164         stdout=subprocess.DEVNULL,\n165         stderr=subprocess.DEVNULL,\n166         stdin=subprocess.DEVNULL,\n167         creationflags=creation_flags,\n168     )\n169     return True\n",
+      "code": "162         )\n163     subprocess.Popen(  # noqa: S603\n164         args,\n165         stdout=subprocess.DEVNULL,\n166         stderr=subprocess.DEVNULL,\n167         stdin=subprocess.DEVNULL,\n168         creationflags=creation_flags,\n169     )\n170     return True\n",
       "col_offset": 4,
       "end_col_offset": 5,
       "filename": "src/ai_shell/local_chrome.py",
@@ -1380,22 +1419,22 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 162,
+      "line_number": 163,
       "line_range": [
-        162,
         163,
         164,
         165,
         166,
         167,
-        168
+        168,
+        169
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "190     logger.debug(\"Probing Chrome debug port: %s\", \" \".join(args))\n191     result = subprocess.run(args, capture_output=True, text=True)\n192     if result.returncode != 0 or not result.stdout.strip():\n",
+      "code": "191     logger.debug(\"Probing Chrome debug port: %s\", \" \".join(args))\n192     result = subprocess.run(args, capture_output=True, text=True)\n193     if result.returncode != 0 or not result.stdout.strip():\n",
       "col_offset": 13,
       "end_col_offset": 65,
       "filename": "src/ai_shell/local_chrome.py",
@@ -1406,16 +1445,16 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 191,
+      "line_number": 192,
       "line_range": [
-        191
+        192
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
     },
     {
-      "code": "303     logger.debug(\"Starting Chrome proxy: %s\", \" \".join(args))\n304     result = subprocess.run(args, capture_output=True, text=True)\n305     if result.returncode != 0:\n",
+      "code": "304     logger.debug(\"Starting Chrome proxy: %s\", \" \".join(args))\n305     result = subprocess.run(args, capture_output=True, text=True)\n306     if result.returncode != 0:\n",
       "col_offset": 13,
       "end_col_offset": 65,
       "filename": "src/ai_shell/local_chrome.py",
@@ -1426,9 +1465,9 @@
       },
       "issue_severity": "LOW",
       "issue_text": "subprocess call - check for execution of untrusted input.",
-      "line_number": 304,
+      "line_number": 305,
       "line_range": [
-        304
+        305
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
