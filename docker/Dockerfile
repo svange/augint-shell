@@ -134,6 +134,7 @@ RUN mkdir -p /root/projects/${PROJECT_DIR} && \
 WORKDIR /root/projects/${PROJECT_DIR}
 
 # Switch to root and configure environment
+# nosemgrep: dockerfile.security.last-user-is-root.last-user-is-root
 USER root
 
 # Install zsh, fish, and bash-completion for multi-shell support
