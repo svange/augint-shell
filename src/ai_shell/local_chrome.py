@@ -107,9 +107,8 @@ def _chrome_profile_dir(project_name: str, project_dir: str | Path | None = None
 def _project_debug_port(project_name: str, project_dir: str | Path | None = None) -> int:
     """Return a stable per-project Chrome remote debugging port."""
     slug = _project_slug(project_name, project_dir)
-    digest = (
-        sha1(slug.encode("utf-8"), usedforsecurity=False).hexdigest()
-    )  # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
+    # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
+    digest = sha1(slug.encode("utf-8"), usedforsecurity=False).hexdigest()
     return CHROME_DEBUG_PORT_RANGE_START + (int(digest[:8], 16) % CHROME_DEBUG_PORT_RANGE_SIZE)
 
 
