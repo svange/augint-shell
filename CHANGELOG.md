@@ -2,6 +2,38 @@
 
 <!-- version list -->
 
+## v0.89.0 (2026-04-20)
+
+### Bug Fixes
+
+- **ci**: Move semgrep suppressions to preceding line so they apply
+  ([`f041ec8`](https://github.com/svange/augint-shell/commit/f041ec86206748d0252ea1b204c03b07b68a1bed))
+
+- **ci**: Suppress pre-existing semgrep false positives blocking release
+  ([`61e8a55`](https://github.com/svange/augint-shell/commit/61e8a55b38d3f12c87967d9b113be0377841512d))
+
+- **ci**: Suppress pre-existing semgrep false positives blocking release (#105)
+  ([#105](https://github.com/svange/augint-shell/pull/105),
+  [`cb03761`](https://github.com/svange/augint-shell/commit/cb037611836a44da1b587b60ec3ff976b1e33b5c))
+
+### Features
+
+- Buffer keystrokes during ai-shell startup and replay into dev container
+  ([`9470b5e`](https://github.com/svange/augint-shell/commit/9470b5e5680f3406e12828f429ef985a3aa9f57a))
+
+- Buffer keystrokes during ai-shell startup and replay into dev container (#104)
+  ([#104](https://github.com/svange/augint-shell/pull/104),
+  [`c504502`](https://github.com/svange/augint-shell/commit/c5045029fe3f0b14b703591392574c3cab6fabba))
+
+- Isolate pre-commit cache via PRE_COMMIT_HOME and named volume (#99)
+  ([#99](https://github.com/svange/augint-shell/pull/99),
+  [`5bff6ba`](https://github.com/svange/augint-shell/commit/5bff6ba1cdae7c60e3cdb91128220f365454e0aa))
+
+- Isolate pre-commit cache via PRE_COMMIT_HOME and named volume (#99) (#103)
+  ([#103](https://github.com/svange/augint-shell/pull/103),
+  [`25e4c73`](https://github.com/svange/augint-shell/commit/25e4c738fcaffb0e41fcb050b3cd332d4b2c5b36))
+
+
 ## v0.88.1 (2026-04-19)
 
 ### Bug Fixes
