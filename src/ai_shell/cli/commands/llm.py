@@ -80,6 +80,7 @@ def _manifest_exists(model_ref: str) -> bool | None:
     """
     namespace, name, tag = _parse_model_ref(model_ref)
     path = f"/v2/{namespace}/{name}/manifests/{tag}"
+    # nosemgrep: python.lang.security.audit.httpsconnection-detected.httpsconnection-detected
     connection = HTTPSConnection(_OLLAMA_REGISTRY_HOST, timeout=_MANIFEST_PROBE_TIMEOUT)
     try:
         connection.request(

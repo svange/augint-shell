@@ -144,6 +144,7 @@ def unique_project_name(path: Path, project_name: str | None = None) -> str:
     collisions between repos with the same leaf directory name.
     """
     slug = _sanitize_name((project_name or path.resolve().name).lower())
+    # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
     digest = sha1(str(path.resolve()).encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
     return f"{slug}-{digest}"
 
@@ -171,6 +172,7 @@ def project_dev_port(
     for the same container port, so multiple projects can run simultaneously.
     """
     slug = unique_project_name(project_dir, project_name)
+    # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
     digest = sha1(f"{slug}:{container_port}".encode(), usedforsecurity=False).hexdigest()
     return DEV_PORT_RANGE_START + (int(digest[:8], 16) % DEV_PORT_RANGE_SIZE)
 
