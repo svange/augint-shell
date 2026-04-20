@@ -13,6 +13,8 @@ from ai_shell.defaults import (
     N8N_DATA_VOLUME,
     NPM_CACHE_VOLUME,
     OLLAMA_CONTAINER,
+    PRE_COMMIT_CACHE_PATH,
+    PRE_COMMIT_CACHE_VOLUME,
     UV_CACHE_VOLUME,
     build_dev_environment,
     build_dev_mounts,
@@ -145,6 +147,22 @@ class TestBuildDevMounts:
         assert npm_mount is not None
         assert npm_mount.get("Source") == NPM_CACHE_VOLUME
 
+    def test_includes_pre_commit_cache_volume(self, tmp_path):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+
+        mounts = build_dev_mounts(project_dir, "test-project")
+
+        pc_mount = None
+        for m in mounts:
+            if m.get("Target") == PRE_COMMIT_CACHE_PATH:
+                pc_mount = m
+                break
+
+        assert pc_mount is not None
+        assert pc_mount.get("Source") == PRE_COMMIT_CACHE_VOLUME
+        assert pc_mount.get("Type") == "volume"
+
     def test_skips_missing_optional_paths(self, tmp_path):
         project_dir = tmp_path / "test-project"
         project_dir.mkdir()
@@ -161,6 +179,7 @@ class TestBuildDevMounts:
         assert "/root/projects/test-project" in targets
         assert "/root/.cache/uv" in targets
         assert "/root/.npm" in targets
+        assert PRE_COMMIT_CACHE_PATH in targets
         assert "/root/.ssh" not in targets
         assert "/root/.claude" not in targets
         # No host path found → falls back to named volume (not a bind mount)
@@ -200,6 +219,10 @@ class TestBuildDevEnvironment:
     def test_includes_sandbox_flag(self):
         env = build_dev_environment()
         assert env["IS_SANDBOX"] == "1"
+
+    def test_sets_pre_commit_home(self):
+        env = build_dev_environment()
+        assert env["PRE_COMMIT_HOME"] == PRE_COMMIT_CACHE_PATH
 
     def test_includes_aws_region_default(self):
         with patch.dict("os.environ", {}, clear=True):
