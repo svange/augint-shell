@@ -16,6 +16,7 @@ from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import AiShellConfig, load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import build_dev_environment, dev_container_name, uv_venv_path
+from ai_shell.typeahead import capture_typeahead
 
 logger = logging.getLogger(__name__)
 console = Console(stderr=True)
@@ -307,72 +308,95 @@ def _launch_loaded_config_claude(
     worktree_name: str | None = None,
 ) -> None:
     """Launch Claude for an already loaded project config."""
-    use_bedrock = use_aws or config.claude_provider == "aws"
-    manager = ContainerManager(config)
-    container_name = manager.ensure_dev_container()
-    _print_dev_ports(manager, container_name)
+    with capture_typeahead() as typeahead:
+        use_bedrock = use_aws or config.claude_provider == "aws"
+        manager = ContainerManager(config)
+        container_name = manager.ensure_dev_container()
+        _print_dev_ports(manager, container_name)
 
-    exec_env = build_dev_environment(
-        config.extra_env,
-        config.project_dir,
-        project_name=config.project_name,
-        bedrock=use_bedrock,
-        aws_profile=config.ai_profile,
-        aws_region=config.aws_region,
-        bedrock_profile=cli_profile or config.bedrock_profile,
-    )
-
-    if team_mode:
-        exec_env = dict(exec_env)
-        exec_env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
-
-    bedrock_label = ""
-    if use_bedrock:
-        bedrock_label = _bedrock_label(exec_env)
-        console.print(
-            "Checking Bedrock access "
-            f"(profile={exec_env.get('AWS_PROFILE', 'default')}, "
-            f"region={exec_env.get('AWS_REGION', 'us-east-1')})..."
-        )
-        _check_bedrock_access(container_name, exec_env)
-
-    workdir: str | None = None
-    resolved_worktree_name = worktree_name
-    if resolved_worktree_name is not None:
-        if resolved_worktree_name == "":
-            resolved_worktree_name = _generate_worktree_name()
-        container_project_dir = f"/root/projects/{config.project_name}"
-        workdir = _setup_worktree(container_name, container_project_dir, resolved_worktree_name)
-        console.print(f"[dim]Worktree: {workdir} (branch: worktree-{resolved_worktree_name})[/dim]")
-
-    mcp_args: list[str] = []
-    if local_chrome:
-        mcp_args, _ = _configure_local_chrome(
-            container_name,
+        exec_env = build_dev_environment(
+            config.extra_env,
+            config.project_dir,
             project_name=config.project_name,
-            project_dir=config.project_dir,
+            bedrock=use_bedrock,
+            aws_profile=config.ai_profile,
+            aws_region=config.aws_region,
+            bedrock_profile=cli_profile or config.bedrock_profile,
         )
 
-    # AUTO-UPDATE: Check tool freshness before launch
-    manager.ensure_tool_fresh(container_name, "claude")
+        if team_mode:
+            exec_env = dict(exec_env)
+            exec_env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
 
-    if safe:
-        cmd = ["claude", *mcp_args, *extra_args]
-        console.print(
-            f"[bold]Launching Claude Code (safe mode){bedrock_label} in {container_name}...[/bold]"
+        bedrock_label = ""
+        if use_bedrock:
+            bedrock_label = _bedrock_label(exec_env)
+            console.print(
+                "Checking Bedrock access "
+                f"(profile={exec_env.get('AWS_PROFILE', 'default')}, "
+                f"region={exec_env.get('AWS_REGION', 'us-east-1')})..."
+            )
+            _check_bedrock_access(container_name, exec_env)
+
+        workdir: str | None = None
+        resolved_worktree_name = worktree_name
+        if resolved_worktree_name is not None:
+            if resolved_worktree_name == "":
+                resolved_worktree_name = _generate_worktree_name()
+            container_project_dir = f"/root/projects/{config.project_name}"
+            workdir = _setup_worktree(container_name, container_project_dir, resolved_worktree_name)
+            console.print(
+                f"[dim]Worktree: {workdir} (branch: worktree-{resolved_worktree_name})[/dim]"
+            )
+
+        mcp_args: list[str] = []
+        if local_chrome:
+            mcp_args, _ = _configure_local_chrome(
+                container_name,
+                project_name=config.project_name,
+                project_dir=config.project_dir,
+            )
+
+        # AUTO-UPDATE: Check tool freshness before launch
+        manager.ensure_tool_fresh(container_name, "claude")
+
+        safe_cmd: list[str] | None = None
+        if safe:
+            safe_cmd = ["claude", *mcp_args, *extra_args]
+            console.print(
+                f"[bold]Launching Claude Code (safe mode){bedrock_label} "
+                f"in {container_name}...[/bold]"
+            )
+        else:
+            console.print(
+                f"[bold]Launching Claude Code{bedrock_label} in {container_name}...[/bold]"
+            )
+
+    typeahead_bytes = typeahead.bytes()
+
+    if safe_cmd is not None:
+        manager.exec_interactive(
+            container_name,
+            safe_cmd,
+            extra_env=exec_env,
+            workdir=workdir,
+            typeahead=typeahead_bytes,
         )
-        manager.exec_interactive(container_name, cmd, extra_env=exec_env, workdir=workdir)
         return
 
     cmd_continue = ["claude", "--dangerously-skip-permissions", "-c", *mcp_args, *extra_args]
-    console.print(f"[bold]Launching Claude Code{bedrock_label} in {container_name}...[/bold]")
     exit_code, elapsed = manager.run_interactive(
-        container_name, cmd_continue, extra_env=exec_env, workdir=workdir
+        container_name,
+        cmd_continue,
+        extra_env=exec_env,
+        workdir=workdir,
+        typeahead=typeahead_bytes,
     )
 
     if exit_code != 0 and elapsed < FAST_FAILURE_THRESHOLD:
         console.print("[yellow]No prior conversation found, starting fresh...[/yellow]")
         cmd_fresh = ["claude", "--dangerously-skip-permissions", *mcp_args, *extra_args]
+        # Don't replay typeahead here; the previous attempt already consumed it.
         manager.exec_interactive(container_name, cmd_fresh, extra_env=exec_env, workdir=workdir)
         return
 
@@ -444,23 +468,25 @@ def _launch_interactive(
         choice = interactive_config.pane_choices[0]
 
         if choice.pane_type == PaneType.BASH:
-            manager = ContainerManager(config)
-            container_name = manager.ensure_dev_container()
-            _print_dev_ports(manager, container_name)
-            exec_env = build_dev_environment(
-                config.extra_env,
-                config.project_dir,
-                project_name=config.project_name,
-                aws_profile=config.ai_profile,
-                aws_region=config.aws_region,
-                bedrock_profile=cli_profile or config.bedrock_profile,
-            )
-            console.print(f"[bold]Launching Bash in {container_name}...[/bold]")
+            with capture_typeahead() as typeahead:
+                manager = ContainerManager(config)
+                container_name = manager.ensure_dev_container()
+                _print_dev_ports(manager, container_name)
+                exec_env = build_dev_environment(
+                    config.extra_env,
+                    config.project_dir,
+                    project_name=config.project_name,
+                    aws_profile=config.ai_profile,
+                    aws_region=config.aws_region,
+                    bedrock_profile=cli_profile or config.bedrock_profile,
+                )
+                console.print(f"[bold]Launching Bash in {container_name}...[/bold]")
             manager.exec_interactive(
                 container_name,
                 ["/bin/bash"],
                 extra_env=exec_env,
                 workdir=f"/root/projects/{config.project_name}",
+                typeahead=typeahead.bytes(),
             )
             return
 
@@ -508,6 +534,9 @@ def _launch_interactive(
             default="reconnect",
         )
         if choice == "reconnect":
+            # TODO(typeahead): tmux attach in _launch_interactive doesn't
+            # replay typeahead bytes; needs a PTY pump around the tmux
+            # session. Deferred for now.
             attach_cmd = build_attach_command(container_name, session_name)
             logger.debug("tmux reattach: %s", " ".join(attach_cmd))
             _print_tmux_quick_start()
@@ -568,6 +597,8 @@ def _launch_interactive(
         if result.returncode != 0 and "kill-session" not in " ".join(cmd_args):
             logger.debug("tmux setup command failed: %s\n%s", cmd_args, result.stderr)
 
+    # TODO(typeahead): multi-pane tmux attach in _launch_interactive doesn't
+    # replay typeahead bytes; needs a PTY pump or per-pane send-keys. Deferred.
     final_cmd = cmds[-1]
     logger.debug("tmux attach: %s", " ".join(final_cmd))
     _print_tmux_quick_start()
@@ -616,46 +647,49 @@ def _launch_team(
             "This isolates each repo's Python virtual environment."
         )
 
-    # Load config and create container
-    project = ctx.obj.get("project") if ctx.obj else None
-    config = load_config(project_override=project, project_dir=Path.cwd())
-    use_bedrock = use_aws or config.claude_provider == "aws"
+    with capture_typeahead() as typeahead:
+        # Load config and create container
+        project = ctx.obj.get("project") if ctx.obj else None
+        config = load_config(project_override=project, project_dir=Path.cwd())
+        use_bedrock = use_aws or config.claude_provider == "aws"
 
-    manager = ContainerManager(config)
-    container_name = manager.ensure_dev_container()
-    _print_dev_ports(manager, container_name)
-    exec_env = build_dev_environment(
-        config.extra_env,
-        config.project_dir,
-        project_name=config.project_name,
-        bedrock=use_bedrock,
-        aws_profile=config.ai_profile,
-        aws_region=config.aws_region,
-        bedrock_profile=cli_profile or config.bedrock_profile,
-        team_mode=True,
+        manager = ContainerManager(config)
+        container_name = manager.ensure_dev_container()
+        _print_dev_ports(manager, container_name)
+        exec_env = build_dev_environment(
+            config.extra_env,
+            config.project_dir,
+            project_name=config.project_name,
+            bedrock=use_bedrock,
+            aws_profile=config.ai_profile,
+            aws_region=config.aws_region,
+            bedrock_profile=cli_profile or config.bedrock_profile,
+            team_mode=True,
+        )
+
+        if use_bedrock:
+            _check_bedrock_access(container_name, exec_env)
+
+        workdir = f"/root/projects/{config.project_name}"
+
+        # Build the claude command -- Agent Teams manages its own tmux panes
+        cmd: list[str] = ["claude"]
+        if not safe:
+            cmd.append("--dangerously-skip-permissions")
+        cmd.extend(extra_args)
+
+        # Pass workspace context as the positional prompt argument (NOT -p,
+        # which enables non-interactive print mode and would hang).
+        if workspace_context:
+            cmd.append(workspace_context)
+
+        console.print("[bold]Launching Claude Code in Agent Teams mode (experimental)...[/bold]")
+        if workspace_context:
+            console.print("[dim]Workspace context provided to team lead[/dim]")
+
+    manager.exec_interactive(
+        container_name, cmd, extra_env=exec_env, workdir=workdir, typeahead=typeahead.bytes()
     )
-
-    if use_bedrock:
-        _check_bedrock_access(container_name, exec_env)
-
-    workdir = f"/root/projects/{config.project_name}"
-
-    # Build the claude command -- Agent Teams manages its own tmux panes
-    cmd: list[str] = ["claude"]
-    if not safe:
-        cmd.append("--dangerously-skip-permissions")
-    cmd.extend(extra_args)
-
-    # Pass workspace context as the positional prompt argument (NOT -p,
-    # which enables non-interactive print mode and would hang).
-    if workspace_context:
-        cmd.append(workspace_context)
-
-    console.print("[bold]Launching Claude Code in Agent Teams mode (experimental)...[/bold]")
-    if workspace_context:
-        console.print("[dim]Workspace context provided to team lead[/dim]")
-
-    manager.exec_interactive(container_name, cmd, extra_env=exec_env, workdir=workdir)
 
 
 def _launch_single_repo_multi(
@@ -741,6 +775,8 @@ def _launch_single_repo_multi(
         if result.returncode != 0 and "kill-session" not in " ".join(cmd_args):
             logger.debug("tmux setup command failed: %s\n%s", cmd_args, result.stderr)
 
+    # TODO(typeahead): tmux attach in _launch_single_repo_multi doesn't replay
+    # typeahead bytes; needs a PTY pump or per-pane send-keys. Deferred.
     final_cmd = cmds[-1]
     logger.debug("tmux attach: %s", " ".join(final_cmd))
     _print_tmux_quick_start()
@@ -799,6 +835,8 @@ def _launch_multi(
             default="reconnect",
         )
         if choice == "reconnect":
+            # TODO(typeahead): tmux attach in _launch_multi doesn't replay
+            # typeahead bytes; needs a PTY pump or per-pane send-keys. Deferred.
             attach_cmd = build_attach_command(container_name, session_name)
             logger.debug("tmux reattach: %s", " ".join(attach_cmd))
             _print_tmux_quick_start()
@@ -949,6 +987,8 @@ def _launch_multi(
             logger.debug("tmux setup command failed: %s\n%s", cmd_args, result.stderr)
 
     # Final command: interactive attach (replaces process)
+    # TODO(typeahead): multi-pane tmux attach in _launch_multi doesn't replay
+    # typeahead bytes; needs a PTY pump or per-pane send-keys. Deferred.
     final_cmd = cmds[-1]
     logger.debug("tmux attach: %s", " ".join(final_cmd))
     _print_tmux_quick_start()
@@ -1123,43 +1163,46 @@ def codex(
     extra_args,
 ):
     """Launch Codex in the dev container."""
-    project = ctx.obj.get("project") if ctx.obj else None
-    config = load_config(project_override=project, project_dir=Path.cwd())
-    use_bedrock = use_aws
+    with capture_typeahead() as typeahead:
+        project = ctx.obj.get("project") if ctx.obj else None
+        config = load_config(project_override=project, project_dir=Path.cwd())
+        use_bedrock = use_aws
 
-    manager, name, exec_env, config = _get_manager(
-        ctx,
-        bedrock=use_bedrock,
-        bedrock_profile=cli_profile or config.bedrock_profile,
-        openai_profile=openai_profile or config.openai_profile,
-    )
-
-    if use_bedrock:
-        profile_label = exec_env.get("AWS_PROFILE", "default")
-        region_label = exec_env.get("AWS_REGION", "us-east-1")
-        bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-        console.print(
-            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+        manager, name, exec_env, config = _get_manager(
+            ctx,
+            bedrock=use_bedrock,
+            bedrock_profile=cli_profile or config.bedrock_profile,
+            openai_profile=openai_profile or config.openai_profile,
         )
-        _check_bedrock_access(name, exec_env)
-    else:
-        bedrock_label = ""
 
-    resolved_openai_profile = openai_profile or config.openai_profile
-    openai_label = f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
+        if use_bedrock:
+            profile_label = exec_env.get("AWS_PROFILE", "default")
+            region_label = exec_env.get("AWS_REGION", "us-east-1")
+            bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
+            console.print(
+                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+            )
+            _check_bedrock_access(name, exec_env)
+        else:
+            bedrock_label = ""
 
-    # AUTO-UPDATE: Check tool freshness before launch
-    manager.ensure_tool_fresh(name, "codex")
+        resolved_openai_profile = openai_profile or config.openai_profile
+        openai_label = (
+            f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
+        )
 
-    cmd = ["codex"]
-    if not safe:
-        cmd.extend(["--dangerously-bypass-approvals-and-sandbox"])
-    cmd.extend(extra_args)
-    mode_label = " (safe mode)" if safe else ""
-    console.print(
-        f"[bold]Launching Codex{mode_label}{bedrock_label}{openai_label} in {name}...[/bold]"
-    )
-    manager.exec_interactive(name, cmd, extra_env=exec_env)
+        # AUTO-UPDATE: Check tool freshness before launch
+        manager.ensure_tool_fresh(name, "codex")
+
+        cmd = ["codex"]
+        if not safe:
+            cmd.extend(["--dangerously-bypass-approvals-and-sandbox"])
+        cmd.extend(extra_args)
+        mode_label = " (safe mode)" if safe else ""
+        console.print(
+            f"[bold]Launching Codex{mode_label}{bedrock_label}{openai_label} in {name}...[/bold]"
+        )
+    manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
@@ -1188,42 +1231,45 @@ def opencode(
     openai_profile,
 ):
     """Launch opencode in the dev container."""
-    project = ctx.obj.get("project") if ctx.obj else None
-    config = load_config(project_override=project, project_dir=Path.cwd())
-    use_bedrock = use_aws
+    with capture_typeahead() as typeahead:
+        project = ctx.obj.get("project") if ctx.obj else None
+        config = load_config(project_override=project, project_dir=Path.cwd())
+        use_bedrock = use_aws
 
-    manager, name, exec_env, config = _get_manager(
-        ctx,
-        bedrock=use_bedrock,
-        bedrock_profile=cli_profile or config.bedrock_profile,
-        openai_profile=openai_profile or config.openai_profile,
-    )
-
-    if use_bedrock:
-        profile_label = exec_env.get("AWS_PROFILE", "default")
-        region_label = exec_env.get("AWS_REGION", "us-east-1")
-        bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-        console.print(
-            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+        manager, name, exec_env, config = _get_manager(
+            ctx,
+            bedrock=use_bedrock,
+            bedrock_profile=cli_profile or config.bedrock_profile,
+            openai_profile=openai_profile or config.openai_profile,
         )
-        _check_bedrock_access(name, exec_env)
-    else:
-        bedrock_label = ""
 
-    resolved_openai_profile = openai_profile or config.openai_profile
-    openai_label = f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
+        if use_bedrock:
+            profile_label = exec_env.get("AWS_PROFILE", "default")
+            region_label = exec_env.get("AWS_REGION", "us-east-1")
+            bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
+            console.print(
+                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+            )
+            _check_bedrock_access(name, exec_env)
+        else:
+            bedrock_label = ""
 
-    # AUTO-UPDATE: Check tool freshness before launch
-    manager.ensure_tool_fresh(name, "opencode")
+        resolved_openai_profile = openai_profile or config.openai_profile
+        openai_label = (
+            f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
+        )
 
-    cmd = ["/root/.opencode/bin/opencode"]
-    if not use_bedrock:
-        # Default OpenCode to the primary coding slot (benchmark-optimized,
-        # explicit Ollama tools badge). Users can switch to the secondary
-        # (uncensored) slot in the OpenCode model picker at runtime.
-        cmd.extend(["--model", f"ollama/{config.primary_coding_model}"])
-    console.print(f"[bold]Launching opencode{bedrock_label}{openai_label} in {name}...[/bold]")
-    manager.exec_interactive(name, cmd, extra_env=exec_env)
+        # AUTO-UPDATE: Check tool freshness before launch
+        manager.ensure_tool_fresh(name, "opencode")
+
+        cmd = ["/root/.opencode/bin/opencode"]
+        if not use_bedrock:
+            # Default OpenCode to the primary coding slot (benchmark-optimized,
+            # explicit Ollama tools badge). Users can switch to the secondary
+            # (uncensored) slot in the OpenCode model picker at runtime.
+            cmd.extend(["--model", f"ollama/{config.primary_coding_model}"])
+        console.print(f"[bold]Launching opencode{bedrock_label}{openai_label} in {name}...[/bold]")
+    manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
@@ -1232,20 +1278,21 @@ def opencode(
 @click.pass_context
 def aider(ctx, safe, extra_args):
     """Launch aider with local LLM in the dev container."""
-    manager, name, exec_env, config = _get_manager(ctx)
-    aider_model = f"ollama_chat/{config.primary_coding_model}"
-    cmd = ["aider", "--model", aider_model]
-    if not safe:
-        cmd.append("--yes-always")
-    cmd.extend(["--restore-chat-history", *extra_args])
-    exec_env["OLLAMA_API_BASE"] = f"http://host.docker.internal:{config.ollama_port}"
+    with capture_typeahead() as typeahead:
+        manager, name, exec_env, config = _get_manager(ctx)
+        aider_model = f"ollama_chat/{config.primary_coding_model}"
+        cmd = ["aider", "--model", aider_model]
+        if not safe:
+            cmd.append("--yes-always")
+        cmd.extend(["--restore-chat-history", *extra_args])
+        exec_env["OLLAMA_API_BASE"] = f"http://host.docker.internal:{config.ollama_port}"
 
-    # AUTO-UPDATE: Check tool freshness before launch
-    manager.ensure_tool_fresh(name, "aider")
+        # AUTO-UPDATE: Check tool freshness before launch
+        manager.ensure_tool_fresh(name, "aider")
 
-    mode_label = " (safe mode)" if safe else ""
-    console.print(f"[bold]Launching aider{mode_label} ({aider_model}) in {name}...[/bold]")
-    manager.exec_interactive(name, cmd, extra_env=exec_env)
+        mode_label = " (safe mode)" if safe else ""
+        console.print(f"[bold]Launching aider{mode_label} ({aider_model}) in {name}...[/bold]")
+    manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
 SUPPORTED_SHELLS: dict[str, str] = {
@@ -1270,13 +1317,16 @@ def shell(ctx, shell_name):
     prompt, useful aliases, history tuning) plus Oh My Zsh for zsh and
     Fisher for fish.
     """
-    manager, name, exec_env, _config = _get_manager(ctx)
-    if not shell_name:
-        shell_name = "bash"
-    shell_name = shell_name.lower()
-    shell_path = SUPPORTED_SHELLS[shell_name]
-    console.print(f"[bold]Opening {shell_name} in {name}...[/bold]")
-    manager.exec_interactive(name, [shell_path, "-l"], extra_env=exec_env)
+    with capture_typeahead() as typeahead:
+        manager, name, exec_env, _config = _get_manager(ctx)
+        if not shell_name:
+            shell_name = "bash"
+        shell_name = shell_name.lower()
+        shell_path = SUPPORTED_SHELLS[shell_name]
+        console.print(f"[bold]Opening {shell_name} in {name}...[/bold]")
+    manager.exec_interactive(
+        name, [shell_path, "-l"], extra_env=exec_env, typeahead=typeahead.bytes()
+    )
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)

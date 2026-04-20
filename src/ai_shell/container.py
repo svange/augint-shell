@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -93,6 +94,109 @@ def _run_docker(args: list[str]) -> tuple[int, float]:
     result = subprocess.run(args)
     elapsed = time.monotonic() - start
     return result.returncode, elapsed
+
+
+def _run_docker_with_typeahead(args: list[str], typeahead: bytes) -> tuple[int, float]:
+    """Run docker exec under a PTY, pre-injecting typeahead bytes.
+
+    Used when the user typed during the slow startup phase: those bytes need to
+    be replayed into the inner process exactly as if they had been typed once
+    the shell attached. Standard subprocess inheritance can't do that because
+    we need to inject our own bytes ahead of the live stdin stream.
+    """
+    import pty
+    import select
+    import signal
+    import termios
+    import tty
+
+    logger.debug("run+pty: %s", " ".join(args))
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    master_fd, slave_fd = pty.openpty()
+    stdin_fd = sys.stdin.fileno()
+    stdout_fd = sys.stdout.fileno()
+    original_termios = termios.tcgetattr(stdin_fd)
+
+    # Match the PTY size to the host terminal so curses-based tools render correctly.
+    try:
+        import fcntl
+
+        size = fcntl.ioctl(stdout_fd, termios.TIOCGWINSZ, b"\x00" * 8)
+        fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, size)
+    except OSError:
+        pass
+
+    def _on_winch(_signum: int, _frame: object) -> None:
+        try:
+            import fcntl
+
+            size = fcntl.ioctl(stdout_fd, termios.TIOCGWINSZ, b"\x00" * 8)
+            fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, size)
+        except OSError:
+            pass
+
+    previous_winch = signal.signal(signal.SIGWINCH, _on_winch)
+
+    start = time.monotonic()
+    proc = subprocess.Popen(
+        args,
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
+        close_fds=True,
+    )
+    os.close(slave_fd)
+
+    try:
+        tty.setraw(stdin_fd)
+        if typeahead:
+            os.write(master_fd, typeahead)
+
+        while True:
+            if proc.poll() is not None:
+                # Drain any final output.
+                try:
+                    while True:
+                        chunk = os.read(master_fd, 4096)
+                        if not chunk:
+                            break
+                        os.write(stdout_fd, chunk)
+                except OSError:
+                    pass
+                break
+            try:
+                ready, _, _ = select.select([master_fd, stdin_fd], [], [], 0.1)
+            except (OSError, ValueError):
+                break
+            if master_fd in ready:
+                try:
+                    chunk = os.read(master_fd, 4096)
+                except OSError:
+                    chunk = b""
+                if not chunk:
+                    break
+                os.write(stdout_fd, chunk)
+            if stdin_fd in ready:
+                try:
+                    chunk = os.read(stdin_fd, 4096)
+                except OSError:
+                    chunk = b""
+                if chunk:
+                    os.write(master_fd, chunk)
+    finally:
+        termios.tcsetattr(stdin_fd, termios.TCSADRAIN, original_termios)
+        signal.signal(signal.SIGWINCH, previous_winch)
+        try:
+            os.close(master_fd)
+        except OSError:
+            pass
+        if proc.poll() is None:
+            proc.wait()
+
+    elapsed = time.monotonic() - start
+    return proc.returncode, elapsed
 
 
 class ContainerManager:
@@ -247,12 +351,15 @@ class ContainerManager:
         command: list[str],
         extra_env: dict[str, str] | None = None,
         workdir: str | None = None,
+        typeahead: bytes = b"",
     ) -> NoReturn:
         """Execute an interactive command in a container.
 
         Uses subprocess.run for cross-platform TTY compatibility.
         Detects whether stdin is a TTY to decide on -i/-t flags.
         If *workdir* is given it is passed as ``-w`` to ``docker exec``.
+        When *typeahead* is non-empty and stdin is a TTY, runs the docker exec
+        under a PTY so the captured bytes can be replayed into the inner process.
         """
         args = ["docker", "exec"]
 
@@ -268,6 +375,10 @@ class ContainerManager:
 
         args.append(container_name)
         args.extend(command)
+
+        if typeahead and sys.platform != "win32" and sys.stdin.isatty():
+            exit_code, _ = _run_docker_with_typeahead(args, typeahead)
+            sys.exit(exit_code)
 
         _exec_docker(args)
 
@@ -277,12 +388,15 @@ class ContainerManager:
         command: list[str],
         extra_env: dict[str, str] | None = None,
         workdir: str | None = None,
+        typeahead: bytes = b"",
     ) -> tuple[int, float]:
         """Execute an interactive command, returning (exit_code, elapsed_seconds).
 
         Same as exec_interactive but does not call sys.exit().
         Used for retry logic (e.g., claude -c fallback).
         If *workdir* is given it is passed as ``-w`` to ``docker exec``.
+        When *typeahead* is non-empty and stdin is a TTY, runs the docker exec
+        under a PTY so the captured bytes can be replayed into the inner process.
         """
         args = ["docker", "exec"]
 
@@ -298,6 +412,9 @@ class ContainerManager:
 
         args.append(container_name)
         args.extend(command)
+
+        if typeahead and sys.platform != "win32" and sys.stdin.isatty():
+            return _run_docker_with_typeahead(args, typeahead)
 
         return _run_docker(args)
 
