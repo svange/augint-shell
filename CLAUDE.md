@@ -74,5 +74,5 @@ All tests are unit tests in `tests/unit/`. Docker SDK is mocked via fixtures in 
 ## Project-specific notes
 
 - Version lives in `pyproject.toml:project.version` and `src/ai_shell/__init__.py:__version__`. Python Semantic Release owns both.
-- Tag format is `augint-shell-v{version}` (canonical per ai-standardize-release).
+- Tag format is `v{version}` (canonical per ai-standardize-release).
 - Do not hand-edit files under `.agents/skills/` — scaffolded from `src/ai_shell/templates/agents/skills/`. Edit the templates and re-run scaffold.
