@@ -62,12 +62,12 @@
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.88.1"
+    "Version": "0.89.0"
   },
   {
     "License": "UNKNOWN",
     "Name": "augint-tools",
-    "Version": "5.1.0"
+    "Version": "5.5.0"
   },
   {
     "License": "Apache-2.0",
@@ -147,7 +147,7 @@
   {
     "License": "MIT",
     "Name": "filelock",
-    "Version": "3.28.0"
+    "Version": "3.29.0"
   },
   {
     "License": "BSD License",
