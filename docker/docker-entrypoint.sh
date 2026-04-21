@@ -11,7 +11,9 @@ fi
 # above may have overwritten (mirrors Dockerfile lines 206-214).
 git config --global --add safe.directory '*'
 git config --global core.filemode false
-git config --global core.hooksPath /dev/null
+# Clear any core.hooksPath inherited from Windows gitconfig so pre-commit
+# hooks can fire normally inside the container.
+git config --global --unset-all core.hooksPath 2>/dev/null || true
 git config --global init.defaultBranch main
 git config --global color.ui auto
 git config --global core.editor vim

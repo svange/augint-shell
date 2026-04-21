@@ -231,8 +231,6 @@ RUN git config --global --add safe.directory '*' && \
     git config --global init.defaultBranch main && \
     # Ignore file permission changes on drvfs/9p-mounted Windows filesystems
     git config --global core.filemode false && \
-    # Disable git hooks in container - AI tools commit frequently; pre-commit is run explicitly
-    git config --global core.hooksPath /dev/null && \
     git config --global --unset-all http.sslbackend || true
 
 # Note: Running as root to avoid Windows/Docker permission issues
