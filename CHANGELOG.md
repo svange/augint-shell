@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.89.1 (2026-04-21)
+
+### Bug Fixes
+
+- **docker**: Enable pre-commit hooks in dev containers (#108)
+  ([#108](https://github.com/svange/augint-shell/pull/108),
+  [`fcba7c8`](https://github.com/svange/augint-shell/commit/fcba7c833ffe24a987af8d0e240b214a535f39f3))
+
+
 ## v0.89.0 (2026-04-20)
 
 ### Bug Fixes
