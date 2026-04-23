@@ -47,8 +47,9 @@ RUN pip install \
 COPY app /app/app
 
 # Sqlite lives on a named volume mounted here.
-RUN mkdir -p /data
+RUN mkdir -p /data && chown 1000:1000 /data
 
 EXPOSE 8000
 
+USER 1000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,8 +1,10 @@
 # augint-shell
 
+[![CI](https://github.com/svange/augint-shell/actions/workflows/publish.yaml/badge.svg)](https://github.com/svange/augint-shell/actions/workflows/publish.yaml)
+[![Coverage](https://svange.github.io/augint-shell/coverage/htmlcov/badge.svg)](https://svange.github.io/augint-shell/coverage/htmlcov/)
+[![Release](https://img.shields.io/github/v/release/svange/augint-shell)](https://github.com/svange/augint-shell/releases)
 [![PyPI version](https://badge.fury.io/py/augint-shell.svg)](https://pypi.org/project/augint-shell/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Pipeline](https://github.com/svange/augint-shell/actions/workflows/pipeline.yaml/badge.svg)](https://github.com/svange/augint-shell/actions/workflows/pipeline.yaml)
 [![License](https://img.shields.io/badge/license-proprietary-red.svg)](LICENSE)
 
 Launch AI coding tools (Claude Code, Codex, opencode, aider) and local LLMs (Ollama, Open WebUI, Kokoro TTS, Speaches STT) in per-project Docker containers.
@@ -17,7 +19,7 @@ Launch AI coding tools (Claude Code, Codex, opencode, aider) and local LLMs (Oll
 |--------|------|
 | API docs | [svange.github.io/augint-shell/ai_shell.html](https://svange.github.io/augint-shell/ai_shell.html) |
 | Test coverage | [svange.github.io/augint-shell/coverage/htmlcov/](https://svange.github.io/augint-shell/coverage/htmlcov/) |
-| Test results | [svange.github.io/augint-shell/tests/test-report.html](https://svange.github.io/augint-shell/tests/test-report.html) |
+| Test results | [svange.github.io/augint-shell/coverage/test-report.html](https://svange.github.io/augint-shell/coverage/test-report.html) |
 | Security scans | [svange.github.io/augint-shell/security/](https://svange.github.io/augint-shell/security/) |
 | License compliance | [svange.github.io/augint-shell/compliance/](https://svange.github.io/augint-shell/compliance/) |
 | PyPI package | [pypi.org/project/augint-shell/](https://pypi.org/project/augint-shell/) |
@@ -28,8 +30,8 @@ Launch AI coding tools (Claude Code, Codex, opencode, aider) and local LLMs (Oll
 
 `ai-shell` is a Python CLI that stands up:
 
-1. **Per-project dev containers** (`augint-shell-{project}-dev`) — one per repo, runs Claude Code, Codex, opencode, or aider with your project mounted, SSH keys, AWS creds, and tool configs wired in.
-2. **Host-level LLM stack** (shared singletons) — Ollama, Open WebUI, Kokoro TTS, Speaches STT, a Pipecat voice agent, and n8n on a common Docker network. GPU auto-detected.
+1. **Per-project dev containers** (`augint-shell-{project}-dev`) -- one per repo, runs Claude Code, Codex, opencode, or aider with your project mounted, SSH keys, AWS creds, and tool configs wired in.
+2. **Host-level LLM stack** (shared singletons) -- Ollama, Open WebUI, Kokoro TTS, Speaches STT, a Pipecat voice agent, and n8n on a common Docker network. GPU auto-detected.
 
 One command replaces the old Makefile + docker-compose.yml workflow.
 
@@ -38,7 +40,7 @@ One command replaces the old Makefile + docker-compose.yml workflow.
 ## Getting Started
 
 > This project uses AI-assisted development. You do not need to memorize
-> git commands or CI configuration — your AI agent handles that.
+> git commands or CI configuration -- your AI agent handles that.
 
 ### Prerequisites
 
@@ -78,7 +80,7 @@ ai-shell opencode
 > branching, coding, testing, and submitting a pull request.
 
 1. **Open Claude Code** (or your AI agent) in this repo.
-2. **Describe the change** you want — a bug fix, a new feature, a doc update.
+2. **Describe the change** you want -- a bug fix, a new feature, a doc update.
 3. The agent will:
    - Create a feature branch
    - Make the changes
@@ -87,7 +89,11 @@ ai-shell opencode
 4. **Review the PR** when the agent is done. CI runs automatically.
 5. **Merge** once CI is green.
 
+If you need to work manually, see the full [contributor guide](CONTRIBUTING.md) (if available).
+
 ---
+
+<!-- Custom sections preserved from previous README -->
 
 ## Commands
 
@@ -179,7 +185,7 @@ Four role-specific model slots, each sized for an RTX 4090 (24 GiB VRAM). All fo
 | `--webui` | Open WebUI | 3000 | Implies `--voice` so Kokoro is wired as "read aloud" backend. Use `--no-voice` to skip. |
 | `--voice` | Kokoro TTS | 8880 | OpenAI-compatible `/v1/audio/speech` |
 | `--whisper` | Speaches STT | 8001 | OpenAI-compatible `/v1/audio/transcriptions`. GPU image auto-used when NVIDIA is detected |
-| `--voice-agent` | Pipecat voice agent | 8010 | Push-to-talk PWA (Speaches → Ollama → Kokoro). See `VOICE_AGENT_PLAN.md` |
+| `--voice-agent` | Pipecat voice agent | 8010 | Push-to-talk PWA (Speaches -> Ollama -> Kokoro). See `VOICE_AGENT_PLAN.md` |
 | `--image-gen` | ComfyUI | 8188 | GPU image generation. Wires into WebUI when combined with `--webui` |
 | `--n8n` | n8n | 5678 | Workflow automation |
 
@@ -210,7 +216,7 @@ Set a default in config (`openai.profile: work`) or via `AI_SHELL_OPENAI_PROFILE
 `ai-shell claude --local-chrome` bridges Claude inside the container to your real Chrome on Windows via the Chrome DevTools Protocol (using `chrome-devtools-mcp`). Unblocks OAuth popups, CAPTCHA pages, and "click around in a logged-in site" tasks.
 
 - Claude drives Chrome tabs on your Windows desktop in real time.
-- **Separate Chrome profile per project** — your normal browsing untouched, each repo keeps its own logged-in state.
+- **Separate Chrome profile per project** -- your normal browsing untouched, each repo keeps its own logged-in state.
 - All traffic stays on `localhost`.
 
 Set `[claude] local_chrome = true` in `ai-shell.toml` (or `AI_SHELL_LOCAL_CHROME=1`) to persist.

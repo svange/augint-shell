@@ -30,7 +30,7 @@ dev = [
     "pytest-html>=4.0.0",
     "pdoc>=15.0.0",
     "types-PyYAML>=6.0",
-
+    "semgrep>=1.0.0",
 ]
 
 
@@ -84,6 +84,9 @@ addopts = "-ra -q --strict-markers"
 [tool.coverage.run]
 source = ["src"]
 omit = ["*/tests/*", "*/test_*.py", "*/cli/*"]
+
+[tool.coverage.report]
+fail_under = 80
 
 [tool.semantic_release]
 assets = ["uv.lock"]
