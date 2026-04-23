@@ -15,7 +15,7 @@
 
 # === Claude Code / AI Tool History ===
 .claude/settings.local.json
-.claude/worktrees/
+**/.claude/worktrees/
 .aider.chat.history.md
 .aider.input.history
 .aider/
@@ -155,7 +155,7 @@ Thumbs.db
 tmp/
 temp/
 
-# === ai-shell project config (may contain API keys) ===
+# === Custom (preserved from previous version) ===
 .ai-shell.toml
 ai-shell.toml
 .ai-shell.yaml
