@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.90.0 (2026-04-26)
+
+### Features
+
+- Add pi coding agent as fully supported tool (#111)
+  ([#111](https://github.com/svange/augint-shell/pull/111),
+  [`334e316`](https://github.com/svange/augint-shell/commit/334e316b44cc6f89495c08e7f4395a4e31f6bc5e))
+
+
 ## v0.89.1 (2026-04-21)
 
 ### Bug Fixes
