@@ -9,7 +9,7 @@ from ai_shell import __version__
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.cli.commands.llm import llm_group
 from ai_shell.cli.commands.manage import manage_group
-from ai_shell.cli.commands.tools import aider, claude, codex, init, opencode, shell
+from ai_shell.cli.commands.tools import aider, claude, codex, init, opencode, pi, shell
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -43,6 +43,7 @@ def cli(ctx, project, verbose, orig_image, skip_updates):
 cli.add_command(claude)
 cli.add_command(codex)
 cli.add_command(opencode)
+cli.add_command(pi)
 cli.add_command(aider)
 cli.add_command(shell)
 cli.add_command(init)

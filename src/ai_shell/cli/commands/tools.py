@@ -1,4 +1,4 @@
-"""AI tool subcommands: claude, codex, opencode, aider, shell."""
+"""AI tool subcommands: claude, codex, opencode, pi, aider, shell."""
 
 from __future__ import annotations
 
@@ -1269,6 +1269,94 @@ def opencode(
             # (uncensored) slot in the OpenCode model picker at runtime.
             cmd.extend(["--model", f"ollama/{config.primary_coding_model}"])
         console.print(f"[bold]Launching opencode{bedrock_label}{openai_label} in {name}...[/bold]")
+    manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
+
+
+def _check_ollama_running(container_name: str) -> None:
+    """Verify the Ollama container is reachable from the dev container.
+
+    Raises :class:`click.ClickException` with setup instructions on failure.
+    """
+    result = subprocess.run(
+        [
+            "docker",
+            "exec",
+            container_name,
+            "curl",
+            "-sf",
+            "http://host.docker.internal:11434/api/version",
+        ],
+        capture_output=True,
+        timeout=10,
+    )
+    if result.returncode != 0:
+        raise click.ClickException(
+            "Ollama is not running. Pi requires a running Ollama instance.\n\n"
+            "  Start the LLM stack:  ai-shell llm up\n"
+            "  Pull models:          ai-shell llm pull\n\n"
+            "Once Ollama is running, retry:  ai-shell pi"
+        )
+
+
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
+@click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
+@click.option(
+    "--openai-profile",
+    "openai_profile",
+    default=None,
+    help=(
+        "OpenAI .env profile name for multi-account switching.  "
+        "Store per-account keys in .env as OPENAI_API_KEY_{NAME} "
+        "(e.g. OPENAI_API_KEY_WORK, OPENAI_API_KEY_PERSONAL).  "
+        "Optionally add OPENAI_ORG_ID_{NAME}.  "
+        "Set a default in .ai-shell.yaml under openai.profile or "
+        "via AI_SHELL_OPENAI_PROFILE env var."
+    ),
+)
+@click.option("--login", "do_login", is_flag=True, default=False, help="Run pi login for OAuth.")
+@click.pass_context
+def pi(ctx, use_aws, cli_profile, openai_profile, do_login):
+    """Launch pi coding agent in the dev container."""
+    with capture_typeahead() as typeahead:
+        project = ctx.obj.get("project") if ctx.obj else None
+        config = load_config(project_override=project, project_dir=Path.cwd())
+        use_bedrock = use_aws
+
+        manager, name, exec_env, config = _get_manager(
+            ctx,
+            bedrock=use_bedrock,
+            bedrock_profile=cli_profile or config.bedrock_profile,
+            openai_profile=openai_profile or config.openai_profile,
+        )
+
+        if do_login:
+            console.print("[bold]Running pi login...[/bold]")
+            manager.exec_interactive(name, ["pi", "login"], extra_env=exec_env)
+
+        if use_bedrock:
+            profile_label = exec_env.get("AWS_PROFILE", "default")
+            region_label = exec_env.get("AWS_REGION", "us-east-1")
+            bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
+            console.print(
+                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+            )
+            _check_bedrock_access(name, exec_env)
+        else:
+            bedrock_label = ""
+            _check_ollama_running(name)
+
+        resolved_openai_profile = openai_profile or config.openai_profile
+        openai_label = (
+            f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
+        )
+
+        manager.ensure_tool_fresh(name, "pi")
+
+        cmd = ["pi"]
+        if not use_bedrock and not resolved_openai_profile:
+            cmd.extend(["--model", f"ollama/{config.primary_coding_model}"])
+        console.print(f"[bold]Launching pi{bedrock_label}{openai_label} in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 

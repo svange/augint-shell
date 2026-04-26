@@ -103,6 +103,9 @@ RUN npm install -g @openai/codex
 RUN curl -fsSL https://opencode.ai/install | bash
 ENV PATH="/root/.opencode/bin:${PATH}"
 
+# Install pi (terminal coding agent, provider-agnostic)
+RUN npm install -g @mariozechner/pi-coding-agent
+
 # Install aider (alternative local coding assistant)
 RUN curl -LsSf https://aider.chat/install.sh | sh
 
