@@ -522,6 +522,75 @@ class TestToolCommands:
         assert "--model" in cmd
         assert "--restore-chat-history" in cmd
 
+    @patch("ai_shell.cli.commands.tools._check_ollama_running")
+    def test_pi_default_uses_ollama_model(
+        self,
+        mock_check_ollama,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        mock_check_ollama.return_value = None
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        config = MagicMock()
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["pi"])
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert cmd[0] == "pi"
+        assert "--model" in cmd
+        assert "ollama/qwen3-coder:30b-a3b-q4_K_M" in cmd
+        mock_check_ollama.assert_called_once()
+
+    @patch("ai_shell.cli.commands.tools._check_ollama_running")
+    def test_pi_bedrock_skips_ollama_check(
+        self,
+        mock_check_ollama,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        bedrock_env = dict(TEST_EXEC_ENV)
+        bedrock_env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+        bedrock_env["AWS_PROFILE"] = "rd"
+        mock_build_env.return_value = bedrock_env
+        config = MagicMock()
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["pi", "--aws"])
+
+        mock_check_ollama.assert_not_called()
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert cmd[0] == "pi"
+        assert "--model" not in cmd
+
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
     @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=9222)

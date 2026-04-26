@@ -10,7 +10,7 @@
 # -----------------------------------------------------------------------------
 # Four role-specific model slots. Primary = best-available; secondary =
 # best uncensored (abliterated) alternative of the same base. Chat slots
-# route to Open WebUI (DEFAULT_MODELS); coding slots route to OpenCode /
+# route to Open WebUI (DEFAULT_MODELS); coding slots route to Pi / OpenCode /
 # Aider (--model). `ai-shell llm pull` pulls all 4 slots plus any
 # `extra_models` entries, deduped. See README for per-slot rationale and
 # caveats (Qwen3.5 Ollama tool-call bug, num_ctx trap, tool-count cliff).

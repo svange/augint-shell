@@ -204,6 +204,7 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
         (home / ".codex", "/root/.codex", False),
         (home / ".claude", "/root/.claude", False),
         (home / ".claude.json", "/root/.claude.json", False),
+        (home / ".pi", "/root/.pi", False),
         (home / "projects" / "CLAUDE.md", "/root/projects/CLAUDE.md", True),
         (home / ".ssh", "/root/.ssh", True),
         (home / ".gitconfig", "/root/.gitconfig.windows", True),
