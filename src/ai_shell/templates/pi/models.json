@@ -4,6 +4,10 @@
       "baseUrl": "http://host.docker.internal:11434/v1",
       "api": "openai-completions",
       "apiKey": "ollama",
+      "compat": {
+        "supportsDeveloperRole": false,
+        "supportsReasoningEffort": false
+      },
       "models": [
         { "id": "qwen3-coder:30b-a3b-q4_K_M" },
         { "id": "huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M" },

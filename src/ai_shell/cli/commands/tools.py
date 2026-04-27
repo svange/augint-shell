@@ -1355,7 +1355,12 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login):
 
         cmd = ["pi"]
         if not use_bedrock and not resolved_openai_profile:
-            cmd.extend(["--model", f"ollama/{config.primary_coding_model}"])
+            pi_config = Path(config.project_dir) / ".pi" / "agent" / "settings.json"
+            if not pi_config.is_file():
+                console.print(
+                    "[yellow]Warning: No Pi config found (.pi/agent/settings.json). "
+                    "Run 'ai-opencodex update' to generate project config.[/yellow]"
+                )
         console.print(f"[bold]Launching pi{bedrock_label}{openai_label} in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 

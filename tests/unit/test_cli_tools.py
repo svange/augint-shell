@@ -551,9 +551,7 @@ class TestToolCommands:
         self.runner.invoke(cli, ["pi"])
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert cmd[0] == "pi"
-        assert "--model" in cmd
-        assert "ollama/qwen3-coder:30b-a3b-q4_K_M" in cmd
+        assert cmd == ["pi"]
         mock_check_ollama.assert_called_once()
 
     @patch("ai_shell.cli.commands.tools._check_ollama_running")
