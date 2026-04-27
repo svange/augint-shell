@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.90.1 (2026-04-27)
+
+### Bug Fixes
+
+- **pi**: Launch bare pi instead of passing incorrect --model flag
+  ([`13fe7ee`](https://github.com/svange/augint-shell/commit/13fe7ee239f0366d4d47e40ddf9a89d7064e7208))
+
+
 ## v0.90.0 (2026-04-26)
 
 ### Features
