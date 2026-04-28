@@ -1273,7 +1273,7 @@ def opencode(
             cmd.extend(["--model", f"ollama/{config.primary_coding_model}"])
         if web:
             cmd.append("web")
-            cmd.extend(["--hostname", "0.0.0.0", "--port", str(web_port)])
+            cmd.extend(["--hostname", "0.0.0.0", "--port", str(web_port)])  # nosec B104
 
         if web:
             host_port = project_dev_port(
