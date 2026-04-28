@@ -63,6 +63,7 @@ from ai_shell.gpu import detect_gpu, get_vram_info
 
 if TYPE_CHECKING:
     from docker.models.containers import Container
+    from docker.models.images import Image
 
     from ai_shell.config import AiShellConfig
 
@@ -488,7 +489,7 @@ class ContainerManager:
         return True
 
     @staticmethod
-    def _warn_if_image_below_minimum(image) -> None:
+    def _warn_if_image_below_minimum(image: Image) -> None:
         """Log a warning if the pulled image version is below the CLI version."""
         from ai_shell import __version__
 
