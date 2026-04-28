@@ -326,33 +326,6 @@ class TestImageTagConfig:
         assert config.image_tag == "latest"
         assert config.full_image == "svange/augint-shell:latest"
 
-    def test_pinned_image_uses_version_tag(self, tmp_path):
-        from ai_shell import __version__
-
-        (tmp_path / ".ai-shell.yaml").write_text("container:\n  pinned_image: true\n")
-        config = load_config(project_dir=tmp_path)
-        assert config.image_tag == __version__
-
-    def test_pinned_image_does_not_override_explicit_tag(self, tmp_path):
-        (tmp_path / ".ai-shell.yaml").write_text(
-            "container:\n  pinned_image: true\n  image_tag: '0.50.0'\n"
-        )
-        config = load_config(project_dir=tmp_path)
-        # Explicit image_tag wins over pinned_image
-        assert config.image_tag == "0.50.0"
-
-    def test_pinned_image_env_var(self, tmp_path):
-        from ai_shell import __version__
-
-        with patch.dict("os.environ", {"AI_SHELL_PINNED_IMAGE": "true"}):
-            config = load_config(project_dir=tmp_path)
-        assert config.image_tag == __version__
-
-    def test_pinned_image_false_keeps_latest(self, tmp_path):
-        (tmp_path / ".ai-shell.yaml").write_text("container:\n  pinned_image: false\n")
-        config = load_config(project_dir=tmp_path)
-        assert config.image_tag == "latest"
-
 
 class TestWhisperConfig:
     def test_whisper_toml_overrides(self, tmp_path):
@@ -476,7 +449,6 @@ class TestAwsConfig:
         assert not hasattr(config, "codex_provider")
         assert not hasattr(config, "codex_openai_api_key")
         assert not hasattr(config, "codex_profile")
-        assert not hasattr(config, "aider_model")
 
     def test_ai_profile_from_toml(self, tmp_path):
         (tmp_path / ".ai-shell.toml").write_bytes(b"""
@@ -501,6 +473,23 @@ region = "eu-west-1"
 """)
         config = load_config(project_dir=tmp_path)
         assert config.aws_region == "eu-west-1"
+
+    def test_bedrock_region_from_toml(self, tmp_path):
+        (tmp_path / ".ai-shell.toml").write_bytes(b"""
+[aws]
+bedrock_region = "us-gov-west-1"
+""")
+        config = load_config(project_dir=tmp_path)
+        assert config.bedrock_region == "us-gov-west-1"
+
+    def test_bedrock_region_env_var(self, tmp_path):
+        with patch.dict("os.environ", {"AI_SHELL_BEDROCK_REGION": "us-gov-west-1"}):
+            config = load_config(project_dir=tmp_path)
+        assert config.bedrock_region == "us-gov-west-1"
+
+    def test_bedrock_region_default_empty(self, tmp_path):
+        config = load_config(project_dir=tmp_path)
+        assert config.bedrock_region == ""
 
     def test_claude_provider_from_toml(self, tmp_path):
         (tmp_path / ".ai-shell.toml").write_bytes(b"""
@@ -575,9 +564,6 @@ provider = "anthropic"
 
     def test_tool_specific_sections_are_ignored(self, tmp_path):
         (tmp_path / ".ai-shell.toml").write_bytes(b"""
-[aider]
-model = "ollama_chat/ignored"
-
 [opencode]
 provider = "aws"
 
@@ -587,7 +573,6 @@ openai_api_key = "sk-test-123"
 profile = "bedrock-acct"
 """)
         config = load_config(project_dir=tmp_path)
-        assert not hasattr(config, "aider_model")
         assert not hasattr(config, "opencode_provider")
         assert not hasattr(config, "codex_provider")
         assert not hasattr(config, "codex_openai_api_key")
@@ -595,7 +580,6 @@ profile = "bedrock-acct"
 
     def test_tool_specific_env_vars_are_ignored(self, tmp_path):
         env = {
-            "AI_SHELL_AIDER_MODEL": "ollama_chat/ignored",
             "AI_SHELL_OPENCODE_PROVIDER": "aws",
             "AI_SHELL_CODEX_PROVIDER": "aws",
             "AI_SHELL_CODEX_OPENAI_API_KEY": "sk-env-456",
@@ -603,7 +587,6 @@ profile = "bedrock-acct"
         }
         with patch.dict("os.environ", env):
             config = load_config(project_dir=tmp_path)
-        assert not hasattr(config, "aider_model")
         assert not hasattr(config, "opencode_provider")
         assert not hasattr(config, "codex_provider")
         assert not hasattr(config, "codex_openai_api_key")

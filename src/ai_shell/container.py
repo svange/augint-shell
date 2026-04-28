@@ -471,6 +471,8 @@ class ContainerManager:
             logger.debug("Could not pull %s — skipping staleness check", image_ref)
             return False
 
+        self._warn_if_image_below_minimum(pulled)
+
         container_image_id = container.image.id
         pulled_image_id = pulled.id
 
@@ -484,6 +486,35 @@ class ContainerManager:
         )
         container.remove(force=True)
         return True
+
+    @staticmethod
+    def _warn_if_image_below_minimum(image) -> None:
+        """Log a warning if the pulled image version is below the CLI version."""
+        from ai_shell import __version__
+
+        labels = image.labels or {}
+        image_version_str = labels.get("org.opencontainers.image.version", "")
+        if not image_version_str:
+            return
+
+        def _parse_version(v: str) -> tuple[int, ...] | None:
+            try:
+                return tuple(int(x) for x in v.split("."))
+            except (ValueError, AttributeError):
+                return None
+
+        image_ver = _parse_version(image_version_str)
+        cli_ver = _parse_version(__version__)
+        if image_ver is None or cli_ver is None:
+            return
+
+        if image_ver < cli_ver:
+            logger.warning(
+                "Container image version %s is older than CLI version %s "
+                "— rebuild the image to get the latest tools",
+                image_version_str,
+                __version__,
+            )
 
     def _ensure_llm_network(self) -> str:
         """Get or create the shared Docker network for the LLM stack."""
@@ -1243,7 +1274,8 @@ class ContainerManager:
 
         logger.info("Pulling image: %s (this may take a while)...", image)
         try:
-            self.client.images.pull(*image.rsplit(":", 1))
+            pulled = self.client.images.pull(*image.rsplit(":", 1))
+            self._warn_if_image_below_minimum(pulled)
             logger.info("Image pulled: %s", image)
         except APIError as e:
             if tag == "latest":

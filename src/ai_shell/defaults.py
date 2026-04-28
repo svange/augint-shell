@@ -201,7 +201,7 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
 
     # Ensure directories that tools need for persistent config exist on the
     # host so bind mounts aren't silently skipped.
-    for d in (".pi",):
+    for d in (".pi", ".augint"):
         (home / d).mkdir(parents=True, exist_ok=True)
 
     # Optional bind mounts — skip if source doesn't exist
@@ -210,6 +210,7 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
         (home / ".claude", "/root/.claude", False),
         (home / ".claude.json", "/root/.claude.json", False),
         (home / ".pi", "/root/.pi", False),
+        (home / ".augint", "/root/.augint", False),
         (home / "projects" / "CLAUDE.md", "/root/projects/CLAUDE.md", True),
         (home / ".ssh", "/root/.ssh", True),
         (home / ".gitconfig", "/root/.gitconfig.windows", True),
@@ -327,6 +328,7 @@ def build_dev_environment(
     aws_profile: str = "",
     aws_region: str = "",
     bedrock_profile: str = "",
+    bedrock_region: str = "",
     openai_profile: str = "",
     team_mode: bool = False,
 ) -> dict[str, str]:
@@ -386,6 +388,12 @@ def build_dev_environment(
         env["CLAUDE_CODE_USE_BEDROCK"] = "1"
         if bedrock_profile:
             env["AWS_PROFILE"] = bedrock_profile
+        resolved_bedrock_region = (
+            bedrock_region or _resolve("AWS_BEDROCK_REGION") or env["AWS_REGION"]
+        )
+        if resolved_bedrock_region != env["AWS_REGION"]:
+            env["AWS_REGION"] = resolved_bedrock_region
+            env["AWS_DEFAULT_REGION"] = resolved_bedrock_region
 
     if openai_profile:
         suffix = openai_profile.upper()

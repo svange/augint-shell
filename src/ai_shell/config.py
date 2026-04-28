@@ -20,7 +20,6 @@ from pathlib import Path
 
 import yaml
 
-from ai_shell import __version__
 from ai_shell.defaults import (
     DEFAULT_COMFYUI_PORT,
     DEFAULT_CONTEXT_SIZE,
@@ -167,7 +166,7 @@ class AiShellConfig:
 
     # LLM model slots. Primary = best-available; secondary = best uncensored
     # alternative. Chat slots are routed to Open WebUI, coding slots to
-    # OpenCode / Aider. `extra_models` is a free-form list of additional
+    # OpenCode. `extra_models` is a free-form list of additional
     # Ollama tags to pull alongside the 4 slots (deduped).
     primary_chat_model: str = DEFAULT_PRIMARY_CHAT_MODEL
     secondary_chat_model: str = DEFAULT_SECONDARY_CHAT_MODEL
@@ -197,6 +196,7 @@ class AiShellConfig:
     ai_profile: str = ""  # AWS profile for infra (sets AWS_PROFILE in container)
     aws_region: str = ""  # Override AWS_REGION
     bedrock_profile: str = ""  # AWS profile for Bedrock LLM API calls
+    bedrock_region: str = ""  # AWS region for Bedrock (falls back to aws_region)
     bedrock_model: str = "us.meta.llama3-3-70b-instruct-v1:0"
 
     # OpenAI
@@ -204,7 +204,6 @@ class AiShellConfig:
 
     # Claude options
     local_chrome: bool = False  # Attach Chrome DevTools MCP to project-scoped host Chrome
-    pinned_image: bool = False  # When True, use version-matched image tag instead of latest
     skip_updates: bool = False  # When True, skip pre-launch tool freshness checks
 
     # Per-tool provider
@@ -289,11 +288,6 @@ def load_config(
         from ai_shell.defaults import sanitize_project_name
 
         config.project_name = sanitize_project_name(config.project_dir)
-
-    # Pin to version-matched tag when pinned_image is set and tag wasn't
-    # explicitly overridden to something other than the default "latest".
-    if config.pinned_image and config.image_tag == "latest":
-        config.image_tag = __version__
 
     return config
 
@@ -484,6 +478,8 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.aws_region = aws["region"]
     if "bedrock_profile" in aws:
         config.bedrock_profile = aws["bedrock_profile"]
+    if "bedrock_region" in aws:
+        config.bedrock_region = aws["bedrock_region"]
     if "bedrock_model" in aws:
         config.bedrock_model = aws["bedrock_model"]
 
@@ -498,8 +494,6 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.claude_provider = claude_sec["provider"]
     if "local_chrome" in claude_sec:
         config.local_chrome = bool(claude_sec["local_chrome"])
-    if "pinned_image" in container:
-        config.pinned_image = bool(container["pinned_image"])
     if "skip_updates" in container:
         config.skip_updates = bool(container["skip_updates"])
 
@@ -539,11 +533,11 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_AI_PROFILE": ("ai_profile", str),
         "AI_SHELL_AWS_REGION": ("aws_region", str),
         "AI_SHELL_BEDROCK_PROFILE": ("bedrock_profile", str),
+        "AI_SHELL_BEDROCK_REGION": ("bedrock_region", str),
         "AI_SHELL_BEDROCK_MODEL": ("bedrock_model", str),
         "AI_SHELL_OPENAI_PROFILE": ("openai_profile", str),
         "AI_SHELL_CLAUDE_PROVIDER": ("claude_provider", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
-        "AI_SHELL_PINNED_IMAGE": ("pinned_image", bool),
         "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),
     }
 

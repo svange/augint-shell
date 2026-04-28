@@ -21,7 +21,7 @@ class TestScaffoldProject:
         assert "primary_coding_model" in content
         assert "secondary_coding_model" in content
         assert "extra_models" in content
-        assert "# aider:" not in content
+        assert "aider" not in content.lower()
 
     def test_skips_existing(self, tmp_path):
         (tmp_path / ".ai-shell.yaml").write_text("original")

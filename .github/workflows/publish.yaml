@@ -369,6 +369,8 @@ jobs:
           file: docker/Dockerfile
           push: true
           tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            AUGINT_SHELL_VERSION=${{ needs.release.outputs.version || '0.0.0' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

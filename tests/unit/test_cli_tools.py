@@ -473,55 +473,6 @@ class TestToolCommands:
         result = self.runner.invoke(cli, ["shell", "csh"])
         assert result.exit_code != 0
 
-    def test_aider_passes_model_and_env(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        mock_build_env.return_value = dict(TEST_EXEC_ENV)
-        config = MagicMock()
-        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
-        config.ollama_port = 11434
-        mock_config.return_value = config
-
-        mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
-        mock_manager.config = config
-        mock_manager.exec_interactive.side_effect = SystemExit(0)
-        mock_manager_cls.return_value = mock_manager
-
-        self.runner.invoke(cli, ["aider"])
-
-        call_args = mock_manager.exec_interactive.call_args
-        cmd = call_args[0][1]
-        extra_env = call_args[1].get("extra_env", {})
-
-        assert "--model" in cmd
-        assert "ollama_chat/qwen3-coder:30b-a3b-q4_K_M" in cmd
-        assert "--yes-always" in cmd
-        assert extra_env["OLLAMA_API_BASE"] == "http://host.docker.internal:11434"
-        assert extra_env["GH_TOKEN"] == "test-token"
-
-    def test_aider_safe_mode(
-        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
-    ):
-        mock_build_env.return_value = dict(TEST_EXEC_ENV)
-        config = MagicMock()
-        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
-        config.ollama_port = 11434
-        mock_config.return_value = config
-
-        mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
-        mock_manager.config = config
-        mock_manager.exec_interactive.side_effect = SystemExit(0)
-        mock_manager_cls.return_value = mock_manager
-
-        self.runner.invoke(cli, ["aider", "--safe"])
-
-        cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert "--yes-always" not in cmd
-        assert "--model" in cmd
-        assert "--restore-chat-history" in cmd
-
     @patch("ai_shell.cli.commands.tools._ensure_pi_ollama_provider")
     @patch("ai_shell.cli.commands.tools._check_ollama_running")
     def test_pi_default_uses_ollama_model(

@@ -1,4 +1,4 @@
-"""AI tool subcommands: claude, codex, opencode, pi, aider, shell."""
+"""AI tool subcommands: claude, codex, opencode, pi, shell."""
 
 from __future__ import annotations
 
@@ -222,11 +222,6 @@ def _get_manager(
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
 
-    # AUTO-UPDATE: Apply --orig-image and --skip-updates flags from root CLI
-    if ctx.obj and ctx.obj.get("orig_image"):
-        from ai_shell import __version__
-
-        config.image_tag = __version__
     if ctx.obj and ctx.obj.get("skip_updates"):
         config.skip_updates = True
 
@@ -241,6 +236,7 @@ def _get_manager(
         aws_profile=config.ai_profile,
         aws_region=config.aws_region,
         bedrock_profile=bedrock_profile or config.bedrock_profile,
+        bedrock_region=config.bedrock_region,
         openai_profile=openai_profile or config.openai_profile,
     )
     return manager, container_name, exec_env, config
@@ -317,6 +313,7 @@ def _launch_loaded_config_claude(
             aws_profile=config.ai_profile,
             aws_region=config.aws_region,
             bedrock_profile=cli_profile or config.bedrock_profile,
+            bedrock_region=config.bedrock_region,
         )
 
         if team_mode:
@@ -474,6 +471,7 @@ def _launch_interactive(
                     aws_profile=config.ai_profile,
                     aws_region=config.aws_region,
                     bedrock_profile=cli_profile or config.bedrock_profile,
+                    bedrock_region=config.bedrock_region,
                 )
                 console.print(f"[bold]Launching Bash in {container_name}...[/bold]")
             manager.exec_interactive(
@@ -555,6 +553,7 @@ def _launch_interactive(
         aws_profile=config.ai_profile,
         aws_region=config.aws_region,
         bedrock_profile=cli_profile or config.bedrock_profile,
+        bedrock_region=config.bedrock_region,
     )
 
     if use_bedrock:
@@ -659,6 +658,7 @@ def _launch_team(
             aws_profile=config.ai_profile,
             aws_region=config.aws_region,
             bedrock_profile=cli_profile or config.bedrock_profile,
+            bedrock_region=config.bedrock_region,
             team_mode=True,
         )
 
@@ -734,6 +734,7 @@ def _launch_single_repo_multi(
         aws_profile=config.ai_profile,
         aws_region=config.aws_region,
         bedrock_profile=cli_profile or config.bedrock_profile,
+        bedrock_region=config.bedrock_region,
     )
 
     if use_bedrock:
@@ -931,6 +932,7 @@ def _launch_multi(
         aws_profile=config.ai_profile,
         aws_region=config.aws_region,
         bedrock_profile=cli_profile or config.bedrock_profile,
+        bedrock_region=config.bedrock_region,
     )
 
     if use_bedrock:
@@ -1432,29 +1434,6 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login, doom):
         console.print(
             f"[bold]Launching pi{doom_label}{bedrock_label}{openai_label} in {name}...[/bold]"
         )
-    manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
-
-
-@click.command(context_settings=CONTEXT_SETTINGS)
-@click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
-@click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
-@click.pass_context
-def aider(ctx, safe, extra_args):
-    """Launch aider with local LLM in the dev container."""
-    with capture_typeahead() as typeahead:
-        manager, name, exec_env, config = _get_manager(ctx)
-        aider_model = f"ollama_chat/{config.primary_coding_model}"
-        cmd = ["aider", "--model", aider_model]
-        if not safe:
-            cmd.append("--yes-always")
-        cmd.extend(["--restore-chat-history", *extra_args])
-        exec_env["OLLAMA_API_BASE"] = f"http://host.docker.internal:{config.ollama_port}"
-
-        # AUTO-UPDATE: Check tool freshness before launch
-        manager.ensure_tool_fresh(name, "aider")
-
-        mode_label = " (safe mode)" if safe else ""
-        console.print(f"[bold]Launching aider{mode_label} ({aider_model}) in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 

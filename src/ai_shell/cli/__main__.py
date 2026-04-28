@@ -9,7 +9,7 @@ from ai_shell import __version__
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.cli.commands.llm import llm_group
 from ai_shell.cli.commands.manage import manage_group
-from ai_shell.cli.commands.tools import aider, claude, codex, init, opencode, pi, shell
+from ai_shell.cli.commands.tools import claude, codex, init, opencode, pi, shell
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -17,23 +17,16 @@ from ai_shell.cli.commands.tools import aider, claude, codex, init, opencode, pi
 @click.option("--project", default=None, help="Override project name for container naming.")
 @click.option("--verbose", "-v", is_flag=True, default=False, help="Enable debug logging.")
 @click.option(
-    "--orig-image",
-    is_flag=True,
-    default=False,
-    help="Use the version-pinned image tag instead of 'latest'.",
-)
-@click.option(
     "--skip-updates",
     is_flag=True,
     default=False,
     help="Skip the pre-launch tool freshness check.",
 )
 @click.pass_context
-def cli(ctx, project, verbose, orig_image, skip_updates):
+def cli(ctx, project, verbose, skip_updates):
     """AI Shell - Launch AI coding tools and local LLMs in Docker containers."""
     ctx.ensure_object(dict)
     ctx.obj["project"] = project
-    ctx.obj["orig_image"] = orig_image
     ctx.obj["skip_updates"] = skip_updates
     if verbose:
         logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(message)s")
@@ -44,7 +37,6 @@ cli.add_command(claude)
 cli.add_command(codex)
 cli.add_command(opencode)
 cli.add_command(pi)
-cli.add_command(aider)
 cli.add_command(shell)
 cli.add_command(init)
 

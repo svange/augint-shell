@@ -287,7 +287,7 @@ class TestExecInteractive:
             with pytest.raises(SystemExit):
                 mock_container_manager.exec_interactive(
                     "augint-shell-test-dev",
-                    ["aider"],
+                    ["opencode"],
                     extra_env={"OLLAMA_API_BASE": "http://host.docker.internal:11434"},
                 )
 

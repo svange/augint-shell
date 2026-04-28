@@ -11,7 +11,7 @@
 # Four role-specific model slots. Primary = best-available; secondary =
 # best uncensored (abliterated) alternative of the same base. Chat slots
 # route to Open WebUI (DEFAULT_MODELS); coding slots route to Pi / OpenCode /
-# Aider (--model). `ai-shell llm pull` pulls all 4 slots plus any
+# OpenCode (--model). `ai-shell llm pull` pulls all 4 slots plus any
 # `extra_models` entries, deduped. See README for per-slot rationale and
 # caveats (Qwen3.5 Ollama tool-call bug, num_ctx trap, tool-count cliff).
 llm:
@@ -93,7 +93,8 @@ llm:
 #                  in the container.
 # bedrock_profile: AWS profile for Bedrock LLM calls (--aws mode). Often a
 #                  different account than ai_profile.
-# region:          Region for Bedrock. Default: us-east-1
+# region:          AWS region for infra. Default: us-east-1
+# bedrock_region:  AWS region for Bedrock (falls back to region)
 # Auth: ~/.aws is bind-mounted read-write. `aws sso login` on the host as needed.
 #
 # aws:

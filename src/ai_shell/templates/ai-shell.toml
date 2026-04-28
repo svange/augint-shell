@@ -92,7 +92,7 @@
 #   ollama pull <model>       # then run any ollama command directly
 #
 # ai-shell only manages the local LLM endpoint and generic runtime settings.
-# Tool-specific config files for Codex, OpenCode, and Aider should be managed
+# Tool-specific config files for Codex and OpenCode should be managed
 # separately, for example via augint-opencodex.
 # Keep tool-specific provider, model, auth, and permission settings out of this
 # file. Put those in the generated tool config files instead.

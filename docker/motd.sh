@@ -96,7 +96,6 @@ relative_time() {
 # Tool version checks (all in parallel)
 get_version "claude"     "claude --version"         &
 get_version "codex"      "codex --version"          &
-get_version "aider"      "aider --version"          &
 get_version "opencode"   "opencode version"         &
 get_version "uv"         "uv --version"             &
 get_version "node"       "node --version"           &
@@ -207,7 +206,7 @@ printf "${AMBER}│${RESET}  ${AMBER_BOLD}Tools${RESET}\n"
 
 # Collect tools into array for column formatting
 declare -a _tool_entries=()
-_tool_list="claude codex aider opencode uv node gh playwright aws sam cdk stripe"
+_tool_list="claude codex opencode uv node gh playwright aws sam cdk stripe"
 for _t in $_tool_list; do
     if [ -f "$MOTD_TMP/tool_${_t}" ]; then
         _v=$(cat "$MOTD_TMP/tool_${_t}")

@@ -3,6 +3,9 @@
 
 FROM python:3.12-bookworm
 
+ARG AUGINT_SHELL_VERSION=0.0.0
+LABEL org.opencontainers.image.version="${AUGINT_SHELL_VERSION}"
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

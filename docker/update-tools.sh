@@ -2,7 +2,7 @@
 # =========================================================================
 # AUTO-UPDATE: AI tool updater for augint-shell containers
 #
-# Keeps CLI tools (claude, codex, aider, opencode, etc.) fresh inside
+# Keeps CLI tools (claude, codex, opencode, etc.) fresh inside
 # long-running dev containers.  Designed to be easily removable — delete
 # this file and the corresponding blocks in Dockerfile and
 # docker-entrypoint.sh (search for "AUTO-UPDATE").
@@ -20,7 +20,7 @@ LOG_DIR="/var/log/ai-shell"
 LOCK_FILE="/var/run/ai-shell/update.lock"
 DEFAULT_TTL=21600  # 6 hours in seconds
 
-ALL_TOOLS="claude codex aider opencode pi npm-tools"
+ALL_TOOLS="claude codex opencode pi npm-tools"
 
 # ---- argument parsing ----------------------------------------------------
 ACTION=""
@@ -84,11 +84,6 @@ _update_codex() {
     npm install -g @openai/codex@latest 2>&1 || true
 }
 
-_update_aider() {
-    _log "Updating aider..."
-    curl -LsSf https://aider.chat/install.sh | sh 2>&1 || true
-}
-
 _update_opencode() {
     _log "Updating opencode..."
     curl -fsSL https://opencode.ai/install | bash 2>&1 || true
@@ -109,7 +104,6 @@ _update_tool() {
     case "$tool" in
         claude)     _update_claude    ;;
         codex)      _update_codex     ;;
-        aider)      _update_aider     ;;
         opencode)   _update_opencode  ;;
         pi)         _update_pi        ;;
         npm-tools)  _update_npm_tools ;;

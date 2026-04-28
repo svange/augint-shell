@@ -359,6 +359,37 @@ class TestBuildDevEnvironmentBedrock:
         assert env["AWS_DEFAULT_REGION"] == "us-east-1"
         assert env["AWS_DEFAULT_REGION"] == env["AWS_REGION"]
 
+    def test_bedrock_region_overrides_aws_region_when_bedrock(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(
+                bedrock=True, aws_region="us-east-1", bedrock_region="us-gov-west-1"
+            )
+        assert env["AWS_REGION"] == "us-gov-west-1"
+        assert env["AWS_DEFAULT_REGION"] == "us-gov-west-1"
+
+    def test_bedrock_region_ignored_when_not_bedrock(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(
+                bedrock=False, aws_region="us-east-1", bedrock_region="us-gov-west-1"
+            )
+        assert env["AWS_REGION"] == "us-east-1"
+
+    def test_bedrock_region_falls_back_to_env_var(self):
+        with patch.dict("os.environ", {"AWS_BEDROCK_REGION": "eu-west-1"}, clear=True):
+            env = build_dev_environment(bedrock=True)
+        assert env["AWS_REGION"] == "eu-west-1"
+        assert env["AWS_DEFAULT_REGION"] == "eu-west-1"
+
+    def test_bedrock_region_falls_back_to_aws_region(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(bedrock=True, aws_region="us-west-2")
+        assert env["AWS_REGION"] == "us-west-2"
+
+    def test_bedrock_region_config_wins_over_env(self):
+        with patch.dict("os.environ", {"AWS_BEDROCK_REGION": "eu-west-1"}, clear=True):
+            env = build_dev_environment(bedrock=True, bedrock_region="us-gov-west-1")
+        assert env["AWS_REGION"] == "us-gov-west-1"
+
 
 class TestBuildDevEnvironmentOpenAIProfile:
     def test_openai_profile_sets_api_key(self, tmp_path):
