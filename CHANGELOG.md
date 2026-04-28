@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.95.0 (2026-04-28)
+
+### Features
+
+- Layered .env loading, global config scaffold, and container PATH fix
+  ([`c7b1568`](https://github.com/svange/augint-shell/commit/c7b15688f61d33adfbe10a135ec67da40caa59ad))
+
+
 ## v0.94.0 (2026-04-28)
 
 ### Bug Fixes
