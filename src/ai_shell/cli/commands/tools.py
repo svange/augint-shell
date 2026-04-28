@@ -170,7 +170,7 @@ def _check_bedrock_access(
         f"aws bedrock-runtime converse"
         f" --model-id {model}"
         f" --region {region}"
-        f" --messages '[{{\"role\":\"user\",\"content\":[{{\"text\":\"ping\"}}]}}]'"
+        f' --messages \'[{{"role":"user","content":[{{"text":"ping"}}]}}]\''
         f" --inference-config '{{\"maxTokens\":1}}'"
         f" --output json --no-cli-pager"
     )
