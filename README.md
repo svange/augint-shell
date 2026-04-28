@@ -7,7 +7,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-proprietary-red.svg)](LICENSE)
 
-Launch AI coding tools (Claude Code, Codex, opencode, aider) and local LLMs (Ollama, Open WebUI, Kokoro TTS, Speaches STT) in per-project Docker containers.
+Launch AI coding tools (Claude Code, Codex, opencode) and local LLMs (Ollama, Open WebUI, Kokoro TTS, Speaches STT) in per-project Docker containers.
 
 ---
 
@@ -104,8 +104,10 @@ If you need to work manually, see the full [contributor guide](CONTRIBUTING.md) 
 | `ai-shell claude` | Launch Claude Code |
 | `ai-shell claude-x` | Claude Code with skip-permissions |
 | `ai-shell codex` | Launch Codex |
-| `ai-shell opencode` | Launch opencode |
-| `ai-shell aider` | Launch aider with local LLM |
+| `ai-shell opencode` | Launch opencode (TUI) |
+| `ai-shell opencode --web` | Launch opencode web UI with mDNS + CORS |
+| `ai-shell opencode serve` | Headless server + attach all git repos as terminals |
+| `ai-shell opencode status` | Show server URL, mDNS name, attached terminals |
 | `ai-shell shell [bash\|zsh\|fish]` | Interactive shell in dev container |
 
 ### LLM Stack
@@ -220,6 +222,45 @@ Set a default in config (`openai.profile: work`) or via `AI_SHELL_OPENAI_PROFILE
 - All traffic stays on `localhost`.
 
 Set `[claude] local_chrome = true` in `ai-shell.toml` (or `AI_SHELL_LOCAL_CHROME=1`) to persist.
+
+---
+
+## OpenCode web mode
+
+### Browser UI
+
+```bash
+ai-shell opencode --web                # Launches web UI, opens browser
+ai-shell opencode --web --port 8080    # Custom port
+```
+
+mDNS is enabled by default -- the server is discoverable on your LAN as `<project>.local`. CORS is set to `*` for cross-device access (phone, tablet).
+
+### Headless server with multi-repo terminals
+
+```bash
+ai-shell opencode serve                # Start server + attach all git repos under CWD
+ai-shell opencode serve --skip-root    # Don't attach CWD itself
+ai-shell opencode serve --open         # Auto-open browser after starting
+```
+
+`serve` finds all immediate child directories that are git repositories and attaches each as a terminal to the running server via `opencode attach`. The current directory is also attached by default (if it's a git repo).
+
+### Status dashboard
+
+```bash
+ai-shell opencode status               # Show server URL, mDNS name, terminal count
+```
+
+### Authentication
+
+Set `OPENCODE_SERVER_PASSWORD` (and optionally `OPENCODE_SERVER_USERNAME`) in your project `.env` file. These are automatically passed through to the container.
+
+```bash
+# .env
+OPENCODE_SERVER_PASSWORD=mysecret
+OPENCODE_SERVER_USERNAME=admin
+```
 
 ---
 

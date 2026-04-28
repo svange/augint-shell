@@ -55,7 +55,17 @@ Dev containers mount: project dir, UV cache volume (shared), and conditionally: 
 
 ### Environment assembly
 
-Priority: `extra_env` > `.env` file > `os.environ` > defaults. AWS IAM keys are intentionally NOT passed through (only `AWS_PROFILE` + `AWS_REGION`; relies on `~/.aws` bind mount). `IS_SANDBOX=1` is always set.
+Priority: `extra_env` > `.env` file > `os.environ` > defaults. AWS IAM keys are intentionally NOT passed through (only `AWS_PROFILE` + `AWS_REGION`; relies on `~/.aws` bind mount). `IS_SANDBOX=1` is always set. `OPENCODE_SERVER_PASSWORD` and `OPENCODE_SERVER_USERNAME` are passed through when set. `PATH` includes `/root/.opencode/bin`.
+
+### OpenCode web mode
+
+`opencode` is a Click group (`invoke_without_command=True`). Default invocation launches the TUI; subcommands add web server features.
+
+- **`opencode --web`** — runs `opencode web` inside the container with `--mdns`, `--cors '*'`, `--hostname 0.0.0.0`. Interactive (foreground).
+- **`opencode serve`** — runs `opencode serve` detached (`exec_detached()`), then discovers git repos under CWD and runs `opencode attach <url>` for each as background processes. Prints server URL, mDNS name, and attached repo list.
+- **`opencode status`** — parses `pgrep -af opencode` output inside the container to show server state and attached terminal count.
+
+mDNS domain defaults to `sanitize_project_name().local`. `OPENCODE_SERVER_PASSWORD` and `OPENCODE_SERVER_USERNAME` are resolved from `.env` / `os.environ` in `build_dev_environment()`. PATH includes `/root/.opencode/bin` so `opencode` is available in interactive shells.
 
 ### Claude retry logic
 
