@@ -364,8 +364,13 @@ def build_dev_environment(
             return dotenv_val
         return os.environ.get(key, default)
 
+    _CONTAINER_BASE_PATH = (
+        "/root/.opencode/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    )
+
     gh_token = _resolve("GH_TOKEN")
     env: dict[str, str] = {
+        "PATH": _CONTAINER_BASE_PATH,
         "AWS_PROFILE": aws_profile or _resolve("AWS_PROFILE"),
         "AWS_REGION": aws_region or _resolve("AWS_REGION", "us-east-1"),
         "AWS_PAGER": "",
@@ -409,6 +414,11 @@ def build_dev_environment(
 
     if team_mode:
         env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
+
+    for var in ("OPENCODE_SERVER_PASSWORD", "OPENCODE_SERVER_USERNAME"):
+        val = _resolve(var)
+        if val:
+            env[var] = val
 
     if extra_env:
         env.update(extra_env)

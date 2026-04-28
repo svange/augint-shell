@@ -419,6 +419,25 @@ class ContainerManager:
 
         return _run_docker(args)
 
+    def exec_detached(
+        self,
+        container_name: str,
+        command: list[str],
+        extra_env: dict[str, str] | None = None,
+        workdir: str | None = None,
+    ) -> subprocess.CompletedProcess[bytes]:
+        """Run a command in a container without waiting (docker exec -d)."""
+        args = ["docker", "exec", "-d"]
+        if workdir:
+            args.extend(["-w", workdir])
+        if extra_env:
+            for key, value in extra_env.items():
+                args.extend(["-e", f"{key}={value}"])
+        args.append(container_name)
+        args.extend(command)
+        logger.debug("exec-detached: %s", " ".join(args))
+        return subprocess.run(args, check=True)
+
     # =========================================================================
     # LLM stack (host-level singletons)
     # =========================================================================

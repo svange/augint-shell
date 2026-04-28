@@ -6,7 +6,9 @@ import json
 import logging
 import subprocess
 import sys
+import time
 import uuid
+import webbrowser
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,7 @@ from ai_shell.defaults import (
     build_dev_environment,
     dev_container_name,
     project_dev_port,
+    sanitize_project_name,
     uv_venv_path,
 )
 from ai_shell.typeahead import capture_typeahead
@@ -1202,7 +1205,54 @@ def codex(
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
-@click.command(context_settings=CONTEXT_SETTINGS)
+def _opencode_setup(
+    ctx: click.Context,
+    use_aws: bool = False,
+    cli_profile: str | None = None,
+    openai_profile: str | None = None,
+) -> tuple[ContainerManager, str, dict[str, str], AiShellConfig, list[str], str, str, str]:
+    """Common setup for opencode commands.
+
+    Returns (manager, name, exec_env, config, cmd_base, bedrock_label,
+    openai_label, project_slug).
+    """
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    use_bedrock = use_aws or bool(cli_profile) or bool(config.bedrock_profile)
+
+    manager, name, exec_env, config = _get_manager(
+        ctx,
+        bedrock=use_bedrock,
+        bedrock_profile=cli_profile or config.bedrock_profile,
+        openai_profile=openai_profile or config.openai_profile,
+    )
+
+    if use_bedrock:
+        profile_label = exec_env.get("AWS_PROFILE", "default")
+        region_label = exec_env.get("AWS_REGION", "us-east-1")
+        bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
+        console.print(
+            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+        )
+        _check_bedrock_access(name, exec_env)
+    else:
+        bedrock_label = ""
+
+    resolved_openai_profile = openai_profile or config.openai_profile
+    openai_label = f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
+
+    manager.ensure_tool_fresh(name, "opencode")
+
+    cmd_base = ["opencode"]
+    if not use_bedrock:
+        cmd_base.extend(["--model", f"ollama/{config.primary_coding_model}"])
+
+    project_slug = sanitize_project_name(config.project_dir or Path.cwd())
+
+    return manager, name, exec_env, config, cmd_base, bedrock_label, openai_label, project_slug
+
+
+@click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
@@ -1239,45 +1289,26 @@ def opencode(
     web_port,
 ):
     """Launch opencode in the dev container."""
+    ctx.ensure_object(dict)
+    ctx.obj["use_aws"] = use_aws
+    ctx.obj["cli_profile"] = cli_profile
+    ctx.obj["openai_profile"] = openai_profile
+    ctx.obj["safe"] = safe
+
+    if ctx.invoked_subcommand is not None:
+        return
+
     with capture_typeahead() as typeahead:
-        project = ctx.obj.get("project") if ctx.obj else None
-        config = load_config(project_override=project, project_dir=Path.cwd())
-        use_bedrock = use_aws or bool(cli_profile) or bool(config.bedrock_profile)
-
-        manager, name, exec_env, config = _get_manager(
-            ctx,
-            bedrock=use_bedrock,
-            bedrock_profile=cli_profile or config.bedrock_profile,
-            openai_profile=openai_profile or config.openai_profile,
+        manager, name, exec_env, config, cmd, bedrock_label, openai_label, project_slug = (
+            _opencode_setup(ctx, use_aws, cli_profile, openai_profile)
         )
 
-        if use_bedrock:
-            profile_label = exec_env.get("AWS_PROFILE", "default")
-            region_label = exec_env.get("AWS_REGION", "us-east-1")
-            bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-            console.print(
-                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
-            )
-            _check_bedrock_access(name, exec_env)
-        else:
-            bedrock_label = ""
-
-        resolved_openai_profile = openai_profile or config.openai_profile
-        openai_label = (
-            f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
-        )
-
-        # AUTO-UPDATE: Check tool freshness before launch
-        manager.ensure_tool_fresh(name, "opencode")
-
-        cmd = ["/root/.opencode/bin/opencode"]
-        if not use_bedrock:
-            cmd.extend(["--model", f"ollama/{config.primary_coding_model}"])
         if web:
             cmd.append("web")
             cmd.extend(["--hostname", "0.0.0.0", "--port", str(web_port)])  # nosec B104
+            cmd.extend(["--mdns", "--mdns-domain", f"{project_slug}.local"])
+            cmd.extend(["--cors", "*"])
 
-        if web:
             host_port = project_dev_port(
                 config.project_dir or Path.cwd(), web_port, config.project_name
             )
@@ -1285,14 +1316,182 @@ def opencode(
                 f"[bold]Launching opencode web{bedrock_label}{openai_label} in {name}...[/bold]"
             )
             console.print(f"[green bold]Open in browser: http://localhost:{host_port}[/green bold]")
-            console.print(
-                "[dim]No auth by default. Set OPENCODE_SERVER_PASSWORD to protect it.[/dim]"
-            )
+            mdns_name = f"{project_slug}.local"
+            console.print(f"[green]mDNS: http://{mdns_name}:{web_port}[/green]")
+            if exec_env.get("OPENCODE_SERVER_PASSWORD"):
+                console.print("[dim]Password protection enabled.[/dim]")
+            else:
+                console.print(
+                    "[dim]No auth by default. Set OPENCODE_SERVER_PASSWORD to protect it.[/dim]"
+                )
         else:
             console.print(
                 f"[bold]Launching opencode{bedrock_label}{openai_label} in {name}...[/bold]"
             )
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
+
+
+def _find_git_repos(root: Path) -> list[Path]:
+    """Find immediate child directories that are git repositories."""
+    repos: list[Path] = []
+    if not root.is_dir():
+        return repos
+    for child in sorted(root.iterdir()):
+        if child.is_dir() and (child / ".git").exists():
+            repos.append(child)
+    return repos
+
+
+@opencode.command()
+@click.option(
+    "--port",
+    type=int,
+    default=4096,
+    show_default=True,
+    help="Container port for the server.",
+)
+@click.option(
+    "--skip-root",
+    is_flag=True,
+    default=False,
+    help="Don't attach the current directory as a terminal.",
+)
+@click.option(
+    "--open",
+    "open_browser",
+    is_flag=True,
+    default=False,
+    help="Open the web UI in the default browser after starting.",
+)
+@click.pass_context
+def serve(ctx, port: int, skip_root: bool, open_browser: bool) -> None:
+    """Start a headless opencode server and attach all git repos as terminals."""
+    manager, name, exec_env, config, cmd, bedrock_label, openai_label, project_slug = (
+        _opencode_setup(
+            ctx,
+            ctx.obj.get("use_aws", False),
+            ctx.obj.get("cli_profile"),
+            ctx.obj.get("openai_profile"),
+        )
+    )
+
+    cmd.append("serve")
+    cmd.extend(["--hostname", "0.0.0.0", "--port", str(port)])  # nosec B104
+    cmd.extend(["--mdns", "--mdns-domain", f"{project_slug}.local"])
+    cmd.extend(["--cors", "*"])
+
+    console.print(
+        f"[bold]Starting opencode server{bedrock_label}{openai_label} in {name}...[/bold]"
+    )
+    manager.exec_detached(name, cmd, extra_env=exec_env)
+
+    # Poll for server readiness
+    for _ in range(10):
+        result = subprocess.run(
+            ["docker", "exec", name, "curl", "-sf", f"http://localhost:{port}"],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            break
+        time.sleep(1)
+    else:
+        console.print("[yellow]Server may not be ready yet -- attaching anyway.[/yellow]")
+
+    # Discover git repos
+    cwd = Path.cwd()
+    repos: list[Path] = []
+    if not skip_root and (cwd / ".git").exists():
+        repos.append(cwd)
+    repos.extend(_find_git_repos(cwd))
+
+    container_root = Path("/root/host-project")
+    attach_url = f"http://localhost:{port}"
+
+    for repo in repos:
+        rel = repo.relative_to(cwd) if repo != cwd else Path(".")
+        container_path = str(container_root / rel) if rel != Path(".") else str(container_root)
+        manager.exec_detached(
+            name,
+            ["opencode", "attach", attach_url],
+            extra_env=exec_env,
+            workdir=container_path,
+        )
+        console.print(f"  [green]+[/green] {rel}")
+
+    host_port = project_dev_port(config.project_dir or cwd, port, config.project_name)
+    mdns_name = f"{project_slug}.local"
+    console.print()
+    console.print(f"[green bold]Server: http://localhost:{host_port}[/green bold]")
+    console.print(f"[green]mDNS:   http://{mdns_name}:{port}[/green]")
+    console.print(f"[dim]Attached {len(repos)} terminal(s).[/dim]")
+    if exec_env.get("OPENCODE_SERVER_PASSWORD"):
+        console.print("[dim]Password protection enabled.[/dim]")
+
+    if open_browser:
+        webbrowser.open(f"http://localhost:{host_port}")
+
+
+@opencode.command()
+@click.pass_context
+def status(ctx) -> None:
+    """Show the status of a running opencode server."""
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    container_name = dev_container_name(config.project_name, config.project_dir)
+
+    # Check if container is running
+    result = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Running}}", container_name],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 or result.stdout.strip() != "true":
+        console.print(f"[red]Container {container_name} is not running.[/red]")
+        return
+
+    # Check for opencode processes
+    result = subprocess.run(
+        ["docker", "exec", container_name, "pgrep", "-af", "opencode"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        console.print(f"[yellow]No opencode processes running in {container_name}.[/yellow]")
+        return
+
+    lines = result.stdout.strip().splitlines()
+    server_running = False
+    server_port = 4096
+    attach_count = 0
+
+    for line in lines:
+        if "serve" in line or "web" in line:
+            server_running = True
+            parts = line.split()
+            for i, part in enumerate(parts):
+                if part == "--port" and i + 1 < len(parts):
+                    try:
+                        server_port = int(parts[i + 1])
+                    except ValueError:
+                        pass
+        if "attach" in line:
+            attach_count += 1
+
+    if server_running:
+        host_port = project_dev_port(
+            config.project_dir or Path.cwd(), server_port, config.project_name
+        )
+        project_slug = sanitize_project_name(config.project_dir or Path.cwd())
+        mdns_name = f"{project_slug}.local"
+        console.print("[green bold]OpenCode server is running[/green bold]")
+        console.print(f"  URL:      http://localhost:{host_port}")
+        console.print(f"  mDNS:     http://{mdns_name}:{server_port}")
+        console.print(f"  Port:     {server_port} (container) -> {host_port} (host)")
+        console.print(f"  Terminals: {attach_count} attached")
+    else:
+        console.print("[yellow]OpenCode processes found but no server detected.[/yellow]")
+        for line in lines:
+            console.print(f"  [dim]{line}[/dim]")
 
 
 def _check_ollama_running(container_name: str) -> None:

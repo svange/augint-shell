@@ -488,6 +488,42 @@ class TestBuildDevEnvironmentGhToken:
         assert env["GH_TOKEN"] == "ghp_from_env"
 
 
+class TestBuildDevEnvironmentPath:
+    def test_path_includes_opencode_bin(self):
+        env = build_dev_environment()
+        assert "PATH" in env
+        assert "/root/.opencode/bin" in env["PATH"]
+
+    def test_path_includes_standard_dirs(self):
+        env = build_dev_environment()
+        assert "/usr/local/bin" in env["PATH"]
+        assert "/usr/bin" in env["PATH"]
+
+
+class TestBuildDevEnvironmentOpenCodePassword:
+    def test_passes_through_password_from_env(self):
+        with patch.dict("os.environ", {"OPENCODE_SERVER_PASSWORD": "secret123"}):
+            env = build_dev_environment()
+        assert env["OPENCODE_SERVER_PASSWORD"] == "secret123"
+
+    def test_passes_through_username_from_env(self):
+        with patch.dict("os.environ", {"OPENCODE_SERVER_USERNAME": "admin"}):
+            env = build_dev_environment()
+        assert env["OPENCODE_SERVER_USERNAME"] == "admin"
+
+    def test_omits_password_when_not_set(self):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment()
+        assert "OPENCODE_SERVER_PASSWORD" not in env
+        assert "OPENCODE_SERVER_USERNAME" not in env
+
+    def test_password_from_dotenv(self, tmp_path):
+        (tmp_path / ".env").write_text("OPENCODE_SERVER_PASSWORD=dotenv-pass\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(project_dir=tmp_path)
+        assert env["OPENCODE_SERVER_PASSWORD"] == "dotenv-pass"
+
+
 class TestFindGhConfigDir:
     def test_linux_path_preferred(self, tmp_path):
         from ai_shell.defaults import _find_gh_config_dir

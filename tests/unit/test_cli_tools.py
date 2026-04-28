@@ -843,6 +843,9 @@ class TestToolCommands:
         assert "0.0.0.0" in cmd
         assert "--port" in cmd
         assert "4096" in cmd
+        assert "--mdns" in cmd
+        assert "--cors" in cmd
+        assert "*" in cmd
         assert "http://localhost:" in result.output
 
     def test_opencode_web_custom_port(
@@ -871,6 +874,59 @@ class TestToolCommands:
         assert "--port" in cmd
         assert "8080" in cmd
 
+    def test_opencode_web_mdns_domain_uses_project_slug(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/my-project")
+        config.project_name = "my-project"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["opencode", "--web"])
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert "--mdns-domain" in cmd
+        mdns_idx = cmd.index("--mdns-domain")
+        assert cmd[mdns_idx + 1].endswith(".local")
+
+    def test_opencode_web_password_hint(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        mock_config.return_value = config
+
+        env_with_pass = dict(TEST_EXEC_ENV)
+        env_with_pass["OPENCODE_SERVER_PASSWORD"] = "secret"
+        mock_build_env.return_value = env_with_pass
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["opencode", "--web"])
+
+        assert "Password protection enabled" in result.output
+
     def test_opencode_tui_default(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
@@ -896,6 +952,172 @@ class TestToolCommands:
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert "web" not in cmd
         assert "--hostname" not in cmd
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    def test_opencode_serve_starts_server_and_attaches(
+        self, mock_subprocess, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
+
+        # Health check succeeds immediately
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        with patch("ai_shell.cli.commands.tools.Path.cwd", return_value=Path("/tmp/test")):
+            with patch("ai_shell.cli.commands.tools.Path.is_dir", return_value=True):
+                with patch.object(Path, "exists", return_value=False):
+                    with patch.object(Path, "iterdir", return_value=[]):
+                        result = self.runner.invoke(cli, ["opencode", "serve", "--skip-root"])
+
+        mock_manager.exec_detached.assert_called_once()
+        serve_cmd = mock_manager.exec_detached.call_args[0][1]
+        assert "serve" in serve_cmd
+        assert "--hostname" in serve_cmd
+        assert "--mdns" in serve_cmd
+        assert "--cors" in serve_cmd
+        assert "http://localhost:" in result.output
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    def test_opencode_serve_attaches_git_repos(
+        self, mock_subprocess, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/workspace")
+        config.project_name = "workspace"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-workspace-dev"
+        mock_manager_cls.return_value = mock_manager
+
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        workspace = Path("/tmp/workspace")
+        repo_a = workspace / "repo-a"
+        repo_b = workspace / "repo-b"
+
+        with (
+            patch("ai_shell.cli.commands.tools.Path.cwd", return_value=workspace),
+            patch.object(Path, "exists", side_effect=lambda s=None: True),
+            patch.object(Path, "is_dir", return_value=True),
+            patch.object(
+                Path,
+                "iterdir",
+                return_value=[repo_a, repo_b],
+            ),
+        ):
+            result = self.runner.invoke(cli, ["opencode", "serve"])
+
+        # 1 call for server start + 3 calls for attach (root + 2 repos)
+        assert mock_manager.exec_detached.call_count == 4
+        attach_calls = mock_manager.exec_detached.call_args_list[1:]
+        for call in attach_calls:
+            cmd = call[0][1]
+            assert "attach" in cmd
+            assert "http://localhost:4096" in cmd
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    def test_opencode_serve_skip_root(
+        self, mock_subprocess, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/workspace")
+        config.project_name = "workspace"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-workspace-dev"
+        mock_manager_cls.return_value = mock_manager
+
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        workspace = Path("/tmp/workspace")
+        repo_a = workspace / "repo-a"
+
+        with (
+            patch("ai_shell.cli.commands.tools.Path.cwd", return_value=workspace),
+            patch.object(Path, "exists", side_effect=lambda s=None: True),
+            patch.object(Path, "is_dir", return_value=True),
+            patch.object(Path, "iterdir", return_value=[repo_a]),
+        ):
+            self.runner.invoke(cli, ["opencode", "serve", "--skip-root"])
+
+        # 1 server + 1 repo (no root)
+        assert mock_manager.exec_detached.call_count == 2
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    def test_opencode_status_running(
+        self, mock_subprocess, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
+        mock_config.return_value = config
+
+        mock_subprocess.side_effect = [
+            MagicMock(returncode=0, stdout="true\n"),
+            MagicMock(
+                returncode=0,
+                stdout="123 opencode serve --port 4096\n456 opencode attach http://localhost:4096\n",
+            ),
+        ]
+
+        result = self.runner.invoke(cli, ["opencode", "status"])
+
+        assert "running" in result.output.lower()
+        assert "1 attached" in result.output
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    def test_opencode_status_not_running(
+        self, mock_subprocess, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
+        mock_config.return_value = config
+
+        mock_subprocess.return_value = MagicMock(returncode=1, stdout="")
+
+        result = self.runner.invoke(cli, ["opencode", "status"])
+
+        assert "not running" in result.output.lower()
 
     def test_version_flag(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         result = self.runner.invoke(cli, ["--version"])
