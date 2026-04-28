@@ -1328,9 +1328,7 @@ def _ensure_pi_ollama_provider(container_name: str, config: AiShellConfig) -> No
             }
         }
     }
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
         json.dump(models_cfg, tmp, indent=2)
         tmp_path = tmp.name
     try:
