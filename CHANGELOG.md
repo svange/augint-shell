@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.92.4 (2026-04-28)
+
+### Bug Fixes
+
+- **codex,opencode**: Auto-enable Bedrock when bedrock_profile is configured
+  ([`08b7b17`](https://github.com/svange/augint-shell/commit/08b7b17f1baa89cad298ad1a0a1c9e52bd83336d))
+
+
 ## v0.92.3 (2026-04-28)
 
 ### Bug Fixes

@@ -55,7 +55,7 @@ wheels = [
 
 [[package]]
 name = "augint-shell"
-version = "0.92.3"
+version = "0.92.4"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
