@@ -16,6 +16,7 @@
 # === Claude Code / AI Tool History ===
 .claude/settings.local.json
 **/.claude/worktrees/
+.worktrees/
 .aider.chat.history.md
 .aider.input.history
 .aider/
