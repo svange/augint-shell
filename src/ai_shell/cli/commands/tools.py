@@ -1367,7 +1367,7 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login):
     with capture_typeahead() as typeahead:
         project = ctx.obj.get("project") if ctx.obj else None
         config = load_config(project_override=project, project_dir=Path.cwd())
-        use_bedrock = use_aws
+        use_bedrock = use_aws or bool(cli_profile) or bool(config.bedrock_profile)
 
         manager, name, exec_env, config = _get_manager(
             ctx,

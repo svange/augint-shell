@@ -98,7 +98,7 @@ llm:
 #
 # aws:
 #   ai_profile: my-infra-account
-#   bedrock_profile: my-ai-account
+#   bedrock_profile: rd
 #   region: us-east-1
 
 # -----------------------------------------------------------------------------
