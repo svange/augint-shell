@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.90.2 (2026-04-28)
+
+### Bug Fixes
+
+- **pi**: Register Ollama provider and fix config warning path
+  ([`f7a2d81`](https://github.com/svange/augint-shell/commit/f7a2d81c651c17424ab23db26ea138b3f75b1e90))
+
+
 ## v0.90.1 (2026-04-27)
 
 ### Bug Fixes
