@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.94.0 (2026-04-28)
+
+### Bug Fixes
+
+- Remove unused variables flagged by ruff
+  ([`40d2e27`](https://github.com/svange/augint-shell/commit/40d2e2774ab644b8e24c80d550640ea8b7f38c75))
+
+### Features
+
+- **opencode**: Add serve, status subcommands and web enhancements
+  ([`6cd8825`](https://github.com/svange/augint-shell/commit/6cd8825e605d0961da8e3c999dba88d4b17d11d9))
+
+
 ## v0.93.0 (2026-04-28)
 
 ### Bug Fixes
