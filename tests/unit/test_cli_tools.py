@@ -894,7 +894,7 @@ class TestToolCommands:
         mock_manager.exec_interactive.side_effect = SystemExit(0)
         mock_manager_cls.return_value = mock_manager
 
-        result = self.runner.invoke(cli, ["opencode", "--web"])
+        self.runner.invoke(cli, ["opencode", "--web"])
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert "--mdns-domain" in cmd
@@ -1026,7 +1026,7 @@ class TestToolCommands:
                 return_value=[repo_a, repo_b],
             ),
         ):
-            result = self.runner.invoke(cli, ["opencode", "serve"])
+            self.runner.invoke(cli, ["opencode", "serve"])
 
         # 1 call for server start + 3 calls for attach (root + 2 repos)
         assert mock_manager.exec_detached.call_count == 4
