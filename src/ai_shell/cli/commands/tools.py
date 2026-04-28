@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
 import sys
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -1298,6 +1300,52 @@ def _check_ollama_running(container_name: str) -> None:
         )
 
 
+def _ensure_pi_ollama_provider(container_name: str, config: AiShellConfig) -> None:
+    """Register Ollama as a Pi provider if not already configured.
+
+    Ollama is not a built-in Pi provider — it must be declared in the global
+    ``~/.pi/agent/models.json``.  This writes the file only when absent so
+    user customizations are preserved.
+    """
+    check = subprocess.run(
+        ["docker", "exec", container_name, "test", "-f", "/root/.pi/agent/models.json"],
+        capture_output=True,
+    )
+    if check.returncode == 0:
+        return
+
+    models_cfg = {
+        "providers": {
+            "ollama": {
+                "baseUrl": "http://host.docker.internal:11434/v1",
+                "api": "openai-completions",
+                "apiKey": "ollama",
+                "compat": {
+                    "supportsDeveloperRole": False,
+                    "supportsReasoningEffort": False,
+                },
+                "models": [{"id": tag} for tag in config.models_to_pull],
+            }
+        }
+    }
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", delete=False
+    ) as tmp:
+        json.dump(models_cfg, tmp, indent=2)
+        tmp_path = tmp.name
+    try:
+        subprocess.run(
+            ["docker", "exec", container_name, "mkdir", "-p", "/root/.pi/agent"],
+            capture_output=True,
+        )
+        subprocess.run(
+            ["docker", "cp", tmp_path, f"{container_name}:/root/.pi/agent/models.json"],
+            capture_output=True,
+        )
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
@@ -1355,10 +1403,11 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login):
 
         cmd = ["pi"]
         if not use_bedrock and not resolved_openai_profile:
-            pi_config = Path(config.project_dir) / ".pi" / "agent" / "settings.json"
+            _ensure_pi_ollama_provider(name, config)
+            pi_config = Path(config.project_dir) / ".pi" / "settings.json"
             if not pi_config.is_file():
                 console.print(
-                    "[yellow]Warning: No Pi config found (.pi/agent/settings.json). "
+                    "[yellow]Warning: No Pi project config found (.pi/settings.json). "
                     "Run 'ai-opencodex update' to generate project config.[/yellow]"
                 )
         console.print(f"[bold]Launching pi{bedrock_label}{openai_label} in {name}...[/bold]")
