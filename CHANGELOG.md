@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.93.0 (2026-04-28)
+
+### Bug Fixes
+
+- Suppress Bandit B104 for intentional 0.0.0.0 bind inside container
+  ([`dc33a69`](https://github.com/svange/augint-shell/commit/dc33a693b13bbf6b28d8cc59d71a5d63dc3b8fb6))
+
+### Features
+
+- **opencode,pi**: Add --web flag for browser UI and --doom for pi-doom
+  ([`8d9f1b2`](https://github.com/svange/augint-shell/commit/8d9f1b2c447f79f1885695737b17da9f7aa0089d))
+
+
 ## v0.92.4 (2026-04-28)
 
 ### Bug Fixes
