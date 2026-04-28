@@ -197,7 +197,7 @@ class AiShellConfig:
     ai_profile: str = ""  # AWS profile for infra (sets AWS_PROFILE in container)
     aws_region: str = ""  # Override AWS_REGION
     bedrock_profile: str = ""  # AWS profile for Bedrock LLM API calls
-    bedrock_model: str = "meta.llama3-3-70b-instruct-v1:0"
+    bedrock_model: str = "us.meta.llama3-3-70b-instruct-v1:0"
 
     # OpenAI
     openai_profile: str = ""  # Suffixed .env key name for multi-account switching

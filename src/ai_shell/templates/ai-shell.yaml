@@ -99,7 +99,7 @@ llm:
 # aws:
 #   ai_profile: my-infra-account
 #   bedrock_profile: sandbox
-#   bedrock_model: meta.llama3-3-70b-instruct-v1:0
+#   bedrock_model: us.meta.llama3-3-70b-instruct-v1:0
 #   region: us-east-1
 
 # -----------------------------------------------------------------------------

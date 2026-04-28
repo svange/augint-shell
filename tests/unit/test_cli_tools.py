@@ -570,7 +570,7 @@ class TestToolCommands:
         config = MagicMock()
         config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
         config.bedrock_profile = ""
-        config.bedrock_model = "meta.llama3-3-70b-instruct-v1:0"
+        config.bedrock_model = "us.meta.llama3-3-70b-instruct-v1:0"
         config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
@@ -592,7 +592,7 @@ class TestToolCommands:
             "--provider",
             "amazon-bedrock",
             "--model",
-            "meta.llama3-3-70b-instruct-v1:0",
+            "us.meta.llama3-3-70b-instruct-v1:0",
         ]
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
