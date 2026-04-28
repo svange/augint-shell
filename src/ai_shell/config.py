@@ -197,6 +197,7 @@ class AiShellConfig:
     ai_profile: str = ""  # AWS profile for infra (sets AWS_PROFILE in container)
     aws_region: str = ""  # Override AWS_REGION
     bedrock_profile: str = ""  # AWS profile for Bedrock LLM API calls
+    bedrock_model: str = "meta.llama3-3-70b-instruct-v1:0"
 
     # OpenAI
     openai_profile: str = ""  # Suffixed .env key name for multi-account switching
@@ -483,6 +484,8 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.aws_region = aws["region"]
     if "bedrock_profile" in aws:
         config.bedrock_profile = aws["bedrock_profile"]
+    if "bedrock_model" in aws:
+        config.bedrock_model = aws["bedrock_model"]
 
     # [openai] section
     openai = data.get("openai", {})
@@ -536,6 +539,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_AI_PROFILE": ("ai_profile", str),
         "AI_SHELL_AWS_REGION": ("aws_region", str),
         "AI_SHELL_BEDROCK_PROFILE": ("bedrock_profile", str),
+        "AI_SHELL_BEDROCK_MODEL": ("bedrock_model", str),
         "AI_SHELL_OPENAI_PROFILE": ("openai_profile", str),
         "AI_SHELL_CLAUDE_PROVIDER": ("claude_provider", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),

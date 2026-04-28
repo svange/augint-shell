@@ -152,46 +152,35 @@ def _inject_mcp_config(
 def _check_bedrock_access(
     container_name: str,
     exec_env: dict[str, str],
+    model_id: str = "",
 ) -> None:
     """Verify Bedrock is reachable before launching a tool.
 
-    Sends a minimal 1-token ``invoke-model`` request inside the container to
-    validate the full path: AWS credentials, SCP policies, and model access.
+    Sends a minimal ``converse`` request inside the container to validate
+    the full path: AWS credentials, SCP policies, and model access.
     Raises :class:`click.ClickException` with an actionable message on failure.
     """
     from ai_shell.defaults import DEFAULT_BEDROCK_MODEL
 
+    model = model_id or DEFAULT_BEDROCK_MODEL
     region = exec_env.get("AWS_REGION", "us-east-1")
     profile = exec_env.get("AWS_PROFILE", "")
 
-    # Build a tiny invoke-model call to test the full auth chain.
-    # Use printf (no trailing newline) and fileb:// (binary blob) -- required by AWS CLI.
-    body = (
-        '{"anthropic_version":"bedrock-2023-05-31",'
-        '"max_tokens":10,'
-        '"messages":[{"role":"user","content":"ping"}]}'
-    )
-
-    # Write the body to a temp file inside the container, invoke, then clean up
-    write_cmd = f"printf '%s' '{body}' > /tmp/_bedrock_check.json"
     invoke_cmd = (
-        f"aws bedrock-runtime invoke-model"
-        f" --model-id {DEFAULT_BEDROCK_MODEL}"
+        f"aws bedrock-runtime converse"
+        f" --model-id {model}"
         f" --region {region}"
-        f" --content-type application/json"
-        f" --accept application/json"
-        f" --body fileb:///tmp/_bedrock_check.json"
-        f" /tmp/_bedrock_check_out.json"
+        f" --messages '[{{\"role\":\"user\",\"content\":[{{\"text\":\"ping\"}}]}}]'"
+        f" --inference-config '{{\"maxTokens\":1}}'"
+        f" --output json --no-cli-pager"
     )
     if profile:
         invoke_cmd += f" --profile {profile}"
-    cleanup_cmd = "rm -f /tmp/_bedrock_check.json /tmp/_bedrock_check_out.json"
-    shell_cmd = f"{write_cmd} && {invoke_cmd}; rc=$?; {cleanup_cmd}; exit $rc"
 
     args = ["docker", "exec"]
     for key, value in exec_env.items():
         args.extend(["-e", f"{key}={value}"])
-    args.extend([container_name, "bash", "-c", shell_cmd])
+    args.extend([container_name, "bash", "-c", invoke_cmd])
 
     logger.debug("bedrock preflight: %s", " ".join(args))
     result = subprocess.run(args, capture_output=True, text=True, timeout=30)
@@ -200,7 +189,7 @@ def _check_bedrock_access(
         stderr = result.stderr.strip()
         raise click.ClickException(
             f"Bedrock access check failed (profile={profile or 'default'}, "
-            f"region={region}, model={DEFAULT_BEDROCK_MODEL}).\n"
+            f"region={region}, model={model}).\n"
             f"  {stderr}\n\n"
             "Possible causes:\n"
             f"  - AWS SSO session expired: run 'aws sso login --profile {profile or '<profile>'}' on the host\n"
@@ -1381,14 +1370,19 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login):
             manager.exec_interactive(name, ["pi", "login"], extra_env=exec_env)
 
         if use_bedrock:
+            bedrock_model = config.bedrock_model
             profile_label = exec_env.get("AWS_PROFILE", "default")
             region_label = exec_env.get("AWS_REGION", "us-east-1")
-            bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
+            bedrock_label = (
+                f" via Bedrock (profile={profile_label},"
+                f" region={region_label}, model={bedrock_model})"
+            )
             console.print(
                 f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
             )
-            _check_bedrock_access(name, exec_env)
+            _check_bedrock_access(name, exec_env, model_id=bedrock_model)
         else:
+            bedrock_model = ""
             bedrock_label = ""
             _check_ollama_running(name)
 
@@ -1400,7 +1394,9 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login):
         manager.ensure_tool_fresh(name, "pi")
 
         cmd = ["pi"]
-        if not use_bedrock and not resolved_openai_profile:
+        if use_bedrock:
+            cmd.extend(["--provider", "amazon-bedrock", "--model", bedrock_model])
+        elif not resolved_openai_profile:
             _ensure_pi_ollama_provider(name, config)
             pi_config = Path(config.project_dir) / ".pi" / "settings.json"
             if not pi_config.is_file():

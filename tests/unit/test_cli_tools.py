@@ -570,6 +570,7 @@ class TestToolCommands:
         config = MagicMock()
         config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
         config.bedrock_profile = ""
+        config.bedrock_model = "meta.llama3-3-70b-instruct-v1:0"
         config.openai_profile = ""
         config.ai_profile = ""
         config.aws_region = ""
@@ -586,8 +587,13 @@ class TestToolCommands:
 
         mock_check_ollama.assert_not_called()
         cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert cmd[0] == "pi"
-        assert "--model" not in cmd
+        assert cmd == [
+            "pi",
+            "--provider",
+            "amazon-bedrock",
+            "--model",
+            "meta.llama3-3-70b-instruct-v1:0",
+        ]
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
@@ -839,9 +845,8 @@ class TestCheckBedrockAccess:
         assert "docker" in args
         assert "test-container" in args
         assert "bash" in args
-        # Shell command contains invoke-model and profile
         shell_cmd = args[-1]
-        assert "invoke-model" in shell_cmd
+        assert "converse" in shell_cmd
         assert "--profile rd" in shell_cmd
 
     @patch("ai_shell.cli.commands.tools.subprocess.run")
