@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.92.1 (2026-04-28)
+
+### Bug Fixes
+
+- **pi**: Use cross-region inference profile prefix for Bedrock model
+  ([`2865922`](https://github.com/svange/augint-shell/commit/2865922ee4f8bcfeebce366e90b5f183456f0edf))
+
+
 ## v0.92.0 (2026-04-28)
 
 ### Features
