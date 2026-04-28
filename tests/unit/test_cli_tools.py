@@ -522,10 +522,12 @@ class TestToolCommands:
         assert "--model" in cmd
         assert "--restore-chat-history" in cmd
 
+    @patch("ai_shell.cli.commands.tools._ensure_pi_ollama_provider")
     @patch("ai_shell.cli.commands.tools._check_ollama_running")
     def test_pi_default_uses_ollama_model(
         self,
         mock_check_ollama,
+        mock_ensure_ollama,
         mock_config,
         mock_manager_cls,
         mock_build_env,
@@ -553,11 +555,14 @@ class TestToolCommands:
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert cmd == ["pi"]
         mock_check_ollama.assert_called_once()
+        mock_ensure_ollama.assert_called_once_with(config)
 
+    @patch("ai_shell.cli.commands.tools._ensure_pi_ollama_provider")
     @patch("ai_shell.cli.commands.tools._check_ollama_running")
     def test_pi_bedrock_skips_ollama_check(
         self,
         mock_check_ollama,
+        mock_ensure_ollama,
         mock_config,
         mock_manager_cls,
         mock_build_env,
@@ -586,6 +591,7 @@ class TestToolCommands:
         self.runner.invoke(cli, ["pi", "--aws"])
 
         mock_check_ollama.assert_not_called()
+        mock_ensure_ollama.assert_called_once_with(config)
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert cmd == [
             "pi",

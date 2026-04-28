@@ -6,7 +6,6 @@ import json
 import logging
 import subprocess
 import sys
-import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -1289,48 +1288,38 @@ def _check_ollama_running(container_name: str) -> None:
         )
 
 
-def _ensure_pi_ollama_provider(container_name: str, config: AiShellConfig) -> None:
-    """Register Ollama as a Pi provider if not already configured.
+def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
+    """Ensure ``~/.pi/agent/models.json`` has an Ollama provider entry.
 
     Ollama is not a built-in Pi provider — it must be declared in the global
-    ``~/.pi/agent/models.json``.  This writes the file only when absent so
-    user customizations are preserved.
+    models.json.  This always updates the Ollama provider block (keeping the
+    model list in sync with config) while preserving any other providers the
+    user has added manually.
     """
-    check = subprocess.run(
-        ["docker", "exec", container_name, "test", "-f", "/root/.pi/agent/models.json"],
-        capture_output=True,
-    )
-    if check.returncode == 0:
-        return
+    models_json = Path.home() / ".pi" / "agent" / "models.json"
+    models_json.parent.mkdir(parents=True, exist_ok=True)
 
-    models_cfg = {
-        "providers": {
-            "ollama": {
-                "baseUrl": "http://host.docker.internal:11434/v1",
-                "api": "openai-completions",
-                "apiKey": "ollama",
-                "compat": {
-                    "supportsDeveloperRole": False,
-                    "supportsReasoningEffort": False,
-                },
-                "models": [{"id": tag} for tag in config.models_to_pull],
-            }
-        }
+    existing: dict = {}
+    if models_json.is_file():
+        try:
+            existing = json.loads(models_json.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    providers = existing.get("providers", {})
+    providers["ollama"] = {
+        "baseUrl": "http://host.docker.internal:11434/v1",
+        "api": "openai-completions",
+        "apiKey": "ollama",
+        "compat": {
+            "supportsDeveloperRole": False,
+            "supportsReasoningEffort": False,
+        },
+        "models": [{"id": tag} for tag in config.models_to_pull],
     }
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
-        json.dump(models_cfg, tmp, indent=2)
-        tmp_path = tmp.name
-    try:
-        subprocess.run(
-            ["docker", "exec", container_name, "mkdir", "-p", "/root/.pi/agent"],
-            capture_output=True,
-        )
-        subprocess.run(
-            ["docker", "cp", tmp_path, f"{container_name}:/root/.pi/agent/models.json"],
-            capture_output=True,
-        )
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
+    existing["providers"] = providers
+    models_json.write_text(json.dumps(existing, indent=2) + "\n")
+    console.print(f"[dim]Wrote Ollama provider config to {models_json}[/dim]")
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
@@ -1393,11 +1382,12 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login):
 
         manager.ensure_tool_fresh(name, "pi")
 
+        _ensure_pi_ollama_provider(config)
+
         cmd = ["pi"]
         if use_bedrock:
             cmd.extend(["--provider", "amazon-bedrock", "--model", bedrock_model])
         elif not resolved_openai_profile:
-            _ensure_pi_ollama_provider(name, config)
             pi_config = Path(config.project_dir) / ".pi" / "settings.json"
             if not pi_config.is_file():
                 console.print(
