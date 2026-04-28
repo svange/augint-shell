@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.92.0 (2026-04-28)
+
+### Features
+
+- **pi**: Add configurable bedrock_model and pass provider/model to Pi
+  ([`ad70ad8`](https://github.com/svange/augint-shell/commit/ad70ad8194c8dffdf8f3216f1d81c7b81a3c379a))
+
+
 ## v0.91.0 (2026-04-28)
 
 ### Features
