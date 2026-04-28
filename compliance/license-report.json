@@ -72,12 +72,12 @@
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.90.1"
+    "Version": "0.90.2"
   },
   {
     "License": "UNKNOWN",
     "Name": "augint-tools",
-    "Version": "5.41.0"
+    "Version": "5.42.3"
   },
   {
     "License": "Apache-2.0",
@@ -97,12 +97,12 @@
   {
     "License": "Apache-2.0",
     "Name": "boto3",
-    "Version": "1.42.95"
+    "Version": "1.42.97"
   },
   {
     "License": "Apache-2.0",
     "Name": "botocore",
-    "Version": "1.42.95"
+    "Version": "1.42.97"
   },
   {
     "License": "MIT",
@@ -152,7 +152,7 @@
   {
     "License": "Apache-2.0 OR BSD-3-Clause",
     "Name": "cryptography",
-    "Version": "46.0.7"
+    "Version": "47.0.0"
   },
   {
     "License": "Apache Software License",
@@ -392,12 +392,12 @@
   {
     "License": "Apache-2.0 OR BSD-2-Clause",
     "Name": "packaging",
-    "Version": "26.1"
+    "Version": "26.2"
   },
   {
     "License": "Mozilla Public License 2.0 (MPL 2.0)",
     "Name": "pathspec",
-    "Version": "1.1.0"
+    "Version": "1.1.1"
   },
   {
     "License": "Public Domain",
@@ -517,7 +517,7 @@
   {
     "License": "Apache-2.0",
     "Name": "python-multipart",
-    "Version": "0.0.26"
+    "Version": "0.0.27"
   },
   {
     "License": "MIT",
@@ -562,7 +562,7 @@
   {
     "License": "MIT",
     "Name": "ruff",
-    "Version": "0.15.11"
+    "Version": "0.15.12"
   },
   {
     "License": "Apache Software License",
@@ -602,7 +602,7 @@
   {
     "License": "BSD-3-Clause",
     "Name": "sse-starlette",
-    "Version": "3.3.4"
+    "Version": "3.4.1"
   },
   {
     "License": "BSD-3-Clause",
@@ -667,7 +667,7 @@
   {
     "License": "MIT",
     "Name": "virtualenv",
-    "Version": "21.2.4"
+    "Version": "21.3.0"
   },
   {
     "License": "MIT",
