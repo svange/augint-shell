@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-04-28T02:59:56Z",
+  "generated_at": "2026-04-28T03:30:00Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 55,
+      "CONFIDENCE.HIGH": 49,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 55,
+      "SEVERITY.LOW": 49,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 5358,
+      "loc": 5346,
       "nosec": 0,
       "skipped_tests": 8
     },
@@ -120,15 +120,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/cli/commands/tools.py": {
-      "CONFIDENCE.HIGH": 28,
+      "CONFIDENCE.HIGH": 22,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 28,
+      "SEVERITY.LOW": 22,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1222,
+      "loc": 1210,
       "nosec": 0,
       "skipped_tests": 0
     },
