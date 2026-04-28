@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.92.2 (2026-04-28)
+
+### Bug Fixes
+
+- **defaults**: Ensure necessary directories for persistent config are created
+  ([`bb528f7`](https://github.com/svange/augint-shell/commit/bb528f7fb48d7d261971e0d5c4d8a63e1250f12f))
+
+
 ## v0.92.1 (2026-04-28)
 
 ### Bug Fixes
