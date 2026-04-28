@@ -199,6 +199,11 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
         )
     )
 
+    # Ensure directories that tools need for persistent config exist on the
+    # host so bind mounts aren't silently skipped.
+    for d in (".pi",):
+        (home / d).mkdir(parents=True, exist_ok=True)
+
     # Optional bind mounts — skip if source doesn't exist
     optional_binds: list[tuple[Path, str, bool]] = [
         (home / ".codex", "/root/.codex", False),
