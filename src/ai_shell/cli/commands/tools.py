@@ -16,7 +16,12 @@ from rich.console import Console
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import AiShellConfig, load_config
 from ai_shell.container import ContainerManager
-from ai_shell.defaults import build_dev_environment, dev_container_name, uv_venv_path
+from ai_shell.defaults import (
+    build_dev_environment,
+    dev_container_name,
+    project_dev_port,
+    uv_venv_path,
+)
 from ai_shell.typeahead import capture_typeahead
 
 logger = logging.getLogger(__name__)
@@ -1212,6 +1217,15 @@ def codex(
         "via AI_SHELL_OPENAI_PROFILE env var."
     ),
 )
+@click.option("--web", is_flag=True, default=False, help="Launch web UI instead of terminal TUI.")
+@click.option(
+    "--port",
+    "web_port",
+    type=int,
+    default=4096,
+    show_default=True,
+    help="Container port for --web mode.",
+)
 @click.pass_context
 def opencode(
     ctx,
@@ -1219,6 +1233,8 @@ def opencode(
     use_aws,
     cli_profile,
     openai_profile,
+    web,
+    web_port,
 ):
     """Launch opencode in the dev container."""
     with capture_typeahead() as typeahead:
@@ -1254,11 +1270,26 @@ def opencode(
 
         cmd = ["/root/.opencode/bin/opencode"]
         if not use_bedrock:
-            # Default OpenCode to the primary coding slot (benchmark-optimized,
-            # explicit Ollama tools badge). Users can switch to the secondary
-            # (uncensored) slot in the OpenCode model picker at runtime.
             cmd.extend(["--model", f"ollama/{config.primary_coding_model}"])
-        console.print(f"[bold]Launching opencode{bedrock_label}{openai_label} in {name}...[/bold]")
+        if web:
+            cmd.append("web")
+            cmd.extend(["--hostname", "0.0.0.0", "--port", str(web_port)])
+
+        if web:
+            host_port = project_dev_port(
+                config.project_dir or Path.cwd(), web_port, config.project_name
+            )
+            console.print(
+                f"[bold]Launching opencode web{bedrock_label}{openai_label} in {name}...[/bold]"
+            )
+            console.print(f"[green bold]Open in browser: http://localhost:{host_port}[/green bold]")
+            console.print(
+                "[dim]No auth by default. Set OPENCODE_SERVER_PASSWORD to protect it.[/dim]"
+            )
+        else:
+            console.print(
+                f"[bold]Launching opencode{bedrock_label}{openai_label} in {name}...[/bold]"
+            )
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
@@ -1339,8 +1370,9 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
     ),
 )
 @click.option("--login", "do_login", is_flag=True, default=False, help="Run pi login for OAuth.")
+@click.option("--doom", is_flag=True, default=False, help="Launch pi-doom (play DOOM via AI).")
 @click.pass_context
-def pi(ctx, use_aws, cli_profile, openai_profile, do_login):
+def pi(ctx, use_aws, cli_profile, openai_profile, do_login, doom):
     """Launch pi coding agent in the dev container."""
     with capture_typeahead() as typeahead:
         project = ctx.obj.get("project") if ctx.obj else None
@@ -1385,6 +1417,8 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login):
         _ensure_pi_ollama_provider(config)
 
         cmd = ["pi"]
+        if doom:
+            cmd.extend(["-e", "npm:pi-doom"])
         if use_bedrock:
             cmd.extend(["--provider", "amazon-bedrock", "--model", bedrock_model])
         elif not resolved_openai_profile:
@@ -1394,7 +1428,10 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login):
                     "[yellow]Warning: No Pi project config found (.pi/settings.json). "
                     "Run 'ai-opencodex update' to generate project config.[/yellow]"
                 )
-        console.print(f"[bold]Launching pi{bedrock_label}{openai_label} in {name}...[/bold]")
+        doom_label = " (DOOM)" if doom else ""
+        console.print(
+            f"[bold]Launching pi{doom_label}{bedrock_label}{openai_label} in {name}...[/bold]"
+        )
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 

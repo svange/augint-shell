@@ -601,6 +601,40 @@ class TestToolCommands:
             "us.meta.llama3-3-70b-instruct-v1:0",
         ]
 
+    @patch("ai_shell.cli.commands.tools._ensure_pi_ollama_provider")
+    @patch("ai_shell.cli.commands.tools._check_ollama_running")
+    def test_pi_doom_flag(
+        self,
+        mock_check_ollama,
+        mock_ensure_ollama,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        mock_check_ollama.return_value = None
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        config = MagicMock()
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = "/tmp/test"
+        mock_config.return_value = config
+
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["pi", "--doom"])
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert cmd == ["pi", "-e", "npm:pi-doom"]
+        assert "DOOM" in result.output
+
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
     @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=9222)
@@ -829,6 +863,88 @@ class TestToolCommands:
         self.runner.invoke(cli, ["claude"])
 
         mock_check_bedrock.assert_not_called()
+
+    def test_opencode_web_mode(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(cli, ["opencode", "--web"])
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert "web" in cmd
+        assert "--hostname" in cmd
+        assert "0.0.0.0" in cmd
+        assert "--port" in cmd
+        assert "4096" in cmd
+        assert "http://localhost:" in result.output
+
+    def test_opencode_web_custom_port(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["opencode", "--web", "--port", "8080"])
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert "--port" in cmd
+        assert "8080" in cmd
+
+    def test_opencode_tui_default(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        mock_config.return_value = config
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["opencode"])
+
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert "web" not in cmd
+        assert "--hostname" not in cmd
 
     def test_version_flag(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
         result = self.runner.invoke(cli, ["--version"])
