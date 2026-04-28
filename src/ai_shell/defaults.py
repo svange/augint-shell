@@ -211,7 +211,6 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
         (home / ".claude.json", "/root/.claude.json", False),
         (home / ".pi", "/root/.pi", False),
         (home / ".augint", "/root/.augint", False),
-        (home / "projects" / "CLAUDE.md", "/root/projects/CLAUDE.md", True),
         (home / ".ssh", "/root/.ssh", True),
         (home / ".gitconfig", "/root/.gitconfig.windows", True),
         (home / ".aws", "/root/.aws", False),
@@ -319,6 +318,50 @@ def _find_gh_config_dir() -> Path | None:
     return None
 
 
+def _load_layered_dotenv(
+    project_dir: Path | None = None,
+    env_file: Path | None = None,
+) -> dict[str, str | None]:
+    """Load layered .env files: ~/.augint/.env < project .env < explicit env_file.
+
+    Returns a merged dict. Later layers override earlier ones.
+    """
+    from dotenv import dotenv_values
+
+    layers: dict[str, str | None] = {}
+
+    global_path = Path.home() / ".augint" / ".env"
+    if global_path.is_file():
+        layers.update(dotenv_values(global_path))
+
+    if project_dir is not None:
+        project_path = project_dir / ".env"
+        if project_path.is_file():
+            layers.update(dotenv_values(project_path))
+
+    if env_file is not None and env_file.is_file():
+        layers.update(dotenv_values(env_file))
+
+    return layers
+
+
+_SHARED_ENV_PASSTHROUGH = (
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "PRIMARY_CHAT_MODEL",
+    "SECONDARY_CHAT_MODEL",
+    "PRIMARY_CODING_MODEL",
+    "SECONDARY_CODING_MODEL",
+    "CONTEXT_SIZE",
+    "OLLAMA_PORT",
+    "WEBUI_PORT",
+    "KOKORO_PORT",
+    "WHISPER_PORT",
+    "N8N_PORT",
+    "COMFYUI_PORT",
+)
+
+
 def build_dev_environment(
     extra_env: dict[str, str] | None = None,
     project_dir: Path | None = None,
@@ -334,10 +377,10 @@ def build_dev_environment(
 ) -> dict[str, str]:
     """Build environment variables matching docker-compose.yml dev service.
 
-    Loads .env from the project directory (if present), then layers on
-    host environment variables and hardcoded defaults.
+    Loads layered .env files (``~/.augint/.env`` then project ``.env``),
+    then falls back to host environment variables and hardcoded defaults.
 
-    Priority (highest wins): extra_env > .env file > os.environ > defaults.
+    Priority (highest wins): extra_env > .env files > os.environ > defaults.
 
     When *bedrock* is True, ``CLAUDE_CODE_USE_BEDROCK=1`` is injected and
     *bedrock_profile* (if set) overrides ``AWS_PROFILE`` so the LLM provider
@@ -350,12 +393,7 @@ def build_dev_environment(
     When *team_mode* is True, ``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` is
     injected to enable Claude Code's Agent Teams feature.
     """
-    from dotenv import dotenv_values
-
-    # Load .env from project directory (returns empty dict if missing)
-    dotenv: dict[str, str | None] = {}
-    if project_dir is not None:
-        dotenv = dotenv_values(project_dir / ".env")
+    dotenv = _load_layered_dotenv(project_dir)
 
     def _resolve(key: str, default: str = "") -> str:
         """Resolve a value: .env > os.environ > default."""
@@ -365,7 +403,8 @@ def build_dev_environment(
         return os.environ.get(key, default)
 
     _CONTAINER_BASE_PATH = (
-        "/root/.opencode/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        "/root/.local/bin:/root/.opencode/bin:"
+        "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     )
 
     gh_token = _resolve("GH_TOKEN")
@@ -415,7 +454,7 @@ def build_dev_environment(
     if team_mode:
         env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
 
-    for var in ("OPENCODE_SERVER_PASSWORD", "OPENCODE_SERVER_USERNAME"):
+    for var in _SHARED_ENV_PASSTHROUGH:
         val = _resolve(var)
         if val:
             env[var] = val
@@ -442,17 +481,13 @@ def build_n8n_environment(
 ) -> dict[str, str]:
     """Build environment variables for the n8n workflow automation container.
 
-    Loads API keys from *env_file* (``--env`` flag, e.g. ``.env.augint-shell``),
+    Loads layered .env files (``~/.augint/.env`` then *env_file*),
     then falls back to host environment variables.
 
     Service discovery URLs use internal Docker network hostnames so n8n
     workflows can reference them via ``{{ $env.OLLAMA_BASE_URL }}`` etc.
     """
-    from dotenv import dotenv_values
-
-    dotenv: dict[str, str | None] = {}
-    if env_file is not None:
-        dotenv = dotenv_values(env_file)
+    dotenv = _load_layered_dotenv(env_file=env_file)
 
     env: dict[str, str] = {
         # Disable secure-cookie so the UI works over plain http://localhost.

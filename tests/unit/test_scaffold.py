@@ -1,8 +1,10 @@
 """Tests for ai_shell.scaffold module."""
 
+from unittest.mock import patch
+
 import yaml
 
-from ai_shell.scaffold import scaffold_project
+from ai_shell.scaffold import scaffold_global, scaffold_project
 
 
 class TestScaffoldProject:
@@ -58,3 +60,32 @@ class TestProjectYamlOutput:
         assert "container" not in parsed
         assert "aws" not in parsed
         assert "claude" not in parsed
+
+
+class TestScaffoldGlobal:
+    def test_creates_env_example(self, tmp_path):
+        with patch("ai_shell.scaffold.Path.home", return_value=tmp_path):
+            scaffold_global()
+        assert (tmp_path / ".augint" / ".env.example").is_file()
+
+    def test_creates_ai_shell_example_yaml(self, tmp_path):
+        with patch("ai_shell.scaffold.Path.home", return_value=tmp_path):
+            scaffold_global()
+        assert (tmp_path / ".augint" / ".ai-shell.example.yaml").is_file()
+
+    def test_env_example_documents_shared_vars(self, tmp_path):
+        with patch("ai_shell.scaffold.Path.home", return_value=tmp_path):
+            scaffold_global()
+        content = (tmp_path / ".augint" / ".env.example").read_text()
+        assert "PRIMARY_CHAT_MODEL" in content
+        assert "AWS_BEDROCK_PROFILE" in content
+        assert "GH_TOKEN" in content
+        assert "OLLAMA_PORT" in content
+
+    def test_overwrites_existing_examples(self, tmp_path):
+        augint_dir = tmp_path / ".augint"
+        augint_dir.mkdir()
+        (augint_dir / ".env.example").write_text("old content")
+        with patch("ai_shell.scaffold.Path.home", return_value=tmp_path):
+            scaffold_global()
+        assert (augint_dir / ".env.example").read_text() != "old content"

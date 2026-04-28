@@ -1,0 +1,29 @@
+# ~/.augint/.ai-shell.yaml — Global ai-shell configuration
+# Copy to ~/.augint/.ai-shell.yaml. Per-project .ai-shell.yaml overrides these.
+# Settings here are ai-shell internal behavior (not shared via .env).
+
+# container:
+#   image: svange/augint-shell
+#   image_tag: latest
+#   skip_updates: false
+#   extra_volumes:
+#     - /mnt/data:/data:ro
+
+# llm:
+#   extra_models:
+#     - qwen3.5:9b
+#     - devstral:24b
+#   kokoro_voice: af_bella
+#   whisper_model: Systran/faster-distil-whisper-large-v3
+
+# aws:
+#   ai_profile: my-infra-account
+#   bedrock_region: us-west-2
+
+# claude:
+#   provider: anthropic
+#   local_chrome: false
+
+# voice_agent:
+#   port: 8010
+#   profile: resident

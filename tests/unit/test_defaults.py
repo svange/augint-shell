@@ -494,34 +494,84 @@ class TestBuildDevEnvironmentPath:
         assert "PATH" in env
         assert "/root/.opencode/bin" in env["PATH"]
 
+    def test_path_includes_local_bin(self):
+        env = build_dev_environment()
+        assert "/root/.local/bin" in env["PATH"]
+
     def test_path_includes_standard_dirs(self):
         env = build_dev_environment()
         assert "/usr/local/bin" in env["PATH"]
         assert "/usr/bin" in env["PATH"]
 
 
-class TestBuildDevEnvironmentOpenCodePassword:
-    def test_passes_through_password_from_env(self):
-        with patch.dict("os.environ", {"OPENCODE_SERVER_PASSWORD": "secret123"}):
+class TestBuildDevEnvironmentLayeredDotenv:
+    def test_global_env_loaded(self, tmp_path):
+        augint_dir = tmp_path / ".augint"
+        augint_dir.mkdir()
+        (augint_dir / ".env").write_text("GH_TOKEN=from-global\n")
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
             env = build_dev_environment()
-        assert env["OPENCODE_SERVER_PASSWORD"] == "secret123"
+        assert env["GH_TOKEN"] == "from-global"
 
-    def test_passes_through_username_from_env(self):
-        with patch.dict("os.environ", {"OPENCODE_SERVER_USERNAME": "admin"}):
+    def test_project_env_overrides_global(self, tmp_path):
+        augint_dir = tmp_path / ".augint"
+        augint_dir.mkdir()
+        (augint_dir / ".env").write_text("GH_TOKEN=from-global\n")
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / ".env").write_text("GH_TOKEN=from-project\n")
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            env = build_dev_environment(project_dir=project_dir)
+        assert env["GH_TOKEN"] == "from-project"
+
+    def test_dotenv_overrides_os_environ(self, tmp_path):
+        augint_dir = tmp_path / ".augint"
+        augint_dir.mkdir()
+        (augint_dir / ".env").write_text("GH_TOKEN=from-global\n")
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {"GH_TOKEN": "from-os"}),
+        ):
             env = build_dev_environment()
-        assert env["OPENCODE_SERVER_USERNAME"] == "admin"
+        assert env["GH_TOKEN"] == "from-global"
 
-    def test_omits_password_when_not_set(self):
+    def test_missing_global_env_is_graceful(self, tmp_path):
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {"GH_TOKEN": "from-os"}),
+        ):
+            env = build_dev_environment()
+        assert env["GH_TOKEN"] == "from-os"
+
+
+class TestBuildDevEnvironmentSharedPassthrough:
+    def test_shared_vars_passed_through(self, tmp_path):
+        augint_dir = tmp_path / ".augint"
+        augint_dir.mkdir()
+        (augint_dir / ".env").write_text(
+            "PRIMARY_CHAT_MODEL=qwen3.5:27b\nOLLAMA_PORT=11434\nANTHROPIC_API_KEY=sk-ant-test\n"
+        )
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            env = build_dev_environment()
+        assert env["PRIMARY_CHAT_MODEL"] == "qwen3.5:27b"
+        assert env["OLLAMA_PORT"] == "11434"
+        assert env["ANTHROPIC_API_KEY"] == "sk-ant-test"
+
+    def test_shared_vars_omitted_when_empty(self):
         with patch.dict("os.environ", {}, clear=True):
             env = build_dev_environment()
-        assert "OPENCODE_SERVER_PASSWORD" not in env
-        assert "OPENCODE_SERVER_USERNAME" not in env
-
-    def test_password_from_dotenv(self, tmp_path):
-        (tmp_path / ".env").write_text("OPENCODE_SERVER_PASSWORD=dotenv-pass\n")
-        with patch.dict("os.environ", {}, clear=True):
-            env = build_dev_environment(project_dir=tmp_path)
-        assert env["OPENCODE_SERVER_PASSWORD"] == "dotenv-pass"
+        assert "PRIMARY_CHAT_MODEL" not in env
+        assert "OLLAMA_PORT" not in env
+        assert "ANTHROPIC_API_KEY" not in env
 
 
 class TestFindGhConfigDir:

@@ -255,9 +255,10 @@ def load_config(
     if project_dir:
         config.project_dir = project_dir
 
-    # Load global config (~/.ai-shell.yaml first, ~/.config/ai-shell/ as fallback)
+    # Load global config (~/.augint/ canonical, ~/.ai-shell.yaml legacy fallback)
     home = Path.home()
     for candidate in (
+        home / ".augint" / ".ai-shell.yaml",
         home / ".ai-shell.yaml",
         home / ".ai-shell.yml",
         home / ".ai-shell.toml",

@@ -160,6 +160,25 @@ primary_chat_model = "global-model"
 
         assert config.primary_chat_model == "home-yaml-model"
 
+    def test_augint_dir_yaml_takes_precedence_over_home_yaml(self, tmp_path):
+        augint_dir = tmp_path / ".augint"
+        augint_dir.mkdir()
+        (augint_dir / ".ai-shell.yaml").write_text("llm:\n  primary_chat_model: augint-dir-wins\n")
+        (tmp_path / ".ai-shell.yaml").write_text("llm:\n  primary_chat_model: home-yaml-loses\n")
+
+        with patch("ai_shell.config.Path.home", return_value=tmp_path):
+            config = load_config(project_dir=tmp_path / "project")
+
+        assert config.primary_chat_model == "augint-dir-wins"
+
+    def test_home_yaml_fallback_when_augint_dir_absent(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("llm:\n  primary_chat_model: home-yaml-fallback\n")
+
+        with patch("ai_shell.config.Path.home", return_value=tmp_path):
+            config = load_config(project_dir=tmp_path / "project")
+
+        assert config.primary_chat_model == "home-yaml-fallback"
+
     def test_home_yaml_takes_precedence_over_config_dir(self, tmp_path):
         (tmp_path / ".ai-shell.yaml").write_text("llm:\n  primary_chat_model: home-yaml-wins\n")
         global_dir = tmp_path / ".config" / "ai-shell"

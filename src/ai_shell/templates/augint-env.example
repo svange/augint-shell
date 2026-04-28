@@ -1,0 +1,29 @@
+# ~/.augint/.env — Shared config for the augint tool suite
+# Copy to ~/.augint/.env and uncomment values to set.
+# Project ./.env overrides these. CLI flags override everything.
+# Priority: CLI > ./.env > ~/.augint/.env > os.environ > defaults
+
+# --- Credentials ------------------------------------------------------------
+# GH_TOKEN=github_pat_...
+# ANTHROPIC_API_KEY=sk-ant-...
+# OPENAI_API_KEY=sk-...
+
+# --- AWS ---------------------------------------------------------------------
+# AWS_BEDROCK_PROFILE=my-ai-account
+# AWS_PROFILE=my-infra-account
+# AWS_REGION=us-east-1
+
+# --- Model Preferences (what to converge on, served by Ollama) ---------------
+# PRIMARY_CHAT_MODEL=qwen3.5:27b
+# SECONDARY_CHAT_MODEL=huihui_ai/qwen3.5-abliterated:27b
+# PRIMARY_CODING_MODEL=qwen3-coder:30b-a3b-q4_K_M
+# SECONDARY_CODING_MODEL=huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M
+# CONTEXT_SIZE=32768
+
+# --- Service Ports (where infrastructure runs) -------------------------------
+# OLLAMA_PORT=11434
+# WEBUI_PORT=3000
+# KOKORO_PORT=8880
+# WHISPER_PORT=8001
+# N8N_PORT=5678
+# COMFYUI_PORT=8188

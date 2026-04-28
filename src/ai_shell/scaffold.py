@@ -49,6 +49,23 @@ def _write_file(path: Path, content: str, *, overwrite: bool) -> bool:
 # ── Public API ──────────────────────────────────────────────────────
 
 
+def scaffold_global() -> None:
+    """Create ``~/.augint/.env.example`` and ``~/.augint/.ai-shell.example.yaml``."""
+    augint_dir = Path.home() / ".augint"
+    augint_dir.mkdir(parents=True, exist_ok=True)
+
+    _write_file(
+        augint_dir / ".env.example",
+        _read_template("augint-env.example"),
+        overwrite=True,
+    )
+    _write_file(
+        augint_dir / ".ai-shell.example.yaml",
+        _read_template("augint-ai-shell.example.yaml"),
+        overwrite=True,
+    )
+
+
 def scaffold_project(target_dir: Path) -> None:
     """Create ``.ai-shell.yaml`` in *target_dir* if it does not already exist."""
     _write_file(

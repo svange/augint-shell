@@ -42,7 +42,7 @@ CLI commands (cli/commands/)
 1. CLI flags (`--project`)
 2. Environment variables (`AI_SHELL_*` prefix)
 3. Project config (first match: `.ai-shell.yaml` > `.ai-shell.yml` > `.ai-shell.toml` > `ai-shell.toml`)
-4. Global config (`~/.ai-shell.yaml` > `~/.ai-shell.yml` > `~/.ai-shell.toml` > `~/.config/ai-shell/config.*`)
+4. Global config (`~/.augint/.ai-shell.yaml` > `~/.ai-shell.yaml` > `~/.ai-shell.yml` > `~/.ai-shell.toml` > `~/.config/ai-shell/config.*`)
 5. Hard-coded defaults in `defaults.py`
 
 ### Container naming
@@ -51,11 +51,11 @@ CLI commands (cli/commands/)
 
 ### Mount assembly
 
-Dev containers mount: project dir, UV cache volume (shared), and conditionally: `~/.claude`, `~/.codex`, `~/.pi`, `~/.ssh` (ro), `~/.aws`, `~/.config/gh`, `~/.gitconfig` (ro), `~/projects/CLAUDE.md` (ro), Docker socket (ro), plus `extra_volumes` from config.
+Dev containers mount: project dir, UV cache volume (shared), and conditionally: `~/.claude`, `~/.codex`, `~/.pi`, `~/.augint`, `~/.ssh` (ro), `~/.aws`, `~/.config/gh`, `~/.gitconfig` (ro), Docker socket (ro), plus `extra_volumes` from config.
 
 ### Environment assembly
 
-Priority: `extra_env` > `.env` file > `os.environ` > defaults. AWS IAM keys are intentionally NOT passed through (only `AWS_PROFILE` + `AWS_REGION`; relies on `~/.aws` bind mount). `IS_SANDBOX=1` is always set. `OPENCODE_SERVER_PASSWORD` and `OPENCODE_SERVER_USERNAME` are passed through when set. `PATH` includes `/root/.opencode/bin`.
+Priority: `extra_env` > `./.env` > `~/.augint/.env` > `os.environ` > defaults. Layered .env loading merges `~/.augint/.env` (global shared) then `./.env` (project override). AWS IAM keys are intentionally NOT passed through (only `AWS_PROFILE` + `AWS_REGION`; relies on `~/.aws` bind mount). `IS_SANDBOX=1` is always set. Shared vars (`PRIMARY_CHAT_MODEL`, `OLLAMA_PORT`, `ANTHROPIC_API_KEY`, etc.) are passed through to container env for sibling tools. `PATH` includes `/root/.opencode/bin`.
 
 ### OpenCode web mode
 
@@ -65,7 +65,7 @@ Priority: `extra_env` > `.env` file > `os.environ` > defaults. AWS IAM keys are 
 - **`opencode serve`** — runs `opencode serve` detached (`exec_detached()`), then discovers git repos under CWD and runs `opencode attach <url>` for each as background processes. Prints server URL, mDNS name, and attached repo list.
 - **`opencode status`** — parses `pgrep -af opencode` output inside the container to show server state and attached terminal count.
 
-mDNS domain defaults to `sanitize_project_name().local`. `OPENCODE_SERVER_PASSWORD` and `OPENCODE_SERVER_USERNAME` are resolved from `.env` / `os.environ` in `build_dev_environment()`. PATH includes `/root/.opencode/bin` so `opencode` is available in interactive shells.
+mDNS domain defaults to `sanitize_project_name().local`. PATH includes `/root/.opencode/bin` so `opencode` is available in interactive shells.
 
 ### Claude retry logic
 

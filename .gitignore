@@ -156,6 +156,9 @@ Thumbs.db
 tmp/
 temp/
 
+# === Local docs / specs ===
+docs/
+
 # === Custom (preserved from previous version) ===
 .ai-shell.toml
 ai-shell.toml

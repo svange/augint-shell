@@ -1673,6 +1673,7 @@ def shell(ctx, shell_name):
 @click.command(context_settings=CONTEXT_SETTINGS)
 def init():
     """Create .ai-shell.yaml config in the current directory."""
-    from ai_shell.scaffold import scaffold_project
+    from ai_shell.scaffold import scaffold_global, scaffold_project
 
+    scaffold_global()
     scaffold_project(Path.cwd())
