@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.92.3 (2026-04-28)
+
+### Bug Fixes
+
+- **pi**: Refactor _ensure_pi_ollama_provider to update models.json directly
+  ([`eac46cc`](https://github.com/svange/augint-shell/commit/eac46cc502749aabb5335452019145f50c71fd0a))
+
+
 ## v0.92.2 (2026-04-28)
 
 ### Bug Fixes
