@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.101.1 (2026-04-29)
+
+### Bug Fixes
+
+- --env loads all .env vars into dev containers (#116)
+  ([#116](https://github.com/svange/augint-shell/pull/116),
+  [`7aeb8e5`](https://github.com/svange/augint-shell/commit/7aeb8e5c3580de7f55610bf4702c13dc80388865))
+
+
 ## v0.101.0 (2026-04-29)
 
 ### Features
