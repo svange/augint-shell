@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.99.0 (2026-04-29)
+
+### Bug Fixes
+
+- Suppress bandit B104 false positive on PI_STUDIO_HOST env var
+  ([`ea2fc3c`](https://github.com/svange/augint-shell/commit/ea2fc3c6a17a7fd52d5ac3bd30ebbe82a8192191))
+
+### Features
+
+- Bootstrap Pi packages from .pi/settings.json during container init
+  ([`2ccbd69`](https://github.com/svange/augint-shell/commit/2ccbd69d62f6a611d2daa4d353d4ee173b6e067c))
+
+
 ## v0.98.3 (2026-04-29)
 
 ### Bug Fixes
