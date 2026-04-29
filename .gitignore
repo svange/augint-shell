@@ -163,3 +163,4 @@ docs/
 .ai-shell.toml
 ai-shell.toml
 .ai-shell.yaml
+**/.worktrees
