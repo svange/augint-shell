@@ -781,7 +781,11 @@ class TestToolCommands:
 
         self.runner.invoke(cli, ["claude", "--aws"])
 
-        mock_check_bedrock.assert_called_once_with("augint-shell-test-dev", bedrock_env)
+        mock_check_bedrock.assert_called_once()
+        args, kwargs = mock_check_bedrock.call_args
+        assert args[0] == "augint-shell-test-dev"
+        assert args[1] == bedrock_env
+        assert "cache_ttl" in kwargs
 
     def test_claude_bedrock_preflight_failure_blocks_launch(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock

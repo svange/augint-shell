@@ -9,6 +9,9 @@
 #   image: svange/augint-shell
 #   image_tag: latest
 #   skip_updates: false
+#   # How long (seconds) to skip the `docker pull` staleness check after a
+#   # successful pull. Default 900 (15 min). Set to 0 to pull on every launch.
+#   image_pull_cache_ttl: 900
 #   extra_env:
 #     MY_CUSTOM_VAR: value
 #   extra_volumes:
@@ -47,6 +50,10 @@
 #   region: us-east-1
 #   bedrock_region: us-west-2
 #   bedrock_model: us.meta.llama3-3-70b-instruct-v1:0
+#   # How long (seconds) to skip the Bedrock preflight check after a successful
+#   # check. Cache key is (profile, region, model). Default 86400 (24 h).
+#   # Set to 0 to verify on every launch.
+#   bedrock_check_cache_ttl: 86400
 
 # --- OpenAI ------------------------------------------------------------------
 # Multi-account switching. Set openai_profile to a suffix, then define

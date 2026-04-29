@@ -493,19 +493,30 @@ class ContainerManager:
         Only acts when the configured tag is ``latest``.  For pinned
         version tags the image is immutable so staleness doesn't apply.
 
+        The pull is skipped when ``config.image_pull_cache_ttl`` seconds have
+        not yet elapsed since the last successful pull (default 15 min) so
+        normal launches don't pay the network round-trip.
+
         Returns True if the container was removed (caller must recreate).
         """
+        from ai_shell.cache import is_fresh, mark_fresh
+
         tag = self.config.image_tag
         if tag != "latest":
             return False
 
         image_ref = self.config.full_image
+        if is_fresh("image-pull", image_ref, self.config.image_pull_cache_ttl):
+            logger.debug("Image-pull cache fresh for %s — skipping pull", image_ref)
+            return False
+
         try:
             pulled = self.client.images.pull(*image_ref.rsplit(":", 1))
         except APIError:
             logger.debug("Could not pull %s — skipping staleness check", image_ref)
             return False
 
+        mark_fresh("image-pull", image_ref)
         self._warn_if_image_below_minimum(pulled)
 
         container_image_id = container.image.id

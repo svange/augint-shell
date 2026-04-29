@@ -206,6 +206,10 @@ class AiShellConfig:
     local_chrome: bool = False  # Attach Chrome DevTools MCP to project-scoped host Chrome
     skip_updates: bool = False  # When True, skip pre-launch tool freshness checks
 
+    # Pre-launch cache TTLs (seconds). Set to 0 to disable.
+    image_pull_cache_ttl: int = 900  # 15 min: skip docker pull if checked recently
+    bedrock_check_cache_ttl: int = 86400  # 24 h: skip Bedrock preflight if checked recently
+
     # Per-tool provider
     claude_provider: str = ""  # "anthropic" (default) or "aws"
 
@@ -497,6 +501,10 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.local_chrome = bool(claude_sec["local_chrome"])
     if "skip_updates" in container:
         config.skip_updates = bool(container["skip_updates"])
+    if "image_pull_cache_ttl" in container:
+        config.image_pull_cache_ttl = int(container["image_pull_cache_ttl"])
+    if "bedrock_check_cache_ttl" in aws:
+        config.bedrock_check_cache_ttl = int(aws["bedrock_check_cache_ttl"])
 
 
 _LEGACY_ENV_VARS = {
@@ -540,6 +548,8 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_CLAUDE_PROVIDER": ("claude_provider", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
         "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),
+        "AI_SHELL_IMAGE_PULL_CACHE_TTL": ("image_pull_cache_ttl", int),
+        "AI_SHELL_BEDROCK_CHECK_CACHE_TTL": ("bedrock_check_cache_ttl", int),
     }
 
     for env_key, (attr, type_fn) in env_map.items():
