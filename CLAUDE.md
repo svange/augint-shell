@@ -64,7 +64,7 @@ Priority: `extra_env` > `./.env` > `~/.augint/.env` > `os.environ` > defaults. L
 `opencode` is a Click group (`invoke_without_command=True`). Default invocation launches the TUI; subcommands add web server features.
 
 - **`opencode --web`** — runs `opencode web` inside the container with `--mdns`, `--cors '*'`, `--hostname 0.0.0.0`. Interactive (foreground).
-- **`opencode serve`** — runs `opencode serve` detached (`exec_detached()`), then discovers git repos under CWD and runs `opencode attach <url>` for each as background processes. Prints server URL, mDNS name, and attached repo list.
+- **`opencode serve`** — runs `opencode serve` detached (`exec_detached()`), then discovers git repos under CWD and registers each as a project via the opencode HTTP API (`POST /project/:base64path/session`). Prints server URL, mDNS name, and registered project list.
 - **`opencode status`** — parses `pgrep -af opencode` output inside the container to show server state and attached terminal count.
 
 mDNS domain defaults to `sanitize_project_name().local`. PATH includes `/root/.opencode/bin` so `opencode` is available in interactive shells.

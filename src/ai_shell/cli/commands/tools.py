@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import subprocess
@@ -1459,27 +1460,44 @@ def serve(ctx, port: int, skip_root: bool, open_browser: bool) -> None:
     repos.extend(_find_git_repos(cwd))
 
     container_root = f"/root/projects/{config.project_name}"
-    attach_url = f"http://localhost:{port}"
+    registered = 0
 
     for repo in repos:
         rel = repo.relative_to(cwd) if repo != cwd else Path(".")
         container_path = (
             f"{container_root}/{rel.as_posix()}" if rel != Path(".") else container_root
         )
-        manager.exec_detached(
-            name,
-            ["opencode", "attach", attach_url],
-            extra_env=exec_env,
-            workdir=container_path,
+        project_id = base64.b64encode(container_path.encode()).decode().rstrip("=")
+        result = subprocess.run(
+            [
+                "docker",
+                "exec",
+                name,
+                "curl",
+                "-sf",
+                "-X",
+                "POST",
+                f"http://localhost:{port}/project/{project_id}/session",
+                "-H",
+                "Content-Type: application/json",
+                "-d",
+                json.dumps({"directory": container_path}),
+            ],
+            capture_output=True,
+            timeout=10,
         )
-        console.print(f"  [green]+[/green] {rel}")
+        if result.returncode == 0:
+            console.print(f"  [green]+[/green] {rel}")
+            registered += 1
+        else:
+            console.print(f"  [yellow]![/yellow] {rel}")
 
     host_port = project_dev_port(config.project_dir or cwd, port, config.project_name)
     mdns_name = f"{project_slug}.local"
     console.print()
     console.print(f"[green bold]Server: http://localhost:{host_port}[/green bold]")
     console.print(f"[green]mDNS:   http://{mdns_name}:{port}[/green]")
-    console.print(f"[dim]Attached {len(repos)} terminal(s).[/dim]")
+    console.print(f"[dim]Registered {registered}/{len(repos)} project(s).[/dim]")
     if exec_env.get("OPENCODE_SERVER_PASSWORD"):
         console.print("[dim]Password protection enabled.[/dim]")
 
