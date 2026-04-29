@@ -1463,7 +1463,9 @@ def serve(ctx, port: int, skip_root: bool, open_browser: bool) -> None:
 
     for repo in repos:
         rel = repo.relative_to(cwd) if repo != cwd else Path(".")
-        container_path = f"{container_root}/{rel.as_posix()}" if rel != Path(".") else container_root
+        container_path = (
+            f"{container_root}/{rel.as_posix()}" if rel != Path(".") else container_root
+        )
         manager.exec_detached(
             name,
             ["opencode", "attach", attach_url],
