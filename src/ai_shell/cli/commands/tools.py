@@ -1458,12 +1458,12 @@ def serve(ctx, port: int, skip_root: bool, open_browser: bool) -> None:
         repos.append(cwd)
     repos.extend(_find_git_repos(cwd))
 
-    container_root = Path("/root/host-project")
+    container_root = "/root/host-project"
     attach_url = f"http://localhost:{port}"
 
     for repo in repos:
         rel = repo.relative_to(cwd) if repo != cwd else Path(".")
-        container_path = str(container_root / rel) if rel != Path(".") else str(container_root)
+        container_path = f"{container_root}/{rel.as_posix()}" if rel != Path(".") else container_root
         manager.exec_detached(
             name,
             ["opencode", "attach", attach_url],
