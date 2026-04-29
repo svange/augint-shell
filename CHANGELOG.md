@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.100.1 (2026-04-29)
+
+### Bug Fixes
+
+- Opencode attach skips Bedrock check and model flags
+  ([`7ed3e61`](https://github.com/svange/augint-shell/commit/7ed3e6128a68b3e90515cd78712b296a866f5850))
+
+
 ## v0.100.0 (2026-04-29)
 
 ### Features
