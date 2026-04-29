@@ -206,6 +206,7 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
 
     # Optional bind mounts — skip if source doesn't exist
     optional_binds: list[tuple[Path, str, bool]] = [
+        (home / ".config", "/root/.config", False),
         (home / ".codex", "/root/.codex", False),
         (home / ".claude", "/root/.claude", False),
         (home / ".claude.json", "/root/.claude.json", False),
