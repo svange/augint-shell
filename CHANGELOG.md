@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.98.3 (2026-04-29)
+
+### Bug Fixes
+
+- Register projects via opencode API instead of broken attach TUI
+  ([`6f2c38d`](https://github.com/svange/augint-shell/commit/6f2c38d918e0c1354c8a47297e2ca1354cb37f23))
+
+
 ## v0.98.2 (2026-04-29)
 
 ### Bug Fixes
