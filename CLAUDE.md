@@ -83,7 +83,9 @@ Pi (`@mariozechner/pi-coding-agent`) is a provider-agnostic terminal coding agen
 
 ## Testing
 
-All tests are unit tests in `tests/unit/`. Docker SDK is mocked via fixtures in `conftest.py` (`mock_docker_client`, `mock_container_manager`). CLI tests use Click's `CliRunner` with patched `ContainerManager` and `load_config`. Tests verify command argument building and container creation kwargs, not actual Docker operations.
+All tests are unit tests in `tests/unit/`. Docker SDK is mocked via fixtures in `tests/conftest.py` (`mock_docker_client`, `mock_container_manager`). CLI tests use Click's `CliRunner` with patched `ContainerManager` and `load_config`. Tests verify command argument building and container creation kwargs, not actual Docker operations.
+
+An autouse `isolate_home` fixture in `tests/unit/conftest.py` patches `pathlib.Path.home` to a clean temp dir for every test, preventing tests from reading real `~/.augint/` config. Tests that need specific global config content should either create files inside the yielded `fake_home` or use their own `with patch(...)` override.
 
 ## Project-specific notes
 

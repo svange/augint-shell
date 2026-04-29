@@ -1,29 +1,103 @@
 # ~/.augint/.ai-shell.yaml — Global ai-shell configuration
 # Copy to ~/.augint/.ai-shell.yaml. Per-project .ai-shell.yaml overrides these.
-# Settings here are ai-shell internal behavior (not shared via .env).
+#
+# This file controls ai-shell internal behavior. Shared settings (API keys,
+# model preferences, ports) belong in ~/.augint/.env instead.
 
+# --- Container ---------------------------------------------------------------
 # container:
 #   image: svange/augint-shell
 #   image_tag: latest
 #   skip_updates: false
+#   extra_env:
+#     MY_CUSTOM_VAR: value
 #   extra_volumes:
 #     - /mnt/data:/data:ro
+#     - /mnt/models:/models
+#   extra_ports:
+#     - 8080
+#     - 9090
 
+# --- LLM (Ollama model management) ------------------------------------------
+# These control which models ai-shell pulls and serves via Ollama.
+# Note: PRIMARY_CHAT_MODEL etc. in ~/.augint/.env advertise preferences to
+# sibling tools. The yaml below controls what ai-shell actually pulls/serves.
 # llm:
+#   primary_chat_model: qwen3.5:27b
+#   secondary_chat_model: huihui_ai/qwen3.5-abliterated:27b
+#   primary_coding_model: qwen3-coder:30b-a3b-q4_K_M
+#   secondary_coding_model: huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q4_K_M
 #   extra_models:
 #     - qwen3.5:9b
 #     - devstral:24b
+#   context_size: 32768
+#   ollama_port: 11434
+#   webui_port: 3000
+#   kokoro_port: 8880
 #   kokoro_voice: af_bella
+#   n8n_port: 5678
+#   whisper_port: 8001
 #   whisper_model: Systran/faster-distil-whisper-large-v3
+#   comfyui_port: 8188
 
+# --- AWS ---------------------------------------------------------------------
 # aws:
 #   ai_profile: my-infra-account
+#   bedrock_profile: my-ai-account
+#   region: us-east-1
 #   bedrock_region: us-west-2
+#   bedrock_model: us.meta.llama3-3-70b-instruct-v1:0
 
+# --- OpenAI ------------------------------------------------------------------
+# Multi-account switching. Set openai_profile to a suffix, then define
+# OPENAI_API_KEY_{SUFFIX} and optionally OPENAI_ORG_ID_{SUFFIX} in .env.
+# openai:
+#   profile: WORK
+
+# --- Claude ------------------------------------------------------------------
 # claude:
-#   provider: anthropic
-#   local_chrome: false
+#   provider: anthropic          # "anthropic" (direct API) or "aws" (Bedrock)
+#   local_chrome: false          # Attach Chrome DevTools MCP to host Chrome
 
+# --- Voice Agent -------------------------------------------------------------
 # voice_agent:
 #   port: 8010
+#   domain: myhost.local
 #   profile: resident
+#   profiles:
+#     resident:
+#       primary: qwen3.5:9b
+#       secondary: qwen3.5:27b
+#     swap:
+#       primary: qwen3.5:27b
+#       secondary: devstral:24b
+#   vad:
+#     silence_timeout_ms: 2500
+#     barge_in: true
+#   filesystem:
+#     root: ~/gigachad
+#     read:
+#       - ~/gigachad
+#     write:
+#       - ~/gigachad
+#     deny_glob:
+#       - "**/.env*"
+#       - "**/.git/**"
+#   memory:
+#     enabled: true
+#     summarize_after_turns: 20
+#   providers:
+#     default: ollama
+#     available:
+#       - ollama
+#   tools:
+#     filesystem:
+#       enabled: false
+#     web_search:
+#       enabled: true
+#       provider: brave
+#     github:
+#       enabled: false
+#   wake_word:
+#     enabled: false
+#     name: hey_jarvis

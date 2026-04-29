@@ -2,8 +2,12 @@
 # Copy to ~/.augint/.env and uncomment values to set.
 # Project ./.env overrides these. CLI flags override everything.
 # Priority: CLI > ./.env > ~/.augint/.env > os.environ > defaults
+#
+# Only world-facts and user-preferences go here (things that exist
+# independently of any single tool). Tool-internal behavior goes in
+# each tool's yaml: ~/.augint/.ai-shell.yaml, ~/.augint/.ai-opencodex.yaml, etc.
 
-# --- Credentials ------------------------------------------------------------
+# --- Credentials & Tokens ----------------------------------------------------
 # GH_TOKEN=github_pat_...
 # ANTHROPIC_API_KEY=sk-ant-...
 # OPENAI_API_KEY=sk-...
@@ -13,7 +17,15 @@
 # AWS_PROFILE=my-infra-account
 # AWS_REGION=us-east-1
 
-# --- Model Preferences (what to converge on, served by Ollama) ---------------
+# --- OpenCode Web Server Auth ------------------------------------------------
+# Set once here, omit from project configs. augint-shell injects these into
+# the container env when launching the opencode web server.
+# OPENCODE_SERVER_PASSWORD=changeme
+# OPENCODE_SERVER_USERNAME=admin
+
+# --- Model Preferences -------------------------------------------------------
+# What models to converge on (served by Ollama). Any tool that needs to know
+# your preferred models reads these.
 # PRIMARY_CHAT_MODEL=qwen3.5:27b
 # SECONDARY_CHAT_MODEL=huihui_ai/qwen3.5-abliterated:27b
 # PRIMARY_CODING_MODEL=qwen3-coder:30b-a3b-q4_K_M
