@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v0.98.1 (2026-04-29)
+
+### Bug Fixes
+
+- Ruff format
+  ([`aa1c70f`](https://github.com/svange/augint-shell/commit/aa1c70fb5d737587a801e2e637003b7dfaf19000))
+
+- Use plain strings for container paths in opencode serve
+  ([`6da75ef`](https://github.com/svange/augint-shell/commit/6da75efee805b8b48b78615b88b5b3f17da1df43))
+
+
 ## v0.98.0 (2026-04-29)
 
 ### Features
