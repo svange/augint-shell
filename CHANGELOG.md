@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.101.0 (2026-04-29)
+
+### Features
+
+- Bind-mount ~/.config into dev containers (#115)
+  ([#115](https://github.com/svange/augint-shell/pull/115),
+  [`fe4fb6d`](https://github.com/svange/augint-shell/commit/fe4fb6dc175e998b78399cb458ddec71f73e3070))
+
+
 ## v0.100.1 (2026-04-29)
 
 ### Bug Fixes
