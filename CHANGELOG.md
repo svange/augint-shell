@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.96.0 (2026-04-29)
+
+### Features
+
+- Make GH_TOKEN opt-in via --env flag, default to gh SSO auth
+  ([`2f59fb0`](https://github.com/svange/augint-shell/commit/2f59fb0909d081e81ab841b93f3cc9faca6e6307))
+
+
 ## v0.95.1 (2026-04-29)
 
 ### Bug Fixes
