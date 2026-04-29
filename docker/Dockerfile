@@ -71,6 +71,19 @@ RUN curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/publ
     apt-get install -y stripe && \
     rm -rf /var/lib/apt/lists/*
 
+# Install GitLab CLI (glab)
+RUN GLAB_VERSION=$(curl -fsSL "https://gitlab.com/api/v4/projects/34675721/releases/permalink/latest" | jq -r '.tag_name' | sed 's/^v//') && \
+    curl -fsSL "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_amd64.deb" -o /tmp/glab.deb && \
+    dpkg -i /tmp/glab.deb && \
+    rm /tmp/glab.deb
+
+# Install Jira CLI (jira-cli)
+RUN JIRA_VERSION=$(curl -fsSL "https://api.github.com/repos/ankitpokhrel/jira-cli/releases/latest" | jq -r '.tag_name' | sed 's/^v//') && \
+    curl -fsSL "https://github.com/ankitpokhrel/jira-cli/releases/download/v${JIRA_VERSION}/jira_${JIRA_VERSION}_linux_x86_64.tar.gz" -o /tmp/jira.tar.gz && \
+    tar -xzf /tmp/jira.tar.gz -C /tmp/ && \
+    mv /tmp/jira_${JIRA_VERSION}_linux_x86_64/bin/jira /usr/local/bin/jira && \
+    rm -rf /tmp/jira*
+
 # Install AWS SAM CLI and pre-commit
 RUN pip install aws-sam-cli pre-commit
 
