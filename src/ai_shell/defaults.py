@@ -361,6 +361,7 @@ _SHARED_ENV_PASSTHROUGH = (
     "COMFYUI_PORT",
     "OPENCODE_SERVER_PASSWORD",
     "OPENCODE_SERVER_USERNAME",
+    "PI_STUDIO_HOST",
 )
 
 
@@ -422,6 +423,7 @@ def build_dev_environment(
         "HUSKY": "0",
         "IS_SANDBOX": "1",
         "PRE_COMMIT_HOME": PRE_COMMIT_CACHE_PATH,
+        "PI_STUDIO_HOST": "0.0.0.0",
     }
 
     if env_file is not None:

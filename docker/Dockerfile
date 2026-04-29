@@ -125,6 +125,11 @@ RUN npm install -g @mariozechner/pi-coding-agent
 # Install aider (alternative local coding assistant)
 RUN curl -LsSf https://aider.chat/install.sh | sh
 
+# Install pandoc (required by pi-studio for Markdown/LaTeX rendering)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pandoc \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Playwright with Chrome and ALL dependencies
 # The --with-deps flag is CRUCIAL - it installs ~100+ system libraries Chrome needs
 RUN npx playwright install chrome --with-deps

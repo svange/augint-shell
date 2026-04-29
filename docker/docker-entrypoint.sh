@@ -104,6 +104,38 @@ if [ -x /usr/local/bin/update-tools.sh ] && command -v cron >/dev/null 2>&1; the
 fi
 # =========================================================================
 
+# =========================================================================
+# Pi package bootstrap: install extensions listed in .pi/settings.json
+# =========================================================================
+if [ -f ".pi/settings.json" ] && command -v pi >/dev/null 2>&1; then
+    _PI_PACKAGES=$(jq -r '.packages[]? // empty' .pi/settings.json 2>/dev/null)
+    if [ -n "$_PI_PACKAGES" ]; then
+        echo "===================================="
+        echo "Installing Pi packages..."
+        echo "===================================="
+        echo "$_PI_PACKAGES" | while read -r _pkg; do
+            [ -z "$_pkg" ] && continue
+            echo "  -> $_pkg"
+            pi install "$_pkg" 2>/dev/null || echo "  [warn] failed to install $_pkg"
+        done
+        echo "===================================="
+        echo "Pi packages installed!"
+        echo "===================================="
+
+        # Apply pi-studio container patch: bind to 0.0.0.0 so the web UI is
+        # reachable from the Windows host.
+        _STUDIO_INDEX=$(find /root/.pi -path '*/pi-studio/index.ts' 2>/dev/null | head -1)
+        if [ -n "$_STUDIO_INDEX" ]; then
+            if grep -q '"127.0.0.1"' "$_STUDIO_INDEX" 2>/dev/null; then
+                sed -i 's/"127\.0\.0\.1"/"0.0.0.0"/g' "$_STUDIO_INDEX"
+                echo "Patched pi-studio to listen on 0.0.0.0"
+            fi
+        fi
+    fi
+    unset _PI_PACKAGES _STUDIO_INDEX
+fi
+# =========================================================================
+
 # Display MOTD (environment status dashboard)
 if [ -x /usr/local/bin/motd.sh ]; then
     /usr/local/bin/motd.sh || true
