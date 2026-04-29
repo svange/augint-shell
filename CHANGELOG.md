@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.98.0 (2026-04-29)
+
+### Features
+
+- Add glab and jira-cli to dev container
+  ([`0eeee31`](https://github.com/svange/augint-shell/commit/0eeee3188a22e784bbe2fafd99e75ab15c6c9090))
+
+
 ## v0.97.0 (2026-04-29)
 
 ### Features
