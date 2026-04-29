@@ -115,7 +115,7 @@ def manage_pull(ctx):
     is_flag=False,
     flag_value=".env",
     default=None,
-    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+    help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
 @click.pass_context
 def manage_env(ctx, use_aws, env_file):

@@ -241,7 +241,8 @@ class TestBuildDevEnvironment:
         with patch.dict("os.environ", {}, clear=True):
             env = build_dev_environment(env_file=env_file)
         assert env["GH_TOKEN"] == "test-token"
-        assert env["GITHUB_TOKEN"] == "test-token"
+        # GITHUB_TOKEN is no longer auto-mirrored — put it in .env explicitly.
+        assert "GITHUB_TOKEN" not in env
 
     def test_passes_through_aws_profile(self):
         with patch.dict("os.environ", {"AWS_PROFILE": "my-sso-profile"}):
@@ -271,7 +272,7 @@ class TestBuildDevEnvironmentDotenv:
         with patch.dict("os.environ", {}, clear=True):
             env = build_dev_environment(project_dir=tmp_path, env_file=env_file)
         assert env["GH_TOKEN"] == "from-dotenv"
-        assert env["GITHUB_TOKEN"] == "from-dotenv"
+        assert "GITHUB_TOKEN" not in env
 
     def test_dotenv_overrides_os_environ_with_env_flag(self, tmp_path):
         env_file = tmp_path / ".env"
@@ -281,10 +282,12 @@ class TestBuildDevEnvironmentDotenv:
         assert env["GH_TOKEN"] == "from-dotenv"
 
     def test_extra_env_overrides_dotenv(self, tmp_path):
-        (tmp_path / ".env").write_text("GH_TOKEN=from-dotenv\n")
+        env_file = tmp_path / ".env"
+        env_file.write_text("GH_TOKEN=from-dotenv\n")
         env = build_dev_environment(
             extra_env={"GH_TOKEN": "from-config"},
             project_dir=tmp_path,
+            env_file=env_file,
         )
         assert env["GH_TOKEN"] == "from-config"
 
@@ -301,10 +304,41 @@ class TestBuildDevEnvironmentDotenv:
         assert env["AWS_REGION"] == "us-east-1"
 
     def test_dotenv_aws_region(self, tmp_path):
-        (tmp_path / ".env").write_text("AWS_REGION=eu-west-1\n")
+        env_file = tmp_path / ".env"
+        env_file.write_text("AWS_REGION=eu-west-1\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(project_dir=tmp_path, env_file=env_file)
+        assert env["AWS_REGION"] == "eu-west-1"
+
+    def test_arbitrary_dotenv_var_passes_through_with_env_flag(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_text("PI_STUDIO_PORT=8888\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(project_dir=tmp_path, env_file=env_file)
+        assert env["PI_STUDIO_PORT"] == "8888"
+
+    def test_arbitrary_dotenv_var_blocked_without_env_flag(self, tmp_path):
+        (tmp_path / ".env").write_text("PI_STUDIO_PORT=8888\n")
         with patch.dict("os.environ", {}, clear=True):
             env = build_dev_environment(project_dir=tmp_path)
-        assert env["AWS_REGION"] == "eu-west-1"
+        assert "PI_STUDIO_PORT" not in env
+
+    def test_global_augint_env_always_loaded(self, isolate_home):
+        global_env = isolate_home / ".augint" / ".env"
+        global_env.parent.mkdir(parents=True, exist_ok=True)
+        global_env.write_text("MY_GLOBAL_VAR=hello\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment()
+        assert env["MY_GLOBAL_VAR"] == "hello"
+
+    def test_cli_flag_beats_dotenv(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_text("AWS_PROFILE=from-env\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(
+                project_dir=tmp_path, env_file=env_file, aws_profile="cli-wins"
+            )
+        assert env["AWS_PROFILE"] == "cli-wins"
 
 
 class TestBuildDevEnvironmentBedrock:
@@ -400,37 +434,52 @@ class TestBuildDevEnvironmentOpenAIProfile:
     def test_openai_profile_sets_api_key(self, tmp_path):
         dotenv_path = tmp_path / ".env"
         dotenv_path.write_text("OPENAI_API_KEY_AILLC=sk-test-123\n")
-        env = build_dev_environment(project_dir=tmp_path, openai_profile="aillc")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(
+                project_dir=tmp_path, env_file=dotenv_path, openai_profile="aillc"
+            )
         assert env["OPENAI_API_KEY"] == "sk-test-123"
 
     def test_openai_profile_sets_org_id_when_present(self, tmp_path):
         dotenv_path = tmp_path / ".env"
         dotenv_path.write_text("OPENAI_API_KEY_AILLC=sk-test-123\nOPENAI_ORG_ID_AILLC=org-abc\n")
-        env = build_dev_environment(project_dir=tmp_path, openai_profile="aillc")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(
+                project_dir=tmp_path, env_file=dotenv_path, openai_profile="aillc"
+            )
         assert env["OPENAI_API_KEY"] == "sk-test-123"
         assert env["OPENAI_ORG_ID"] == "org-abc"
 
     def test_openai_profile_no_org_id(self, tmp_path):
         dotenv_path = tmp_path / ".env"
         dotenv_path.write_text("OPENAI_API_KEY_PERSONAL=sk-personal\n")
-        env = build_dev_environment(project_dir=tmp_path, openai_profile="personal")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(
+                project_dir=tmp_path, env_file=dotenv_path, openai_profile="personal"
+            )
         assert env["OPENAI_API_KEY"] == "sk-personal"
         assert "OPENAI_ORG_ID" not in env
 
     def test_openai_profile_uppercases_name(self, tmp_path):
         dotenv_path = tmp_path / ".env"
         dotenv_path.write_text("OPENAI_API_KEY_MYACCT=sk-myacct\n")
-        env = build_dev_environment(project_dir=tmp_path, openai_profile="myacct")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(
+                project_dir=tmp_path, env_file=dotenv_path, openai_profile="myacct"
+            )
         assert env["OPENAI_API_KEY"] == "sk-myacct"
 
     def test_openai_profile_missing_key_raises(self, tmp_path):
         dotenv_path = tmp_path / ".env"
         dotenv_path.write_text("OPENAI_API_KEY_OTHER=sk-other\n")
         with pytest.raises(ValueError, match="OPENAI_API_KEY_AILLC"):
-            build_dev_environment(project_dir=tmp_path, openai_profile="aillc")
+            build_dev_environment(
+                project_dir=tmp_path, env_file=dotenv_path, openai_profile="aillc"
+            )
 
     def test_openai_profile_empty_string_is_noop(self):
-        env = build_dev_environment(openai_profile="")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(openai_profile="")
         assert "OPENAI_API_KEY" not in env
         assert "OPENAI_ORG_ID" not in env
 
@@ -485,7 +534,7 @@ class TestBuildDevEnvironmentGhToken:
         with patch.dict("os.environ", {}, clear=True):
             env = build_dev_environment(project_dir=tmp_path, env_file=env_file)
         assert env["GH_TOKEN"] == "ghp_from_dotenv"
-        assert env["GITHUB_TOKEN"] == "ghp_from_dotenv"
+        assert "GITHUB_TOKEN" not in env
 
     def test_os_environ_gh_token_not_used_without_env_file(self):
         with patch.dict("os.environ", {"GH_TOKEN": "ghp_from_env"}):
@@ -521,7 +570,22 @@ class TestBuildDevEnvironmentLayeredDotenv:
             env = build_dev_environment()
         assert env["AWS_REGION"] == "from-global"
 
-    def test_project_env_overrides_global(self, tmp_path):
+    def test_project_env_overrides_global_with_env_flag(self, tmp_path):
+        augint_dir = tmp_path / ".augint"
+        augint_dir.mkdir()
+        (augint_dir / ".env").write_text("AWS_REGION=from-global\n")
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        project_env = project_dir / ".env"
+        project_env.write_text("AWS_REGION=from-project\n")
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            env = build_dev_environment(project_dir=project_dir, env_file=project_env)
+        assert env["AWS_REGION"] == "from-project"
+
+    def test_project_env_ignored_without_env_flag(self, tmp_path):
         augint_dir = tmp_path / ".augint"
         augint_dir.mkdir()
         (augint_dir / ".env").write_text("AWS_REGION=from-global\n")
@@ -533,7 +597,7 @@ class TestBuildDevEnvironmentLayeredDotenv:
             patch.dict("os.environ", {}, clear=True),
         ):
             env = build_dev_environment(project_dir=project_dir)
-        assert env["AWS_REGION"] == "from-project"
+        assert env["AWS_REGION"] == "from-global"
 
     def test_dotenv_overrides_os_environ(self, tmp_path):
         augint_dir = tmp_path / ".augint"

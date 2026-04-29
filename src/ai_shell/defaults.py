@@ -323,9 +323,12 @@ def _load_layered_dotenv(
     project_dir: Path | None = None,
     env_file: Path | None = None,
 ) -> dict[str, str | None]:
-    """Load layered .env files: ~/.augint/.env < project .env < explicit env_file.
+    """Load layered .env files.
 
-    Returns a merged dict. Later layers override earlier ones.
+    ``~/.augint/.env`` always loads (global augint suite config). The project
+    ``./.env`` and explicit *env_file* only load when *env_file* is given
+    (i.e. user passed ``--env`` on the CLI). Later layers override earlier
+    ones.
     """
     from dotenv import dotenv_values
 
@@ -335,12 +338,15 @@ def _load_layered_dotenv(
     if global_path.is_file():
         layers.update(dotenv_values(global_path))
 
+    if env_file is None:
+        return layers
+
     if project_dir is not None:
         project_path = project_dir / ".env"
-        if project_path.is_file():
+        if project_path.is_file() and project_path.resolve() != env_file.resolve():
             layers.update(dotenv_values(project_path))
 
-    if env_file is not None and env_file.is_file():
+    if env_file.is_file():
         layers.update(dotenv_values(env_file))
 
     return layers
@@ -382,14 +388,15 @@ def build_dev_environment(
 ) -> dict[str, str]:
     """Build environment variables matching docker-compose.yml dev service.
 
-    Loads layered .env files (``~/.augint/.env`` then project ``.env``),
-    then falls back to host environment variables and hardcoded defaults.
+    ``~/.augint/.env`` always loads (global augint suite config). The project
+    ``./.env`` only loads when *env_file* is given (``--env`` on the CLI);
+    when loaded, **all** of its keys flow through to the container.
 
-    Priority (highest wins): extra_env > .env files > os.environ > defaults.
+    Priority (highest wins): extra_env > CLI flags > ``./.env`` (when ``--env``)
+    > ``~/.augint/.env`` > host ``os.environ`` (allowlisted) > defaults.
 
-    GitHub auth defaults to SSO via the ``~/.config/gh`` bind mount.
-    ``GH_TOKEN`` / ``GITHUB_TOKEN`` are only injected when *env_file* is
-    provided (``--env`` on the CLI), so PAT-based auth is opt-in.
+    GitHub auth defaults to SSO via the ``~/.config/gh`` bind mount. To use a
+    PAT instead, put ``GH_TOKEN`` in ``.env`` and pass ``--env``.
 
     When *bedrock* is True, ``CLAUDE_CODE_USE_BEDROCK=1`` is injected and
     *bedrock_profile* (if set) overrides ``AWS_PROFILE`` so the LLM provider
@@ -427,12 +434,6 @@ def build_dev_environment(
         "PI_STUDIO_HOST": "0.0.0.0",  # nosec B104
     }
 
-    if env_file is not None:
-        gh_token = _resolve("GH_TOKEN")
-        if gh_token:
-            env["GH_TOKEN"] = gh_token
-            env["GITHUB_TOKEN"] = gh_token
-
     # Mirror AWS_REGION to AWS_DEFAULT_REGION so both Node.js SDK paths resolve
     env["AWS_DEFAULT_REGION"] = env["AWS_REGION"]
 
@@ -457,7 +458,10 @@ def build_dev_environment(
         key_var = f"OPENAI_API_KEY_{suffix}"
         api_key = dotenv.get(key_var)
         if not api_key:
-            raise ValueError(f"OpenAI profile '{openai_profile}' requires {key_var} in .env")
+            raise ValueError(
+                f"OpenAI profile '{openai_profile}' requires {key_var} in "
+                "~/.augint/.env, or pass --env to load it from ./.env"
+            )
         env["OPENAI_API_KEY"] = api_key
         org_var = f"OPENAI_ORG_ID_{suffix}"
         org_id = dotenv.get(org_var)
@@ -471,6 +475,12 @@ def build_dev_environment(
         val = _resolve(var)
         if val:
             env[var] = val
+
+    # Pass through every var loaded from .env, except keys already populated
+    # above (which preserves CLI-flag wins for AWS_PROFILE etc.).
+    for key, value in dotenv.items():
+        if value is not None and value != "" and key not in env:
+            env[key] = value
 
     if extra_env:
         env.update(extra_env)
