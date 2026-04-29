@@ -1008,9 +1008,9 @@ class TestToolCommands:
 
         mock_manager.exec_interactive.assert_called_once()
         cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert "attach" in cmd
-        assert "http://localhost:4096" in cmd
+        assert cmd == ["opencode", "attach", "http://localhost:4096"]
         assert "Attaching" in result.output
+        mock_check_bedrock.assert_not_called()
 
     def test_opencode_attach_custom_port(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
@@ -1035,17 +1035,16 @@ class TestToolCommands:
         self.runner.invoke(cli, ["opencode", "attach", "--port", "8080"])
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert "attach" in cmd
-        assert "http://localhost:8080" in cmd
+        assert cmd == ["opencode", "attach", "http://localhost:8080"]
 
-    def test_opencode_attach_uses_interactive_not_detached(
+    def test_opencode_attach_skips_bedrock_and_model(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
-        config.bedrock_profile = ""
+        config.bedrock_profile = "sandbox"
         config.openai_profile = ""
-        config.ai_profile = ""
-        config.aws_region = ""
+        config.ai_profile = "sandbox"
+        config.aws_region = "us-east-1"
         config.extra_env = {}
         config.project_dir = Path("/tmp/test")
         config.project_name = "test"
@@ -1062,6 +1061,9 @@ class TestToolCommands:
 
         mock_manager.exec_interactive.assert_called_once()
         mock_manager.exec_detached.assert_not_called()
+        mock_check_bedrock.assert_not_called()
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert "--model" not in cmd
 
     @patch("ai_shell.cli.commands.tools.subprocess.run")
     def test_opencode_status_running(

@@ -1445,19 +1445,12 @@ def serve(ctx, port: int, open_browser: bool) -> None:
 def attach(ctx, port: int) -> None:
     """Attach a TUI to a running opencode server."""
     with capture_typeahead() as typeahead:
-        manager, name, exec_env, config, cmd, bedrock_label, openai_label, project_slug = (
-            _opencode_setup(
-                ctx,
-                ctx.obj.get("use_aws", False),
-                ctx.obj.get("cli_profile"),
-                ctx.obj.get("openai_profile"),
-                env_file=ctx.obj.get("env_file"),
-            )
+        manager, name, exec_env, _config = _get_manager(
+            ctx, env_file=ctx.obj.get("env_file")
         )
-        cmd.append("attach")
-        cmd.append(f"http://localhost:{port}")
+        cmd = ["opencode", "attach", f"http://localhost:{port}"]
         console.print(
-            f"[bold]Attaching to opencode server{bedrock_label}{openai_label} on port {port}...[/bold]"
+            f"[bold]Attaching to opencode server on port {port}...[/bold]"
         )
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
