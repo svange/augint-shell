@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.98.2 (2026-04-29)
+
+### Bug Fixes
+
+- Correct container workdir and persist PATH for login shells
+  ([`d9b79dc`](https://github.com/svange/augint-shell/commit/d9b79dcc4cf1bb61f1476f22426950fbb1df4416))
+
+
 ## v0.98.1 (2026-04-29)
 
 ### Bug Fixes
