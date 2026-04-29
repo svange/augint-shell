@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.97.0 (2026-04-29)
+
+### Features
+
+- Add support for ignoring worktree directories in .gitignore
+  ([`e77c40b`](https://github.com/svange/augint-shell/commit/e77c40b3d9cb98ef6376fe8816af9e3d30fd143e))
+
+
 ## v0.96.0 (2026-04-29)
 
 ### Features
