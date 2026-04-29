@@ -1031,10 +1031,15 @@ class TestToolCommands:
         # 1 call for server start + 3 calls for attach (root + 2 repos)
         assert mock_manager.exec_detached.call_count == 4
         attach_calls = mock_manager.exec_detached.call_args_list[1:]
+        workdirs = []
         for call in attach_calls:
             cmd = call[0][1]
             assert "attach" in cmd
             assert "http://localhost:4096" in cmd
+            workdirs.append(call[1].get("workdir") or call.kwargs.get("workdir"))
+        assert "/root/projects/workspace" in workdirs
+        assert "/root/projects/workspace/repo-a" in workdirs
+        assert "/root/projects/workspace/repo-b" in workdirs
 
     @patch("ai_shell.cli.commands.tools.subprocess.run")
     def test_opencode_serve_skip_root(

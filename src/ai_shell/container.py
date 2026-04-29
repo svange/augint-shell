@@ -344,6 +344,21 @@ class ContainerManager:
             detach=True,
         )
         logger.info("Container created: %s", name)
+
+        subprocess.run(
+            [
+                "docker",
+                "exec",
+                name,
+                "sh",
+                "-c",
+                "echo 'export PATH=\"/root/.local/bin:/root/.opencode/bin:$PATH\"'"
+                " > /etc/profile.d/ai-shell-path.sh",
+            ],
+            check=False,
+            capture_output=True,
+        )
+
         return container
 
     def exec_interactive(

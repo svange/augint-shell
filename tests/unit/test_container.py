@@ -99,7 +99,10 @@ class TestResolveDevContainer:
 
 
 class TestEnsureDevContainer:
-    def test_creates_new_container(self, mock_container_manager, mock_docker_client):
+    @patch("ai_shell.container.subprocess.run")
+    def test_creates_new_container(
+        self, mock_subprocess, mock_container_manager, mock_docker_client
+    ):
         mock_docker_client.containers.get.side_effect = Exception("not found")
 
         # Mock NotFound exception
@@ -133,7 +136,15 @@ class TestEnsureDevContainer:
         }
         assert call_kwargs["ports"] == expected_ports
 
-    def test_creates_container_with_extra_ports(self, mock_docker_client):
+        # Verify profile.d PATH script is injected after creation
+        mock_subprocess.assert_called_once()
+        profile_cmd = mock_subprocess.call_args[0][0]
+        assert "docker" in profile_cmd
+        assert name in profile_cmd
+        assert "/etc/profile.d/ai-shell-path.sh" in " ".join(profile_cmd)
+
+    @patch("ai_shell.container.subprocess.run")
+    def test_creates_container_with_extra_ports(self, _mock_subprocess, mock_docker_client):
         with patch("ai_shell.container.docker") as mock_docker:
             mock_docker.from_env.return_value = mock_docker_client
             mock_docker.errors = MagicMock()
@@ -202,7 +213,8 @@ class TestEnsureDevContainer:
         assert name == "augint-shell-test-project-dev"
         legacy_container.start.assert_not_called()
 
-    def test_ignores_mismatched_legacy_container(self, mock_container_manager):
+    @patch("ai_shell.container.subprocess.run")
+    def test_ignores_mismatched_legacy_container(self, _mock_subprocess, mock_container_manager):
         legacy_container = MagicMock()
         legacy_container.status = "exited"
         legacy_container.attrs = {"Mounts": [{"Source": "/other/path"}]}

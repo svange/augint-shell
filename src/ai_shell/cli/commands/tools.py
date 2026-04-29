@@ -1458,7 +1458,7 @@ def serve(ctx, port: int, skip_root: bool, open_browser: bool) -> None:
         repos.append(cwd)
     repos.extend(_find_git_repos(cwd))
 
-    container_root = "/root/host-project"
+    container_root = f"/root/projects/{config.project_name}"
     attach_url = f"http://localhost:{port}"
 
     for repo in repos:
