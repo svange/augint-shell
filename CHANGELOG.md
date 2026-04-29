@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.100.0 (2026-04-29)
+
+### Features
+
+- Add `opencode attach` subcommand for TUI server connection
+  ([`28d9fa5`](https://github.com/svange/augint-shell/commit/28d9fa5b29adcbcb57bf1e3602965ee785676247))
+
+
 ## v0.99.0 (2026-04-29)
 
 ### Bug Fixes
