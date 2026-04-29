@@ -229,9 +229,17 @@ class TestBuildDevEnvironment:
             env = build_dev_environment()
         assert env["AWS_REGION"] == "us-east-1"
 
-    def test_passes_through_gh_token(self):
+    def test_gh_token_not_injected_by_default(self):
         with patch.dict("os.environ", {"GH_TOKEN": "test-token"}):
             env = build_dev_environment()
+        assert "GH_TOKEN" not in env
+        assert "GITHUB_TOKEN" not in env
+
+    def test_gh_token_injected_with_env_file(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_text("GH_TOKEN=test-token\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(env_file=env_file)
         assert env["GH_TOKEN"] == "test-token"
         assert env["GITHUB_TOKEN"] == "test-token"
 
@@ -257,17 +265,19 @@ class TestBuildDevEnvironment:
 
 
 class TestBuildDevEnvironmentDotenv:
-    def test_loads_gh_token_from_dotenv(self, tmp_path):
-        (tmp_path / ".env").write_text("GH_TOKEN=from-dotenv\n")
+    def test_loads_gh_token_from_dotenv_with_env_flag(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_text("GH_TOKEN=from-dotenv\n")
         with patch.dict("os.environ", {}, clear=True):
-            env = build_dev_environment(project_dir=tmp_path)
+            env = build_dev_environment(project_dir=tmp_path, env_file=env_file)
         assert env["GH_TOKEN"] == "from-dotenv"
         assert env["GITHUB_TOKEN"] == "from-dotenv"
 
-    def test_dotenv_overrides_os_environ(self, tmp_path):
-        (tmp_path / ".env").write_text("GH_TOKEN=from-dotenv\n")
+    def test_dotenv_overrides_os_environ_with_env_flag(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_text("GH_TOKEN=from-dotenv\n")
         with patch.dict("os.environ", {"GH_TOKEN": "from-os"}):
-            env = build_dev_environment(project_dir=tmp_path)
+            env = build_dev_environment(project_dir=tmp_path, env_file=env_file)
         assert env["GH_TOKEN"] == "from-dotenv"
 
     def test_extra_env_overrides_dotenv(self, tmp_path):
@@ -278,21 +288,16 @@ class TestBuildDevEnvironmentDotenv:
         )
         assert env["GH_TOKEN"] == "from-config"
 
-    def test_falls_back_to_os_environ_when_not_in_dotenv(self, tmp_path):
+    def test_no_gh_token_without_env_flag(self, tmp_path):
         (tmp_path / ".env").write_text("OTHER_VAR=other\n")
         with patch.dict("os.environ", {"GH_TOKEN": "from-os"}):
             env = build_dev_environment(project_dir=tmp_path)
-        assert env["GH_TOKEN"] == "from-os"
-
-    def test_no_project_dir_uses_old_behavior(self):
-        with patch.dict("os.environ", {"GH_TOKEN": "from-os"}):
-            env = build_dev_environment()
-        assert env["GH_TOKEN"] == "from-os"
+        assert "GH_TOKEN" not in env
 
     def test_missing_dotenv_uses_defaults(self, tmp_path):
         with patch.dict("os.environ", {}, clear=True):
             env = build_dev_environment(project_dir=tmp_path)
-        assert env["GH_TOKEN"] == ""
+        assert "GH_TOKEN" not in env
         assert env["AWS_REGION"] == "us-east-1"
 
     def test_dotenv_aws_region(self, tmp_path):
@@ -464,7 +469,6 @@ class TestBuildDevEnvironmentTeamMode:
 
 class TestBuildDevEnvironmentGhToken:
     def test_gh_config_dir_does_not_set_gh_token(self, tmp_path):
-        # Mounting ~/.config/gh does not inject GH_TOKEN — let gh use the config natively
         gh_dir = tmp_path / ".config" / "gh"
         gh_dir.mkdir(parents=True)
         (gh_dir / "hosts.yml").write_text("github.com:\n  oauth_token: ghp_from_hosts\n")
@@ -473,19 +477,20 @@ class TestBuildDevEnvironmentGhToken:
             patch.dict("os.environ", {}, clear=True),
         ):
             env = build_dev_environment()
-        assert env["GH_TOKEN"] == ""
+        assert "GH_TOKEN" not in env
 
-    def test_dotenv_gh_token_used(self, tmp_path):
-        (tmp_path / ".env").write_text("GH_TOKEN=ghp_from_dotenv\n")
+    def test_dotenv_gh_token_used_with_env_file(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_text("GH_TOKEN=ghp_from_dotenv\n")
         with patch.dict("os.environ", {}, clear=True):
-            env = build_dev_environment(project_dir=tmp_path)
+            env = build_dev_environment(project_dir=tmp_path, env_file=env_file)
         assert env["GH_TOKEN"] == "ghp_from_dotenv"
         assert env["GITHUB_TOKEN"] == "ghp_from_dotenv"
 
-    def test_os_environ_gh_token_used(self):
+    def test_os_environ_gh_token_not_used_without_env_file(self):
         with patch.dict("os.environ", {"GH_TOKEN": "ghp_from_env"}):
             env = build_dev_environment()
-        assert env["GH_TOKEN"] == "ghp_from_env"
+        assert "GH_TOKEN" not in env
 
 
 class TestBuildDevEnvironmentPath:
@@ -508,46 +513,46 @@ class TestBuildDevEnvironmentLayeredDotenv:
     def test_global_env_loaded(self, tmp_path):
         augint_dir = tmp_path / ".augint"
         augint_dir.mkdir()
-        (augint_dir / ".env").write_text("GH_TOKEN=from-global\n")
+        (augint_dir / ".env").write_text("AWS_REGION=from-global\n")
         with (
             patch("ai_shell.defaults.Path.home", return_value=tmp_path),
             patch.dict("os.environ", {}, clear=True),
         ):
             env = build_dev_environment()
-        assert env["GH_TOKEN"] == "from-global"
+        assert env["AWS_REGION"] == "from-global"
 
     def test_project_env_overrides_global(self, tmp_path):
         augint_dir = tmp_path / ".augint"
         augint_dir.mkdir()
-        (augint_dir / ".env").write_text("GH_TOKEN=from-global\n")
+        (augint_dir / ".env").write_text("AWS_REGION=from-global\n")
         project_dir = tmp_path / "project"
         project_dir.mkdir()
-        (project_dir / ".env").write_text("GH_TOKEN=from-project\n")
+        (project_dir / ".env").write_text("AWS_REGION=from-project\n")
         with (
             patch("ai_shell.defaults.Path.home", return_value=tmp_path),
             patch.dict("os.environ", {}, clear=True),
         ):
             env = build_dev_environment(project_dir=project_dir)
-        assert env["GH_TOKEN"] == "from-project"
+        assert env["AWS_REGION"] == "from-project"
 
     def test_dotenv_overrides_os_environ(self, tmp_path):
         augint_dir = tmp_path / ".augint"
         augint_dir.mkdir()
-        (augint_dir / ".env").write_text("GH_TOKEN=from-global\n")
+        (augint_dir / ".env").write_text("AWS_REGION=from-global\n")
         with (
             patch("ai_shell.defaults.Path.home", return_value=tmp_path),
-            patch.dict("os.environ", {"GH_TOKEN": "from-os"}),
+            patch.dict("os.environ", {"AWS_REGION": "from-os"}),
         ):
             env = build_dev_environment()
-        assert env["GH_TOKEN"] == "from-global"
+        assert env["AWS_REGION"] == "from-global"
 
     def test_missing_global_env_is_graceful(self, tmp_path):
         with (
             patch("ai_shell.defaults.Path.home", return_value=tmp_path),
-            patch.dict("os.environ", {"GH_TOKEN": "from-os"}),
+            patch.dict("os.environ", {"AWS_REGION": "from-os"}),
         ):
             env = build_dev_environment()
-        assert env["GH_TOKEN"] == "from-os"
+        assert env["AWS_REGION"] == "from-os"
 
 
 class TestBuildDevEnvironmentSharedPassthrough:
@@ -660,9 +665,11 @@ class TestBuildN8nEnvironment:
         assert "ANTHROPIC_API_KEY" not in env
         assert "GH_TOKEN" not in env
 
-    def test_gh_token_sets_github_models_url(self):
-        with patch.dict("os.environ", {"GH_TOKEN": "ghp_test"}, clear=True):
-            env = build_n8n_environment()
+    def test_gh_token_sets_github_models_url(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_text("GH_TOKEN=ghp_test\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_n8n_environment(env_file=env_file)
         assert env["GH_TOKEN"] == "ghp_test"
         assert env["GITHUB_TOKEN"] == "ghp_test"
         assert env["GITHUB_MODELS_BASE_URL"] == "https://models.inference.ai.azure.com"

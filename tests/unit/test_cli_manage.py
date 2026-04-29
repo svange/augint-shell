@@ -115,9 +115,27 @@ class TestManageEnv:
         config.bedrock_profile = ""
         mock_config.return_value = config
 
-        with patch.dict("os.environ", {"GH_TOKEN": "ghp_abcdefghijklmnop"}):
-            result = self.runner.invoke(cli, ["manage", "env"])
+        env_file = tmp_path / ".env"
+        env_file.write_text("GH_TOKEN=ghp_abcdefghijklmnop\n")
+        with patch.dict("os.environ", {}, clear=True):
+            result = self.runner.invoke(cli, ["manage", "env", "--env", str(env_file)])
 
         assert "ghp_abcdefghijklmnop" not in result.output
         assert "ghp_" in result.output
         assert "...mnop" in result.output
+
+    def test_manage_env_no_gh_token_without_env_flag(self, mock_config, tmp_path):
+        config = MagicMock()
+        config.claude_provider = ""
+        config.extra_env = {}
+        config.project_dir = tmp_path
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.bedrock_profile = ""
+        mock_config.return_value = config
+
+        with patch.dict("os.environ", {"GH_TOKEN": "ghp_abcdefghijklmnop"}):
+            result = self.runner.invoke(cli, ["manage", "env"])
+
+        assert "GH_TOKEN" not in result.output
+        assert "GITHUB_TOKEN" not in result.output

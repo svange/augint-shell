@@ -376,6 +376,7 @@ def build_dev_environment(
     bedrock_region: str = "",
     openai_profile: str = "",
     team_mode: bool = False,
+    env_file: Path | None = None,
 ) -> dict[str, str]:
     """Build environment variables matching docker-compose.yml dev service.
 
@@ -383,6 +384,10 @@ def build_dev_environment(
     then falls back to host environment variables and hardcoded defaults.
 
     Priority (highest wins): extra_env > .env files > os.environ > defaults.
+
+    GitHub auth defaults to SSO via the ``~/.config/gh`` bind mount.
+    ``GH_TOKEN`` / ``GITHUB_TOKEN`` are only injected when *env_file* is
+    provided (``--env`` on the CLI), so PAT-based auth is opt-in.
 
     When *bedrock* is True, ``CLAUDE_CODE_USE_BEDROCK=1`` is injected and
     *bedrock_profile* (if set) overrides ``AWS_PROFILE`` so the LLM provider
@@ -395,7 +400,7 @@ def build_dev_environment(
     When *team_mode* is True, ``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` is
     injected to enable Claude Code's Agent Teams feature.
     """
-    dotenv = _load_layered_dotenv(project_dir)
+    dotenv = _load_layered_dotenv(project_dir, env_file=env_file)
 
     def _resolve(key: str, default: str = "") -> str:
         """Resolve a value: .env > os.environ > default."""
@@ -409,18 +414,21 @@ def build_dev_environment(
         "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     )
 
-    gh_token = _resolve("GH_TOKEN")
     env: dict[str, str] = {
         "PATH": _CONTAINER_BASE_PATH,
         "AWS_PROFILE": aws_profile or _resolve("AWS_PROFILE"),
         "AWS_REGION": aws_region or _resolve("AWS_REGION", "us-east-1"),
         "AWS_PAGER": "",
-        "GH_TOKEN": gh_token,
-        "GITHUB_TOKEN": gh_token,
         "HUSKY": "0",
         "IS_SANDBOX": "1",
         "PRE_COMMIT_HOME": PRE_COMMIT_CACHE_PATH,
     }
+
+    if env_file is not None:
+        gh_token = _resolve("GH_TOKEN")
+        if gh_token:
+            env["GH_TOKEN"] = gh_token
+            env["GITHUB_TOKEN"] = gh_token
 
     # Mirror AWS_REGION to AWS_DEFAULT_REGION so both Node.js SDK paths resolve
     env["AWS_DEFAULT_REGION"] = env["AWS_REGION"]
@@ -517,12 +525,12 @@ def build_n8n_environment(
         if val:
             env[key] = val
 
-    gh_token = _resolve_env(dotenv, "GH_TOKEN")
-    if gh_token:
-        env["GH_TOKEN"] = gh_token
-        env["GITHUB_TOKEN"] = gh_token
-        # GitHub Models endpoint for Copilot LLM access.
-        env["GITHUB_MODELS_BASE_URL"] = "https://models.inference.ai.azure.com"
+    if env_file is not None:
+        gh_token = _resolve_env(dotenv, "GH_TOKEN")
+        if gh_token:
+            env["GH_TOKEN"] = gh_token
+            env["GITHUB_TOKEN"] = gh_token
+            env["GITHUB_MODELS_BASE_URL"] = "https://models.inference.ai.azure.com"
 
     return env
 

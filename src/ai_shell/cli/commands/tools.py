@@ -211,6 +211,7 @@ def _get_manager(
     bedrock: bool = False,
     bedrock_profile: str = "",
     openai_profile: str = "",
+    env_file: Path | None = None,
 ) -> tuple[ContainerManager, str, dict[str, str], AiShellConfig]:
     """Create ContainerManager from Click context and ensure dev container.
 
@@ -241,6 +242,7 @@ def _get_manager(
         bedrock_profile=bedrock_profile or config.bedrock_profile,
         bedrock_region=config.bedrock_region,
         openai_profile=openai_profile or config.openai_profile,
+        env_file=env_file,
     )
     return manager, container_name, exec_env, config
 
@@ -300,6 +302,7 @@ def _launch_loaded_config_claude(
     local_chrome: bool = False,
     team_mode: bool = False,
     worktree_name: str | None = None,
+    env_file: Path | None = None,
 ) -> None:
     """Launch Claude for an already loaded project config."""
     with capture_typeahead() as typeahead:
@@ -317,6 +320,7 @@ def _launch_loaded_config_claude(
             aws_region=config.aws_region,
             bedrock_profile=cli_profile or config.bedrock_profile,
             bedrock_region=config.bedrock_region,
+            env_file=env_file,
         )
 
         if team_mode:
@@ -424,6 +428,7 @@ def _launch_interactive(
     cli_profile: str | None,
     extra_args: tuple[str, ...],
     worktree_name: str | None = None,
+    env_file: Path | None = None,
 ) -> None:
     """Interactive Claude launcher.
 
@@ -475,6 +480,7 @@ def _launch_interactive(
                     aws_region=config.aws_region,
                     bedrock_profile=cli_profile or config.bedrock_profile,
                     bedrock_region=config.bedrock_region,
+                    env_file=env_file,
                 )
                 console.print(f"[bold]Launching Bash in {container_name}...[/bold]")
             manager.exec_interactive(
@@ -557,6 +563,7 @@ def _launch_interactive(
         aws_region=config.aws_region,
         bedrock_profile=cli_profile or config.bedrock_profile,
         bedrock_region=config.bedrock_region,
+        env_file=env_file,
     )
 
     if use_bedrock:
@@ -612,6 +619,7 @@ def _launch_team(
     use_aws: bool,
     cli_profile: str | None,
     extra_args: tuple[str, ...],
+    env_file: Path | None = None,
 ) -> None:
     """Launch Claude Code in Agent Teams mode.
 
@@ -663,6 +671,7 @@ def _launch_team(
             bedrock_profile=cli_profile or config.bedrock_profile,
             bedrock_region=config.bedrock_region,
             team_mode=True,
+            env_file=env_file,
         )
 
         if use_bedrock:
@@ -699,6 +708,7 @@ def _launch_single_repo_multi(
     cli_profile: str | None,
     extra_args: tuple[str, ...],
     worktree_name: str | None = None,
+    env_file: Path | None = None,
 ) -> None:
     """Single-repo multi-pane launcher.
 
@@ -738,6 +748,7 @@ def _launch_single_repo_multi(
         aws_region=config.aws_region,
         bedrock_profile=cli_profile or config.bedrock_profile,
         bedrock_region=config.bedrock_region,
+        env_file=env_file,
     )
 
     if use_bedrock:
@@ -793,6 +804,7 @@ def _launch_multi(
     cli_profile: str | None,
     extra_args: tuple[str, ...],
     worktree_name: str | None = None,
+    env_file: Path | None = None,
 ) -> None:
     """Multi-pane Claude launcher.
 
@@ -858,6 +870,7 @@ def _launch_multi(
             cli_profile=cli_profile,
             extra_args=extra_args,
             worktree_name=worktree_name,
+            env_file=env_file,
         )
         return
 
@@ -936,6 +949,7 @@ def _launch_multi(
         aws_region=config.aws_region,
         bedrock_profile=cli_profile or config.bedrock_profile,
         bedrock_region=config.bedrock_region,
+        env_file=env_file,
     )
 
     if use_bedrock:
@@ -1060,6 +1074,14 @@ def _launch_multi(
         "A single Claude pane falls back to a normal session."
     ),
 )
+@click.option(
+    "--env",
+    "env_file",
+    is_flag=False,
+    flag_value=".env",
+    default=None,
+    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def claude(
@@ -1072,9 +1094,12 @@ def claude(
     do_team,
     local_chrome,
     do_interactive,
+    env_file,
     extra_args,
 ):
     """Launch Claude Code in the dev container."""
+    resolved_env = Path(env_file) if env_file else None
+
     # Incompatibility checks
     if do_team and do_multi:
         raise click.ClickException("--team and --multi are incompatible (both manage tmux).")
@@ -1096,6 +1121,7 @@ def claude(
             cli_profile=cli_profile,
             extra_args=extra_args,
             worktree_name=worktree_name,
+            env_file=resolved_env,
         )
         return
 
@@ -1107,6 +1133,7 @@ def claude(
             cli_profile=cli_profile,
             extra_args=extra_args,
             worktree_name=worktree_name,
+            env_file=resolved_env,
         )
         return
 
@@ -1117,6 +1144,7 @@ def claude(
             use_aws=use_aws,
             cli_profile=cli_profile,
             extra_args=extra_args,
+            env_file=resolved_env,
         )
         return
 
@@ -1132,6 +1160,7 @@ def claude(
         extra_args=extra_args,
         local_chrome=local_chrome,
         worktree_name=worktree_name,
+        env_file=resolved_env,
     )
 
 
@@ -1152,6 +1181,14 @@ def claude(
         "via AI_SHELL_OPENAI_PROFILE env var."
     ),
 )
+@click.option(
+    "--env",
+    "env_file",
+    is_flag=False,
+    flag_value=".env",
+    default=None,
+    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def codex(
@@ -1160,9 +1197,11 @@ def codex(
     use_aws,
     cli_profile,
     openai_profile,
+    env_file,
     extra_args,
 ):
     """Launch Codex in the dev container."""
+    resolved_env = Path(env_file) if env_file else None
     with capture_typeahead() as typeahead:
         project = ctx.obj.get("project") if ctx.obj else None
         config = load_config(project_override=project, project_dir=Path.cwd())
@@ -1173,6 +1212,7 @@ def codex(
             bedrock=use_bedrock,
             bedrock_profile=cli_profile or config.bedrock_profile,
             openai_profile=openai_profile or config.openai_profile,
+            env_file=resolved_env,
         )
 
         if use_bedrock:
@@ -1210,6 +1250,7 @@ def _opencode_setup(
     use_aws: bool = False,
     cli_profile: str | None = None,
     openai_profile: str | None = None,
+    env_file: Path | None = None,
 ) -> tuple[ContainerManager, str, dict[str, str], AiShellConfig, list[str], str, str, str]:
     """Common setup for opencode commands.
 
@@ -1225,6 +1266,7 @@ def _opencode_setup(
         bedrock=use_bedrock,
         bedrock_profile=cli_profile or config.bedrock_profile,
         openai_profile=openai_profile or config.openai_profile,
+        env_file=env_file,
     )
 
     if use_bedrock:
@@ -1278,6 +1320,14 @@ def _opencode_setup(
     show_default=True,
     help="Container port for --web mode.",
 )
+@click.option(
+    "--env",
+    "env_file",
+    is_flag=False,
+    flag_value=".env",
+    default=None,
+    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+)
 @click.pass_context
 def opencode(
     ctx,
@@ -1287,20 +1337,23 @@ def opencode(
     openai_profile,
     web,
     web_port,
+    env_file,
 ):
     """Launch opencode in the dev container."""
+    resolved_env = Path(env_file) if env_file else None
     ctx.ensure_object(dict)
     ctx.obj["use_aws"] = use_aws
     ctx.obj["cli_profile"] = cli_profile
     ctx.obj["openai_profile"] = openai_profile
     ctx.obj["safe"] = safe
+    ctx.obj["env_file"] = resolved_env
 
     if ctx.invoked_subcommand is not None:
         return
 
     with capture_typeahead() as typeahead:
         manager, name, exec_env, config, cmd, bedrock_label, openai_label, project_slug = (
-            _opencode_setup(ctx, use_aws, cli_profile, openai_profile)
+            _opencode_setup(ctx, use_aws, cli_profile, openai_profile, env_file=resolved_env)
         )
 
         if web:
@@ -1372,6 +1425,7 @@ def serve(ctx, port: int, skip_root: bool, open_browser: bool) -> None:
             ctx.obj.get("use_aws", False),
             ctx.obj.get("cli_profile"),
             ctx.obj.get("openai_profile"),
+            env_file=ctx.obj.get("env_file"),
         )
     )
 
@@ -1572,9 +1626,18 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
 )
 @click.option("--login", "do_login", is_flag=True, default=False, help="Run pi login for OAuth.")
 @click.option("--doom", is_flag=True, default=False, help="Launch pi-doom (play DOOM via AI).")
+@click.option(
+    "--env",
+    "env_file",
+    is_flag=False,
+    flag_value=".env",
+    default=None,
+    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+)
 @click.pass_context
-def pi(ctx, use_aws, cli_profile, openai_profile, do_login, doom):
+def pi(ctx, use_aws, cli_profile, openai_profile, do_login, doom, env_file):
     """Launch pi coding agent in the dev container."""
+    resolved_env = Path(env_file) if env_file else None
     with capture_typeahead() as typeahead:
         project = ctx.obj.get("project") if ctx.obj else None
         config = load_config(project_override=project, project_dir=Path.cwd())
@@ -1585,6 +1648,7 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login, doom):
             bedrock=use_bedrock,
             bedrock_profile=cli_profile or config.bedrock_profile,
             openai_profile=openai_profile or config.openai_profile,
+            env_file=resolved_env,
         )
 
         if do_login:
@@ -1644,13 +1708,21 @@ SUPPORTED_SHELLS: dict[str, str] = {
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
+@click.option(
+    "--env",
+    "env_file",
+    is_flag=False,
+    flag_value=".env",
+    default=None,
+    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+)
 @click.argument(
     "shell_name",
     required=False,
     type=click.Choice(list(SUPPORTED_SHELLS.keys()), case_sensitive=False),
 )
 @click.pass_context
-def shell(ctx, shell_name):
+def shell(ctx, env_file, shell_name):
     """Open an interactive shell in the dev container.
 
     SHELL_NAME is one of bash, zsh, fish.  Defaults to bash if omitted.
@@ -1658,8 +1730,9 @@ def shell(ctx, shell_name):
     prompt, useful aliases, history tuning) plus Oh My Zsh for zsh and
     Fisher for fish.
     """
+    resolved_env = Path(env_file) if env_file else None
     with capture_typeahead() as typeahead:
-        manager, name, exec_env, _config = _get_manager(ctx)
+        manager, name, exec_env, _config = _get_manager(ctx, env_file=resolved_env)
         if not shell_name:
             shell_name = "bash"
         shell_name = shell_name.lower()

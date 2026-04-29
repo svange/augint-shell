@@ -109,9 +109,18 @@ def manage_pull(ctx):
 
 @manage_group.command("env")
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Show Bedrock environment.")
+@click.option(
+    "--env",
+    "env_file",
+    is_flag=False,
+    flag_value=".env",
+    default=None,
+    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+)
 @click.pass_context
-def manage_env(ctx, use_aws):
+def manage_env(ctx, use_aws, env_file):
     """Show environment variables that would be passed to AI tool processes."""
+    resolved_env = Path(env_file) if env_file else None
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
     use_bedrock = use_aws or config.claude_provider == "aws"
@@ -123,6 +132,7 @@ def manage_env(ctx, use_aws):
         aws_profile=config.ai_profile,
         aws_region=config.aws_region,
         bedrock_profile=config.bedrock_profile if use_bedrock else "",
+        env_file=resolved_env,
     )
 
     console.print("[bold]Resolved exec environment:[/bold]")
