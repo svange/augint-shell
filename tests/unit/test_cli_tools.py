@@ -954,7 +954,7 @@ class TestToolCommands:
         assert "--hostname" not in cmd
 
     @patch("ai_shell.cli.commands.tools.subprocess.run")
-    def test_opencode_serve_starts_server_and_registers(
+    def test_opencode_serve_starts_server(
         self, mock_subprocess, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
@@ -973,14 +973,8 @@ class TestToolCommands:
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
         mock_manager_cls.return_value = mock_manager
 
-        # Health check and API calls succeed
-        mock_subprocess.return_value = MagicMock(returncode=0)
-
         with patch("ai_shell.cli.commands.tools.Path.cwd", return_value=Path("/tmp/test")):
-            with patch("ai_shell.cli.commands.tools.Path.is_dir", return_value=True):
-                with patch.object(Path, "exists", return_value=False):
-                    with patch.object(Path, "iterdir", return_value=[]):
-                        result = self.runner.invoke(cli, ["opencode", "serve", "--skip-root"])
+            result = self.runner.invoke(cli, ["opencode", "serve"])
 
         mock_manager.exec_detached.assert_called_once()
         serve_cmd = mock_manager.exec_detached.call_args[0][1]
@@ -990,9 +984,8 @@ class TestToolCommands:
         assert "--cors" in serve_cmd
         assert "http://localhost:" in result.output
 
-    @patch("ai_shell.cli.commands.tools.subprocess.run")
-    def test_opencode_serve_registers_git_repos(
-        self, mock_subprocess, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    def test_opencode_attach_default_port(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
         config.bedrock_profile = ""
@@ -1000,51 +993,27 @@ class TestToolCommands:
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
-        config.project_dir = Path("/tmp/workspace")
-        config.project_name = "workspace"
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
         config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
         mock_config.return_value = config
 
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-workspace-dev"
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
         mock_manager_cls.return_value = mock_manager
 
-        mock_subprocess.return_value = MagicMock(returncode=0)
+        result = self.runner.invoke(cli, ["opencode", "attach"])
 
-        workspace = Path("/tmp/workspace")
-        repo_a = workspace / "repo-a"
-        repo_b = workspace / "repo-b"
+        mock_manager.exec_interactive.assert_called_once()
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert "attach" in cmd
+        assert "http://localhost:4096" in cmd
+        assert "Attaching" in result.output
 
-        with (
-            patch("ai_shell.cli.commands.tools.Path.cwd", return_value=workspace),
-            patch.object(Path, "exists", side_effect=lambda s=None: True),
-            patch.object(Path, "is_dir", return_value=True),
-            patch.object(
-                Path,
-                "iterdir",
-                return_value=[repo_a, repo_b],
-            ),
-        ):
-            self.runner.invoke(cli, ["opencode", "serve"])
-
-        # exec_detached only for server start
-        mock_manager.exec_detached.assert_called_once()
-
-        # subprocess.run called for: health check polls + 3 project registrations
-        # Find curl calls that register projects (contain /project/ in args)
-        api_calls = [
-            c for c in mock_subprocess.call_args_list if any("/project/" in str(a) for a in c[0][0])
-        ]
-        assert len(api_calls) == 3
-        api_args = [" ".join(c[0][0]) for c in api_calls]
-        assert any("/root/projects/workspace" in a for a in api_args)
-        assert any("/root/projects/workspace/repo-a" in a for a in api_args)
-        assert any("/root/projects/workspace/repo-b" in a for a in api_args)
-
-    @patch("ai_shell.cli.commands.tools.subprocess.run")
-    def test_opencode_serve_skip_root(
-        self, mock_subprocess, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    def test_opencode_attach_custom_port(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):
         config = MagicMock()
         config.bedrock_profile = ""
@@ -1052,36 +1021,47 @@ class TestToolCommands:
         config.ai_profile = ""
         config.aws_region = ""
         config.extra_env = {}
-        config.project_dir = Path("/tmp/workspace")
-        config.project_name = "workspace"
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
         config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
         mock_config.return_value = config
 
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-workspace-dev"
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
         mock_manager_cls.return_value = mock_manager
 
-        mock_subprocess.return_value = MagicMock(returncode=0)
+        self.runner.invoke(cli, ["opencode", "attach", "--port", "8080"])
 
-        workspace = Path("/tmp/workspace")
-        repo_a = workspace / "repo-a"
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert "attach" in cmd
+        assert "http://localhost:8080" in cmd
 
-        with (
-            patch("ai_shell.cli.commands.tools.Path.cwd", return_value=workspace),
-            patch.object(Path, "exists", side_effect=lambda s=None: True),
-            patch.object(Path, "is_dir", return_value=True),
-            patch.object(Path, "iterdir", return_value=[repo_a]),
-        ):
-            self.runner.invoke(cli, ["opencode", "serve", "--skip-root"])
+    def test_opencode_attach_uses_interactive_not_detached(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        mock_config.return_value = config
 
-        # exec_detached only for server start
-        mock_manager.exec_detached.assert_called_once()
-        # Only 1 repo registered (no root)
-        api_calls = [
-            c for c in mock_subprocess.call_args_list if any("/project/" in str(a) for a in c[0][0])
-        ]
-        assert len(api_calls) == 1
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["opencode", "attach"])
+
+        mock_manager.exec_interactive.assert_called_once()
+        mock_manager.exec_detached.assert_not_called()
 
     @patch("ai_shell.cli.commands.tools.subprocess.run")
     def test_opencode_status_running(

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import subprocess
 import sys
-import time
 import uuid
 import webbrowser
 from pathlib import Path
@@ -1385,17 +1383,6 @@ def opencode(
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
-def _find_git_repos(root: Path) -> list[Path]:
-    """Find immediate child directories that are git repositories."""
-    repos: list[Path] = []
-    if not root.is_dir():
-        return repos
-    for child in sorted(root.iterdir()):
-        if child.is_dir() and (child / ".git").exists():
-            repos.append(child)
-    return repos
-
-
 @opencode.command()
 @click.option(
     "--port",
@@ -1405,12 +1392,6 @@ def _find_git_repos(root: Path) -> list[Path]:
     help="Container port for the server.",
 )
 @click.option(
-    "--skip-root",
-    is_flag=True,
-    default=False,
-    help="Don't attach the current directory as a terminal.",
-)
-@click.option(
     "--open",
     "open_browser",
     is_flag=True,
@@ -1418,8 +1399,8 @@ def _find_git_repos(root: Path) -> list[Path]:
     help="Open the web UI in the default browser after starting.",
 )
 @click.pass_context
-def serve(ctx, port: int, skip_root: bool, open_browser: bool) -> None:
-    """Start a headless opencode server and attach all git repos as terminals."""
+def serve(ctx, port: int, open_browser: bool) -> None:
+    """Start a headless opencode server."""
     manager, name, exec_env, config, cmd, bedrock_label, openai_label, project_slug = (
         _opencode_setup(
             ctx,
@@ -1440,69 +1421,45 @@ def serve(ctx, port: int, skip_root: bool, open_browser: bool) -> None:
     )
     manager.exec_detached(name, cmd, extra_env=exec_env)
 
-    # Poll for server readiness
-    for _ in range(10):
-        result = subprocess.run(
-            ["docker", "exec", name, "curl", "-sf", f"http://localhost:{port}"],
-            capture_output=True,
-        )
-        if result.returncode == 0:
-            break
-        time.sleep(1)
-    else:
-        console.print("[yellow]Server may not be ready yet -- attaching anyway.[/yellow]")
-
-    # Discover git repos
     cwd = Path.cwd()
-    repos: list[Path] = []
-    if not skip_root and (cwd / ".git").exists():
-        repos.append(cwd)
-    repos.extend(_find_git_repos(cwd))
-
-    container_root = f"/root/projects/{config.project_name}"
-    registered = 0
-
-    for repo in repos:
-        rel = repo.relative_to(cwd) if repo != cwd else Path(".")
-        container_path = (
-            f"{container_root}/{rel.as_posix()}" if rel != Path(".") else container_root
-        )
-        project_id = base64.b64encode(container_path.encode()).decode().rstrip("=")
-        result = subprocess.run(
-            [
-                "docker",
-                "exec",
-                name,
-                "curl",
-                "-sf",
-                "-X",
-                "POST",
-                f"http://localhost:{port}/project/{project_id}/session",
-                "-H",
-                "Content-Type: application/json",
-                "-d",
-                json.dumps({"directory": container_path}),
-            ],
-            capture_output=True,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            console.print(f"  [green]+[/green] {rel}")
-            registered += 1
-        else:
-            console.print(f"  [yellow]![/yellow] {rel}")
-
     host_port = project_dev_port(config.project_dir or cwd, port, config.project_name)
     mdns_name = f"{project_slug}.local"
-    console.print()
     console.print(f"[green bold]Server: http://localhost:{host_port}[/green bold]")
     console.print(f"[green]mDNS:   http://{mdns_name}:{port}[/green]")
-    console.print(f"[dim]Registered {registered}/{len(repos)} project(s).[/dim]")
     if exec_env.get("OPENCODE_SERVER_PASSWORD"):
         console.print("[dim]Password protection enabled.[/dim]")
 
     if open_browser:
         webbrowser.open(f"http://localhost:{host_port}")
+
+
+@opencode.command()
+@click.option(
+    "--port",
+    type=int,
+    default=4096,
+    show_default=True,
+    help="Container port where the server is listening.",
+)
+@click.pass_context
+def attach(ctx, port: int) -> None:
+    """Attach a TUI to a running opencode server."""
+    with capture_typeahead() as typeahead:
+        manager, name, exec_env, config, cmd, bedrock_label, openai_label, project_slug = (
+            _opencode_setup(
+                ctx,
+                ctx.obj.get("use_aws", False),
+                ctx.obj.get("cli_profile"),
+                ctx.obj.get("openai_profile"),
+                env_file=ctx.obj.get("env_file"),
+            )
+        )
+        cmd.append("attach")
+        cmd.append(f"http://localhost:{port}")
+        console.print(
+            f"[bold]Attaching to opencode server{bedrock_label}{openai_label} on port {port}...[/bold]"
+        )
+    manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
 @opencode.command()
