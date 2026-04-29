@@ -105,6 +105,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
+# Install Bun (required by Plannotator OpenCode plugin)
+RUN curl -fsSL https://bun.sh/install | bash && \
+    ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
+    ln -s /root/.bun/bin/bunx /usr/local/bin/bunx
+
 # Install AWS CDK CLI
 RUN npm install -g aws-cdk
 
@@ -125,9 +130,12 @@ RUN npm install -g @mariozechner/pi-coding-agent
 # Install aider (alternative local coding assistant)
 RUN curl -LsSf https://aider.chat/install.sh | sh
 
-# Install pandoc (required by pi-studio for Markdown/LaTeX rendering)
+# Install pandoc + xelatex (required by pi-studio for Markdown/LaTeX
+# rendering and PDF export via /studio-pdf).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pandoc \
+    texlive-xetex \
+    texlive-fonts-recommended \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Playwright with Chrome and ALL dependencies

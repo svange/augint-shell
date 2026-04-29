@@ -91,7 +91,7 @@ DEFAULT_WHISPER_MODEL = "Systran/faster-distil-whisper-large-v3"
 DEFAULT_VOICE_AGENT_PORT = 8010
 DEFAULT_COMFYUI_PORT = 8188
 DEFAULT_KOKORO_VOICE = "af_bella"
-DEFAULT_DEV_PORTS = [3000, 4096, 4200, 5000, 5173, 5678, 8000, 8080, 8888]
+DEFAULT_DEV_PORTS = [3000, 4096, 4200, 5000, 5173, 5678, 8000, 8080, 8888, 19432, 31415]
 
 # Deterministic dev port mapping (avoids Chrome debug range 40000-60000)
 DEV_PORT_RANGE_START = 10000
@@ -201,7 +201,7 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
 
     # Ensure directories that tools need for persistent config exist on the
     # host so bind mounts aren't silently skipped.
-    for d in (".pi", ".augint"):
+    for d in (".pi", ".augint", ".plannotator"):
         (home / d).mkdir(parents=True, exist_ok=True)
 
     # Optional bind mounts — skip if source doesn't exist
@@ -211,6 +211,7 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
         (home / ".claude.json", "/root/.claude.json", False),
         (home / ".pi", "/root/.pi", False),
         (home / ".augint", "/root/.augint", False),
+        (home / ".plannotator", "/root/.plannotator", False),
         (home / ".ssh", "/root/.ssh", True),
         (home / ".gitconfig", "/root/.gitconfig.windows", True),
         (home / ".aws", "/root/.aws", False),
@@ -424,6 +425,9 @@ def build_dev_environment(
         "IS_SANDBOX": "1",
         "PRE_COMMIT_HOME": PRE_COMMIT_CACHE_PATH,
         "PI_STUDIO_HOST": "0.0.0.0",  # nosec B104
+        "PLANNOTATOR_REMOTE": "1",
+        "PLANNOTATOR_PORT": "19432",
+        "PLANNOTATOR_BROWSER": "echo",
     }
 
     if env_file is not None:
