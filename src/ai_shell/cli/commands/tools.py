@@ -1079,7 +1079,7 @@ def _launch_multi(
     is_flag=False,
     flag_value=".env",
     default=None,
-    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+    help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
@@ -1186,7 +1186,7 @@ def claude(
     is_flag=False,
     flag_value=".env",
     default=None,
-    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+    help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
@@ -1325,7 +1325,7 @@ def _opencode_setup(
     is_flag=False,
     flag_value=".env",
     default=None,
-    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+    help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
 @click.pass_context
 def opencode(
@@ -1598,7 +1598,7 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
     is_flag=False,
     flag_value=".env",
     default=None,
-    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+    help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
 @click.pass_context
 def pi(ctx, use_aws, cli_profile, openai_profile, do_login, doom, env_file):
@@ -1680,7 +1680,7 @@ SUPPORTED_SHELLS: dict[str, str] = {
     is_flag=False,
     flag_value=".env",
     default=None,
-    help="Load .env file for GH_TOKEN injection (default: ./.env when flag given without value).",
+    help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
 @click.argument(
     "shell_name",

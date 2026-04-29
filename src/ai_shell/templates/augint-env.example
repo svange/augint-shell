@@ -1,7 +1,13 @@
 # ~/.augint/.env — Shared config for the augint tool suite
 # Copy to ~/.augint/.env and uncomment values to set.
-# Project ./.env overrides these. CLI flags override everything.
-# Priority: CLI > ./.env > ~/.augint/.env > os.environ > defaults
+#
+# This file ALWAYS loads. Project ./.env only loads when the user passes
+# --env on the CLI; when loaded, every variable in it flows through to the
+# container.
+#
+# Priority (high → low):
+#   CLI flag > extra_env (.ai-shell.yaml) > ./.env (only with --env) >
+#   ~/.augint/.env (always) > os.environ (allowlisted) > defaults
 #
 # Only world-facts and user-preferences go here (things that exist
 # independently of any single tool). Tool-internal behavior goes in
