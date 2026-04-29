@@ -1445,13 +1445,9 @@ def serve(ctx, port: int, open_browser: bool) -> None:
 def attach(ctx, port: int) -> None:
     """Attach a TUI to a running opencode server."""
     with capture_typeahead() as typeahead:
-        manager, name, exec_env, _config = _get_manager(
-            ctx, env_file=ctx.obj.get("env_file")
-        )
+        manager, name, exec_env, _config = _get_manager(ctx, env_file=ctx.obj.get("env_file"))
         cmd = ["opencode", "attach", f"http://localhost:{port}"]
-        console.print(
-            f"[bold]Attaching to opencode server on port {port}...[/bold]"
-        )
+        console.print(f"[bold]Attaching to opencode server on port {port}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
