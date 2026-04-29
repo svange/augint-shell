@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.95.1 (2026-04-29)
+
+### Bug Fixes
+
+- Isolate unit tests from real ~/.augint/ config, add OPENCODE passthrough
+  ([`7b4923a`](https://github.com/svange/augint-shell/commit/7b4923a2ae2eb84b00166c7e9a40a497e8038e27))
+
+
 ## v0.95.0 (2026-04-28)
 
 ### Features
