@@ -423,7 +423,7 @@ def build_dev_environment(
         "HUSKY": "0",
         "IS_SANDBOX": "1",
         "PRE_COMMIT_HOME": PRE_COMMIT_CACHE_PATH,
-        "PI_STUDIO_HOST": "0.0.0.0",
+        "PI_STUDIO_HOST": "0.0.0.0",  # nosec B104
     }
 
     if env_file is not None:
