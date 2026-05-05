@@ -12,7 +12,7 @@
   {
     "License": "BSD-3-Clause",
     "Name": "GitPython",
-    "Version": "3.1.48"
+    "Version": "3.1.49"
   },
   {
     "License": "BSD License",
@@ -72,12 +72,12 @@
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.101.0"
+    "Version": "0.101.1"
   },
   {
     "License": "UNKNOWN",
     "Name": "augint-tools",
-    "Version": "5.42.3"
+    "Version": "5.42.4"
   },
   {
     "License": "Apache-2.0",
@@ -97,12 +97,12 @@
   {
     "License": "Apache-2.0",
     "Name": "boto3",
-    "Version": "1.42.97"
+    "Version": "1.43.2"
   },
   {
     "License": "Apache-2.0",
     "Name": "botocore",
-    "Version": "1.42.97"
+    "Version": "1.43.2"
   },
   {
     "License": "MIT",
@@ -567,7 +567,7 @@
   {
     "License": "Apache Software License",
     "Name": "s3transfer",
-    "Version": "0.16.1"
+    "Version": "0.17.0"
   },
   {
     "License": "BSD License",
