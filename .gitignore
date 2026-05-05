@@ -164,3 +164,4 @@ docs/
 ai-shell.toml
 .ai-shell.yaml
 **/.worktrees
+.playwright-mcp

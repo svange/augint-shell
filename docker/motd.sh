@@ -362,6 +362,32 @@ if [ -n "$AUGINT_DEV_PORTS" ]; then
     done
     printf "${AMBER}│${RESET}    ${DIM_ITALIC}Start a dev server inside the container, open the mapped URL in your host browser.${RESET}\n"
 fi
+
+# Plannotator UI (labeled shortcut for the OpenCode plan-review plugin)
+if [ -n "$AUGINT_DEV_PORTS" ]; then
+    IFS=',' read -ra _port_pairs <<< "$AUGINT_DEV_PORTS"
+    for _pair in "${_port_pairs[@]}"; do
+        _cport="${_pair%%:*}"
+        _hport="${_pair##*:}"
+        if [ "$_cport" = "19432" ]; then
+            printf "${AMBER}│${RESET}    ${MAUVE}Plannotator UI:${RESET}  ${CYAN}http://localhost:%s${RESET}\n" "$_hport"
+            break
+        fi
+    done
+fi
+
+# Pi Studio UI (labeled shortcut for the pi-studio extension)
+if [ -n "$AUGINT_DEV_PORTS" ]; then
+    IFS=',' read -ra _port_pairs <<< "$AUGINT_DEV_PORTS"
+    for _pair in "${_port_pairs[@]}"; do
+        _cport="${_pair%%:*}"
+        _hport="${_pair##*:}"
+        if [ "$_cport" = "31415" ]; then
+            printf "${AMBER}│${RESET}    ${MAUVE}Pi Studio:${RESET}      ${CYAN}http://localhost:%s${RESET}  ${DIM_ITALIC}(run /studio in pi to get the tokenized URL, then swap :31415 for :%s)${RESET}\n" "$_hport" "$_hport"
+            break
+        fi
+    done
+fi
 echo ""
 
 # ── Prompt legend ─────────────────────────────────────────────────────────────
