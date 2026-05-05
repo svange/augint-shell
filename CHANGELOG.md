@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.102.0 (2026-05-05)
+
+### Features
+
+- Plannotator and Pi Studio plugin runtime support (#114)
+  ([#114](https://github.com/svange/augint-shell/pull/114),
+  [`3674ab1`](https://github.com/svange/augint-shell/commit/3674ab15538d561c6d214ddb80ad36a5e06f8826))
+
+
 ## v0.101.1 (2026-04-29)
 
 ### Bug Fixes
