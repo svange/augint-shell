@@ -79,18 +79,25 @@ if [ -f "package-lock.json" ]; then
     echo "===================================="
     echo "Installing Node.js dependencies..."
     echo "===================================="
-    npm ci --loglevel=warn
-    echo "===================================="
-    echo "Node.js dependencies installed!"
-    echo "===================================="
+    if npm ci --loglevel=warn; then
+        echo "===================================="
+        echo "Node.js dependencies installed!"
+        echo "===================================="
+    else
+        echo "[warn] 'npm ci' failed (likely package-lock.json out of sync with package.json)."
+        echo "[warn] Container will continue. Run 'npm install' to regenerate the lockfile, then restart the container."
+    fi
 elif [ -f "package.json" ]; then
     echo "===================================="
     echo "Installing Node.js dependencies..."
     echo "===================================="
-    npm install --loglevel=warn
-    echo "===================================="
-    echo "Node.js dependencies installed!"
-    echo "===================================="
+    if npm install --loglevel=warn; then
+        echo "===================================="
+        echo "Node.js dependencies installed!"
+        echo "===================================="
+    else
+        echo "[warn] 'npm install' failed. Container will continue."
+    fi
 fi
 
 # =========================================================================

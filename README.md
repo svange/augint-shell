@@ -167,6 +167,26 @@ llm:
 
 Global config at `~/.ai-shell.yaml` or `~/.config/ai-shell/config.yaml` also supported.
 
+### Launch-time caches
+
+To keep tool launches fast, two preflight checks are cached on the host under `~/.cache/ai-shell/`:
+
+| Cache | Default TTL | What it skips |
+| --- | --- | --- |
+| `image-pull` | 15 min | `docker pull` of the `latest` image to compare digests (network round-trip) |
+| `bedrock-check` | 24 h | Bedrock `converse` preflight that verifies AWS auth + model access |
+
+Tune via YAML or env vars:
+
+```yaml
+container:
+  image_pull_cache_ttl: 900       # seconds (0 = always pull)
+aws:
+  bedrock_check_cache_ttl: 86400  # seconds (0 = always verify)
+```
+
+Equivalent env vars: `AI_SHELL_IMAGE_PULL_CACHE_TTL`, `AI_SHELL_BEDROCK_CHECK_CACHE_TTL`. Delete the corresponding file under `~/.cache/ai-shell/` to force a recheck on the next launch.
+
 ---
 
 ## Local LLM stack

@@ -11,6 +11,7 @@ from ai_shell.defaults import (
     DEV_PORT_RANGE_START,
     GH_CONFIG_VOLUME,
     N8N_DATA_VOLUME,
+    NODE_MODULES_VOLUME_PREFIX,
     NPM_CACHE_VOLUME,
     OLLAMA_CONTAINER,
     PRE_COMMIT_CACHE_PATH,
@@ -21,6 +22,7 @@ from ai_shell.defaults import (
     build_n8n_environment,
     build_n8n_mounts,
     dev_container_name,
+    node_modules_volume_name,
     project_dev_port,
     sanitize_project_name,
     unique_project_name,
@@ -146,6 +148,28 @@ class TestBuildDevMounts:
 
         assert npm_mount is not None
         assert npm_mount.get("Source") == NPM_CACHE_VOLUME
+
+    def test_includes_node_modules_volume_overlay(self, tmp_path):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+
+        mounts = build_dev_mounts(project_dir, "test-project")
+
+        nm_mount = next(
+            (m for m in mounts if m.get("Target") == "/root/projects/test-project/node_modules"),
+            None,
+        )
+        assert nm_mount is not None, "node_modules overlay volume missing"
+        assert nm_mount.get("Type") == "volume"
+        assert nm_mount.get("Source") == node_modules_volume_name("test-project")
+        assert nm_mount.get("Source", "").startswith(NODE_MODULES_VOLUME_PREFIX)
+
+    def test_node_modules_volume_name_includes_worktree_suffix(self):
+        plain = node_modules_volume_name("repo")
+        wt = node_modules_volume_name("repo", worktree_name="feature")
+        assert plain == f"{NODE_MODULES_VOLUME_PREFIX}repo"
+        assert wt == f"{NODE_MODULES_VOLUME_PREFIX}repo-wt-feature"
+        assert plain != wt
 
     def test_includes_pre_commit_cache_volume(self, tmp_path):
         project_dir = tmp_path / "test-project"

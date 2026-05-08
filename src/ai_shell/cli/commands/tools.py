@@ -159,18 +159,36 @@ def _check_bedrock_access(
     container_name: str,
     exec_env: dict[str, str],
     model_id: str = "",
+    cache_ttl: int = 0,
 ) -> None:
     """Verify Bedrock is reachable before launching a tool.
 
     Sends a minimal ``converse`` request inside the container to validate
     the full path: AWS credentials, SCP policies, and model access.
     Raises :class:`click.ClickException` with an actionable message on failure.
+
+    When *cache_ttl* > 0, a successful check is recorded under
+    ``~/.cache/ai-shell/bedrock-check/`` and re-checks within the TTL window
+    are skipped silently.
     """
+    from ai_shell.cache import is_fresh, mark_fresh
     from ai_shell.defaults import DEFAULT_BEDROCK_MODEL
 
     model = model_id or DEFAULT_BEDROCK_MODEL
     region = exec_env.get("AWS_REGION", "us-east-1")
     profile = exec_env.get("AWS_PROFILE", "")
+
+    cache_key = f"{profile}|{region}|{model}"
+    if is_fresh("bedrock-check", cache_key, cache_ttl):
+        logger.debug(
+            "Bedrock preflight cache fresh (profile=%s, region=%s, model=%s)",
+            profile or "default",
+            region,
+            model,
+        )
+        return
+
+    console.print(f"Checking Bedrock access (profile={profile or 'default'}, region={region})...")
 
     invoke_cmd = (
         f"aws bedrock-runtime converse"
@@ -202,6 +220,8 @@ def _check_bedrock_access(
             "  - SCP or IAM policy denying bedrock:InvokeModel\n"
             "  - Wrong AWS region: ensure Bedrock is available in the configured region"
         )
+
+    mark_fresh("bedrock-check", cache_key)
 
 
 def _get_manager(
@@ -329,12 +349,9 @@ def _launch_loaded_config_claude(
         bedrock_label = ""
         if use_bedrock:
             bedrock_label = _bedrock_label(exec_env)
-            console.print(
-                "Checking Bedrock access "
-                f"(profile={exec_env.get('AWS_PROFILE', 'default')}, "
-                f"region={exec_env.get('AWS_REGION', 'us-east-1')})..."
+            _check_bedrock_access(
+                container_name, exec_env, cache_ttl=config.bedrock_check_cache_ttl
             )
-            _check_bedrock_access(container_name, exec_env)
 
         workdir: str | None = None
         resolved_worktree_name = worktree_name
@@ -566,7 +583,7 @@ def _launch_interactive(
     )
 
     if use_bedrock:
-        _check_bedrock_access(container_name, exec_env)
+        _check_bedrock_access(container_name, exec_env, cache_ttl=config.bedrock_check_cache_ttl)
 
     # Handle shared Chrome if requested.
     mcp_config_path: str | None = None
@@ -674,7 +691,9 @@ def _launch_team(
         )
 
         if use_bedrock:
-            _check_bedrock_access(container_name, exec_env)
+            _check_bedrock_access(
+                container_name, exec_env, cache_ttl=config.bedrock_check_cache_ttl
+            )
 
         workdir = f"/root/projects/{config.project_name}"
 
@@ -751,7 +770,7 @@ def _launch_single_repo_multi(
     )
 
     if use_bedrock:
-        _check_bedrock_access(container_name, exec_env)
+        _check_bedrock_access(container_name, exec_env, cache_ttl=config.bedrock_check_cache_ttl)
 
     container_project_root = f"/root/projects/{config.project_name}"
     panes: list[PaneSpec] = []
@@ -952,7 +971,7 @@ def _launch_multi(
     )
 
     if use_bedrock:
-        _check_bedrock_access(container_name, exec_env)
+        _check_bedrock_access(container_name, exec_env, cache_ttl=config.bedrock_check_cache_ttl)
 
     # Resolve worktree name (auto-generate if flag given without value)
     wt_name = worktree_name
@@ -1218,10 +1237,7 @@ def codex(
             profile_label = exec_env.get("AWS_PROFILE", "default")
             region_label = exec_env.get("AWS_REGION", "us-east-1")
             bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-            console.print(
-                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
-            )
-            _check_bedrock_access(name, exec_env)
+            _check_bedrock_access(name, exec_env, cache_ttl=config.bedrock_check_cache_ttl)
         else:
             bedrock_label = ""
 
@@ -1272,10 +1288,7 @@ def _opencode_setup(
         profile_label = exec_env.get("AWS_PROFILE", "default")
         region_label = exec_env.get("AWS_REGION", "us-east-1")
         bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-        console.print(
-            f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
-        )
-        _check_bedrock_access(name, exec_env)
+        _check_bedrock_access(name, exec_env, cache_ttl=config.bedrock_check_cache_ttl)
     else:
         bedrock_label = ""
 
@@ -1629,10 +1642,12 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login, doom, env_file):
                 f" via Bedrock (profile={profile_label},"
                 f" region={region_label}, model={bedrock_model})"
             )
-            console.print(
-                f"Checking Bedrock access (profile={profile_label}, region={region_label})..."
+            _check_bedrock_access(
+                name,
+                exec_env,
+                model_id=bedrock_model,
+                cache_ttl=config.bedrock_check_cache_ttl,
             )
-            _check_bedrock_access(name, exec_env, model_id=bedrock_model)
         else:
             bedrock_model = ""
             bedrock_label = ""
