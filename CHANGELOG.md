@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.102.1 (2026-05-08)
+
+### Bug Fixes
+
+- Isolate container node_modules from host bind mount (#119)
+  ([#119](https://github.com/svange/augint-shell/pull/119),
+  [`f73b957`](https://github.com/svange/augint-shell/commit/f73b957d167c90a2e0fc07d66c20da1b4ed61738))
+
+
 ## v0.102.0 (2026-05-05)
 
 ### Features
