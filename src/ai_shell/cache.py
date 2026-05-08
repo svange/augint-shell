@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def _cache_path(namespace: str, key: str) -> Path:
-    digest = hashlib.sha1(key.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
+    digest = hashlib.sha256(key.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
     base = Path.home() / ".cache" / "ai-shell" / namespace
     base.mkdir(parents=True, exist_ok=True)
     return base / f"{digest}.timestamp"
