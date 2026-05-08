@@ -45,6 +45,22 @@ def uv_venv_path(repo_name: str, worktree_name: str | None = None) -> str:
 
 
 NPM_CACHE_VOLUME = "augint-shell-npm-cache"
+NODE_MODULES_VOLUME_PREFIX = "augint-shell-node-modules-"
+
+
+def node_modules_volume_name(repo_name: str, worktree_name: str | None = None) -> str:
+    """Per-project named volume that overlays /root/projects/{repo}/node_modules.
+
+    Mirrors the UV venv-isolation scheme so the container's Linux node_modules
+    never collides with the host's (e.g. Windows-built) node_modules in the
+    bind-mounted project directory.
+    """
+    suffix = repo_name
+    if worktree_name:
+        suffix = f"{repo_name}-wt-{worktree_name}"
+    return f"{NODE_MODULES_VOLUME_PREFIX}{suffix}"
+
+
 PRE_COMMIT_CACHE_VOLUME = "augint-shell-pre-commit-cache"
 PRE_COMMIT_CACHE_PATH = "/root/.cache/pre-commit-container"
 OLLAMA_DATA_VOLUME = "augint-shell-ollama-data"
@@ -289,6 +305,19 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
         Mount(
             target=PRE_COMMIT_CACHE_PATH,
             source=PRE_COMMIT_CACHE_VOLUME,
+            type="volume",
+        )
+    )
+
+    # Per-project named volume overlaying node_modules. Without this the
+    # container's Linux `npm ci` would write into the bind-mounted host
+    # project dir and collide with host-built (e.g. Windows) node_modules.
+    # npm has no equivalent of UV_PROJECT_ENVIRONMENT, so we isolate at the
+    # mount layer instead. Host node_modules underneath stays untouched.
+    mounts.append(
+        Mount(
+            target=f"/root/projects/{project_name}/node_modules",
+            source=node_modules_volume_name(project_name),
             type="volume",
         )
     )
