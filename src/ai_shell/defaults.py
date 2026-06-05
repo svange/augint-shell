@@ -48,16 +48,25 @@ NPM_CACHE_VOLUME = "augint-shell-npm-cache"
 NODE_MODULES_VOLUME_PREFIX = "augint-shell-node-modules-"
 
 
-def node_modules_volume_name(repo_name: str, worktree_name: str | None = None) -> str:
-    """Per-project named volume that overlays /root/projects/{repo}/node_modules.
+def node_modules_volume_name(
+    repo_name: str,
+    worktree_name: str | None = None,
+    subpath: str | None = None,
+) -> str:
+    """Per-project named volume that overlays a node_modules directory.
 
     Mirrors the UV venv-isolation scheme so the container's Linux node_modules
     never collides with the host's (e.g. Windows-built) node_modules in the
     bind-mounted project directory.
+
+    When *subpath* is given (e.g. ``"apps/web"``), a sanitized slug is appended
+    so monorepos can isolate each workspace's node_modules independently.
     """
     suffix = repo_name
     if worktree_name:
         suffix = f"{repo_name}-wt-{worktree_name}"
+    if subpath:
+        suffix = f"{suffix}-{_sanitize_name(subpath.lower())}"
     return f"{NODE_MODULES_VOLUME_PREFIX}{suffix}"
 
 
@@ -193,11 +202,21 @@ def project_dev_port(
     return DEV_PORT_RANGE_START + (int(digest[:8], 16) % DEV_PORT_RANGE_SIZE)
 
 
-def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
+def build_dev_mounts(
+    project_dir: Path,
+    project_name: str,
+    extra_node_modules_paths: list[str] | None = None,
+) -> list[Mount]:
     """Build the full mount list matching docker-compose.yml dev service.
 
     Required mounts are always included. Optional mounts are skipped
     if the source path doesn't exist on the host.
+
+    *extra_node_modules_paths* is a list of glob patterns relative to
+    *project_dir*. Each glob match (that is a directory) gets its own named
+    volume overlaid at ``{match}/node_modules`` inside the container, so each
+    workspace in a monorepo isolates its Linux node_modules from the host
+    bind mount the same way the root overlay does.
     """
     from docker.types import Mount
 
@@ -321,6 +340,32 @@ def build_dev_mounts(project_dir: Path, project_name: str) -> list[Mount]:
             type="volume",
         )
     )
+
+    # Monorepo workspaces: overlay an isolated named volume on each matched
+    # workspace's node_modules so per-app installs (npm/pnpm/yarn workspaces)
+    # land in container-only storage rather than the host bind mount.
+    project_root = project_dir.resolve()
+    seen_targets: set[str] = {f"/root/projects/{project_name}/node_modules"}
+    for pattern in extra_node_modules_paths or []:
+        for match in sorted(project_root.glob(pattern)):
+            if not match.is_dir():
+                continue
+            try:
+                rel = match.relative_to(project_root)
+            except ValueError:
+                continue
+            rel_posix = rel.as_posix()
+            target = f"/root/projects/{project_name}/{rel_posix}/node_modules"
+            if target in seen_targets:
+                continue
+            seen_targets.add(target)
+            mounts.append(
+                Mount(
+                    target=target,
+                    source=node_modules_volume_name(project_name, subpath=rel_posix),
+                    type="volume",
+                )
+            )
 
     return mounts
 

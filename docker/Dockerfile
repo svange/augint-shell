@@ -105,6 +105,10 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
+# Enable corepack so pnpm and yarn shims are on PATH for monorepos that
+# declare them via package.json "packageManager". Ships with Node.js LTS.
+RUN corepack enable
+
 # Install AWS CDK CLI
 RUN npm install -g aws-cdk
 

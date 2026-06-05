@@ -191,6 +191,9 @@ class AiShellConfig:
     extra_env: dict[str, str] = field(default_factory=dict)
     extra_volumes: list[str] = field(default_factory=list)
     extra_ports: list[int] = field(default_factory=list)
+    # Glob patterns (relative to project_dir) for monorepo workspace
+    # node_modules directories. Each match gets an isolated named volume.
+    node_modules_paths: list[str] = field(default_factory=list)
 
     # AWS
     ai_profile: str = ""  # AWS profile for infra (sets AWS_PROFILE in container)
@@ -438,6 +441,8 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.extra_volumes.extend(container["extra_volumes"])
     if "ports" in container:
         config.extra_ports.extend(int(p) for p in container["ports"])
+    if "node_modules_paths" in container:
+        config.node_modules_paths.extend(str(p) for p in container["node_modules_paths"])
 
     # [llm] section
     llm = data.get("llm", {})
