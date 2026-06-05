@@ -12,7 +12,7 @@
   {
     "License": "BSD-3-Clause",
     "Name": "GitPython",
-    "Version": "3.1.49"
+    "Version": "3.1.50"
   },
   {
     "License": "BSD License",
@@ -61,6 +61,11 @@
   },
   {
     "License": "MIT",
+    "Name": "ast_serialize",
+    "Version": "0.5.0"
+  },
+  {
+    "License": "MIT",
     "Name": "attrs",
     "Version": "26.1.0"
   },
@@ -72,7 +77,7 @@
   {
     "License": "UNKNOWN",
     "Name": "augint-shell",
-    "Version": "0.102.0"
+    "Version": "0.102.1"
   },
   {
     "License": "UNKNOWN",
@@ -97,12 +102,12 @@
   {
     "License": "Apache-2.0",
     "Name": "boto3",
-    "Version": "1.43.2"
+    "Version": "1.43.19"
   },
   {
     "License": "Apache-2.0",
     "Name": "botocore",
-    "Version": "1.43.2"
+    "Version": "1.43.19"
   },
   {
     "License": "MIT",
@@ -112,7 +117,7 @@
   {
     "License": "Mozilla Public License 2.0 (MPL 2.0)",
     "Name": "certifi",
-    "Version": "2026.4.22"
+    "Version": "2026.5.20"
   },
   {
     "License": "MIT",
@@ -147,17 +152,17 @@
   {
     "License": "Apache-2.0",
     "Name": "coverage",
-    "Version": "7.13.5"
+    "Version": "7.14.1"
   },
   {
     "License": "Apache-2.0 OR BSD-3-Clause",
     "Name": "cryptography",
-    "Version": "47.0.0"
+    "Version": "48.0.0"
   },
   {
     "License": "Apache Software License",
     "Name": "cyclonedx-python-lib",
-    "Version": "9.1.0"
+    "Version": "11.7.0"
   },
   {
     "License": "Python Software Foundation License",
@@ -207,7 +212,7 @@
   {
     "License": "Apache Software License",
     "Name": "googleapis-common-protos",
-    "Version": "1.74.0"
+    "Version": "1.75.0"
   },
   {
     "License": "MIT License",
@@ -237,7 +242,7 @@
   {
     "License": "BSD-3-Clause",
     "Name": "idna",
-    "Version": "3.13"
+    "Version": "3.17"
   },
   {
     "License": "Apache-2.0",
@@ -272,7 +277,7 @@
   {
     "License": "MIT",
     "Name": "librt",
-    "Version": "0.9.0"
+    "Version": "0.11.0"
   },
   {
     "License": "Apache-2.0",
@@ -292,7 +297,7 @@
   {
     "License": "MIT License",
     "Name": "markdown-it-py",
-    "Version": "4.0.0"
+    "Version": "4.2.0"
   },
   {
     "License": "MIT",
@@ -307,7 +312,7 @@
   {
     "License": "MIT License",
     "Name": "mdit-py-plugins",
-    "Version": "0.5.0"
+    "Version": "0.6.1"
   },
   {
     "License": "MIT License",
@@ -322,7 +327,7 @@
   {
     "License": "MIT",
     "Name": "mypy",
-    "Version": "1.20.2"
+    "Version": "2.1.0"
   },
   {
     "License": "MIT",
@@ -422,12 +427,12 @@
   {
     "License": "Apache Software License",
     "Name": "pip_audit",
-    "Version": "2.9.0"
+    "Version": "2.10.0"
   },
   {
     "License": "MIT",
     "Name": "platformdirs",
-    "Version": "4.9.6"
+    "Version": "4.10.0"
   },
   {
     "License": "MIT License",
@@ -457,17 +462,17 @@
   {
     "License": "MIT",
     "Name": "pydantic",
-    "Version": "2.13.3"
+    "Version": "2.13.4"
   },
   {
     "License": "MIT",
     "Name": "pydantic-settings",
-    "Version": "2.14.0"
+    "Version": "2.14.1"
   },
   {
     "License": "MIT",
     "Name": "pydantic_core",
-    "Version": "2.46.3"
+    "Version": "2.46.4"
   },
   {
     "License": "MIT",
@@ -502,7 +507,7 @@
   {
     "License": "MIT License",
     "Name": "python-discovery",
-    "Version": "1.2.2"
+    "Version": "1.4.0"
   },
   {
     "License": "BSD-3-Clause",
@@ -517,7 +522,7 @@
   {
     "License": "Apache-2.0",
     "Name": "python-multipart",
-    "Version": "0.0.27"
+    "Version": "0.0.30"
   },
   {
     "License": "MIT",
@@ -532,7 +537,7 @@
   {
     "License": "Apache Software License",
     "Name": "requests",
-    "Version": "2.33.1"
+    "Version": "2.34.2"
   },
   {
     "License": "Apache Software License",
@@ -547,7 +552,7 @@
   {
     "License": "MIT",
     "Name": "rpds-py",
-    "Version": "0.30.0"
+    "Version": "2026.5.1"
   },
   {
     "License": "MIT License",
@@ -555,19 +560,19 @@
     "Version": "0.19.1"
   },
   {
-    "License": "MIT",
+    "License": "MIT License",
     "Name": "ruamel.yaml.clib",
-    "Version": "0.2.14"
+    "Version": "0.2.15"
   },
   {
     "License": "MIT",
     "Name": "ruff",
-    "Version": "0.15.12"
+    "Version": "0.15.15"
   },
   {
     "License": "Apache Software License",
     "Name": "s3transfer",
-    "Version": "0.17.0"
+    "Version": "0.18.0"
   },
   {
     "License": "BSD License",
@@ -577,7 +582,7 @@
   {
     "License": "LGPL-2.1-or-later",
     "Name": "semgrep",
-    "Version": "1.161.0"
+    "Version": "1.164.0"
   },
   {
     "License": "ISC License (ISCL)",
@@ -602,17 +607,17 @@
   {
     "License": "BSD-3-Clause",
     "Name": "sse-starlette",
-    "Version": "3.4.1"
+    "Version": "3.4.4"
   },
   {
     "License": "BSD-3-Clause",
     "Name": "starlette",
-    "Version": "1.0.0"
+    "Version": "1.2.1"
   },
   {
-    "License": "Apache Software License",
+    "License": "Apache-2.0",
     "Name": "stevedore",
-    "Version": "5.7.0"
+    "Version": "5.8.0"
   },
   {
     "License": "MIT License",
@@ -620,14 +625,14 @@
     "Version": "1.0.0"
   },
   {
-    "License": "MIT License",
-    "Name": "toml",
-    "Version": "0.10.2"
+    "License": "MIT",
+    "Name": "tomli",
+    "Version": "2.4.1"
   },
   {
     "License": "MIT License",
-    "Name": "tomli",
-    "Version": "2.0.2"
+    "Name": "tomli_w",
+    "Version": "1.2.0"
   },
   {
     "License": "MIT License",
@@ -637,7 +642,7 @@
   {
     "License": "Apache-2.0",
     "Name": "types-PyYAML",
-    "Version": "6.0.12.20260408"
+    "Version": "6.0.12.20260518"
   },
   {
     "License": "MIT",
@@ -657,17 +662,17 @@
   {
     "License": "MIT",
     "Name": "urllib3",
-    "Version": "2.6.3"
+    "Version": "2.7.0"
   },
   {
     "License": "BSD-3-Clause",
     "Name": "uvicorn",
-    "Version": "0.46.0"
+    "Version": "0.48.0"
   },
   {
     "License": "MIT",
     "Name": "virtualenv",
-    "Version": "21.3.0"
+    "Version": "21.4.2"
   },
   {
     "License": "MIT",
@@ -682,6 +687,6 @@
   {
     "License": "MIT",
     "Name": "zipp",
-    "Version": "3.23.1"
+    "Version": "4.1.0"
   }
 ]
