@@ -271,7 +271,11 @@ class ContainerManager:
 
     def _create_dev_container(self, name: str) -> Container:
         """Create the dev container with all docker-compose config."""
-        mounts = build_dev_mounts(self.config.project_dir, self.config.project_name)
+        mounts = build_dev_mounts(
+            self.config.project_dir,
+            self.config.project_name,
+            extra_node_modules_paths=self.config.node_modules_paths,
+        )
         environment = build_dev_environment(
             self.config.extra_env,
             self.config.project_dir,

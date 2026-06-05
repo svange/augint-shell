@@ -110,6 +110,10 @@ RUN curl -fsSL https://bun.sh/install | bash && \
     ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
     ln -s /root/.bun/bin/bunx /usr/local/bin/bunx
 
+# Enable corepack so pnpm and yarn shims are on PATH for monorepos that
+# declare them via package.json "packageManager". Ships with Node.js LTS.
+RUN corepack enable
+
 # Install AWS CDK CLI
 RUN npm install -g aws-cdk
 
