@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.103.0 (2026-06-05)
+
+### Features
+
+- **monorepo**: Isolate per-workspace node_modules via globs (#127)
+  ([#127](https://github.com/svange/augint-shell/pull/127),
+  [`ecc621e`](https://github.com/svange/augint-shell/commit/ecc621efa5ac24d7847e31109d7fbd5644655854))
+
+
 ## v0.102.1 (2026-05-08)
 
 ### Bug Fixes
