@@ -171,6 +171,74 @@ class TestBuildDevMounts:
         assert wt == f"{NODE_MODULES_VOLUME_PREFIX}repo-wt-feature"
         assert plain != wt
 
+    def test_node_modules_volume_name_with_subpath(self):
+        v = node_modules_volume_name("repo", subpath="apps/web")
+        assert v == f"{NODE_MODULES_VOLUME_PREFIX}repo-apps-web"
+
+    def test_node_modules_volume_name_with_worktree_and_subpath(self):
+        v = node_modules_volume_name("repo", worktree_name="feature", subpath="apps/web")
+        assert v == f"{NODE_MODULES_VOLUME_PREFIX}repo-wt-feature-apps-web"
+
+    def test_build_dev_mounts_expands_node_modules_globs(self, tmp_path):
+        project_dir = tmp_path / "test-project"
+        (project_dir / "apps" / "web").mkdir(parents=True)
+        (project_dir / "apps" / "api").mkdir(parents=True)
+
+        mounts = build_dev_mounts(project_dir, "test-project", extra_node_modules_paths=["apps/*"])
+
+        targets_by_target = {m.get("Target"): m for m in mounts}
+        web_target = "/root/projects/test-project/apps/web/node_modules"
+        api_target = "/root/projects/test-project/apps/api/node_modules"
+        assert web_target in targets_by_target
+        assert api_target in targets_by_target
+        assert targets_by_target[web_target].get("Type") == "volume"
+        assert targets_by_target[web_target].get("Source") == node_modules_volume_name(
+            "test-project", subpath="apps/web"
+        )
+        assert targets_by_target[api_target].get("Source") == node_modules_volume_name(
+            "test-project", subpath="apps/api"
+        )
+
+    def test_build_dev_mounts_skips_nonexistent_glob_matches(self, tmp_path):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+
+        mounts = build_dev_mounts(
+            project_dir, "test-project", extra_node_modules_paths=["apps/*", "packages/*"]
+        )
+
+        extra = [
+            m
+            for m in mounts
+            if str(m.get("Target", "")).startswith("/root/projects/test-project/apps/")
+            or str(m.get("Target", "")).startswith("/root/projects/test-project/packages/")
+        ]
+        assert extra == []
+
+    def test_build_dev_mounts_skips_non_directory_matches(self, tmp_path):
+        project_dir = tmp_path / "test-project"
+        (project_dir / "apps").mkdir(parents=True)
+        (project_dir / "apps" / "README.md").write_text("not a workspace")
+
+        mounts = build_dev_mounts(project_dir, "test-project", extra_node_modules_paths=["apps/*"])
+
+        for m in mounts:
+            assert m.get("Target") != "/root/projects/test-project/apps/README.md/node_modules"
+
+    def test_build_dev_mounts_deduplicates_overlapping_globs(self, tmp_path):
+        project_dir = tmp_path / "test-project"
+        (project_dir / "apps" / "web").mkdir(parents=True)
+
+        mounts = build_dev_mounts(
+            project_dir,
+            "test-project",
+            extra_node_modules_paths=["apps/*", "apps/web"],
+        )
+
+        web_target = "/root/projects/test-project/apps/web/node_modules"
+        web_mounts = [m for m in mounts if m.get("Target") == web_target]
+        assert len(web_mounts) == 1
+
     def test_includes_pre_commit_cache_volume(self, tmp_path):
         project_dir = tmp_path / "test-project"
         project_dir.mkdir()

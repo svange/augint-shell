@@ -75,29 +75,32 @@ if [ -f ".pre-commit-config.yaml" ] && [ -d ".git" ]; then
     echo "===================================="
 fi
 
-if [ -f "package-lock.json" ]; then
+if [ -f "package.json" ]; then
+    if [ -f "pnpm-lock.yaml" ]; then
+        _pm="pnpm"
+        _cmd="pnpm install --loglevel=warn"
+    elif [ -f "yarn.lock" ]; then
+        _pm="yarn"
+        _cmd="yarn install --silent"
+    elif [ -f "package-lock.json" ]; then
+        _pm="npm"
+        _cmd="npm ci --loglevel=warn"
+    else
+        _pm="npm"
+        _cmd="npm install --loglevel=warn"
+    fi
     echo "===================================="
-    echo "Installing Node.js dependencies..."
+    echo "Installing Node.js dependencies (${_pm})..."
     echo "===================================="
-    if npm ci --loglevel=warn; then
+    if $_cmd; then
         echo "===================================="
         echo "Node.js dependencies installed!"
         echo "===================================="
     else
-        echo "[warn] 'npm ci' failed (likely package-lock.json out of sync with package.json)."
-        echo "[warn] Container will continue. Run 'npm install' to regenerate the lockfile, then restart the container."
+        echo "[warn] '${_cmd}' failed. Container will continue."
+        echo "[warn] For npm: lockfile may be out of sync; run 'npm install' to regenerate."
     fi
-elif [ -f "package.json" ]; then
-    echo "===================================="
-    echo "Installing Node.js dependencies..."
-    echo "===================================="
-    if npm install --loglevel=warn; then
-        echo "===================================="
-        echo "Node.js dependencies installed!"
-        echo "===================================="
-    else
-        echo "[warn] 'npm install' failed. Container will continue."
-    fi
+    unset _pm _cmd
 fi
 
 # =========================================================================

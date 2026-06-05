@@ -252,6 +252,13 @@ extra_env = { FOO = "bar", BAZ = "qux" }
         config = load_config(project_dir=tmp_path)
         assert config.extra_env == {"FOO": "bar", "BAZ": "qux"}
 
+    def test_node_modules_paths_from_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "container:\n  node_modules_paths:\n    - apps/*\n    - packages/*\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.node_modules_paths == ["apps/*", "packages/*"]
+
     def test_dev_ports_defaults(self):
         config = AiShellConfig()
         assert config.dev_ports == sorted(DEFAULT_DEV_PORTS)
