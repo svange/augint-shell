@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-06-05T22:06:48Z",
+  "generated_at": "2026-06-12T21:55:28Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 56,
@@ -11,7 +11,7 @@
       "SEVERITY.LOW": 56,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 5852,
+      "loc": 5995,
       "nosec": 0,
       "skipped_tests": 11
     },
@@ -141,7 +141,7 @@
       "SEVERITY.LOW": 26,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1460,
+      "loc": 1468,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -167,7 +167,7 @@
       "SEVERITY.LOW": 14,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1096,
+      "loc": 1184,
       "nosec": 0,
       "skipped_tests": 8
     },
@@ -180,7 +180,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 512,
+      "loc": 559,
       "nosec": 0,
       "skipped_tests": 1
     },
@@ -302,6 +302,19 @@
       "skipped_tests": 0
     },
     "src/ai_shell/templates/codex/__init__.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 0,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/templates/container/__init__.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
