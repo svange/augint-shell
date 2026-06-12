@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.104.0 (2026-06-12)
+
+### Features
+
+- **container**: Resolve dev port hash collisions and inject agent context
+  ([`5a28979`](https://github.com/svange/augint-shell/commit/5a2897994ffc40854a027336a741d862e74ecdfe))
+
+
 ## v0.103.0 (2026-06-05)
 
 ### Features
