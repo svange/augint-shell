@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.104.1 (2026-06-12)
+
+### Bug Fixes
+
+- **container**: Probe host port availability and self-heal poisoned containers
+  ([`b93bb7b`](https://github.com/svange/augint-shell/commit/b93bb7bba4a42de27f418f4ac7ba20fecfcde4ad))
+
+
 ## v0.104.0 (2026-06-12)
 
 ### Features
