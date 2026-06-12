@@ -186,20 +186,53 @@ def dev_container_name(project_name: str, project_dir: Path | None = None) -> st
     return f"{CONTAINER_PREFIX}-{unique_project_name(project_dir, project_name)}-dev"
 
 
-def project_dev_port(
-    project_dir: Path, container_port: int, project_name: str | None = None
-) -> int:
-    """Map a container port to a stable per-project host port.
+def project_dev_port_map(
+    project_dir: Path, dev_ports: list[int], project_name: str | None = None
+) -> dict[int, int]:
+    """Map each container port to a unique, stable per-project host port.
 
     Uses the same project identity as container naming (unique_project_name)
-    combined with the container port to produce a deterministic host port
-    in the 10000-39999 range. Different projects get different host ports
-    for the same container port, so multiple projects can run simultaneously.
+    combined with each container port to produce deterministic host ports in
+    the 10000-39999 range. Different projects get different host ports for
+    the same container port, so multiple projects can run simultaneously.
+
+    Hash collisions within the port set are resolved by linear probing to the
+    next free slot, assigning in ascending container-port order so the result
+    is deterministic. Ports whose hash slot is free keep the exact same host
+    port as the original (pre-probing) scheme.
     """
     slug = unique_project_name(project_dir, project_name)
-    # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
-    digest = sha1(f"{slug}:{container_port}".encode(), usedforsecurity=False).hexdigest()
-    return DEV_PORT_RANGE_START + (int(digest[:8], 16) % DEV_PORT_RANGE_SIZE)
+    assigned: dict[int, int] = {}
+    used: set[int] = set()
+    for port in sorted(set(dev_ports)):
+        # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
+        digest = sha1(f"{slug}:{port}".encode(), usedforsecurity=False).hexdigest()
+        offset = int(digest[:8], 16)
+        candidate = DEV_PORT_RANGE_START + (offset % DEV_PORT_RANGE_SIZE)
+        for probe in range(1, DEV_PORT_RANGE_SIZE):
+            if candidate not in used:
+                break
+            candidate = DEV_PORT_RANGE_START + ((offset + probe) % DEV_PORT_RANGE_SIZE)
+        assigned[port] = candidate
+        used.add(candidate)
+    return assigned
+
+
+def project_dev_port(
+    project_dir: Path,
+    container_port: int,
+    project_name: str | None = None,
+    dev_ports: list[int] | None = None,
+) -> int:
+    """Host port for one container port, consistent with project_dev_port_map.
+
+    *dev_ports* must be the full port set the container was created with —
+    collision resolution depends on it. Defaults to DEFAULT_DEV_PORTS.
+    """
+    ports = list(dev_ports) if dev_ports is not None else list(DEFAULT_DEV_PORTS)
+    if container_port not in ports:
+        ports.append(container_port)
+    return project_dev_port_map(project_dir, ports, project_name)[container_port]
 
 
 def build_dev_mounts(
@@ -369,6 +402,28 @@ def build_dev_mounts(
             )
 
     return mounts
+
+
+def docker_tcp_fallback_host() -> str | None:
+    """DOCKER_HOST value for dev containers when no Unix socket exists to mount.
+
+    On Windows hosts there is no /var/run/docker.sock for build_dev_mounts to
+    bind-mount, but Docker Desktop can expose the daemon on localhost:2375
+    ("Expose daemon on tcp://localhost:2375 without TLS"). When that endpoint
+    is reachable, containers reach the same daemon via host.docker.internal —
+    return the DOCKER_HOST value to inject. Returns None when the socket
+    mount already covers Docker access or no tcp endpoint is listening.
+    """
+    import socket
+
+    if Path("/var/run/docker.sock").exists():
+        return None
+    try:
+        with socket.create_connection(("localhost", 2375), timeout=1):
+            pass
+    except OSError:
+        return None
+    return "tcp://host.docker.internal:2375"
 
 
 def _find_gh_config_dir() -> Path | None:

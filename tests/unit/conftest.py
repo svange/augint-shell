@@ -12,3 +12,15 @@ def isolate_home(tmp_path):
     fake_home.mkdir()
     with patch("pathlib.Path.home", return_value=fake_home):
         yield fake_home
+
+
+@pytest.fixture(autouse=True)
+def no_docker_tcp_probe():
+    """Prevent container-creation tests from probing localhost:2375.
+
+    docker_tcp_fallback_host opens a real socket when no Docker socket file
+    exists; tests must never depend on the machine's network state. Tests for
+    the fallback itself override this with their own patch.
+    """
+    with patch("ai_shell.container.docker_tcp_fallback_host", return_value=None):
+        yield

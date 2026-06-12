@@ -7,6 +7,7 @@ import pytest
 
 from ai_shell.defaults import (
     CONTAINER_PREFIX,
+    DEFAULT_DEV_PORTS,
     DEV_PORT_RANGE_SIZE,
     DEV_PORT_RANGE_START,
     GH_CONFIG_VOLUME,
@@ -22,8 +23,10 @@ from ai_shell.defaults import (
     build_n8n_environment,
     build_n8n_mounts,
     dev_container_name,
+    docker_tcp_fallback_host,
     node_modules_volume_name,
     project_dev_port,
+    project_dev_port_map,
     sanitize_project_name,
     unique_project_name,
     uv_venv_path,
@@ -105,6 +108,84 @@ class TestProjectDevPort:
         port1 = project_dev_port(tmp_path, 8080, project_name="my-app")
         port2 = project_dev_port(tmp_path, 8080, project_name="my-app")
         assert port1 == port2
+
+    def test_consistent_with_port_map(self, tmp_path):
+        port_map = project_dev_port_map(tmp_path, DEFAULT_DEV_PORTS, "my-app")
+        for port in DEFAULT_DEV_PORTS:
+            assert (
+                project_dev_port(tmp_path, port, "my-app", dev_ports=DEFAULT_DEV_PORTS)
+                == port_map[port]
+            )
+
+
+class TestProjectDevPortMap:
+    # Slug whose default-port hashes are collision-free; expectations below
+    # are the raw (pre-probing) hash slots, pinning backward compatibility.
+    STABLE_SLUG = "stable-project-12345678"
+    STABLE_EXPECTED = {
+        3000: 26404,
+        4096: 39998,
+        4200: 11951,
+        5000: 28258,
+        5173: 13404,
+        5678: 17117,
+        8000: 22770,
+        8080: 29604,
+        8888: 21814,
+        19432: 11892,
+        31415: 11272,
+    }
+
+    # Slug for which container ports 79 and 353 both hash to slot 24256
+    # (real-world case: ai-platform-cc hit this with ports 3000 and 5678,
+    # making its container permanently unstartable before probing existed).
+    COLLIDING_SLUG = "collider-4e3656c5"
+
+    def test_non_colliding_ports_keep_legacy_assignment(self, tmp_path):
+        with patch("ai_shell.defaults.unique_project_name", return_value=self.STABLE_SLUG):
+            assert project_dev_port_map(tmp_path, DEFAULT_DEV_PORTS) == self.STABLE_EXPECTED
+
+    def test_hash_collision_resolved_to_unique_ports(self, tmp_path):
+        with patch("ai_shell.defaults.unique_project_name", return_value=self.COLLIDING_SLUG):
+            port_map = project_dev_port_map(tmp_path, [79, 353])
+        # Lower port keeps its hash slot; the colliding one probes to the next.
+        assert port_map[79] == 24256
+        assert port_map[353] == 24257
+        assert len(set(port_map.values())) == 2
+
+    def test_all_assignments_unique_and_in_range(self, tmp_path):
+        with patch("ai_shell.defaults.unique_project_name", return_value=self.COLLIDING_SLUG):
+            port_map = project_dev_port_map(tmp_path, [*DEFAULT_DEV_PORTS, 79, 353])
+        assert len(set(port_map.values())) == len(port_map)
+        for host_port in port_map.values():
+            assert DEV_PORT_RANGE_START <= host_port < DEV_PORT_RANGE_START + DEV_PORT_RANGE_SIZE
+
+    def test_deterministic(self, tmp_path):
+        ports = list(DEFAULT_DEV_PORTS)
+        assert project_dev_port_map(tmp_path, ports, "my-app") == project_dev_port_map(
+            tmp_path, ports, "my-app"
+        )
+
+
+class TestDockerTcpFallbackHost:
+    def test_none_when_unix_socket_exists(self):
+        with patch("pathlib.Path.exists", return_value=True):
+            assert docker_tcp_fallback_host() is None
+
+    def test_returns_tcp_host_when_daemon_listens(self):
+        with (
+            patch("pathlib.Path.exists", return_value=False),
+            patch("socket.create_connection") as mock_conn,
+        ):
+            assert docker_tcp_fallback_host() == "tcp://host.docker.internal:2375"
+            mock_conn.assert_called_once_with(("localhost", 2375), timeout=1)
+
+    def test_none_when_tcp_unreachable(self):
+        with (
+            patch("pathlib.Path.exists", return_value=False),
+            patch("socket.create_connection", side_effect=OSError),
+        ):
+            assert docker_tcp_fallback_host() is None
 
 
 class TestBuildDevMounts:

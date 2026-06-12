@@ -1375,7 +1375,10 @@ def opencode(
             cmd.extend(["--cors", "*"])
 
             host_port = project_dev_port(
-                config.project_dir or Path.cwd(), web_port, config.project_name
+                config.project_dir or Path.cwd(),
+                web_port,
+                config.project_name,
+                dev_ports=config.dev_ports,
             )
             console.print(
                 f"[bold]Launching opencode web{bedrock_label}{openai_label} in {name}...[/bold]"
@@ -1435,7 +1438,9 @@ def serve(ctx, port: int, open_browser: bool) -> None:
     manager.exec_detached(name, cmd, extra_env=exec_env)
 
     cwd = Path.cwd()
-    host_port = project_dev_port(config.project_dir or cwd, port, config.project_name)
+    host_port = project_dev_port(
+        config.project_dir or cwd, port, config.project_name, dev_ports=config.dev_ports
+    )
     mdns_name = f"{project_slug}.local"
     console.print(f"[green bold]Server: http://localhost:{host_port}[/green bold]")
     console.print(f"[green]mDNS:   http://{mdns_name}:{port}[/green]")
@@ -1512,7 +1517,10 @@ def status(ctx) -> None:
 
     if server_running:
         host_port = project_dev_port(
-            config.project_dir or Path.cwd(), server_port, config.project_name
+            config.project_dir or Path.cwd(),
+            server_port,
+            config.project_name,
+            dev_ports=config.dev_ports,
         )
         project_slug = sanitize_project_name(config.project_dir or Path.cwd())
         mdns_name = f"{project_slug}.local"

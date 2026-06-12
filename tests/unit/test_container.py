@@ -26,6 +26,7 @@ from ai_shell.defaults import (
     WHISPER_IMAGE_CPU,
     WHISPER_IMAGE_GPU,
     project_dev_port,
+    project_dev_port_map,
 )
 from ai_shell.exceptions import (
     ContainerNotFoundError,
@@ -142,6 +143,81 @@ class TestEnsureDevContainer:
         assert "docker" in profile_cmd
         assert name in profile_cmd
         assert "/etc/profile.d/ai-shell-path.sh" in " ".join(profile_cmd)
+
+    @patch("ai_shell.container.subprocess.run")
+    def test_injects_docker_host_when_tcp_fallback_available(
+        self, _mock_subprocess, mock_container_manager, mock_docker_client
+    ):
+        with patch(
+            "ai_shell.container.docker_tcp_fallback_host",
+            return_value="tcp://host.docker.internal:2375",
+        ):
+            mock_container_manager._get_container = MagicMock(return_value=None)
+            mock_container_manager._pull_image_if_needed = MagicMock()
+            mock_container_manager.ensure_dev_container()
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert env["DOCKER_HOST"] == "tcp://host.docker.internal:2375"
+
+    @patch("ai_shell.container.subprocess.run")
+    def test_no_docker_host_without_tcp_fallback(
+        self, _mock_subprocess, mock_container_manager, mock_docker_client
+    ):
+        # Autouse no_docker_tcp_probe fixture patches the fallback to None.
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+        mock_container_manager.ensure_dev_container()
+
+        env = mock_docker_client.containers.run.call_args[1]["environment"]
+        assert "DOCKER_HOST" not in env
+
+    @patch("ai_shell.container.subprocess.run")
+    def test_writes_container_context_files(
+        self, _mock_subprocess, mock_container_manager, mock_docker_client
+    ):
+        import io
+        import tarfile
+
+        container = MagicMock()
+        mock_docker_client.containers.run.return_value = container
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+        name = mock_container_manager.ensure_dev_container()
+
+        container.put_archive.assert_called_once()
+        dest, data = container.put_archive.call_args[0]
+        assert dest == "/root/projects"
+
+        with tarfile.open(fileobj=io.BytesIO(data)) as tar:
+            assert sorted(tar.getnames()) == ["AGENTS.md", "CLAUDE.md"]
+            claude_md = tar.extractfile("CLAUDE.md").read().decode("utf-8")
+            agents_md = tar.extractfile("AGENTS.md").read().decode("utf-8")
+        assert claude_md == agents_md
+        assert name in claude_md
+
+        # Every dev port appears with its mapped host URL
+        port_map = project_dev_port_map(
+            mock_container_manager.config.project_dir, DEFAULT_DEV_PORTS, "test-project"
+        )
+        for port, host_port in port_map.items():
+            assert f"| {port} | http://localhost:{host_port} |" in claude_md
+
+        # Project bind mount is documented; no Docker access in this env
+        assert "/root/projects/test-project" in claude_md
+        assert "host.docker.internal" in claude_md
+
+    @patch("ai_shell.container.subprocess.run")
+    def test_context_write_failure_does_not_break_creation(
+        self, _mock_subprocess, mock_container_manager, mock_docker_client
+    ):
+        container = MagicMock()
+        container.put_archive.side_effect = APIError("boom")
+        mock_docker_client.containers.run.return_value = container
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        name = mock_container_manager.ensure_dev_container()
+        assert name.endswith("-dev")
 
     @patch("ai_shell.container.subprocess.run")
     def test_creates_container_with_extra_ports(self, _mock_subprocess, mock_docker_client):

@@ -51,7 +51,8 @@ from ai_shell.defaults import (
     build_n8n_environment,
     build_n8n_mounts,
     dev_container_name,
-    project_dev_port,
+    docker_tcp_fallback_host,
+    project_dev_port_map,
 )
 from ai_shell.exceptions import (
     ContainerNotFoundError,
@@ -284,6 +285,10 @@ class ContainerManager:
             aws_region=self.config.aws_region,
         )
 
+        port_map = project_dev_port_map(
+            self.config.project_dir, self.config.dev_ports, self.config.project_name
+        )
+
         # MOTD metadata — injected at creation time so the in-container
         # motd.sh script can display version, container identity, and port
         # mappings without querying Docker from inside the container.
@@ -293,8 +298,7 @@ class ContainerManager:
         environment["AUGINT_CONTAINER_NAME"] = name
         environment["AUGINT_PROJECT_NAME"] = self.config.project_name
         environment["AUGINT_DEV_PORTS"] = ",".join(
-            f"{port}:{project_dev_port(self.config.project_dir, port, self.config.project_name)}"
-            for port in self.config.dev_ports
+            f"{port}:{host_port}" for port, host_port in sorted(port_map.items())
         )
         environment["AUGINT_LLM_PORTS"] = ",".join(
             [
@@ -306,6 +310,13 @@ class ContainerManager:
                 f"comfyui:{self.config.comfyui_port}",
             ]
         )
+
+        # On hosts without a Unix socket (Windows), point the container's
+        # docker CLI at the daemon's tcp endpoint so Docker works out of the
+        # box instead of failing on the nonexistent default socket.
+        docker_host = docker_tcp_fallback_host()
+        if docker_host is not None:
+            environment["DOCKER_HOST"] = docker_host
 
         # Add any extra volumes from config
         for vol_spec in self.config.extra_volumes:
@@ -336,14 +347,11 @@ class ContainerManager:
             extra_hosts={"host.docker.internal": "host-gateway"},
             ports={
                 f"{port}/tcp": (
-                    (
-                        "0.0.0.0",
-                        project_dev_port(self.config.project_dir, port, self.config.project_name),
-                    )  # nosec B104
+                    ("0.0.0.0", host_port)  # nosec B104
                     if self.config.project_dir
                     else None
                 )
-                for port in self.config.dev_ports
+                for port, host_port in port_map.items()
             },
             detach=True,
         )
@@ -363,7 +371,103 @@ class ContainerManager:
             capture_output=True,
         )
 
+        try:
+            self._write_container_context(container, name, port_map, mounts, docker_host)
+        except (APIError, OSError) as e:
+            logger.warning("Failed to write container context files: %s", e)
+
         return container
+
+    def _write_container_context(
+        self,
+        container: Container,
+        name: str,
+        port_map: dict[int, int],
+        mounts: list[Mount],
+        docker_host: str | None,
+    ) -> None:
+        """Write container-local CLAUDE.md/AGENTS.md above the project mount.
+
+        Coding agents (Claude Code, codex, opencode) automatically load these
+        ancestor files into context, so environment facts — the port map,
+        Docker access, host gateway, bind mounts — are always visible to them
+        without relying on the (human-only) MOTD. ``/root/projects`` itself is
+        container-local, so the files never appear in the host project or its
+        repo.
+        """
+        import io
+        import platform
+        import tarfile
+        from importlib import resources
+
+        from ai_shell import __version__
+
+        template = (
+            resources.files("ai_shell.templates")
+            .joinpath("container", "context.md")
+            .read_text(encoding="utf-8")
+        )
+
+        port_rows = "\n".join(
+            f"| {port} | http://localhost:{host_port} |"
+            for port, host_port in sorted(port_map.items())
+        )
+
+        if docker_host is not None:
+            docker_section = (
+                f"The host Docker daemon is available; `DOCKER_HOST={docker_host}` is preset "
+                "in the environment, so `docker` commands work as-is. Containers you list or "
+                "start are siblings of this container, not children: volume paths you pass to "
+                "`docker run` are host paths, and published ports appear on the host."
+            )
+        elif any(m.get("Target") == "/var/run/docker.sock" for m in mounts):
+            docker_section = (
+                "The host Docker daemon is available via the mounted `/var/run/docker.sock`. "
+                "Containers you list or start are siblings of this container, not children: "
+                "volume paths you pass to `docker run` are host paths, and published ports "
+                "appear on the host."
+            )
+        else:
+            docker_section = "No Docker access is configured in this container."
+
+        llm_rows = "\n".join(
+            f"- {svc}: `host.docker.internal:{port}`"
+            for svc, port in (
+                ("ollama", self.config.ollama_port),
+                ("open-webui", self.config.webui_port),
+                ("kokoro TTS", self.config.kokoro_port),
+                ("whisper STT", self.config.whisper_port),
+                ("n8n", self.config.n8n_port),
+                ("comfyui", self.config.comfyui_port),
+            )
+        )
+
+        mount_rows = "\n".join(
+            f"- `{m.get('Target')}`{' (read-only)' if m.get('ReadOnly') else ''}"
+            for m in mounts
+            if m.get("Type") == "bind"
+        )
+
+        content = template.format(
+            version=__version__,
+            container_name=name,
+            project_name=self.config.project_name,
+            host_os=platform.system(),
+            port_rows=port_rows,
+            docker_section=docker_section,
+            llm_rows=llm_rows,
+            mount_rows=mount_rows,
+        )
+
+        data = content.encode("utf-8")
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w") as tar:
+            for fname in ("CLAUDE.md", "AGENTS.md"):
+                info = tarfile.TarInfo(name=fname)
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+        buf.seek(0)
+        container.put_archive("/root/projects", buf.getvalue())
 
     def exec_interactive(
         self,
