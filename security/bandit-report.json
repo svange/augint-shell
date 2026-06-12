@@ -1,19 +1,19 @@
 {
   "errors": [],
-  "generated_at": "2026-06-12T21:55:28Z",
+  "generated_at": "2026-06-12T22:35:01Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 56,
+      "CONFIDENCE.HIGH": 58,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 56,
+      "SEVERITY.LOW": 58,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 5995,
+      "loc": 6079,
       "nosec": 0,
-      "skipped_tests": 11
+      "skipped_tests": 12
     },
     "src/ai_shell/__init__.py": {
       "CONFIDENCE.HIGH": 0,
@@ -133,15 +133,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/cli/commands/tools.py": {
-      "CONFIDENCE.HIGH": 26,
+      "CONFIDENCE.HIGH": 28,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 26,
+      "SEVERITY.LOW": 28,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1468,
+      "loc": 1500,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -167,9 +167,9 @@
       "SEVERITY.LOW": 14,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1184,
+      "loc": 1220,
       "nosec": 0,
-      "skipped_tests": 8
+      "skipped_tests": 9
     },
     "src/ai_shell/defaults.py": {
       "CONFIDENCE.HIGH": 0,
@@ -180,7 +180,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 559,
+      "loc": 575,
       "nosec": 0,
       "skipped_tests": 1
     },
