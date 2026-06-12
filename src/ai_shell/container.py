@@ -70,6 +70,32 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Substrings identifying a container start failure caused by host port
+# bindings (Docker's own allocator vs. OS-level refusal, e.g. another
+# process or a Windows winnat excluded port range).
+_PORT_BIND_ERRORS = (
+    "port is already allocated",
+    "address already in use",
+    "failed to bind host port",
+)
+
+
+def _host_port_available(port: int) -> bool:
+    """Check whether *port* can be bound on the host running ai-shell.
+
+    The CLI runs on the same host where Docker publishes ports, so a brief
+    test-bind sees both live listeners and OS-level reservations (Windows
+    winnat excluded port ranges) that Docker's allocator cannot know about.
+    """
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("0.0.0.0", port))  # nosec B104
+    except OSError:
+        return False
+    return True
+
 
 def _exec_docker(args: list[str]) -> NoReturn:
     """Execute a docker CLI command with cross-platform TTY support.
@@ -262,8 +288,29 @@ class ContainerManager:
             else:
                 if container.status != "running":
                     logger.info("Starting existing container: %s", name)
-                    container.start()
-                return name
+                    try:
+                        container.start()
+                    except APIError as e:
+                        # A port-binding failure means the container's baked
+                        # host ports conflict with the current host state
+                        # (another container, a live listener, or a Windows
+                        # winnat excluded range). Retrying the same bindings
+                        # can never succeed — recreate so ports re-resolve
+                        # against what the host will actually accept.
+                        msg = str(e).lower()
+                        if not any(s in msg for s in _PORT_BIND_ERRORS):
+                            raise
+                        logger.warning(
+                            "Container %s failed to start due to a host port "
+                            "conflict; recreating with fresh port assignments. "
+                            "Error: %s",
+                            name,
+                            e,
+                        )
+                        container.remove(force=True)
+                        container = None
+                if container is not None:
+                    return name
 
         logger.info("Creating dev container: %s", name)
         self._pull_image_if_needed(self.config.full_image)
@@ -286,7 +333,10 @@ class ContainerManager:
         )
 
         port_map = project_dev_port_map(
-            self.config.project_dir, self.config.dev_ports, self.config.project_name
+            self.config.project_dir,
+            self.config.dev_ports,
+            self.config.project_name,
+            is_available=_host_port_available,
         )
 
         # MOTD metadata — injected at creation time so the in-container

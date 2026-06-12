@@ -24,3 +24,14 @@ def no_docker_tcp_probe():
     """
     with patch("ai_shell.container.docker_tcp_fallback_host", return_value=None):
         yield
+
+
+@pytest.fixture(autouse=True)
+def no_host_port_probe():
+    """Make the host port availability probe a no-op in tests.
+
+    _host_port_available test-binds real sockets; port assignments in tests
+    must stay deterministic regardless of what's listening on the machine.
+    """
+    with patch("ai_shell.container._host_port_available", return_value=True):
+        yield

@@ -1089,12 +1089,15 @@ class TestToolCommands:
                 returncode=0,
                 stdout="123 opencode serve --port 4096\n456 opencode attach http://localhost:4096\n",
             ),
+            # docker port lookup: live binding is authoritative for the URL
+            MagicMock(returncode=0, stdout="0.0.0.0:23456\n"),
         ]
 
         result = self.runner.invoke(cli, ["opencode", "status"])
 
         assert "running" in result.output.lower()
         assert "1 attached" in result.output
+        assert "23456" in result.output
 
     @patch("ai_shell.cli.commands.tools.subprocess.run")
     def test_opencode_status_not_running(

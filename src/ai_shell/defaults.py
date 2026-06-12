@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from docker.types import Mount
 
 logger = logging.getLogger(__name__)
@@ -186,8 +188,17 @@ def dev_container_name(project_name: str, project_dir: Path | None = None) -> st
     return f"{CONTAINER_PREFIX}-{unique_project_name(project_dir, project_name)}-dev"
 
 
+# Salted re-hash attempts per port before giving up. Each attempt is an
+# independent draw from 30000 slots, so exhaustion means the host is
+# rejecting essentially the whole range.
+DEV_PORT_MAX_ATTEMPTS = 64
+
+
 def project_dev_port_map(
-    project_dir: Path, dev_ports: list[int], project_name: str | None = None
+    project_dir: Path,
+    dev_ports: list[int],
+    project_name: str | None = None,
+    is_available: Callable[[int], bool] | None = None,
 ) -> dict[int, int]:
     """Map each container port to a unique, stable per-project host port.
 
@@ -196,23 +207,34 @@ def project_dev_port_map(
     the 10000-39999 range. Different projects get different host ports for
     the same container port, so multiple projects can run simultaneously.
 
-    Hash collisions within the port set are resolved by linear probing to the
-    next free slot, assigning in ascending container-port order so the result
-    is deterministic. Ports whose hash slot is free keep the exact same host
-    port as the original (pre-probing) scheme.
+    A candidate slot is rejected when it is already taken by another port in
+    this map or when *is_available* (e.g. a host test-bind probe) refuses it.
+    Rejected candidates are re-hashed with a salt counter rather than probed
+    linearly: host-side reservations (Windows winnat excluded port ranges)
+    are contiguous blocks, so adjacent slots tend to fail together while a
+    re-hash jumps elsewhere in the range. Assignment runs in ascending
+    container-port order so the result is deterministic, and an unsalted
+    first attempt keeps existing assignments stable for the common case.
     """
     slug = unique_project_name(project_dir, project_name)
     assigned: dict[int, int] = {}
     used: set[int] = set()
     for port in sorted(set(dev_ports)):
-        # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
-        digest = sha1(f"{slug}:{port}".encode(), usedforsecurity=False).hexdigest()
-        offset = int(digest[:8], 16)
-        candidate = DEV_PORT_RANGE_START + (offset % DEV_PORT_RANGE_SIZE)
-        for probe in range(1, DEV_PORT_RANGE_SIZE):
-            if candidate not in used:
+        for salt in range(DEV_PORT_MAX_ATTEMPTS):
+            key = f"{slug}:{port}" if salt == 0 else f"{slug}:{port}:{salt}"
+            # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
+            digest = sha1(key.encode(), usedforsecurity=False).hexdigest()
+            candidate = DEV_PORT_RANGE_START + (int(digest[:8], 16) % DEV_PORT_RANGE_SIZE)
+            if candidate not in used and (is_available is None or is_available(candidate)):
                 break
-            candidate = DEV_PORT_RANGE_START + ((offset + probe) % DEV_PORT_RANGE_SIZE)
+        else:
+            raise RuntimeError(
+                f"Could not find a free host port for container port {port} "
+                f"after {DEV_PORT_MAX_ATTEMPTS} attempts in range "
+                f"{DEV_PORT_RANGE_START}-{DEV_PORT_RANGE_START + DEV_PORT_RANGE_SIZE - 1}. "
+                "The host is rejecting nearly all bind attempts — check firewall "
+                "or reserved port configuration."
+            )
         assigned[port] = candidate
         used.add(candidate)
     return assigned

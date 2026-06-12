@@ -38,6 +38,30 @@ FAST_FAILURE_THRESHOLD = 5.0  # seconds — if claude -c exits faster, retry wit
 WORKTREE_BASE_DIR = ".claude/worktrees"
 
 
+def _live_host_port(
+    manager: ContainerManager, container_name: str, container_port: int
+) -> int | None:
+    """Host port actually bound for *container_port* on a running container.
+
+    Reads the live binding from Docker, which is authoritative: creation-time
+    availability probing can shift a port away from its derived value, so
+    recomputing via project_dev_port may not match what was actually bound.
+    """
+    from docker.errors import DockerException
+
+    try:
+        ports = manager.container_ports(container_name)
+    except DockerException:
+        return None
+    binding = (ports or {}).get(f"{container_port}/tcp")
+    if not binding:
+        return None
+    try:
+        return int(binding.rsplit(":", 1)[1])
+    except (IndexError, ValueError):
+        return None
+
+
 def _print_dev_ports(manager: ContainerManager, container_name: str) -> None:
     """Print dev container port mappings as browsable URLs."""
     port_map = manager.container_ports(container_name)
@@ -1374,7 +1398,7 @@ def opencode(
             cmd.extend(["--mdns", "--mdns-domain", f"{project_slug}.local"])
             cmd.extend(["--cors", "*"])
 
-            host_port = project_dev_port(
+            host_port = _live_host_port(manager, name, web_port) or project_dev_port(
                 config.project_dir or Path.cwd(),
                 web_port,
                 config.project_name,
@@ -1438,7 +1462,7 @@ def serve(ctx, port: int, open_browser: bool) -> None:
     manager.exec_detached(name, cmd, extra_env=exec_env)
 
     cwd = Path.cwd()
-    host_port = project_dev_port(
+    host_port = _live_host_port(manager, name, port) or project_dev_port(
         config.project_dir or cwd, port, config.project_name, dev_ports=config.dev_ports
     )
     mdns_name = f"{project_slug}.local"
@@ -1516,12 +1540,25 @@ def status(ctx) -> None:
             attach_count += 1
 
     if server_running:
-        host_port = project_dev_port(
-            config.project_dir or Path.cwd(),
-            server_port,
-            config.project_name,
-            dev_ports=config.dev_ports,
+        # Prefer the live binding (authoritative); fall back to the derived port.
+        host_port = None
+        result = subprocess.run(
+            ["docker", "port", container_name, str(server_port)],
+            capture_output=True,
+            text=True,
         )
+        if result.returncode == 0 and result.stdout.strip():
+            try:
+                host_port = int(result.stdout.strip().splitlines()[0].rsplit(":", 1)[1])
+            except (IndexError, ValueError):
+                host_port = None
+        if host_port is None:
+            host_port = project_dev_port(
+                config.project_dir or Path.cwd(),
+                server_port,
+                config.project_name,
+                dev_ports=config.dev_ports,
+            )
         project_slug = sanitize_project_name(config.project_dir or Path.cwd())
         mdns_name = f"{project_slug}.local"
         console.print("[green bold]OpenCode server is running[/green bold]")

@@ -148,10 +148,22 @@ class TestProjectDevPortMap:
     def test_hash_collision_resolved_to_unique_ports(self, tmp_path):
         with patch("ai_shell.defaults.unique_project_name", return_value=self.COLLIDING_SLUG):
             port_map = project_dev_port_map(tmp_path, [79, 353])
-        # Lower port keeps its hash slot; the colliding one probes to the next.
+        # Lower port keeps its hash slot; the colliding one re-hashes with a
+        # salt (NOT +1 — adjacent slots tend to sit in the same host-reserved
+        # block, e.g. Windows winnat excluded port ranges).
         assert port_map[79] == 24256
-        assert port_map[353] == 24257
+        assert port_map[353] == 19407
         assert len(set(port_map.values())) == 2
+
+    def test_unavailable_host_port_is_rehashed(self, tmp_path):
+        with patch("ai_shell.defaults.unique_project_name", return_value=self.COLLIDING_SLUG):
+            port_map = project_dev_port_map(tmp_path, [79], is_available=lambda p: p != 24256)
+        # The hash slot is refused by the host probe -> salt-1 slot instead.
+        assert port_map[79] == 19855
+
+    def test_raises_when_no_port_available(self, tmp_path):
+        with pytest.raises(RuntimeError, match="container port 79"):
+            project_dev_port_map(tmp_path, [79], is_available=lambda p: False)
 
     def test_all_assignments_unique_and_in_range(self, tmp_path):
         with patch("ai_shell.defaults.unique_project_name", return_value=self.COLLIDING_SLUG):

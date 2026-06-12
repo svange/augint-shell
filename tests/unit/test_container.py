@@ -145,6 +145,55 @@ class TestEnsureDevContainer:
         assert "/etc/profile.d/ai-shell-path.sh" in " ".join(profile_cmd)
 
     @patch("ai_shell.container.subprocess.run")
+    def test_recreates_when_start_fails_on_port_conflict(
+        self, _mock_subprocess, mock_container_manager, mock_docker_client
+    ):
+        stale = MagicMock()
+        stale.status = "created"
+        stale.start.side_effect = APIError(
+            "failed to bind host port 0.0.0.0:36432/tcp: address already in use"
+        )
+        mock_container_manager._get_container = MagicMock(return_value=stale)
+        mock_container_manager._recreate_if_image_stale = MagicMock(return_value=False)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        name = mock_container_manager.ensure_dev_container()
+
+        stale.remove.assert_called_once_with(force=True)
+        mock_docker_client.containers.run.assert_called_once()
+        assert name.endswith("-dev")
+
+    @patch("ai_shell.container.subprocess.run")
+    def test_start_failure_unrelated_to_ports_raises(
+        self, _mock_subprocess, mock_container_manager, mock_docker_client
+    ):
+        stale = MagicMock()
+        stale.status = "exited"
+        stale.start.side_effect = APIError("no space left on device")
+        mock_container_manager._get_container = MagicMock(return_value=stale)
+        mock_container_manager._recreate_if_image_stale = MagicMock(return_value=False)
+
+        with pytest.raises(APIError):
+            mock_container_manager.ensure_dev_container()
+
+        stale.remove.assert_not_called()
+        mock_docker_client.containers.run.assert_not_called()
+
+    @patch("ai_shell.container.subprocess.run")
+    def test_creation_probes_host_port_availability(
+        self, _mock_subprocess, mock_container_manager, mock_docker_client
+    ):
+        mock_container_manager._get_container = MagicMock(return_value=None)
+        mock_container_manager._pull_image_if_needed = MagicMock()
+
+        with patch(
+            "ai_shell.container.project_dev_port_map", wraps=project_dev_port_map
+        ) as mock_map:
+            mock_container_manager.ensure_dev_container()
+
+        assert mock_map.call_args.kwargs["is_available"] is not None
+
+    @patch("ai_shell.container.subprocess.run")
     def test_injects_docker_host_when_tcp_fallback_available(
         self, _mock_subprocess, mock_container_manager, mock_docker_client
     ):
