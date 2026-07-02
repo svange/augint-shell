@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.105.0 (2026-07-02)
+
+### Features
+
+- **container**: PHP 8.4 toolchain, composer/vendor + pnpm caching, zapier CLI + auth persistence
+  (#131) ([#131](https://github.com/svange/augint-shell/pull/131),
+  [`6cdbc7d`](https://github.com/svange/augint-shell/commit/6cdbc7d389566bf900c75379ee685dd46f19fff1))
+
+
 ## v0.104.1 (2026-06-12)
 
 ### Bug Fixes
