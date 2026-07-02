@@ -72,6 +72,24 @@ def node_modules_volume_name(
     return f"{NODE_MODULES_VOLUME_PREFIX}{suffix}"
 
 
+COMPOSER_CACHE_VOLUME = "augint-shell-composer-cache"
+PNPM_STORE_VOLUME = "augint-shell-pnpm-store"
+VENDOR_VOLUME_PREFIX = "augint-shell-vendor-"
+
+
+def vendor_volume_name(repo_name: str, worktree_name: str | None = None) -> str:
+    """Per-project named volume that overlays composer's ``vendor/`` directory.
+
+    Same rationale as :func:`node_modules_volume_name`: ``vendor/`` on a
+    drvfs/9p bind mount is slow, and overlaying keeps the container's
+    Linux-built vendor tree separate from whatever the host has.
+    """
+    suffix = repo_name
+    if worktree_name:
+        suffix = f"{repo_name}-wt-{worktree_name}"
+    return f"{VENDOR_VOLUME_PREFIX}{suffix}"
+
+
 PRE_COMMIT_CACHE_VOLUME = "augint-shell-pre-commit-cache"
 PRE_COMMIT_CACHE_PATH = "/root/.cache/pre-commit-container"
 OLLAMA_DATA_VOLUME = "augint-shell-ollama-data"
@@ -294,6 +312,13 @@ def build_dev_mounts(
     for d in (".pi", ".augint", ".plannotator"):
         (home / d).mkdir(parents=True, exist_ok=True)
 
+    # Zapier CLI auth is a single JSON file; pre-create it so the bind mount
+    # exists and `zapier login` inside the container persists across
+    # container recreations (mirrors the .claude.json single-file bind).
+    zapierrc = home / ".zapierrc"
+    if not zapierrc.exists():
+        zapierrc.write_text("{}\n")
+
     # Optional bind mounts — skip if source doesn't exist
     optional_binds: list[tuple[Path, str, bool]] = [
         (home / ".config", "/root/.config", False),
@@ -303,6 +328,7 @@ def build_dev_mounts(
         (home / ".pi", "/root/.pi", False),
         (home / ".augint", "/root/.augint", False),
         (home / ".plannotator", "/root/.plannotator", False),
+        (home / ".zapierrc", "/root/.zapierrc", False),
         (home / ".ssh", "/root/.ssh", True),
         (home / ".gitconfig", "/root/.gitconfig.windows", True),
         (home / ".aws", "/root/.aws", False),
@@ -373,6 +399,27 @@ def build_dev_mounts(
         )
     )
 
+    # Named volume: composer cache (shared across all projects). Without it
+    # composer re-downloads every package on container recreation.
+    mounts.append(
+        Mount(
+            target="/root/.cache/composer",
+            source=COMPOSER_CACHE_VOLUME,
+            type="volume",
+        )
+    )
+
+    # Named volume: pnpm content-addressable store (shared across all
+    # projects). Corepack's pnpm is container-local otherwise, so every
+    # container rebuild is a cold install; the npm cache doesn't help pnpm.
+    mounts.append(
+        Mount(
+            target="/root/.local/share/pnpm",
+            source=PNPM_STORE_VOLUME,
+            type="volume",
+        )
+    )
+
     # Named volume: pre-commit cache (shared across all projects).
     # Isolates the container's hook environments from the Windows host's
     # ~/.cache/pre-commit so the two installs don't clobber each other.
@@ -396,6 +443,18 @@ def build_dev_mounts(
             type="volume",
         )
     )
+
+    # Per-project named volume overlaying composer's vendor/ — the exact
+    # node_modules rationale applies verbatim. Conditional on composer.json
+    # so non-PHP projects don't grow an empty vendor/ dir on the host.
+    if (project_dir / "composer.json").is_file():
+        mounts.append(
+            Mount(
+                target=f"/root/projects/{project_name}/vendor",
+                source=vendor_volume_name(project_name),
+                type="volume",
+            )
+        )
 
     # Monorepo workspaces: overlay an isolated named volume on each matched
     # workspace's node_modules so per-app installs (npm/pnpm/yarn workspaces)

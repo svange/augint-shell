@@ -103,6 +103,20 @@ if [ -f "package.json" ]; then
     unset _pm _cmd
 fi
 
+if [ -f "composer.json" ] && command -v composer >/dev/null 2>&1; then
+    echo "===================================="
+    echo "Installing PHP dependencies (composer)..."
+    echo "===================================="
+    # First run also populates the per-project vendor/ overlay volume.
+    if composer install --no-interaction; then
+        echo "===================================="
+        echo "PHP dependencies installed!"
+        echo "===================================="
+    else
+        echo "[warn] 'composer install' failed. Container will continue."
+    fi
+fi
+
 # =========================================================================
 # AUTO-UPDATE: Background cron + initial tool update
 # Remove this block to disable auto-updates.

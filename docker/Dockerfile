@@ -114,6 +114,37 @@ RUN curl -fsSL https://bun.sh/install | bash && \
 # declare them via package.json "packageManager". Ships with Node.js LTS.
 RUN corepack enable
 
+# Install PHP 8.4 CLI + extensions (deb.sury.org) for the Laravel dev loop
+# (artisan, Pest, Pint, tinker). 8.4 matches the FrankenPHP 1-php8.4 runtime
+# images Laravel projects deploy on. Extension set mirrors those runtime
+# images (pdo_pgsql pcntl opcache intl bcmath) plus the basics FrankenPHP
+# bundles that Debian packages separately. postgresql-client gives psql
+# parity with the already-shipped sqlite3 for docker-compose Postgres setups.
+RUN curl -fsSL https://packages.sury.org/debsuryorg-archive-keyring.deb -o /tmp/sury-keyring.deb && \
+    dpkg -i /tmp/sury-keyring.deb && \
+    rm /tmp/sury-keyring.deb && \
+    echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ bookworm main" \
+        > /etc/apt/sources.list.d/php.list && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    php8.4-cli \
+    php8.4-pgsql \
+    php8.4-sqlite3 \
+    php8.4-mbstring \
+    php8.4-xml \
+    php8.4-curl \
+    php8.4-zip \
+    php8.4-intl \
+    php8.4-bcmath \
+    php8.4-readline \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Composer 2 (PHP dependency manager; covers Pint/Pest/artisan deps,
+# no global Laravel installer needed)
+RUN curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php && \
+    php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer && \
+    rm /tmp/composer-setup.php
+
 # Install AWS CDK CLI
 RUN npm install -g aws-cdk
 
@@ -156,6 +187,10 @@ RUN npm install -g agent-browser && \
 
 # Install Playwright CLI (advanced browser automation)
 RUN npm install -g @playwright/cli
+
+# Install Zapier Platform CLI (register/validate/push Zapier integrations
+# that live inside project repos). Auth persists via the ~/.zapierrc bind.
+RUN npm install -g zapier-platform-cli
 
 # Build argument for flexible project directory
 ARG PROJECT_DIR=current-project
