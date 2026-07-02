@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from ai_shell.defaults import (
+    COMPOSER_CACHE_VOLUME,
     CONTAINER_PREFIX,
     DEFAULT_DEV_PORTS,
     DEV_PORT_RANGE_SIZE,
@@ -15,9 +16,11 @@ from ai_shell.defaults import (
     NODE_MODULES_VOLUME_PREFIX,
     NPM_CACHE_VOLUME,
     OLLAMA_CONTAINER,
+    PNPM_STORE_VOLUME,
     PRE_COMMIT_CACHE_PATH,
     PRE_COMMIT_CACHE_VOLUME,
     UV_CACHE_VOLUME,
+    VENDOR_VOLUME_PREFIX,
     build_dev_environment,
     build_dev_mounts,
     build_n8n_environment,
@@ -30,6 +33,7 @@ from ai_shell.defaults import (
     sanitize_project_name,
     unique_project_name,
     uv_venv_path,
+    vendor_volume_name,
 )
 
 
@@ -347,6 +351,85 @@ class TestBuildDevMounts:
         assert pc_mount is not None
         assert pc_mount.get("Source") == PRE_COMMIT_CACHE_VOLUME
         assert pc_mount.get("Type") == "volume"
+
+    def test_includes_composer_cache_volume(self, tmp_path):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+
+        mounts = build_dev_mounts(project_dir, "test-project")
+
+        composer_mount = next(
+            (m for m in mounts if m.get("Target") == "/root/.cache/composer"), None
+        )
+        assert composer_mount is not None
+        assert composer_mount.get("Type") == "volume"
+        assert composer_mount.get("Source") == COMPOSER_CACHE_VOLUME
+
+    def test_includes_pnpm_store_volume(self, tmp_path):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+
+        mounts = build_dev_mounts(project_dir, "test-project")
+
+        pnpm_mount = next((m for m in mounts if m.get("Target") == "/root/.local/share/pnpm"), None)
+        assert pnpm_mount is not None
+        assert pnpm_mount.get("Type") == "volume"
+        assert pnpm_mount.get("Source") == PNPM_STORE_VOLUME
+
+    def test_vendor_overlay_when_composer_json_exists(self, tmp_path):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+        (project_dir / "composer.json").write_text("{}")
+
+        mounts = build_dev_mounts(project_dir, "test-project")
+
+        vendor_mount = next(
+            (m for m in mounts if m.get("Target") == "/root/projects/test-project/vendor"),
+            None,
+        )
+        assert vendor_mount is not None
+        assert vendor_mount.get("Type") == "volume"
+        assert vendor_mount.get("Source") == vendor_volume_name("test-project")
+        assert vendor_mount.get("Source", "").startswith(VENDOR_VOLUME_PREFIX)
+
+    def test_no_vendor_overlay_without_composer_json(self, tmp_path):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+
+        mounts = build_dev_mounts(project_dir, "test-project")
+
+        targets = [m.get("Target") for m in mounts]
+        assert "/root/projects/test-project/vendor" not in targets
+
+    def test_vendor_volume_name_includes_worktree_suffix(self):
+        plain = vendor_volume_name("repo")
+        wt = vendor_volume_name("repo", worktree_name="feature")
+        assert plain == f"{VENDOR_VOLUME_PREFIX}repo"
+        assert wt == f"{VENDOR_VOLUME_PREFIX}repo-wt-feature"
+        assert plain != wt
+
+    def test_zapierrc_precreated_and_bind_mounted(self, tmp_path, isolate_home):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+
+        mounts = build_dev_mounts(project_dir, "test-project")
+
+        zapierrc = isolate_home / ".zapierrc"
+        assert zapierrc.is_file()
+        assert zapierrc.read_text().strip() == "{}"
+        zapier_mount = next((m for m in mounts if m.get("Target") == "/root/.zapierrc"), None)
+        assert zapier_mount is not None
+        assert zapier_mount.get("Type") == "bind"
+        assert zapier_mount.get("ReadOnly") is not True
+
+    def test_zapierrc_existing_content_preserved(self, tmp_path, isolate_home):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+        (isolate_home / ".zapierrc").write_text('{"deployKey": "secret"}')
+
+        build_dev_mounts(project_dir, "test-project")
+
+        assert (isolate_home / ".zapierrc").read_text() == '{"deployKey": "secret"}'
 
     def test_skips_missing_optional_paths(self, tmp_path):
         project_dir = tmp_path / "test-project"
