@@ -323,6 +323,7 @@ class ContainerManager:
             self.config.project_dir,
             self.config.project_name,
             extra_node_modules_paths=self.config.node_modules_paths,
+            isolate_home_paths=set(self.config.isolate_home_paths),
         )
         environment = build_dev_environment(
             self.config.extra_env,

@@ -20,6 +20,13 @@
 #   extra_ports:
 #     - 8080
 #     - 9090
+#   # Back these home-config dirs with a shared named volume instead of a host
+#   # bind, so tool config/state never touches the host ~/. Persists across
+#   # container recreations, shared across all projects. ~/.claude.json (a file)
+#   # is kept off the host when .claude is isolated.
+#   isolate_home_paths:
+#     - .claude
+#     - .codex
 
 # --- LLM (Ollama model management) ------------------------------------------
 # These control which models ai-shell pulls and serves via Ollama.

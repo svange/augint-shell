@@ -194,6 +194,10 @@ class AiShellConfig:
     # Glob patterns (relative to project_dir) for monorepo workspace
     # node_modules directories. Each match gets an isolated named volume.
     node_modules_paths: list[str] = field(default_factory=list)
+    # Home-config basenames (e.g. ".claude", ".codex") to back with a shared
+    # named volume instead of a host bind mount, so tool config/state never
+    # touches the host home directory. Empty = current bind-mount behavior.
+    isolate_home_paths: list[str] = field(default_factory=list)
 
     # AWS
     ai_profile: str = ""  # AWS profile for infra (sets AWS_PROFILE in container)
@@ -443,6 +447,8 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.extra_ports.extend(int(p) for p in container["ports"])
     if "node_modules_paths" in container:
         config.node_modules_paths.extend(str(p) for p in container["node_modules_paths"])
+    if "isolate_home_paths" in container:
+        config.isolate_home_paths.extend(str(p) for p in container["isolate_home_paths"])
 
     # [llm] section
     llm = data.get("llm", {})
@@ -571,6 +577,11 @@ def _apply_env_vars(config: AiShellConfig) -> None:
     ports_value = os.environ.get("AI_SHELL_PORTS")
     if ports_value:
         config.extra_ports.extend(int(p.strip()) for p in ports_value.split(",") if p.strip())
+
+    # AI_SHELL_ISOLATE_HOME_PATHS is comma-separated, extends isolate_home_paths
+    isolate_value = os.environ.get("AI_SHELL_ISOLATE_HOME_PATHS")
+    if isolate_value:
+        config.isolate_home_paths.extend(p.strip() for p in isolate_value.split(",") if p.strip())
 
     # Nested voice_agent overrides (flat env vars map to nested fields)
     voice_agent_port = os.environ.get("AI_SHELL_VOICE_AGENT_PORT")

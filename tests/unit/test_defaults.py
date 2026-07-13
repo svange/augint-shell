@@ -27,6 +27,7 @@ from ai_shell.defaults import (
     build_n8n_mounts,
     dev_container_name,
     docker_tcp_fallback_host,
+    home_config_volume_name,
     node_modules_volume_name,
     project_dev_port,
     project_dev_port_map,
@@ -481,6 +482,60 @@ class TestBuildDevMounts:
         gh_mount = next((m for m in mounts if m.get("Target") == "/root/.config/gh"), None)
         assert gh_mount is not None
         assert gh_mount.get("Type") == "bind"
+
+
+class TestIsolateHomeConfigs:
+    def _mounts(self, tmp_path, isolate_home_paths):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+
+        fake_home = tmp_path / "fakehome"
+        fake_home.mkdir()
+        # Host configs exist — isolation must still bypass them.
+        (fake_home / ".claude").mkdir()
+        (fake_home / ".claude.json").write_text("{}")
+        (fake_home / ".codex").mkdir()
+        (fake_home / ".aws").mkdir()
+
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=fake_home),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            return build_dev_mounts(
+                project_dir, "test-project", isolate_home_paths=isolate_home_paths
+            )
+
+    def test_volume_name_derivation(self):
+        assert home_config_volume_name(".claude") == "augint-shell-home-claude"
+        assert home_config_volume_name(".codex") == "augint-shell-home-codex"
+
+    def test_isolated_dir_uses_named_volume_not_bind(self, tmp_path):
+        mounts = self._mounts(tmp_path, {".claude", ".codex"})
+        by_target = {m.get("Target"): m for m in mounts}
+
+        for target, name in (("/root/.claude", ".claude"), ("/root/.codex", ".codex")):
+            mount = by_target[target]
+            assert mount.get("Type") == "volume"
+            assert mount.get("Source") == home_config_volume_name(name)
+
+    def test_isolating_claude_drops_claude_json_bind(self, tmp_path):
+        mounts = self._mounts(tmp_path, {".claude"})
+        targets = [m.get("Target") for m in mounts]
+        # Single file can't be volume-backed; it must not be bound to the host.
+        assert "/root/.claude.json" not in targets
+
+    def test_non_isolated_configs_still_bind(self, tmp_path):
+        mounts = self._mounts(tmp_path, {".claude"})
+        aws = next(m for m in mounts if m.get("Target") == "/root/.aws")
+        assert aws.get("Type") == "bind"
+        # .codex was not isolated and exists on host -> bind mount.
+        codex = next(m for m in mounts if m.get("Target") == "/root/.codex")
+        assert codex.get("Type") == "bind"
+
+    def test_empty_isolate_set_preserves_bind_behavior(self, tmp_path):
+        mounts = self._mounts(tmp_path, set())
+        claude = next(m for m in mounts if m.get("Target") == "/root/.claude")
+        assert claude.get("Type") == "bind"
 
 
 class TestBuildDevEnvironment:

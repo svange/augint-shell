@@ -111,6 +111,22 @@ kokoro_port = 4321
         assert config.ollama_port == 12345
         assert config.kokoro_port == 4321
 
+    def test_isolate_home_paths_from_config(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "container:\n  isolate_home_paths: [.claude, .codex]\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.isolate_home_paths == [".claude", ".codex"]
+
+    def test_isolate_home_paths_from_env(self, tmp_path):
+        with patch.dict("os.environ", {"AI_SHELL_ISOLATE_HOME_PATHS": ".claude, .codex"}):
+            config = load_config(project_dir=tmp_path)
+        assert config.isolate_home_paths == [".claude", ".codex"]
+
+    def test_isolate_home_paths_default_empty(self, tmp_path):
+        config = load_config(project_dir=tmp_path)
+        assert config.isolate_home_paths == []
+
     def test_env_var_overrides(self, tmp_path):
         env = {
             "AI_SHELL_IMAGE": "env/image",
