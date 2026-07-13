@@ -786,6 +786,7 @@ class TestToolCommands:
         assert args[0] == "augint-shell-test-dev"
         assert args[1] == bedrock_env
         assert "cache_ttl" in kwargs
+        assert "model_id" in kwargs
 
     def test_claude_bedrock_preflight_failure_blocks_launch(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
@@ -1169,6 +1170,33 @@ class TestCheckBedrockAccess:
         args = mock_run.call_args[0][0]
         shell_cmd = args[-1]
         assert "--profile" not in shell_cmd
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    def test_uses_custom_model_id(self, mock_run):
+        from ai_shell.cli.commands.tools import _check_bedrock_access
+
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        exec_env = {"AWS_PROFILE": "sandbox", "AWS_REGION": "us-east-1"}
+
+        _check_bedrock_access("test-container", exec_env, model_id="anthropic.claude-opus-4-8")
+
+        args = mock_run.call_args[0][0]
+        shell_cmd = args[-1]
+        assert "anthropic.claude-opus-4-8" in shell_cmd
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    def test_falls_back_to_default_model(self, mock_run):
+        from ai_shell.cli.commands.tools import _check_bedrock_access
+        from ai_shell.defaults import DEFAULT_BEDROCK_MODEL
+
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        exec_env = {"AWS_PROFILE": "rd", "AWS_REGION": "us-east-1"}
+
+        _check_bedrock_access("test-container", exec_env)
+
+        args = mock_run.call_args[0][0]
+        shell_cmd = args[-1]
+        assert DEFAULT_BEDROCK_MODEL in shell_cmd
 
 
 class TestHelpShortFlag:

@@ -284,6 +284,7 @@ def _get_manager(
         aws_region=config.aws_region,
         bedrock_profile=bedrock_profile or config.bedrock_profile,
         bedrock_region=config.bedrock_region,
+        bedrock_model=config.bedrock_model,
         openai_profile=openai_profile or config.openai_profile,
         env_file=env_file,
     )
@@ -363,6 +364,7 @@ def _launch_loaded_config_claude(
             aws_region=config.aws_region,
             bedrock_profile=cli_profile or config.bedrock_profile,
             bedrock_region=config.bedrock_region,
+            bedrock_model=config.bedrock_model,
             env_file=env_file,
         )
 
@@ -374,7 +376,10 @@ def _launch_loaded_config_claude(
         if use_bedrock:
             bedrock_label = _bedrock_label(exec_env)
             _check_bedrock_access(
-                container_name, exec_env, cache_ttl=config.bedrock_check_cache_ttl
+                container_name,
+                exec_env,
+                model_id=config.bedrock_model,
+                cache_ttl=config.bedrock_check_cache_ttl,
             )
 
         workdir: str | None = None
@@ -603,11 +608,17 @@ def _launch_interactive(
         aws_region=config.aws_region,
         bedrock_profile=cli_profile or config.bedrock_profile,
         bedrock_region=config.bedrock_region,
+        bedrock_model=config.bedrock_model,
         env_file=env_file,
     )
 
     if use_bedrock:
-        _check_bedrock_access(container_name, exec_env, cache_ttl=config.bedrock_check_cache_ttl)
+        _check_bedrock_access(
+            container_name,
+            exec_env,
+            model_id=config.bedrock_model,
+            cache_ttl=config.bedrock_check_cache_ttl,
+        )
 
     # Handle shared Chrome if requested.
     mcp_config_path: str | None = None
@@ -710,13 +721,17 @@ def _launch_team(
             aws_region=config.aws_region,
             bedrock_profile=cli_profile or config.bedrock_profile,
             bedrock_region=config.bedrock_region,
+            bedrock_model=config.bedrock_model,
             team_mode=True,
             env_file=env_file,
         )
 
         if use_bedrock:
             _check_bedrock_access(
-                container_name, exec_env, cache_ttl=config.bedrock_check_cache_ttl
+                container_name,
+                exec_env,
+                model_id=config.bedrock_model,
+                cache_ttl=config.bedrock_check_cache_ttl,
             )
 
         workdir = f"/root/projects/{config.project_name}"
@@ -790,11 +805,17 @@ def _launch_single_repo_multi(
         aws_region=config.aws_region,
         bedrock_profile=cli_profile or config.bedrock_profile,
         bedrock_region=config.bedrock_region,
+        bedrock_model=config.bedrock_model,
         env_file=env_file,
     )
 
     if use_bedrock:
-        _check_bedrock_access(container_name, exec_env, cache_ttl=config.bedrock_check_cache_ttl)
+        _check_bedrock_access(
+            container_name,
+            exec_env,
+            model_id=config.bedrock_model,
+            cache_ttl=config.bedrock_check_cache_ttl,
+        )
 
     container_project_root = f"/root/projects/{config.project_name}"
     panes: list[PaneSpec] = []
@@ -991,11 +1012,17 @@ def _launch_multi(
         aws_region=config.aws_region,
         bedrock_profile=cli_profile or config.bedrock_profile,
         bedrock_region=config.bedrock_region,
+        bedrock_model=config.bedrock_model,
         env_file=env_file,
     )
 
     if use_bedrock:
-        _check_bedrock_access(container_name, exec_env, cache_ttl=config.bedrock_check_cache_ttl)
+        _check_bedrock_access(
+            container_name,
+            exec_env,
+            model_id=config.bedrock_model,
+            cache_ttl=config.bedrock_check_cache_ttl,
+        )
 
     # Resolve worktree name (auto-generate if flag given without value)
     wt_name = worktree_name
@@ -1261,7 +1288,12 @@ def codex(
             profile_label = exec_env.get("AWS_PROFILE", "default")
             region_label = exec_env.get("AWS_REGION", "us-east-1")
             bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-            _check_bedrock_access(name, exec_env, cache_ttl=config.bedrock_check_cache_ttl)
+            _check_bedrock_access(
+                name,
+                exec_env,
+                model_id=config.bedrock_model,
+                cache_ttl=config.bedrock_check_cache_ttl,
+            )
         else:
             bedrock_label = ""
 
@@ -1312,7 +1344,12 @@ def _opencode_setup(
         profile_label = exec_env.get("AWS_PROFILE", "default")
         region_label = exec_env.get("AWS_REGION", "us-east-1")
         bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-        _check_bedrock_access(name, exec_env, cache_ttl=config.bedrock_check_cache_ttl)
+        _check_bedrock_access(
+            name,
+            exec_env,
+            model_id=config.bedrock_model,
+            cache_ttl=config.bedrock_check_cache_ttl,
+        )
     else:
         bedrock_label = ""
 

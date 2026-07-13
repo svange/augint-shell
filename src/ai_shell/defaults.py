@@ -593,6 +593,7 @@ def build_dev_environment(
     aws_region: str = "",
     bedrock_profile: str = "",
     bedrock_region: str = "",
+    bedrock_model: str = "",
     openai_profile: str = "",
     team_mode: bool = False,
     env_file: Path | None = None,
@@ -666,6 +667,8 @@ def build_dev_environment(
         if resolved_bedrock_region != env["AWS_REGION"]:
             env["AWS_REGION"] = resolved_bedrock_region
             env["AWS_DEFAULT_REGION"] = resolved_bedrock_region
+        if bedrock_model:
+            env["ANTHROPIC_MODEL"] = bedrock_model
 
     if openai_profile:
         suffix = openai_profile.upper()
