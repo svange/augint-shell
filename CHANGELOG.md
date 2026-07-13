@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.105.1 (2026-07-13)
+
+### Bug Fixes
+
+- **bedrock**: Pass configured bedrock_model to preflight check and set ANTHROPIC_MODEL (#136)
+  ([#136](https://github.com/svange/augint-shell/pull/136),
+  [`b97c5c9`](https://github.com/svange/augint-shell/commit/b97c5c908083f8e8625f2bb57ce388d9423ef075))
+
+
 ## v0.105.0 (2026-07-02)
 
 ### Features
