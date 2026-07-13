@@ -697,6 +697,18 @@ class TestBuildDevEnvironmentBedrock:
             env = build_dev_environment(bedrock=True, bedrock_region="us-gov-west-1")
         assert env["AWS_REGION"] == "us-gov-west-1"
 
+    def test_bedrock_model_sets_anthropic_model(self):
+        env = build_dev_environment(bedrock=True, bedrock_model="anthropic.claude-opus-4-8")
+        assert env["ANTHROPIC_MODEL"] == "anthropic.claude-opus-4-8"
+
+    def test_bedrock_model_not_set_without_bedrock(self):
+        env = build_dev_environment(bedrock=False, bedrock_model="anthropic.claude-opus-4-8")
+        assert "ANTHROPIC_MODEL" not in env
+
+    def test_bedrock_no_model_no_anthropic_model(self):
+        env = build_dev_environment(bedrock=True)
+        assert "ANTHROPIC_MODEL" not in env
+
 
 class TestBuildDevEnvironmentOpenAIProfile:
     def test_openai_profile_sets_api_key(self, tmp_path):

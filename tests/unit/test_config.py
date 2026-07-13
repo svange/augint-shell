@@ -552,6 +552,18 @@ provider = "aws"
             config = load_config(project_dir=tmp_path)
         assert config.bedrock_profile == "ai-acct"
 
+    def test_bedrock_model_from_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "aws:\n  bedrock_model: anthropic.claude-opus-4-8\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.bedrock_model == "anthropic.claude-opus-4-8"
+
+    def test_bedrock_model_env_var(self, tmp_path):
+        with patch.dict("os.environ", {"AI_SHELL_BEDROCK_MODEL": "anthropic.claude-opus-4-8"}):
+            config = load_config(project_dir=tmp_path)
+        assert config.bedrock_model == "anthropic.claude-opus-4-8"
+
     def test_ai_profile_env_var(self, tmp_path):
         with patch.dict("os.environ", {"AI_SHELL_AI_PROFILE": "infra-acct"}):
             config = load_config(project_dir=tmp_path)
