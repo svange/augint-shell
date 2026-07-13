@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.106.0 (2026-07-13)
+
+### Features
+
+- **container**: Isolate home configs with shared named volumes (#137)
+  ([#137](https://github.com/svange/augint-shell/pull/137),
+  [`55a49af`](https://github.com/svange/augint-shell/commit/55a49af8671c4cb8107e2a2152fe6e8dde81e276))
+
+
 ## v0.105.1 (2026-07-13)
 
 ### Bug Fixes
