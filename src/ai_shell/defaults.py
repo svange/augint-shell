@@ -32,6 +32,28 @@ SHM_SIZE = "2g"
 UV_CACHE_VOLUME = "augint-shell-uv-cache"
 GH_CONFIG_VOLUME = "augint-shell-gh-config"
 
+# Prefix for shared named volumes that back isolated home configs (e.g.
+# ~/.claude, ~/.codex). One volume per config dir, shared across all projects
+# on the host, so tool state persists in Docker instead of the host home dir.
+HOME_CONFIG_VOLUME_PREFIX = "augint-shell-home-"
+
+# Home configs that are single files rather than directories. A named volume
+# can only back a directory, so these can't be volume-isolated; when named in
+# the isolate set their host bind is dropped instead (config stays
+# container-local).
+_SINGLE_FILE_HOME_CONFIGS = frozenset({".claude.json", ".gitconfig", ".zapierrc"})
+
+
+def home_config_volume_name(config_name: str) -> str:
+    """Shared named-volume name backing an isolated home config directory.
+
+    ``.claude`` -> ``augint-shell-home-claude``. The volume is shared across
+    all projects on the host (mirroring how the host ``~/.claude`` bind is
+    shared today), so a single Claude/codex config persists in Docker instead
+    of being written into the host home directory.
+    """
+    return f"{HOME_CONFIG_VOLUME_PREFIX}{_sanitize_name(config_name.lstrip('.').lower())}"
+
 
 def uv_venv_path(repo_name: str, worktree_name: str | None = None) -> str:
     """Return the ``UV_PROJECT_ENVIRONMENT`` path for a repo.
@@ -279,6 +301,7 @@ def build_dev_mounts(
     project_dir: Path,
     project_name: str,
     extra_node_modules_paths: list[str] | None = None,
+    isolate_home_paths: set[str] | None = None,
 ) -> list[Mount]:
     """Build the full mount list matching docker-compose.yml dev service.
 
@@ -290,6 +313,14 @@ def build_dev_mounts(
     volume overlaid at ``{match}/node_modules`` inside the container, so each
     workspace in a monorepo isolates its Linux node_modules from the host
     bind mount the same way the root overlay does.
+
+    *isolate_home_paths* is a set of home-config basenames (e.g. ``.claude``,
+    ``.codex``) that should be backed by a shared named volume instead of a
+    host bind mount, so nothing is written into the host home directory. The
+    volume persists across container recreations and is shared across projects.
+    Single-file configs (``.claude.json`` etc.) can't be volume-backed; when
+    named — or, for ``.claude.json``, when ``.claude`` is isolated — their host
+    bind is dropped and the config stays container-local.
     """
     from docker.types import Mount
 
@@ -334,7 +365,32 @@ def build_dev_mounts(
         (home / ".aws", "/root/.aws", False),
     ]
 
+    isolate = isolate_home_paths or set()
     for source, target, read_only in optional_binds:
+        name = source.name
+
+        # Isolation: back the config with a shared named volume instead of a
+        # host bind, so nothing is written into the host home directory.
+        if name in isolate:
+            if name in _SINGLE_FILE_HOME_CONFIGS:
+                # A named volume can't back a single file — drop the bind so
+                # the host file is never touched (config stays container-local).
+                logger.debug("Isolating single-file home config (not persisted): %s", name)
+                continue
+            mounts.append(
+                Mount(
+                    target=target,
+                    source=home_config_volume_name(name),
+                    type="volume",
+                )
+            )
+            continue
+
+        # Keep ~/.claude.json off the host whenever ~/.claude is isolated.
+        if name == ".claude.json" and ".claude" in isolate:
+            logger.debug("Isolating .claude.json alongside isolated .claude (not persisted)")
+            continue
+
         if source.exists():
             mounts.append(
                 Mount(

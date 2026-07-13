@@ -53,6 +53,8 @@ CLI commands (cli/commands/)
 
 Dev containers mount: project dir, UV cache volume (shared), and conditionally: `~/.claude`, `~/.codex`, `~/.pi`, `~/.augint`, `~/.ssh` (ro), `~/.aws`, `~/.config/gh`, `~/.gitconfig` (ro), Docker socket (ro), plus `extra_volumes` from config.
 
+**Home-config isolation**: `container.isolate_home_paths` (config key, `AI_SHELL_ISOLATE_HOME_PATHS` env var) lists home-config basenames (e.g. `.claude`, `.codex`) to back with a shared named volume (`augint-shell-home-{name}`) instead of a host bind mount, so nothing is written into the host home dir. The volume persists across container recreations and is shared across all projects — set it in `~/.augint/.ai-shell.yaml` to apply machine-wide. Single-file configs can't be volume-backed: when named (or, for `.claude.json`, when `.claude` is isolated) their host bind is dropped and config stays container-local. Empty (default) = current bind-mount behavior. See `build_dev_mounts` / `home_config_volume_name` in `defaults.py`.
+
 ### Environment assembly
 
 Priority: `extra_env` > `./.env` > `~/.augint/.env` > `os.environ` > defaults. Layered .env loading merges `~/.augint/.env` (global shared) then `./.env` (project override). AWS IAM keys are intentionally NOT passed through (only `AWS_PROFILE` + `AWS_REGION`; relies on `~/.aws` bind mount). `IS_SANDBOX=1` is always set. Shared vars (`PRIMARY_CHAT_MODEL`, `OLLAMA_PORT`, `ANTHROPIC_API_KEY`, etc.) are passed through to container env for sibling tools. `PATH` includes `/root/.opencode/bin`.

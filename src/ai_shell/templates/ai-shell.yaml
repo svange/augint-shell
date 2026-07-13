@@ -131,6 +131,14 @@ llm:
 # extra_env:          Additional env vars injected into the dev container.
 # extra_volumes:      Additional bind mounts ("/host:/container" or ":/path:ro").
 # ports:              Extra host ports to expose on the dev container.
+# isolate_home_paths: Home-config dirs to back with a shared named volume
+#                     instead of a host bind, so tool config/state never
+#                     touches the host home directory (e.g. ~/.claude,
+#                     ~/.codex). The volume persists across container
+#                     recreations and is shared across all projects. Put this
+#                     in ~/.augint/.ai-shell.yaml to apply it machine-wide.
+#                     Note: ~/.claude.json is a file (not volume-backed); when
+#                     .claude is isolated it is simply kept off the host.
 #
 # container:
 #   image: svange/augint-shell
@@ -142,3 +150,6 @@ llm:
 #   ports:
 #     - 9000
 #     - 9229
+#   isolate_home_paths:
+#     - .claude
+#     - .codex
