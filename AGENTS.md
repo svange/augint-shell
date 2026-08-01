@@ -25,3 +25,8 @@ Git history uses Conventional Commits, for example `feat: ...`, `fix: ...`, and 
 
 ## Security & Configuration Tips
 Do not commit `.env` files; pre-commit blocks them. Keep project-specific settings in `ai-shell.toml` or `~/.config/ai-shell/config.toml`, and update `uv.lock` whenever dependencies change.
+
+## Further Reading
+- [CLAUDE.md](CLAUDE.md) — architecture: dependency flow, container categories, config/env layering, mount assembly, and the scaffold system.
+- [README.md](README.md) — project overview, command reference, and the release/branch model (branch-to-publish mapping).
+- [TMUX.md](TMUX.md) — runbook for the multi-pane `ai-shell claude --multi` workflow.
