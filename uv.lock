@@ -157,7 +157,7 @@ dev = [
 
 [[package]]
 name = "augint-tools"
-version = "5.42.4"
+version = "5.42.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -171,9 +171,9 @@ dependencies = [
     { name = "rich" },
     { name = "textual" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/81/b5/0cab0b44306055a2d843cd46c0df7c3bb42bbe47124e55688b8db9a7ba49/augint_tools-5.42.4.tar.gz", hash = "sha256:040218e1a902d535fad2ce8160bcf6c41b1834cbbfba9510e6a50413dd39abfb", size = 202373, upload-time = "2026-04-29T01:12:19.446Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c9/21/cbcf96722dedea44b973d1b0dcd3c7fb0e23b14f6a9ba3bd74f3d150b9bf/augint_tools-5.42.5.tar.gz", hash = "sha256:4601759ed518df7a256de20792f6bd4800191e9a1074a94a08fe7c7603a446e2", size = 202644, upload-time = "2026-08-01T16:31:23.561Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/68/67edd2c890c51431eca333669da9985f8fb4e912cc9613dddd2bc971f386/augint_tools-5.42.4-py3-none-any.whl", hash = "sha256:d9c12ff3c62daa47e4246f221746d7cc9fe37d41db197ac980f2319f62438c28", size = 262733, upload-time = "2026-04-29T01:12:17.851Z" },
+    { url = "https://files.pythonhosted.org/packages/90/7f/4dfc0c1dc98885716748d837cfc99ffdffdbcbc3fbb80ba9689acfaddd20/augint_tools-5.42.5-py3-none-any.whl", hash = "sha256:da4f9858ef18de7487bcabc4d43416913653e30a236ef0e14a89d34604766bc0", size = 262715, upload-time = "2026-08-01T16:31:21.886Z" },
 ]
 
 [[package]]
