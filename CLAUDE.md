@@ -59,7 +59,9 @@ Dev containers mount: project dir, UV cache volume (shared), and conditionally: 
 
 Priority: `extra_env` > `./.env` > `~/.augint/.env` > `os.environ` > defaults. Layered .env loading merges `~/.augint/.env` (global shared) then `./.env` (project override). AWS IAM keys are intentionally NOT passed through (only `AWS_PROFILE` + `AWS_REGION`; relies on `~/.aws` bind mount). `IS_SANDBOX=1` is always set. Shared vars (`PRIMARY_CHAT_MODEL`, `OLLAMA_PORT`, `ANTHROPIC_API_KEY`, etc.) are passed through to container env for sibling tools. `PATH` includes `/root/.opencode/bin`.
 
-**GitHub auth**: Default auth is SSO via the `~/.config/gh` bind mount. `GH_TOKEN`/`GITHUB_TOKEN` are NOT injected by default. Pass `--env [.env]` on any dev container CLI command (`claude`, `codex`, `opencode`, `pi`, `shell`, `manage env`) to opt in to loading a `.env` file and injecting GH_TOKEN. Without a value, `--env` defaults to `./.env`.
+**GitHub auth**: Default auth is SSO via the `~/.config/gh` bind mount. `GH_TOKEN`/`GITHUB_TOKEN` are NOT injected by default (a project `./.env` only loads with `--env`; `~/.augint/.env` always loads). Pass `--env [.env]` on any dev container CLI command (`claude`, `codex`, `opencode`, `pi`, `shell`, `manage env`) to opt in to loading a `.env` file and injecting GH_TOKEN. Without a value, `--env` defaults to `./.env`.
+
+The "prefer SSO over PAT" logic in `docker/docker-entrypoint.sh` runs only in PID 1, so it applies to the entrypoint's background tasks (uv sync, auto-update cron, pi installs) — not to interactive tools. Those run via `docker exec`, which bypasses the entrypoint and receives its env from `build_dev_environment` plus explicit `-e` overrides. Consequence: for an interactive session, a `GH_TOKEN` loaded from `--env` (or `~/.augint/.env`) is used as-is and **overrides** the mounted SSO token for that session — by design; supply a PAT only when you intend it to win.
 
 ### OpenCode web mode
 

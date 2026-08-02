@@ -526,16 +526,22 @@ class TestIsolateHomeConfigs:
 
     def test_non_isolated_configs_still_bind(self, tmp_path):
         mounts = self._mounts(tmp_path, {".claude"})
+        # .aws is not isolated and exists on host -> bind mount.
         aws = next(m for m in mounts if m.get("Target") == "/root/.aws")
         assert aws.get("Type") == "bind"
-        # .codex was not isolated and exists on host -> bind mount.
-        codex = next(m for m in mounts if m.get("Target") == "/root/.codex")
-        assert codex.get("Type") == "bind"
 
     def test_empty_isolate_set_preserves_bind_behavior(self, tmp_path):
         mounts = self._mounts(tmp_path, set())
         claude = next(m for m in mounts if m.get("Target") == "/root/.claude")
         assert claude.get("Type") == "bind"
+
+    def test_codex_always_isolated_even_when_not_listed(self, tmp_path):
+        # .codex must never be host-bound (single-use OAuth refresh tokens):
+        # it is a named volume even with an empty isolate set and a host ~/.codex.
+        mounts = self._mounts(tmp_path, set())
+        codex = next(m for m in mounts if m.get("Target") == "/root/.codex")
+        assert codex.get("Type") == "volume"
+        assert codex.get("Source") == home_config_volume_name(".codex")
 
 
 class TestBuildDevEnvironment:

@@ -314,13 +314,17 @@ def build_dev_mounts(
     workspace in a monorepo isolates its Linux node_modules from the host
     bind mount the same way the root overlay does.
 
-    *isolate_home_paths* is a set of home-config basenames (e.g. ``.claude``,
-    ``.codex``) that should be backed by a shared named volume instead of a
-    host bind mount, so nothing is written into the host home directory. The
-    volume persists across container recreations and is shared across projects.
-    Single-file configs (``.claude.json`` etc.) can't be volume-backed; when
-    named — or, for ``.claude.json``, when ``.claude`` is isolated — their host
-    bind is dropped and the config stays container-local.
+    *isolate_home_paths* is a set of home-config basenames (e.g. ``.claude``)
+    that should be backed by a shared named volume instead of a host bind mount,
+    so nothing is written into the host home directory. The volume persists
+    across container recreations and is shared across projects. Single-file
+    configs (``.claude.json`` etc.) can't be volume-backed; when named — or, for
+    ``.claude.json``, when ``.claude`` is isolated — their host bind is dropped
+    and the config stays container-local.
+
+    ``.codex`` is **always** isolated (added to the isolate set unconditionally),
+    regardless of *isolate_home_paths*: its OAuth ``auth.json`` uses single-use
+    refresh tokens, so sharing one file between host and container breaks auth.
     """
     from docker.types import Mount
 
@@ -353,6 +357,8 @@ def build_dev_mounts(
     # Optional bind mounts — skip if source doesn't exist
     optional_binds: list[tuple[Path, str, bool]] = [
         (home / ".config", "/root/.config", False),
+        # .codex is always isolated to a named volume (see the isolate set
+        # below); this host path is never bind-mounted.
         (home / ".codex", "/root/.codex", False),
         (home / ".claude", "/root/.claude", False),
         (home / ".claude.json", "/root/.claude.json", False),
@@ -365,7 +371,12 @@ def build_dev_mounts(
         (home / ".aws", "/root/.aws", False),
     ]
 
-    isolate = isolate_home_paths or set()
+    # .codex holds a single-use-refresh-token OAuth session; sharing one
+    # auth.json between the host and container causes intermittent 401s and
+    # cross-`logout` (openai/codex #15410, #15502, #22577; OpenAI's own guidance
+    # is one auth.json per machine). Always back it with a container-local named
+    # volume instead of the host bind, so host ~/.codex is never touched.
+    isolate = (isolate_home_paths or set()) | {".codex"}
     for source, target, read_only in optional_binds:
         name = source.name
 
