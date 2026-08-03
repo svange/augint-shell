@@ -7,7 +7,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-proprietary-red.svg)](LICENSE)
 
-Launch AI coding tools (Claude Code, Codex, opencode) and local LLMs (Ollama, Open WebUI, Kokoro TTS, Speaches STT) in per-project Docker containers.
+`augint-shell` is a Python 3.12+ command-line tool (the `ai-shell` command) that launches AI coding tools (Claude Code, Codex, opencode) and local LLMs (Ollama, Open WebUI, Kokoro TTS, Speaches STT) in per-project Docker containers. It is built on [Click](https://click.palletsprojects.com/) for the CLI and the [Docker SDK for Python](https://docker-py.readthedocs.io/) to build and orchestrate those containers. As a library/CLI it runs no servers of its own: releases are published automatically to [PyPI](https://pypi.org/project/augint-shell/) (`augint-shell`) and [Docker Hub](https://hub.docker.com/r/svange/augint-shell) (`svange/augint-shell`).
 
 ---
 
