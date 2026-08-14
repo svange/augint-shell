@@ -26,6 +26,13 @@ Git history uses Conventional Commits, for example `feat: ...`, `fix: ...`, and 
 ## Security & Configuration Tips
 Do not commit `.env` files; pre-commit blocks them. Keep project-specific settings in `ai-shell.toml` or `~/.config/ai-shell/config.toml`, and update `uv.lock` whenever dependencies change.
 
+### Release credential (`GH_TOKEN`)
+`main` is a protected branch, and `semantic-release` pushes the release commit and the `v{version}` tag directly to it. The default `GITHUB_TOKEN` cannot do that, so the `Semantic release` job in `.github/workflows/publish.yaml` authenticates with the `GH_TOKEN` repository secret — a personal access token whose account can bypass the protection on `main`. `pyproject.toml` wires the same secret into `[tool.semantic_release.remote.token]`, and the `Deploy documentation` job reuses it to push to `gh-pages`.
+
+Do not replace `GH_TOKEN` with `secrets.GITHUB_TOKEN` without first granting the Actions bot a branch-protection bypass on `main`; otherwise checkout succeeds and the release fails later at the push.
+
+The token expires. When it does, the whole main pipeline goes red and the `Verify release credentials` step names the failure (`HTTP 401`). To recover, mint a replacement with `contents: write` on this repository — plus permission to bypass the protection on `main` — and update the `GH_TOKEN` repository secret under **Settings → Secrets and variables → Actions**. Re-run the failed workflow to confirm.
+
 ## Further Reading
 - [CLAUDE.md](CLAUDE.md) — architecture: dependency flow, container categories, config/env layering, mount assembly, and the scaffold system.
 - [README.md](README.md) — project overview, command reference, and the release/branch model (branch-to-publish mapping).

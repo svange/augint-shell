@@ -202,6 +202,56 @@ jobs:
       contents: write
 
     steps:
+      # main is protected, and semantic-release pushes the release commit and
+      # tag straight to it -- which the default GITHUB_TOKEN cannot do. That is
+      # why this job (and only this job) uses the GH_TOKEN PAT. PATs expire; the
+      # first thing that touches one is Checkout, which reports the expiry as
+      # "fatal: could not read Username for 'https://github.com'" after ~40s of
+      # retries -- a message that never mentions a credential. Probe the token
+      # first so an expired secret says so, in one second.
+      - name: Verify release credentials
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error title=Release credential missing::The GH_TOKEN repository secret is unset or empty. See the release-credential section of AGENTS.md."
+            exit 1
+          fi
+
+          BODY="$(mktemp)"
+          STATUS="$(curl -sS -o "$BODY" -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}")"
+
+          case "$STATUS" in
+            200)
+              ;;
+            401)
+              echo "::error title=Release credential expired::GH_TOKEN was rejected with HTTP 401 -- the token has expired or been revoked. Rotate it and update the GH_TOKEN repository secret; see the release-credential section of AGENTS.md."
+              exit 1
+              ;;
+            403 | 404)
+              echo "::error title=Release credential not authorized::GH_TOKEN was rejected with HTTP $STATUS -- the token cannot read ${GITHUB_REPOSITORY}. Check its repository scope and, for org SSO, that it is authorized."
+              exit 1
+              ;;
+            *)
+              echo "::error title=Release credential check failed::Unexpected HTTP $STATUS from ${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}."
+              exit 1
+              ;;
+          esac
+
+          # This repository is public, so an unauthenticated or read-only token
+          # still gets HTTP 200 here. The permissions block is only populated
+          # for an authenticated caller, so it -- not the status code -- is what
+          # proves the token can actually push the release commit and tag.
+          if [ "$(jq -r '.permissions.push // false' "$BODY")" != "true" ]; then
+            echo "::error title=Release credential lacks push access::GH_TOKEN reached ${GITHUB_REPOSITORY} but reports no push permission, so semantic-release cannot push the release commit or tag. Mint a token with 'contents: write' on this repository; see the release-credential section of AGENTS.md."
+            exit 1
+          fi
+
+          echo "GH_TOKEN accepted for ${GITHUB_REPOSITORY} with push access."
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
