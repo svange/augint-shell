@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.107.0 (2026-08-19)
+
+### Documentation
+
+- Add README documentation table and branch-to-publish model (#145)
+  ([#145](https://github.com/svange/augint-shell/pull/145),
+  [`5e9c471`](https://github.com/svange/augint-shell/commit/5e9c471c0ecf87ead710b8550396dc0b81f24081))
+
+- Name implementation stack and publish targets in README intro (#151)
+  ([#151](https://github.com/svange/augint-shell/pull/151),
+  [`9edfb25`](https://github.com/svange/augint-shell/commit/9edfb254e2fc6f2969a7b1cbe50a59da99025990))
+
+### Features
+
+- **t3**: Add --t3 switch to run a T3 Code server in the dev container (#155)
+  ([#155](https://github.com/svange/augint-shell/pull/155),
+  [`e16209e`](https://github.com/svange/augint-shell/commit/e16209e848511a9fd548b9e0c7016a8a7d49d519))
+
+
 ## v0.106.0 (2026-07-13)
 
 ### Features
