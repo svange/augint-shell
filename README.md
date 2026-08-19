@@ -134,6 +134,7 @@ If you need to work manually, see the full [contributor guide](CONTRIBUTING.md) 
 | `ai-shell opencode serve` | Headless server + attach all git repos as terminals |
 | `ai-shell opencode status` | Show server URL, mDNS name, attached terminals |
 | `ai-shell shell [bash\|zsh\|fish]` | Interactive shell in dev container |
+| `ai-shell <tool> --t3` | Also expose the project to [T3 Code](#remote-control-with-t3-code-t3) (phone/desktop app) |
 
 ### LLM Stack
 
@@ -267,6 +268,50 @@ Set a default in config (`openai.profile: work`) or via `AI_SHELL_OPENAI_PROFILE
 - All traffic stays on `localhost`.
 
 Set `[claude] local_chrome = true` in `ai-shell.toml` (or `AI_SHELL_LOCAL_CHROME=1`) to persist.
+
+---
+
+## Remote control with T3 Code (`--t3`)
+
+[T3 Code](https://github.com/pingdotgg/t3code) is a desktop/web/mobile GUI for driving coding agents. Its server owns the workspace — it spawns the agent processes, reads git state and hosts terminals — so it has to run *where the project lives*, which for ai-shell is the per-project dev container. That is what `--t3` sets up:
+
+```bash
+ai-shell claude --t3        # Claude in this terminal + T3 Code server for the project
+ai-shell codex --t3
+ai-shell pi --t3
+ai-shell opencode --t3
+ai-shell shell --t3         # Just the server, no tool
+```
+
+Each run:
+
+1. installs the `t3` CLI in the container if the image predates T3 support;
+2. starts `t3 serve --host 0.0.0.0 --port 3773` detached, with the same environment your tools get;
+3. registers the project (`t3 serve` deliberately does not auto-add its cwd, which is why an unprepared server shows an empty environment);
+4. mints a pairing token and prints a pairing URL + QR pointing at **this machine's LAN address and the container's published host port**.
+
+Scan the QR from the T3 Code phone app, or paste the URL into the desktop app. The server keeps running after the local tool exits — that is the point.
+
+Port `3773` is part of the standard dev-port set, so every dev container publishes it on a stable per-project host port. Containers created before this feature don't have that mapping; `--t3` says so and the fix is `ai-shell manage clean`, then rerun.
+
+### T3 Connect (outside your LAN)
+
+LAN pairing needs the phone on the same network. For anywhere-access, link the container once — the credential lives in the project's `~/.t3` volume, so it survives container recreation:
+
+```bash
+ai-shell shell
+t3 connect link --headless      # prints a URL, paste back the code
+exit
+ai-shell claude --t3            # serve now also brings up the managed tunnel
+```
+
+`--t3` reports T3 Connect status on every run.
+
+### What `--t3` is and isn't
+
+T3 Code runs its *own* agent processes; it does not mirror the Claude session in your terminal. Both live in the same container against the same project and the same `~/.claude` config, so a conversation started in one can be resumed in the other — but they are separate processes.
+
+Each project gets its own T3 environment (its own `~/.t3` named volume: server database, paired devices, Connect credential). The host's own `~/.t3` is never bind-mounted, so a desktop T3 Code install and the container servers never share a database.
 
 ---
 

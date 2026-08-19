@@ -473,6 +473,100 @@ class TestToolCommands:
         result = self.runner.invoke(cli, ["shell", "csh"])
         assert result.exit_code != 0
 
+    @patch("ai_shell.t3.attach")
+    def test_t3_flag_attaches_before_shell_launch(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["shell", "--t3"])
+
+        mock_attach.assert_called_once()
+        assert mock_attach.call_args[0][1] == "augint-shell-test-dev"
+        assert mock_attach.call_args[0][3] == TEST_EXEC_ENV
+
+    @patch("ai_shell.t3.attach")
+    def test_no_t3_flag_leaves_t3_alone(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["shell"])
+
+        mock_attach.assert_not_called()
+
+    @patch("ai_shell.t3.attach")
+    def test_t3_flag_attaches_before_claude_launch(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["claude", "--t3"])
+
+        mock_attach.assert_called_once()
+        mock_manager.run_interactive.assert_called_once()
+
+    @patch("ai_shell.t3.attach")
+    def test_t3_failure_aborts_launch(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        from ai_shell.t3 import T3Error
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
+        mock_attach.side_effect = T3Error("server never came up")
+
+        result = self.runner.invoke(cli, ["claude", "--t3"])
+
+        assert result.exit_code != 0
+        assert "server never came up" in result.output
+        mock_manager.run_interactive.assert_not_called()
+
+    @patch("ai_shell.t3.attach")
+    def test_t3_flag_attaches_before_codex_launch(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["codex", "--t3"])
+
+        mock_attach.assert_called_once()
+
+    @patch("ai_shell.t3.attach")
+    def test_t3_flag_attaches_before_opencode_launch(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        from ai_shell.config import AiShellConfig
+
+        mock_config.return_value = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-demo-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["opencode", "--t3"])
+
+        mock_attach.assert_called_once()
+
     @patch("ai_shell.cli.commands.tools._ensure_pi_ollama_provider")
     @patch("ai_shell.cli.commands.tools._check_ollama_running")
     def test_pi_default_uses_ollama_model(

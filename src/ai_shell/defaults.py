@@ -96,6 +96,13 @@ def node_modules_volume_name(
 
 COMPOSER_CACHE_VOLUME = "augint-shell-composer-cache"
 PNPM_STORE_VOLUME = "augint-shell-pnpm-store"
+# T3 Code: per-project data dir (~/.t3 holds the server DB, pairing sessions
+# and the T3 Connect credential) plus a shared cache for the managed
+# cloudflared binary so only the first project pays for the download.
+T3_HOME_VOLUME_PREFIX = "augint-shell-t3-"
+T3_TOOLS_VOLUME = "augint-shell-t3-tools"
+T3_HOME_PATH = "/root/.t3"
+T3_TOOLS_PATH = "/root/.t3/tools"
 VENDOR_VOLUME_PREFIX = "augint-shell-vendor-"
 
 
@@ -110,6 +117,20 @@ def vendor_volume_name(repo_name: str, worktree_name: str | None = None) -> str:
     if worktree_name:
         suffix = f"{repo_name}-wt-{worktree_name}"
     return f"{VENDOR_VOLUME_PREFIX}{suffix}"
+
+
+def t3_home_volume_name(project_dir: Path, project_name: str | None = None) -> str:
+    """Per-project named volume backing ``~/.t3`` inside the dev container.
+
+    A T3 Code environment *is* its data directory: the sqlite state, the
+    pairing sessions and the T3 Connect credential all live there.  Since each
+    project gets its own container, each also gets its own environment — a
+    shared volume would mean several containers writing one sqlite file while
+    listing projects that only exist in one of them.  The host's own ``~/.t3``
+    is deliberately not bind-mounted so a desktop T3 Code install and the
+    container servers never share a database.
+    """
+    return f"{T3_HOME_VOLUME_PREFIX}{unique_project_name(project_dir, project_name)}"
 
 
 PRE_COMMIT_CACHE_VOLUME = "augint-shell-pre-commit-cache"
@@ -158,7 +179,11 @@ DEFAULT_WHISPER_MODEL = "Systran/faster-distil-whisper-large-v3"
 DEFAULT_VOICE_AGENT_PORT = 8010
 DEFAULT_COMFYUI_PORT = 8188
 DEFAULT_KOKORO_VOICE = "af_bella"
-DEFAULT_DEV_PORTS = [3000, 4096, 4200, 5000, 5173, 5678, 8000, 8080, 8888, 19432, 31415]
+# T3 Code server port inside the dev container (t3's own default). It is in
+# DEFAULT_DEV_PORTS so every dev container publishes it, which is what lets a
+# phone or the desktop app pair with the in-container server over the LAN.
+T3_CONTAINER_PORT = 3773
+DEFAULT_DEV_PORTS = [3000, 3773, 4096, 4200, 5000, 5173, 5678, 8000, 8080, 8888, 19432, 31415]
 
 # Deterministic dev port mapping (avoids Chrome debug range 40000-60000)
 DEV_PORT_RANGE_START = 10000
@@ -472,6 +497,27 @@ def build_dev_mounts(
         Mount(
             target="/root/.local/share/pnpm",
             source=PNPM_STORE_VOLUME,
+            type="volume",
+        )
+    )
+
+    # Per-project named volume: T3 Code data dir (~/.t3). Keeps the server
+    # database, paired devices and the T3 Connect credential across container
+    # recreations without ever touching the host's own ~/.t3.
+    mounts.append(
+        Mount(
+            target=T3_HOME_PATH,
+            source=t3_home_volume_name(project_dir, project_name),
+            type="volume",
+        )
+    )
+
+    # Shared named volume nested inside it: the managed cloudflared binary T3
+    # Connect downloads (~35 MB). Shared so only the first project pays.
+    mounts.append(
+        Mount(
+            target=T3_TOOLS_PATH,
+            source=T3_TOOLS_VOLUME,
             type="volume",
         )
     )
