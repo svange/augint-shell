@@ -79,6 +79,16 @@ Default: runs with `-c` (continue previous conversation). If it fails fast (< 5 
 
 Pi (`@mariozechner/pi-coding-agent`) is a provider-agnostic terminal coding agent installed via npm. It connects to Ollama via `models.json` (template in `src/ai_shell/templates/pi/`). The `ai-shell pi` command checks Ollama is running before launch. Config persists via `~/.pi` bind mount. Supports `--aws` (Bedrock), `--openai-profile`, and `--login` (OAuth).
 
+### T3 Code integration
+
+`--t3` on `claude`, `codex`, `pi`, `opencode` and `shell` runs `t3 serve` (npm package `t3`) inside the dev container so the project can be driven from the T3 Code desktop/web/mobile app. Logic lives in `t3.py`; the CLI commands only call `_attach_t3` in `cli/commands/tools.py`.
+
+- Container port `3773` is in `DEFAULT_DEV_PORTS`, so every dev container publishes it on a stable per-project host port. `t3 serve` is pinned to `--host 0.0.0.0 --port 3773` because its web mode otherwise scans upward for a free port and lands outside the published mapping.
+- `t3 pair` prints a URL built from the container's own address, which is unreachable from a phone. Only the token is portable, so `t3.py` re-builds the URL against the host LAN IP + published port and renders its own QR (segno).
+- `t3 serve` does not auto-create a project for its cwd, hence the explicit `t3 project add`.
+- `~/.t3` is a **per-project** named volume (`augint-shell-t3-{unique_project_name}`) — a T3 environment is its data dir, so sharing one across containers would mean several servers on one sqlite file. `~/.t3/tools` is a shared volume so the managed cloudflared binary downloads once. The host's `~/.t3` is deliberately never bind-mounted.
+- Readiness probe is `GET /.well-known/t3/environment` (what t3's own CLI uses).
+
 ### Scaffold system
 
 `ai-shell init` and per-tool `--init`/`--update`/`--reset`/`--clean` flags write tool config files (`.claude/`, `.codex/`, `.agents/`, etc.) into the project. `--update` merges settings (preserves user customizations) and overwrites managed skills. `--reset` force-overwrites all managed files. `--clean` removes all managed paths then recreates them fresh.

@@ -162,6 +162,11 @@ ENV PATH="/root/.opencode/bin:${PATH}"
 # Install pi (terminal coding agent, provider-agnostic)
 RUN npm install -g @mariozechner/pi-coding-agent
 
+# Install T3 Code CLI (server + GUI bridge for driving agents remotely).
+# `ai-shell <tool> --t3` runs `t3 serve` inside this container; the CLI is
+# installed on demand at runtime too, so older images keep working.
+RUN npm install -g t3
+
 # Install aider (alternative local coding assistant)
 RUN curl -LsSf https://aider.chat/install.sh | sh
 

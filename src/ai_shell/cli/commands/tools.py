@@ -291,6 +291,48 @@ def _get_manager(
     return manager, container_name, exec_env, config
 
 
+T3_OPTION_HELP = (
+    "Start a T3 Code server in the dev container and print a pairing URL/QR, "
+    "so the project can be driven from the T3 Code desktop, web or mobile app. "
+    "The server outlives this session; rerun the flag to pair another device."
+)
+
+
+def _attach_t3(
+    manager: ContainerManager,
+    container_name: str,
+    config: AiShellConfig,
+    exec_env: dict[str, str] | None,
+) -> None:
+    """Start the T3 Code server for this container and print pairing details."""
+    from ai_shell.t3 import T3Error, attach
+
+    try:
+        attach(manager, container_name, config, exec_env)
+    except T3Error as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+def _attach_t3_for_config(config: AiShellConfig, env_file: Path | None = None) -> None:
+    """Attach T3 Code before a launch path that manages its own container calls.
+
+    The tmux-based Claude launchers (``--multi``, ``--team``, ``--interactive``)
+    all drive the same per-project container, so T3 can be brought up ahead of
+    whichever one runs.
+    """
+    manager = ContainerManager(config)
+    container_name = manager.ensure_dev_container()
+    exec_env = build_dev_environment(
+        config.extra_env,
+        config.project_dir,
+        project_name=config.project_name,
+        aws_profile=config.ai_profile,
+        aws_region=config.aws_region,
+        env_file=env_file,
+    )
+    _attach_t3(manager, container_name, config, exec_env)
+
+
 def _bedrock_label(exec_env: dict[str, str]) -> str:
     """Return the user-facing Bedrock suffix for launch messages."""
     profile_label = exec_env.get("AWS_PROFILE", "default")
@@ -347,6 +389,7 @@ def _launch_loaded_config_claude(
     team_mode: bool = False,
     worktree_name: str | None = None,
     env_file: Path | None = None,
+    use_t3: bool = False,
 ) -> None:
     """Launch Claude for an already loaded project config."""
     with capture_typeahead() as typeahead:
@@ -392,6 +435,9 @@ def _launch_loaded_config_claude(
             console.print(
                 f"[dim]Worktree: {workdir} (branch: worktree-{resolved_worktree_name})[/dim]"
             )
+
+        if use_t3:
+            _attach_t3(manager, container_name, config, exec_env)
 
         mcp_args: list[str] = []
         if local_chrome:
@@ -1132,6 +1178,13 @@ def _launch_multi(
     ),
 )
 @click.option(
+    "--t3",
+    "use_t3",
+    is_flag=True,
+    default=False,
+    help=T3_OPTION_HELP,
+)
+@click.option(
     "--interactive",
     "-i",
     "do_interactive",
@@ -1162,6 +1215,7 @@ def claude(
     do_multi,
     do_team,
     local_chrome,
+    use_t3,
     do_interactive,
     env_file,
     extra_args,
@@ -1181,6 +1235,14 @@ def claude(
             "--interactive and --local-chrome are incompatible "
             "(interactive handles Chrome setup itself)."
         )
+
+    if do_interactive or do_multi or do_team:
+        if use_t3:
+            project = ctx.obj.get("project") if ctx.obj else None
+            _attach_t3_for_config(
+                load_config(project_override=project, project_dir=Path.cwd()),
+                env_file=resolved_env,
+            )
 
     if do_interactive:
         _launch_interactive(
@@ -1230,6 +1292,7 @@ def claude(
         local_chrome=local_chrome,
         worktree_name=worktree_name,
         env_file=resolved_env,
+        use_t3=use_t3,
     )
 
 
@@ -1258,6 +1321,13 @@ def claude(
     default=None,
     help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
+@click.option(
+    "--t3",
+    "use_t3",
+    is_flag=True,
+    default=False,
+    help=T3_OPTION_HELP,
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def codex(
@@ -1267,6 +1337,7 @@ def codex(
     cli_profile,
     openai_profile,
     env_file,
+    use_t3,
     extra_args,
 ):
     """Launch Codex in the dev container."""
@@ -1301,6 +1372,9 @@ def codex(
         openai_label = (
             f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
         )
+
+        if use_t3:
+            _attach_t3(manager, name, config, exec_env)
 
         # AUTO-UPDATE: Check tool freshness before launch
         manager.ensure_tool_fresh(name, "codex")
@@ -1384,6 +1458,13 @@ def _opencode_setup(
         "via AI_SHELL_OPENAI_PROFILE env var."
     ),
 )
+@click.option(
+    "--t3",
+    "use_t3",
+    is_flag=True,
+    default=False,
+    help=T3_OPTION_HELP,
+)
 @click.option("--web", is_flag=True, default=False, help="Launch web UI instead of terminal TUI.")
 @click.option(
     "--port",
@@ -1408,6 +1489,7 @@ def opencode(
     use_aws,
     cli_profile,
     openai_profile,
+    use_t3,
     web,
     web_port,
     env_file,
@@ -1420,6 +1502,7 @@ def opencode(
     ctx.obj["openai_profile"] = openai_profile
     ctx.obj["safe"] = safe
     ctx.obj["env_file"] = resolved_env
+    ctx.obj["use_t3"] = use_t3
 
     if ctx.invoked_subcommand is not None:
         return
@@ -1428,6 +1511,9 @@ def opencode(
         manager, name, exec_env, config, cmd, bedrock_label, openai_label, project_slug = (
             _opencode_setup(ctx, use_aws, cli_profile, openai_profile, env_file=resolved_env)
         )
+
+        if use_t3:
+            _attach_t3(manager, name, config, exec_env)
 
         if web:
             cmd.append("web")
@@ -1685,6 +1771,13 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
         "via AI_SHELL_OPENAI_PROFILE env var."
     ),
 )
+@click.option(
+    "--t3",
+    "use_t3",
+    is_flag=True,
+    default=False,
+    help=T3_OPTION_HELP,
+)
 @click.option("--login", "do_login", is_flag=True, default=False, help="Run pi login for OAuth.")
 @click.option("--doom", is_flag=True, default=False, help="Launch pi-doom (play DOOM via AI).")
 @click.option(
@@ -1696,7 +1789,7 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
     help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
 @click.pass_context
-def pi(ctx, use_aws, cli_profile, openai_profile, do_login, doom, env_file):
+def pi(ctx, use_aws, cli_profile, openai_profile, use_t3, do_login, doom, env_file):
     """Launch pi coding agent in the dev container."""
     resolved_env = Path(env_file) if env_file else None
     with capture_typeahead() as typeahead:
@@ -1740,6 +1833,9 @@ def pi(ctx, use_aws, cli_profile, openai_profile, do_login, doom, env_file):
             f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
         )
 
+        if use_t3:
+            _attach_t3(manager, name, config, exec_env)
+
         manager.ensure_tool_fresh(name, "pi")
 
         _ensure_pi_ollama_provider(config)
@@ -1779,13 +1875,20 @@ SUPPORTED_SHELLS: dict[str, str] = {
     default=None,
     help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
+@click.option(
+    "--t3",
+    "use_t3",
+    is_flag=True,
+    default=False,
+    help=T3_OPTION_HELP,
+)
 @click.argument(
     "shell_name",
     required=False,
     type=click.Choice(list(SUPPORTED_SHELLS.keys()), case_sensitive=False),
 )
 @click.pass_context
-def shell(ctx, env_file, shell_name):
+def shell(ctx, env_file, use_t3, shell_name):
     """Open an interactive shell in the dev container.
 
     SHELL_NAME is one of bash, zsh, fish.  Defaults to bash if omitted.
@@ -1795,7 +1898,9 @@ def shell(ctx, env_file, shell_name):
     """
     resolved_env = Path(env_file) if env_file else None
     with capture_typeahead() as typeahead:
-        manager, name, exec_env, _config = _get_manager(ctx, env_file=resolved_env)
+        manager, name, exec_env, config = _get_manager(ctx, env_file=resolved_env)
+        if use_t3:
+            _attach_t3(manager, name, config, exec_env)
         if not shell_name:
             shell_name = "bash"
         shell_name = shell_name.lower()

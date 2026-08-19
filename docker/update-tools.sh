@@ -20,7 +20,7 @@ LOG_DIR="/var/log/ai-shell"
 LOCK_FILE="/var/run/ai-shell/update.lock"
 DEFAULT_TTL=21600  # 6 hours in seconds
 
-ALL_TOOLS="claude codex opencode pi npm-tools"
+ALL_TOOLS="claude codex opencode pi t3 npm-tools"
 
 # ---- argument parsing ----------------------------------------------------
 ACTION=""
@@ -94,6 +94,11 @@ _update_pi() {
     npm install -g @mariozechner/pi-coding-agent@latest 2>&1 || true
 }
 
+_update_t3() {
+    _log "Updating t3..."
+    npm install -g t3@latest 2>&1 || true
+}
+
 _update_npm_tools() {
     _log "Updating npm tools (aws-cdk, playwright-cli, agent-browser, zapier)..."
     npm install -g aws-cdk@latest @playwright/cli@latest agent-browser@latest zapier-platform-cli@latest 2>&1 || true
@@ -106,6 +111,7 @@ _update_tool() {
         codex)      _update_codex     ;;
         opencode)   _update_opencode  ;;
         pi)         _update_pi        ;;
+        t3)         _update_t3        ;;
         npm-tools)  _update_npm_tools ;;
         *)
             _log "Unknown tool: $tool"

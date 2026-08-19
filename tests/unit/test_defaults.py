@@ -129,6 +129,7 @@ class TestProjectDevPortMap:
     STABLE_SLUG = "stable-project-12345678"
     STABLE_EXPECTED = {
         3000: 26404,
+        3773: 30497,
         4096: 39998,
         4200: 11951,
         5000: 28258,
