@@ -34,10 +34,18 @@ else
 fi
 unset _SAVED_GH_TOKEN _SSO_TOKEN
 
+# Drop any GitHub credential helpers inherited from the host gitconfig before
+# configuring our own. `gh auth setup-git` writes two values (an empty reset
+# plus the helper) and the helper path is a Windows gh.exe that cannot run
+# here, so a plain `git config <key> <value>` set fails with "cannot overwrite
+# multiple values with a single value" and takes the entrypoint down with it.
+git config --global --unset-all "credential.https://github.com.helper" 2>/dev/null || true
+git config --global --unset-all "credential.https://gist.github.com.helper" 2>/dev/null || true
+
 # Configure Git to use GitHub CLI for authentication if token is present
 if [ -n "$GH_TOKEN" ]; then
-    git config --global credential.https://github.com.helper "!gh auth git-credential"
-    git config --global credential.https://gist.github.com.helper "!gh auth git-credential"
+    git config --global "credential.https://github.com.helper" "!gh auth git-credential"
+    git config --global "credential.https://gist.github.com.helper" "!gh auth git-credential"
 fi
 
 # Force gnutls SSL backend globally only
