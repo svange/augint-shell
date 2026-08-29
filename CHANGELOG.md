@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.107.1 (2026-08-29)
+
+### Bug Fixes
+
+- **docker**: Drop inherited GitHub credential helpers before setting gh helper (#158)
+  ([#158](https://github.com/svange/augint-shell/pull/158),
+  [`a2259b2`](https://github.com/svange/augint-shell/commit/a2259b230dc25b953ab474ace116a887dc47a260))
+
+
 ## v0.107.0 (2026-08-19)
 
 ### Documentation
