@@ -135,6 +135,7 @@ If you need to work manually, see the full [contributor guide](CONTRIBUTING.md) 
 | `ai-shell opencode status` | Show server URL, mDNS name, attached terminals |
 | `ai-shell shell [bash\|zsh\|fish]` | Interactive shell in dev container |
 | `ai-shell <tool> --t3` | Also expose the project to [T3 Code](#remote-control-with-t3-code-t3) (phone/desktop app) |
+| `ai-shell <tool> --expo` | Also start a tunnelled [Expo dev server](#expo-apps-expo) and print its QR code |
 
 ### LLM Stack
 
@@ -178,6 +179,9 @@ container:
 
 openai:
   profile: work  # resolves OPENAI_API_KEY_WORK from .env
+
+expo:
+  auto: true  # start a detected Expo app automatically (--expo/--no-expo override)
 
 llm:
   primary_chat_model: qwen3.5:27b
@@ -312,6 +316,50 @@ ai-shell claude --t3            # serve now also brings up the managed tunnel
 T3 Code runs its *own* agent processes; it does not mirror the Claude session in your terminal. Both live in the same container against the same project and the same `~/.claude` config, so a conversation started in one can be resumed in the other — but they are separate processes.
 
 Each project gets its own T3 environment (its own `~/.t3` named volume: server database, paired devices, Connect credential). The host's own `~/.t3` is never bind-mounted, so a desktop T3 Code install and the container servers never share a database.
+
+---
+
+## Expo apps (`--expo`)
+
+Expo apps get their dev server started **inside the dev container**, with the tunnel URL printed as a QR code before the agent takes the terminal — so you scan once, up front, and the phone stays attached for the whole session.
+
+```bash
+ai-shell claude              # auto-detected: Expo app -> dev server starts too
+ai-shell claude --expo       # force it (and fail loudly if it can't start)
+ai-shell claude --no-expo    # skip it
+```
+
+```
+Expo
+  Project: my-app (/root/projects/my-app)
+  Scan:    exp://Xf3k2a-anonymous-8081.exp.direct
+  Metro:   http://localhost:14631 (this machine)
+  Log:     docker exec augint-shell-my-app-dev tail -f /var/log/ai-shell/expo-start.log
+
+  <QR code>
+```
+
+The server is detached and outlives the tool session. Re-running any command just re-prints the QR against the live server.
+
+### No Expo account needed
+
+`expo start --tunnel` does not require a login. The Expo CLI connects with **its own** ngrok token and names the tunnel `{randomness}-{username}-{port}.exp.direct`, falling back to `anonymous` when nobody is signed in. Logging in only matters for EAS (`build`, `update`, `submit`).
+
+If you do want to be signed in, the practical options in a container are `npx expo login` (persisted in `~/.expo`, which is bind-mounted) or an `EXPO_TOKEN` **personal** access token. Browser SSO does not work in the container: it binds a callback listener on an ephemeral container port and shells out to a browser that isn't there. A **robot** `EXPO_TOKEN` is worse than none here — the Expo CLI refuses to open a tunnel for robot users, and ai-shell reports that specifically if it happens.
+
+### Why tunnel, and not LAN
+
+ngrok dials *outbound* from the container, so the phone reaches `https://<subdomain>.exp.direct` with no published port involved. LAN mode cannot work as-is: ai-shell hash-assigns dev ports into 10000-39999 rather than mapping them identity, so Metro would advertise its own `:8081` and the phone would find nothing there. Port 8081 is published anyway, so a host browser can reach Metro and `expo start --web`.
+
+The QR is stable across restarts: Expo persists the tunnel's random segment in `.expo/settings.json` inside the project directory, which is bind-mounted.
+
+### Detection
+
+Auto-start requires *both* an `expo` dependency in `package.json` and an app config (`app.json` with an `expo` key, or `app.config.{ts,js,mjs,cjs,json}`). A dependency alone also describes Expo libraries and config plugins, which have nothing to serve. `--expo` needs only the dependency.
+
+`ai-shell shell` never auto-starts Expo — it is the maintenance path, often where you go to *fix* an install — but `ai-shell shell --expo` works. Set `expo.auto: false` in `.ai-shell.yaml` (or `AI_SHELL_EXPO_AUTO=0`) to turn auto-detection off for a project.
+
+Dependencies are checked *inside* the container, because `node_modules` is a container-local named volume: a host-side `npm install` is invisible there. If Expo isn't installed in the container, auto-detection says so and steps aside rather than triggering an install.
 
 ---
 

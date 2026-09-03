@@ -275,6 +275,17 @@ extra_env = { FOO = "bar", BAZ = "qux" }
         config = load_config(project_dir=tmp_path)
         assert config.node_modules_paths == ["apps/*", "packages/*"]
 
+    def test_expo_auto_defaults_on(self):
+        assert AiShellConfig().expo_auto is True
+
+    def test_expo_auto_from_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("expo:\n  auto: false\n")
+        assert load_config(project_dir=tmp_path).expo_auto is False
+
+    def test_expo_auto_from_env(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_SHELL_EXPO_AUTO", "0")
+        assert load_config(project_dir=tmp_path).expo_auto is False
+
     def test_dev_ports_defaults(self):
         config = AiShellConfig()
         assert config.dev_ports == sorted(DEFAULT_DEV_PORTS)

@@ -213,6 +213,10 @@ class AiShellConfig:
     local_chrome: bool = False  # Attach Chrome DevTools MCP to project-scoped host Chrome
     skip_updates: bool = False  # When True, skip pre-launch tool freshness checks
 
+    # Expo. When False, a detected Expo app is not started automatically;
+    # an explicit --expo still works. --expo/--no-expo override this.
+    expo_auto: bool = True
+
     # Pre-launch cache TTLs (seconds). Set to 0 to disable.
     image_pull_cache_ttl: int = 900  # 15 min: skip docker pull if checked recently
     bedrock_check_cache_ttl: int = 86400  # 24 h: skip Bedrock preflight if checked recently
@@ -450,6 +454,11 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
     if "isolate_home_paths" in container:
         config.isolate_home_paths.extend(str(p) for p in container["isolate_home_paths"])
 
+    # [expo] section
+    expo = data.get("expo", {})
+    if "auto" in expo:
+        config.expo_auto = bool(expo["auto"])
+
     # [llm] section
     llm = data.get("llm", {})
     _reject_legacy_llm_keys(llm, path)
@@ -558,6 +567,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_OPENAI_PROFILE": ("openai_profile", str),
         "AI_SHELL_CLAUDE_PROVIDER": ("claude_provider", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
+        "AI_SHELL_EXPO_AUTO": ("expo_auto", bool),
         "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),
         "AI_SHELL_IMAGE_PULL_CACHE_TTL": ("image_pull_cache_ttl", int),
         "AI_SHELL_BEDROCK_CHECK_CACHE_TTL": ("bedrock_check_cache_ttl", int),

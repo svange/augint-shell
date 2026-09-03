@@ -183,7 +183,26 @@ DEFAULT_KOKORO_VOICE = "af_bella"
 # DEFAULT_DEV_PORTS so every dev container publishes it, which is what lets a
 # phone or the desktop app pair with the in-container server over the LAN.
 T3_CONTAINER_PORT = 3773
-DEFAULT_DEV_PORTS = [3000, 3773, 4096, 4200, 5000, 5173, 5678, 8000, 8080, 8888, 19432, 31415]
+# Metro / Expo dev server port inside the dev container (Expo's own default).
+# The tunnel path does not need it published — ngrok dials out from the
+# container — but publishing it lets a host browser reach Metro and
+# `expo start --web`.
+EXPO_METRO_PORT = 8081
+DEFAULT_DEV_PORTS = [
+    3000,
+    3773,
+    4096,
+    4200,
+    5000,
+    5173,
+    5678,
+    8000,
+    8080,
+    8081,
+    8888,
+    19432,
+    31415,
+]
 
 # Deterministic dev port mapping (avoids Chrome debug range 40000-60000)
 DEV_PORT_RANGE_START = 10000
@@ -365,7 +384,7 @@ def build_dev_mounts(
 
     # Ensure directories that tools need for persistent config exist on the
     # host so bind mounts aren't silently skipped.
-    for d in (".pi", ".augint", ".plannotator"):
+    for d in (".pi", ".augint", ".plannotator", ".expo"):
         (home / d).mkdir(parents=True, exist_ok=True)
 
     # Zapier CLI auth is a single JSON file; pre-create it so the bind mount
@@ -384,6 +403,9 @@ def build_dev_mounts(
         (home / ".pi", "/root/.pi", False),
         (home / ".augint", "/root/.augint", False),
         (home / ".plannotator", "/root/.plannotator", False),
+        # Expo/EAS share ~/.expo for the auth session (state.json) and the
+        # ngrok config, so binding it keeps `expo login` across recreations.
+        (home / ".expo", "/root/.expo", False),
         (home / ".zapierrc", "/root/.zapierrc", False),
         (home / ".ssh", "/root/.ssh", True),
         (home / ".gitconfig", "/root/.gitconfig.windows", True),

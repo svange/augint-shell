@@ -167,6 +167,12 @@ RUN npm install -g @mariozechner/pi-coding-agent
 # installed on demand at runtime too, so older images keep working.
 RUN npm install -g t3
 
+# Install the ngrok binding the Expo CLI loads for `expo start --tunnel`.
+# Expo resolves it from the *global* install and will not prompt for it on a
+# non-TTY start, so it has to exist up front; ai-shell installs it on demand
+# at runtime too, so older images keep working.
+RUN npm install -g @expo/ngrok@^4.1.0
+
 # Install aider (alternative local coding assistant)
 RUN curl -LsSf https://aider.chat/install.sh | sh
 

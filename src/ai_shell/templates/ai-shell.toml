@@ -74,6 +74,16 @@
 # ports = [9000, 9229]
 
 # =============================================================================
+# [expo] - Expo dev server
+# =============================================================================
+# auto: Start a tunnelled Expo dev server automatically when this project is a
+#       real Expo app (expo dependency + app config). Default: true.
+#       --expo / --no-expo on any tool command override this.
+#
+# [expo]
+# auto = true
+
+# =============================================================================
 # [llm] - Local LLM settings (Ollama + Open WebUI)
 # =============================================================================
 # primary_model: Default Ollama model for inference
