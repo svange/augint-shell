@@ -567,6 +567,184 @@ class TestToolCommands:
 
         mock_attach.assert_called_once()
 
+    @patch("ai_shell.expo.attach")
+    def test_expo_flag_attaches_before_claude_launch(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["claude", "--expo"])
+
+        mock_attach.assert_called_once()
+        assert mock_attach.call_args.kwargs["explicit"] is True
+
+    @patch("ai_shell.expo.attach")
+    def test_expo_auto_detection_runs_without_the_flag(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["claude"])
+
+        mock_attach.assert_called_once()
+        assert mock_attach.call_args.kwargs["explicit"] is False
+
+    @patch("ai_shell.expo.attach")
+    def test_expo_auto_disabled_in_config_skips_detection(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        from ai_shell.config import AiShellConfig
+
+        mock_config.return_value = AiShellConfig(
+            project_name="demo", project_dir=Path("/tmp/demo"), expo_auto=False
+        )
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-demo-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["claude"])
+
+        mock_attach.assert_not_called()
+
+    @patch("ai_shell.expo.attach")
+    def test_expo_auto_disabled_in_config_still_honours_the_flag(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        from ai_shell.config import AiShellConfig
+
+        mock_config.return_value = AiShellConfig(
+            project_name="demo", project_dir=Path("/tmp/demo"), expo_auto=False
+        )
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-demo-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["claude", "--expo"])
+
+        mock_attach.assert_called_once()
+
+    @patch("ai_shell.expo.attach")
+    def test_no_expo_flag_skips_detection_entirely(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["claude", "--no-expo"])
+
+        mock_attach.assert_not_called()
+
+    @patch("ai_shell.expo.attach")
+    def test_explicit_expo_failure_aborts_launch(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        from ai_shell.expo import ExpoError
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
+        mock_attach.side_effect = ExpoError("tunnel never came up")
+
+        result = self.runner.invoke(cli, ["claude", "--expo"])
+
+        assert result.exit_code != 0
+        assert "tunnel never came up" in result.output
+        mock_manager.run_interactive.assert_not_called()
+
+    @patch("ai_shell.expo.attach")
+    def test_auto_detected_expo_failure_does_not_block_the_agent(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        """A dev server that will not start must not cost you your Claude session."""
+        from ai_shell.expo import ExpoError
+
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.run_interactive.return_value = (0, 30.0)
+        mock_manager_cls.return_value = mock_manager
+        mock_attach.side_effect = ExpoError("tunnel never came up")
+
+        result = self.runner.invoke(cli, ["claude"])
+
+        assert result.exit_code == 0
+        mock_manager.run_interactive.assert_called_once()
+
+    @patch("ai_shell.expo.attach")
+    def test_shell_does_not_auto_detect_expo(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["shell"])
+
+        mock_attach.assert_not_called()
+
+    @patch("ai_shell.expo.attach")
+    def test_shell_expo_flag_still_works(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["shell", "--expo"])
+
+        mock_attach.assert_called_once()
+
+    @patch("ai_shell.expo.attach")
+    def test_expo_attaches_before_codex_launch(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["codex", "--expo"])
+
+        mock_attach.assert_called_once()
+
+    @patch("ai_shell.expo.attach")
+    def test_expo_attaches_before_opencode_launch(
+        self, mock_attach, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        from ai_shell.config import AiShellConfig
+
+        mock_config.return_value = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-demo-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        self.runner.invoke(cli, ["opencode", "--expo"])
+
+        mock_attach.assert_called_once()
+
     @patch("ai_shell.cli.commands.tools._ensure_pi_ollama_provider")
     @patch("ai_shell.cli.commands.tools._check_ollama_running")
     def test_pi_default_uses_ollama_model(

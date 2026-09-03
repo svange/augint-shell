@@ -313,6 +313,77 @@ def _attach_t3(
         raise click.ClickException(str(exc)) from exc
 
 
+SHELL_EXPO_OPTION_HELP = (
+    "Start an Expo dev server (tunnelled) in the dev container and print the "
+    "tunnel URL as a QR code. Not auto-detected here: `shell` is the "
+    "maintenance path, so the server only starts when asked."
+)
+
+EXPO_OPTION_HELP = (
+    "Start an Expo dev server (tunnelled) in the dev container and print the "
+    "tunnel URL as a QR code before the session starts, so a phone can be "
+    "pointed at the app up front. Auto-detected for real Expo apps; use "
+    "--no-expo to suppress. The server outlives this session."
+)
+
+
+def _attach_expo(
+    manager: ContainerManager,
+    container_name: str,
+    config: AiShellConfig,
+    exec_env: dict[str, str] | None,
+    *,
+    use_expo: bool | None,
+) -> None:
+    """Start the Expo dev server for this container and print the tunnel QR.
+
+    *use_expo* is tri-state: True is an explicit ``--expo``, False an explicit
+    ``--no-expo``, and None means auto-detect.  An auto-detected start that
+    fails must not stop the agent from launching, so it degrades to a warning;
+    an explicit ``--expo`` that fails is an error, because the user asked for
+    something that was not delivered.
+    """
+    if use_expo is False or (use_expo is None and not config.expo_auto):
+        return
+
+    from ai_shell.expo import ExpoError, attach
+
+    try:
+        attach(manager, container_name, config, exec_env, explicit=bool(use_expo))
+    except ExpoError as exc:
+        if use_expo:
+            raise click.ClickException(str(exc)) from exc
+        console.print(f"[yellow]Expo dev server not started:[/yellow] {exc}")
+
+
+def _attach_expo_for_config(
+    config: AiShellConfig,
+    env_file: Path | None = None,
+    *,
+    use_expo: bool | None,
+) -> None:
+    """Attach Expo before a launch path that manages its own container calls."""
+    from ai_shell.expo import detect
+
+    if use_expo is False or (use_expo is None and not config.expo_auto):
+        return
+    # Detect before touching Docker: auto-detection must not create a
+    # container or build an environment for a project that has no Expo app.
+    if not use_expo and not detect(config.project_dir).is_app:
+        return
+    manager = ContainerManager(config)
+    container_name = manager.ensure_dev_container()
+    exec_env = build_dev_environment(
+        config.extra_env,
+        config.project_dir,
+        project_name=config.project_name,
+        aws_profile=config.ai_profile,
+        aws_region=config.aws_region,
+        env_file=env_file,
+    )
+    _attach_expo(manager, container_name, config, exec_env, use_expo=use_expo)
+
+
 def _attach_t3_for_config(config: AiShellConfig, env_file: Path | None = None) -> None:
     """Attach T3 Code before a launch path that manages its own container calls.
 
@@ -390,6 +461,7 @@ def _launch_loaded_config_claude(
     worktree_name: str | None = None,
     env_file: Path | None = None,
     use_t3: bool = False,
+    use_expo: bool | None = None,
 ) -> None:
     """Launch Claude for an already loaded project config."""
     with capture_typeahead() as typeahead:
@@ -438,6 +510,8 @@ def _launch_loaded_config_claude(
 
         if use_t3:
             _attach_t3(manager, container_name, config, exec_env)
+
+        _attach_expo(manager, container_name, config, exec_env, use_expo=use_expo)
 
         mcp_args: list[str] = []
         if local_chrome:
@@ -1185,6 +1259,12 @@ def _launch_multi(
     help=T3_OPTION_HELP,
 )
 @click.option(
+    "--expo/--no-expo",
+    "use_expo",
+    default=None,
+    help=EXPO_OPTION_HELP,
+)
+@click.option(
     "--interactive",
     "-i",
     "do_interactive",
@@ -1216,6 +1296,7 @@ def claude(
     do_team,
     local_chrome,
     use_t3,
+    use_expo,
     do_interactive,
     env_file,
     extra_args,
@@ -1237,12 +1318,16 @@ def claude(
         )
 
     if do_interactive or do_multi or do_team:
+        project = ctx.obj.get("project") if ctx.obj else None
+        tmux_config = load_config(project_override=project, project_dir=Path.cwd())
         if use_t3:
-            project = ctx.obj.get("project") if ctx.obj else None
-            _attach_t3_for_config(
-                load_config(project_override=project, project_dir=Path.cwd()),
-                env_file=resolved_env,
-            )
+            _attach_t3_for_config(tmux_config, env_file=resolved_env)
+        # --multi and --team always stay in the cwd project, so the dev server
+        # belongs to this config.  --interactive can retarget another repo, and
+        # its single-pane fallback attaches against the config it actually
+        # picked, so pre-attaching here would start the wrong project's server.
+        if do_multi or do_team:
+            _attach_expo_for_config(tmux_config, env_file=resolved_env, use_expo=use_expo)
 
     if do_interactive:
         _launch_interactive(
@@ -1293,6 +1378,7 @@ def claude(
         worktree_name=worktree_name,
         env_file=resolved_env,
         use_t3=use_t3,
+        use_expo=use_expo,
     )
 
 
@@ -1328,6 +1414,12 @@ def claude(
     default=False,
     help=T3_OPTION_HELP,
 )
+@click.option(
+    "--expo/--no-expo",
+    "use_expo",
+    default=None,
+    help=EXPO_OPTION_HELP,
+)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def codex(
@@ -1338,6 +1430,7 @@ def codex(
     openai_profile,
     env_file,
     use_t3,
+    use_expo,
     extra_args,
 ):
     """Launch Codex in the dev container."""
@@ -1375,6 +1468,8 @@ def codex(
 
         if use_t3:
             _attach_t3(manager, name, config, exec_env)
+
+        _attach_expo(manager, name, config, exec_env, use_expo=use_expo)
 
         # AUTO-UPDATE: Check tool freshness before launch
         manager.ensure_tool_fresh(name, "codex")
@@ -1465,6 +1560,12 @@ def _opencode_setup(
     default=False,
     help=T3_OPTION_HELP,
 )
+@click.option(
+    "--expo/--no-expo",
+    "use_expo",
+    default=None,
+    help=EXPO_OPTION_HELP,
+)
 @click.option("--web", is_flag=True, default=False, help="Launch web UI instead of terminal TUI.")
 @click.option(
     "--port",
@@ -1490,6 +1591,7 @@ def opencode(
     cli_profile,
     openai_profile,
     use_t3,
+    use_expo,
     web,
     web_port,
     env_file,
@@ -1503,6 +1605,7 @@ def opencode(
     ctx.obj["safe"] = safe
     ctx.obj["env_file"] = resolved_env
     ctx.obj["use_t3"] = use_t3
+    ctx.obj["use_expo"] = use_expo
 
     if ctx.invoked_subcommand is not None:
         return
@@ -1514,6 +1617,8 @@ def opencode(
 
         if use_t3:
             _attach_t3(manager, name, config, exec_env)
+
+        _attach_expo(manager, name, config, exec_env, use_expo=use_expo)
 
         if web:
             cmd.append("web")
@@ -1778,6 +1883,12 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
     default=False,
     help=T3_OPTION_HELP,
 )
+@click.option(
+    "--expo/--no-expo",
+    "use_expo",
+    default=None,
+    help=EXPO_OPTION_HELP,
+)
 @click.option("--login", "do_login", is_flag=True, default=False, help="Run pi login for OAuth.")
 @click.option("--doom", is_flag=True, default=False, help="Launch pi-doom (play DOOM via AI).")
 @click.option(
@@ -1789,7 +1900,7 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
     help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
 @click.pass_context
-def pi(ctx, use_aws, cli_profile, openai_profile, use_t3, do_login, doom, env_file):
+def pi(ctx, use_aws, cli_profile, openai_profile, use_t3, use_expo, do_login, doom, env_file):
     """Launch pi coding agent in the dev container."""
     resolved_env = Path(env_file) if env_file else None
     with capture_typeahead() as typeahead:
@@ -1835,6 +1946,8 @@ def pi(ctx, use_aws, cli_profile, openai_profile, use_t3, do_login, doom, env_fi
 
         if use_t3:
             _attach_t3(manager, name, config, exec_env)
+
+        _attach_expo(manager, name, config, exec_env, use_expo=use_expo)
 
         manager.ensure_tool_fresh(name, "pi")
 
@@ -1882,13 +1995,19 @@ SUPPORTED_SHELLS: dict[str, str] = {
     default=False,
     help=T3_OPTION_HELP,
 )
+@click.option(
+    "--expo/--no-expo",
+    "use_expo",
+    default=None,
+    help=SHELL_EXPO_OPTION_HELP,
+)
 @click.argument(
     "shell_name",
     required=False,
     type=click.Choice(list(SUPPORTED_SHELLS.keys()), case_sensitive=False),
 )
 @click.pass_context
-def shell(ctx, env_file, use_t3, shell_name):
+def shell(ctx, env_file, use_t3, use_expo, shell_name):
     """Open an interactive shell in the dev container.
 
     SHELL_NAME is one of bash, zsh, fish.  Defaults to bash if omitted.
@@ -1901,6 +2020,10 @@ def shell(ctx, env_file, use_t3, shell_name):
         manager, name, exec_env, config = _get_manager(ctx, env_file=resolved_env)
         if use_t3:
             _attach_t3(manager, name, config, exec_env)
+        # `shell` is the maintenance path — often the place you go to *fix* a
+        # broken install — so Expo only starts when explicitly asked, never by
+        # auto-detection.
+        _attach_expo(manager, name, config, exec_env, use_expo=bool(use_expo))
         if not shell_name:
             shell_name = "bash"
         shell_name = shell_name.lower()

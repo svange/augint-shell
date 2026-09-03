@@ -89,6 +89,18 @@ Pi (`@mariozechner/pi-coding-agent`) is a provider-agnostic terminal coding agen
 - `~/.t3` is a **per-project** named volume (`augint-shell-t3-{unique_project_name}`) — a T3 environment is its data dir, so sharing one across containers would mean several servers on one sqlite file. `~/.t3/tools` is a shared volume so the managed cloudflared binary downloads once. The host's `~/.t3` is deliberately never bind-mounted.
 - Readiness probe is `GET /.well-known/t3/environment` (what t3's own CLI uses).
 
+### Expo integration
+
+`--expo` (and auto-detection) on `claude`, `codex`, `pi`, `opencode` and `shell` starts `npx expo start --tunnel` inside the dev container and prints the tunnel URL as a QR before the agent takes the terminal. Logic lives in `expo.py`; the CLI commands only call `_attach_expo` in `cli/commands/tools.py`.
+
+- **Tunnel only.** ngrok dials outbound from the container, so no published port is involved. LAN mode is deliberately not implemented: dev ports are hash-assigned into 10000-39999, not identity-mapped, so Metro would advertise an unreachable `:8081`. Port 8081 (`EXPO_METRO_PORT`) is in `DEFAULT_DEV_PORTS` anyway for host browser access.
+- **No Expo account required.** `@expo/cli` uses its own ngrok token and falls back to `anonymous` in the tunnel hostname when logged out. `~/.expo` is bind-mounted so `expo login`/EAS sessions persist. A *robot* `EXPO_TOKEN` makes the CLI refuse to tunnel (`NGROK_ROBOT`); `_startup_failure()` detects that signature in the log.
+- **QR stability** comes for free: Expo persists the tunnel's random segment in the project's `.expo/settings.json`, which is bind-mounted. Nothing is pinned with `EXPO_TUNNEL_SUBDOMAIN`.
+- **`@expo/ngrok`** is baked into the image and installed on demand by `ensure_ngrok()` for older images — the Expo CLI resolves it from the global install and will not prompt on a non-TTY start.
+- **Detection** (`detect()`) requires an `expo` dependency *and* an app config for auto-start; `--expo` requires only the dependency. The installed-dependency check runs *inside* the container because `node_modules` is a container-local named volume.
+- Tri-state flag: `--expo` (explicit, failures are fatal), `--no-expo`, or unset (auto-detect, failures degrade to a warning so a broken dev server never costs a Claude session). `expo.auto: false` / `AI_SHELL_EXPO_AUTO=0` disables auto-detection. `shell` never auto-detects.
+- The detached server outlives the tool session; re-running just re-prints the QR.
+
 ### Scaffold system
 
 `ai-shell init` and per-tool `--init`/`--update`/`--reset`/`--clean` flags write tool config files (`.claude/`, `.codex/`, `.agents/`, etc.) into the project. `--update` merges settings (preserves user customizations) and overwrites managed skills. `--reset` force-overwrites all managed files. `--clean` removes all managed paths then recreates them fresh.

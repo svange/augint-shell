@@ -40,6 +40,9 @@ from rich.console import Console
 
 from ai_shell.defaults import T3_CONTAINER_PORT
 
+# Re-exported: the QR renderer is shared with the Expo integration.
+from ai_shell.qr import render_qr
+
 if TYPE_CHECKING:
     from ai_shell.config import AiShellConfig
     from ai_shell.container import ContainerManager
@@ -267,33 +270,6 @@ def host_lan_ip() -> str | None:
     except OSError:
         return None
     return address or None
-
-
-def render_qr(data: str, border: int = 2) -> str | None:
-    """Render *data* as a half-block QR code, or None if segno is missing.
-
-    Two matrix rows per text row, matching how t3's own CLI draws its codes so
-    the two outputs look the same in a terminal.
-    """
-    try:
-        import segno
-    except ImportError:  # pragma: no cover - segno is a declared dependency
-        return None
-
-    matrix = [bytearray(row) for row in segno.make(data, error="m").matrix]
-    size = len(matrix)
-
-    def dark(x: int, y: int) -> bool:
-        return 0 <= x < size and 0 <= y < size and bool(matrix[y][x])
-
-    rows: list[str] = []
-    for y in range(-border, size + border, 2):
-        row = ""
-        for x in range(-border, size + border):
-            top, bottom = dark(x, y), dark(x, y + 1)
-            row += "█" if top and bottom else "▀" if top else "▄" if bottom else " "
-        rows.append(row)
-    return "\n".join(rows)
 
 
 def _published_host_port(manager: ContainerManager, container_name: str, port: int) -> int | None:
