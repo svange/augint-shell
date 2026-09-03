@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.108.0 (2026-09-03)
+
+### Features
+
+- **expo**: Start tunnelled Expo dev servers with QR pairing (#160)
+  ([#160](https://github.com/svange/augint-shell/pull/160),
+  [`0b67657`](https://github.com/svange/augint-shell/commit/0b67657d07f2a43594e1716f22e1194ce079229d))
+
+
 ## v0.107.1 (2026-08-29)
 
 ### Bug Fixes
