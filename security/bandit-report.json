@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-08-29T16:44:17Z",
+  "generated_at": "2026-09-03T01:05:22Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 61,
+      "CONFIDENCE.HIGH": 64,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 61,
+      "SEVERITY.LOW": 64,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 6656,
+      "loc": 7120,
       "nosec": 0,
       "skipped_tests": 12
     },
@@ -141,7 +141,7 @@
       "SEVERITY.LOW": 28,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1629,
+      "loc": 1728,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -154,7 +154,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 470,
+      "loc": 475,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -180,7 +180,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 682,
+      "loc": 698,
       "nosec": 0,
       "skipped_tests": 1
     },
@@ -194,6 +194,19 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 26,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/expo.py": {
+      "CONFIDENCE.HIGH": 3,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 3,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 339,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -249,6 +262,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "src/ai_shell/qr.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 25,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "src/ai_shell/scaffold.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -284,7 +310,7 @@
       "SEVERITY.LOW": 3,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 334,
+      "loc": 314,
       "nosec": 0,
       "skipped_tests": 0
     },
