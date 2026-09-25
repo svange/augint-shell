@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from ai_shell.defaults import (
+    CLAUDE_OAUTH_TOKEN_VAR,
     COMPOSER_CACHE_VOLUME,
     CONTAINER_PREFIX,
     DEFAULT_DEV_PORTS,
@@ -28,6 +29,7 @@ from ai_shell.defaults import (
     dev_container_name,
     docker_tcp_fallback_host,
     home_config_volume_name,
+    list_claude_accounts,
     node_modules_volume_name,
     project_dev_port,
     project_dev_port_map,
@@ -819,6 +821,88 @@ class TestBuildDevEnvironmentOpenAIProfile:
             env = build_dev_environment(openai_profile="")
         assert "OPENAI_API_KEY" not in env
         assert "OPENAI_ORG_ID" not in env
+
+
+class TestBuildDevEnvironmentClaudeAccount:
+    @pytest.fixture
+    def global_env(self, isolate_home):
+        env_path = isolate_home / ".augint" / ".env"
+        env_path.parent.mkdir()
+        env_path.write_text(
+            "CLAUDE_CODE_OAUTH_TOKEN_WOXOM=tok-woxom\n"
+            "CLAUDE_CODE_OAUTH_TOKEN_AI=tok-ai\n"
+            "CLAUDE_CODE_OAUTH_TOKEN_MY_ORG=tok-my-org\n"
+            "ANTHROPIC_API_KEY=sk-ant-global\n"
+        )
+        return env_path
+
+    def test_account_injects_token(self, global_env):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(claude_account="woxom")
+        assert env[CLAUDE_OAUTH_TOKEN_VAR] == "tok-woxom"
+
+    def test_account_name_is_case_insensitive(self, global_env):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(claude_account="AI")
+        assert env[CLAUDE_OAUTH_TOKEN_VAR] == "tok-ai"
+
+    def test_account_name_hyphen_maps_to_underscore(self, global_env):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(claude_account="my-org")
+        assert env[CLAUDE_OAUTH_TOKEN_VAR] == "tok-my-org"
+
+    def test_account_drops_overriding_api_keys(self, global_env):
+        host = {"ANTHROPIC_API_KEY": "sk-host", "ANTHROPIC_AUTH_TOKEN": "auth-host"}
+        with patch.dict("os.environ", host, clear=True):
+            env = build_dev_environment(claude_account="woxom")
+        assert "ANTHROPIC_API_KEY" not in env
+        assert "ANTHROPIC_AUTH_TOKEN" not in env
+
+    def test_per_account_tokens_never_passed_through(self, global_env):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(claude_account="woxom")
+            no_account = build_dev_environment()
+        assert not any(k.startswith("CLAUDE_CODE_OAUTH_TOKEN_") for k in env)
+        assert not any(k.startswith("CLAUDE_CODE_OAUTH_TOKEN_") for k in no_account)
+        assert CLAUDE_OAUTH_TOKEN_VAR not in no_account
+        # Without an account, the API key still passes through as before.
+        assert no_account["ANTHROPIC_API_KEY"] == "sk-ant-global"
+
+    def test_default_account_injects_nothing(self, global_env):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(claude_account="default")
+        assert CLAUDE_OAUTH_TOKEN_VAR not in env
+        assert env["ANTHROPIC_API_KEY"] == "sk-ant-global"
+
+    def test_unknown_account_raises_with_available_list(self, global_env):
+        with pytest.raises(ValueError) as exc:
+            build_dev_environment(claude_account="nope")
+        msg = str(exc.value)
+        assert "CLAUDE_CODE_OAUTH_TOKEN_NOPE" in msg
+        assert "default, ai, my_org, woxom" in msg
+        assert "tok-" not in msg
+
+    def test_account_with_bedrock_raises(self, global_env):
+        with pytest.raises(ValueError, match="Bedrock"):
+            build_dev_environment(claude_account="woxom", bedrock=True)
+
+    def test_env_file_account(self, tmp_path):
+        dotenv_path = tmp_path / ".env"
+        dotenv_path.write_text("CLAUDE_CODE_OAUTH_TOKEN_LOCAL=tok-local\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(
+                project_dir=tmp_path, env_file=dotenv_path, claude_account="local"
+            )
+        assert env[CLAUDE_OAUTH_TOKEN_VAR] == "tok-local"
+
+    def test_list_claude_accounts(self, global_env):
+        assert list_claude_accounts() == ["ai", "my_org", "woxom"]
+
+    def test_list_claude_accounts_skips_empty(self, isolate_home):
+        env_path = isolate_home / ".augint" / ".env"
+        env_path.parent.mkdir()
+        env_path.write_text("CLAUDE_CODE_OAUTH_TOKEN_EMPTY=\n")
+        assert list_claude_accounts() == []
 
 
 class TestUvVenvPath:

@@ -286,6 +286,17 @@ extra_env = { FOO = "bar", BAZ = "qux" }
         monkeypatch.setenv("AI_SHELL_EXPO_AUTO", "0")
         assert load_config(project_dir=tmp_path).expo_auto is False
 
+    def test_claude_account_defaults_empty(self):
+        assert AiShellConfig().claude_account == ""
+
+    def test_claude_account_from_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("claude:\n  account: woxom\n")
+        assert load_config(project_dir=tmp_path).claude_account == "woxom"
+
+    def test_claude_account_from_env(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_SHELL_CLAUDE_ACCOUNT", "ai")
+        assert load_config(project_dir=tmp_path).claude_account == "ai"
+
     def test_dev_ports_defaults(self):
         config = AiShellConfig()
         assert config.dev_ports == sorted(DEFAULT_DEV_PORTS)

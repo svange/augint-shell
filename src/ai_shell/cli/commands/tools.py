@@ -18,8 +18,13 @@ from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import AiShellConfig, load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import (
+    CLAUDE_AUTH_OVERRIDE_VARS,
+    CLAUDE_DEFAULT_ACCOUNT,
+    CLAUDE_OAUTH_TOKEN_VAR,
     build_dev_environment,
+    claude_account_token_var,
     dev_container_name,
+    list_claude_accounts,
     project_dev_port,
     sanitize_project_name,
     uv_venv_path,
@@ -449,6 +454,90 @@ def _configure_local_chrome(
     return ["--mcp-config", container_mcp_path], container_mcp_path
 
 
+def _claude_exec_env(
+    config: AiShellConfig,
+    *,
+    use_bedrock: bool,
+    cli_profile: str | None,
+    claude_account: str,
+    env_file: Path | None,
+    team_mode: bool = False,
+) -> dict[str, str]:
+    """Build the exec env for a Claude launch; config errors fail loudly."""
+    try:
+        return build_dev_environment(
+            config.extra_env,
+            config.project_dir,
+            project_name=config.project_name,
+            bedrock=use_bedrock,
+            aws_profile=config.ai_profile,
+            aws_region=config.aws_region,
+            bedrock_profile=cli_profile or config.bedrock_profile,
+            bedrock_region=config.bedrock_region,
+            bedrock_model=config.bedrock_model,
+            claude_account=claude_account,
+            team_mode=team_mode,
+            env_file=env_file,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+def _claude_account_unset_vars(exec_env: dict[str, str]) -> tuple[str, ...]:
+    """Vars to unset in the claude process so a selected account token wins.
+
+    ``docker exec -e`` cannot remove variables baked into the container at
+    creation, so they are removed from the claude process itself.
+    """
+    if CLAUDE_OAUTH_TOKEN_VAR not in exec_env:
+        return ()
+    return CLAUDE_AUTH_OVERRIDE_VARS
+
+
+def _claude_account_cmd_prefix(exec_env: dict[str, str]) -> list[str]:
+    """Return an ``env -u ...`` prefix for the claude command, or nothing."""
+    unset_vars = _claude_account_unset_vars(exec_env)
+    if not unset_vars:
+        return []
+    return ["env", *(arg for var in unset_vars for arg in ("-u", var))]
+
+
+def _claude_account_label(claude_account: str, exec_env: dict[str, str]) -> str:
+    if CLAUDE_OAUTH_TOKEN_VAR not in exec_env:
+        return ""
+    return f" (account={claude_account})"
+
+
+def _claude_session_env(exec_env: dict[str, str]) -> dict[str, str] | None:
+    """Return the tmux session env that carries the selected account token."""
+    token = exec_env.get(CLAUDE_OAUTH_TOKEN_VAR)
+    if token is None:
+        return None
+    return {CLAUDE_OAUTH_TOKEN_VAR: token}
+
+
+def _print_claude_accounts(config: AiShellConfig, env_file: Path | None) -> None:
+    """List the Claude accounts defined in .env without their tokens."""
+    accounts = [CLAUDE_DEFAULT_ACCOUNT, *list_claude_accounts(config.project_dir, env_file)]
+    configured = config.claude_account.lower().replace("-", "_") or CLAUDE_DEFAULT_ACCOUNT
+    console.print("[bold]Claude accounts:[/bold]")
+    for name in accounts:
+        source = (
+            "~/.claude login" if name == CLAUDE_DEFAULT_ACCOUNT else claude_account_token_var(name)
+        )
+        note = f" [dim]({source})[/dim]"
+        marker = (
+            " [green]<- selected when --account is omitted[/green]" if name == configured else ""
+        )
+        console.print(f"  {name}{note}{marker}")
+    if len(accounts) == 1:
+        console.print(
+            "[dim]Add accounts to ~/.augint/.env as "
+            f"{claude_account_token_var('<name>')}=<token from 'claude setup-token'>[/dim]"
+        )
+    console.print("[dim]Use: ai-shell claude --account <name>[/dim]")
+
+
 def _launch_loaded_config_claude(
     config: AiShellConfig,
     *,
@@ -462,26 +551,25 @@ def _launch_loaded_config_claude(
     env_file: Path | None = None,
     use_t3: bool = False,
     use_expo: bool | None = None,
+    cli_account: str | None = None,
 ) -> None:
     """Launch Claude for an already loaded project config."""
     with capture_typeahead() as typeahead:
         use_bedrock = use_aws or config.claude_provider == "aws"
+        claude_account = cli_account or config.claude_account
         manager = ContainerManager(config)
         container_name = manager.ensure_dev_container()
         _print_dev_ports(manager, container_name)
 
-        exec_env = build_dev_environment(
-            config.extra_env,
-            config.project_dir,
-            project_name=config.project_name,
-            bedrock=use_bedrock,
-            aws_profile=config.ai_profile,
-            aws_region=config.aws_region,
-            bedrock_profile=cli_profile or config.bedrock_profile,
-            bedrock_region=config.bedrock_region,
-            bedrock_model=config.bedrock_model,
+        exec_env = _claude_exec_env(
+            config,
+            use_bedrock=use_bedrock,
+            cli_profile=cli_profile,
+            claude_account=claude_account,
             env_file=env_file,
         )
+        account_prefix = _claude_account_cmd_prefix(exec_env)
+        account_label = _claude_account_label(claude_account, exec_env)
 
         if team_mode:
             exec_env = dict(exec_env)
@@ -526,14 +614,15 @@ def _launch_loaded_config_claude(
 
         safe_cmd: list[str] | None = None
         if safe:
-            safe_cmd = ["claude", *mcp_args, *extra_args]
+            safe_cmd = [*account_prefix, "claude", *mcp_args, *extra_args]
             console.print(
-                f"[bold]Launching Claude Code (safe mode){bedrock_label} "
+                f"[bold]Launching Claude Code (safe mode){bedrock_label}{account_label} "
                 f"in {container_name}...[/bold]"
             )
         else:
             console.print(
-                f"[bold]Launching Claude Code{bedrock_label} in {container_name}...[/bold]"
+                f"[bold]Launching Claude Code{bedrock_label}{account_label} "
+                f"in {container_name}...[/bold]"
             )
 
     typeahead_bytes = typeahead.bytes()
@@ -548,7 +637,14 @@ def _launch_loaded_config_claude(
         )
         return
 
-    cmd_continue = ["claude", "--dangerously-skip-permissions", "-c", *mcp_args, *extra_args]
+    cmd_continue = [
+        *account_prefix,
+        "claude",
+        "--dangerously-skip-permissions",
+        "-c",
+        *mcp_args,
+        *extra_args,
+    ]
     exit_code, elapsed = manager.run_interactive(
         container_name,
         cmd_continue,
@@ -559,7 +655,13 @@ def _launch_loaded_config_claude(
 
     if exit_code != 0 and elapsed < FAST_FAILURE_THRESHOLD:
         console.print("[yellow]No prior conversation found, starting fresh...[/yellow]")
-        cmd_fresh = ["claude", "--dangerously-skip-permissions", *mcp_args, *extra_args]
+        cmd_fresh = [
+            *account_prefix,
+            "claude",
+            "--dangerously-skip-permissions",
+            *mcp_args,
+            *extra_args,
+        ]
         # Don't replay typeahead here; the previous attempt already consumed it.
         manager.exec_interactive(container_name, cmd_fresh, extra_env=exec_env, workdir=workdir)
         return
@@ -594,6 +696,7 @@ def _launch_interactive(
     extra_args: tuple[str, ...],
     worktree_name: str | None = None,
     env_file: Path | None = None,
+    cli_account: str | None = None,
 ) -> None:
     """Interactive Claude launcher.
 
@@ -682,6 +785,8 @@ def _launch_interactive(
             local_chrome=interactive_config.shared_chrome,
             team_mode=interactive_config.team_mode,
             worktree_name=worktree_name,
+            env_file=env_file,
+            cli_account=cli_account,
         )
         return
 
@@ -719,16 +824,11 @@ def _launch_interactive(
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
     _print_dev_ports(manager, container_name)
-    exec_env = build_dev_environment(
-        config.extra_env,
-        config.project_dir,
-        project_name=config.project_name,
-        bedrock=use_bedrock,
-        aws_profile=config.ai_profile,
-        aws_region=config.aws_region,
-        bedrock_profile=cli_profile or config.bedrock_profile,
-        bedrock_region=config.bedrock_region,
-        bedrock_model=config.bedrock_model,
+    exec_env = _claude_exec_env(
+        config,
+        use_bedrock=use_bedrock,
+        cli_profile=cli_profile,
+        claude_account=cli_account or config.claude_account,
         env_file=env_file,
     )
 
@@ -760,10 +860,13 @@ def _launch_interactive(
         extra_args=extra_args,
         mcp_config_path=mcp_config_path,
         setup_worktree_fn=_setup_worktree,
+        unset_vars=_claude_account_unset_vars(exec_env),
     )
 
     # Build and run tmux commands.
-    cmds = build_tmux_commands(container_name, session_name, panes)
+    cmds = build_tmux_commands(
+        container_name, session_name, panes, session_env=_claude_session_env(exec_env)
+    )
 
     console.print(f"[bold]Launching {len(panes)} panes in tmux session '{session_name}'...[/bold]")
 
@@ -791,6 +894,7 @@ def _launch_team(
     cli_profile: str | None,
     extra_args: tuple[str, ...],
     env_file: Path | None = None,
+    cli_account: str | None = None,
 ) -> None:
     """Launch Claude Code in Agent Teams mode.
 
@@ -832,18 +936,13 @@ def _launch_team(
         manager = ContainerManager(config)
         container_name = manager.ensure_dev_container()
         _print_dev_ports(manager, container_name)
-        exec_env = build_dev_environment(
-            config.extra_env,
-            config.project_dir,
-            project_name=config.project_name,
-            bedrock=use_bedrock,
-            aws_profile=config.ai_profile,
-            aws_region=config.aws_region,
-            bedrock_profile=cli_profile or config.bedrock_profile,
-            bedrock_region=config.bedrock_region,
-            bedrock_model=config.bedrock_model,
-            team_mode=True,
+        exec_env = _claude_exec_env(
+            config,
+            use_bedrock=use_bedrock,
+            cli_profile=cli_profile,
+            claude_account=cli_account or config.claude_account,
             env_file=env_file,
+            team_mode=True,
         )
 
         if use_bedrock:
@@ -857,7 +956,7 @@ def _launch_team(
         workdir = f"/root/projects/{config.project_name}"
 
         # Build the claude command -- Agent Teams manages its own tmux panes
-        cmd: list[str] = ["claude"]
+        cmd: list[str] = [*_claude_account_cmd_prefix(exec_env), "claude"]
         if not safe:
             cmd.append("--dangerously-skip-permissions")
         cmd.extend(extra_args)
@@ -886,6 +985,7 @@ def _launch_single_repo_multi(
     extra_args: tuple[str, ...],
     worktree_name: str | None = None,
     env_file: Path | None = None,
+    cli_account: str | None = None,
 ) -> None:
     """Single-repo multi-pane launcher.
 
@@ -916,16 +1016,11 @@ def _launch_single_repo_multi(
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
     _print_dev_ports(manager, container_name)
-    exec_env = build_dev_environment(
-        config.extra_env,
-        config.project_dir,
-        project_name=config.project_name,
-        bedrock=use_bedrock,
-        aws_profile=config.ai_profile,
-        aws_region=config.aws_region,
-        bedrock_profile=cli_profile or config.bedrock_profile,
-        bedrock_region=config.bedrock_region,
-        bedrock_model=config.bedrock_model,
+    exec_env = _claude_exec_env(
+        config,
+        use_bedrock=use_bedrock,
+        cli_profile=cli_profile,
+        claude_account=cli_account or config.claude_account,
         env_file=env_file,
     )
 
@@ -947,6 +1042,7 @@ def _launch_single_repo_multi(
             safe=safe,
             extra_args=extra_args,
             worktree_name=wt_name,
+            unset_vars=_claude_account_unset_vars(exec_env),
         )
         panes.append(
             PaneSpec(
@@ -956,7 +1052,9 @@ def _launch_single_repo_multi(
             )
         )
 
-    cmds = build_tmux_commands(container_name, session_name, panes)
+    cmds = build_tmux_commands(
+        container_name, session_name, panes, session_env=_claude_session_env(exec_env)
+    )
 
     console.print(
         f"[bold]Launching {num_windows} Claude Code instances for "
@@ -988,6 +1086,7 @@ def _launch_multi(
     extra_args: tuple[str, ...],
     worktree_name: str | None = None,
     env_file: Path | None = None,
+    cli_account: str | None = None,
 ) -> None:
     """Multi-pane Claude launcher.
 
@@ -1054,6 +1153,7 @@ def _launch_multi(
             extra_args=extra_args,
             worktree_name=worktree_name,
             env_file=env_file,
+            cli_account=cli_account,
         )
         return
 
@@ -1102,6 +1202,8 @@ def _launch_multi(
             cli_profile=cli_profile,
             extra_args=extra_args,
             worktree_name=worktree_name,
+            env_file=env_file,
+            cli_account=cli_account,
         )
         return
 
@@ -1123,16 +1225,11 @@ def _launch_multi(
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
     _print_dev_ports(manager, container_name)
-    exec_env = build_dev_environment(
-        config.extra_env,
-        config.project_dir,
-        project_name=config.project_name,
-        bedrock=use_bedrock,
-        aws_profile=config.ai_profile,
-        aws_region=config.aws_region,
-        bedrock_profile=cli_profile or config.bedrock_profile,
-        bedrock_region=config.bedrock_region,
-        bedrock_model=config.bedrock_model,
+    exec_env = _claude_exec_env(
+        config,
+        use_bedrock=use_bedrock,
+        cli_profile=cli_profile,
+        claude_account=cli_account or config.claude_account,
         env_file=env_file,
     )
 
@@ -1172,10 +1269,13 @@ def _launch_multi(
             safe=safe,
             extra_args=extra_args,
             worktree_name=wt_name,
+            unset_vars=_claude_account_unset_vars(exec_env),
         )
         panes.append(PaneSpec(name=repo_name, command=pane_cmd, working_dir=working_dir))
 
-    cmds = build_tmux_commands(container_name, session_name, panes)
+    cmds = build_tmux_commands(
+        container_name, session_name, panes, session_env=_claude_session_env(exec_env)
+    )
 
     # Execute all setup commands (non-interactive), then attach
     console.print(
@@ -1205,6 +1305,18 @@ def _launch_multi(
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
+@click.option(
+    "--account",
+    "cli_account",
+    default=None,
+    is_flag=False,
+    flag_value="",
+    help=(
+        "Claude account to use. Injects CLAUDE_CODE_OAUTH_TOKEN_<NAME> from .env "
+        "as CLAUDE_CODE_OAUTH_TOKEN. 'default' uses the ~/.claude login. "
+        "Give the flag without a value to list the accounts."
+    ),
+)
 @click.option(
     "--worktree",
     "-w",
@@ -1291,6 +1403,7 @@ def claude(
     safe,
     use_aws,
     cli_profile,
+    cli_account,
     worktree_name,
     do_multi,
     do_team,
@@ -1303,6 +1416,13 @@ def claude(
 ):
     """Launch Claude Code in the dev container."""
     resolved_env = Path(env_file) if env_file else None
+
+    if cli_account == "":
+        project = ctx.obj.get("project") if ctx.obj else None
+        _print_claude_accounts(
+            load_config(project_override=project, project_dir=Path.cwd()), resolved_env
+        )
+        return
 
     # Incompatibility checks
     if do_team and do_multi:
@@ -1338,6 +1458,7 @@ def claude(
             extra_args=extra_args,
             worktree_name=worktree_name,
             env_file=resolved_env,
+            cli_account=cli_account,
         )
         return
 
@@ -1350,6 +1471,7 @@ def claude(
             extra_args=extra_args,
             worktree_name=worktree_name,
             env_file=resolved_env,
+            cli_account=cli_account,
         )
         return
 
@@ -1361,6 +1483,7 @@ def claude(
             cli_profile=cli_profile,
             extra_args=extra_args,
             env_file=resolved_env,
+            cli_account=cli_account,
         )
         return
 
@@ -1379,6 +1502,7 @@ def claude(
         env_file=resolved_env,
         use_t3=use_t3,
         use_expo=use_expo,
+        cli_account=cli_account,
     )
 
 

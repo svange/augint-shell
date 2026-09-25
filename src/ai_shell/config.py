@@ -210,6 +210,7 @@ class AiShellConfig:
     openai_profile: str = ""  # Suffixed .env key name for multi-account switching
 
     # Claude options
+    claude_account: str = ""  # Suffixed .env token name for multi-account switching
     local_chrome: bool = False  # Attach Chrome DevTools MCP to project-scoped host Chrome
     skip_updates: bool = False  # When True, skip pre-launch tool freshness checks
 
@@ -517,6 +518,8 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
     claude_sec = data.get("claude", {})
     if "provider" in claude_sec:
         config.claude_provider = claude_sec["provider"]
+    if "account" in claude_sec:
+        config.claude_account = str(claude_sec["account"])
     if "local_chrome" in claude_sec:
         config.local_chrome = bool(claude_sec["local_chrome"])
     if "skip_updates" in container:
@@ -566,6 +569,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_BEDROCK_MODEL": ("bedrock_model", str),
         "AI_SHELL_OPENAI_PROFILE": ("openai_profile", str),
         "AI_SHELL_CLAUDE_PROVIDER": ("claude_provider", str),
+        "AI_SHELL_CLAUDE_ACCOUNT": ("claude_account", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
         "AI_SHELL_EXPO_AUTO": ("expo_auto", bool),
         "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),

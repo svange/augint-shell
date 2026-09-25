@@ -180,6 +180,9 @@ container:
 openai:
   profile: work  # resolves OPENAI_API_KEY_WORK from .env
 
+claude:
+  account: work  # resolves CLAUDE_CODE_OAUTH_TOKEN_WORK from .env
+
 expo:
   auto: true  # start a detected Expo app automatically (--expo/--no-expo override)
 
@@ -260,6 +263,37 @@ ai-shell opencode --openai-profile personal
 ```
 
 Set a default in config (`openai.profile: work`) or via `AI_SHELL_OPENAI_PROFILE=work`.
+
+---
+
+## Claude Code multi-account switching (`--account`)
+
+`ai-shell claude` can use a different Claude account for each launch. Each account is an OAuth token in `~/.augint/.env`. Get a token with `claude setup-token` while you are logged in to that account.
+
+```bash
+# ~/.augint/.env
+CLAUDE_CODE_OAUTH_TOKEN_WORK=sk-ant-oat01-...
+CLAUDE_CODE_OAUTH_TOKEN_CLIENT=sk-ant-oat01-...
+```
+
+```bash
+ai-shell claude --account work     # use CLAUDE_CODE_OAUTH_TOKEN_WORK
+ai-shell claude --account          # list the accounts (tokens are not shown)
+ai-shell claude --account default  # use the ~/.claude login
+ai-shell claude                    # use the configured account, else the ~/.claude login
+```
+
+The account name is the variable suffix, case-insensitive. A `-` in the name maps to `_`.
+
+Set a default for a project in `.ai-shell.yaml` (`claude.account: work`) or with `AI_SHELL_CLAUDE_ACCOUNT=work`. Use `--account default` to override it for one launch.
+
+Rules:
+
+- The selected token is injected as `CLAUDE_CODE_OAUTH_TOKEN` for the Claude process only. The other `CLAUDE_CODE_OAUTH_TOKEN_*` values are never passed into containers.
+- `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are removed from the Claude process, because Claude Code prefers them over the OAuth token.
+- An unknown account name, or an account together with `--aws`, stops the launch with an error.
+- All accounts share `~/.claude` (settings and history). `claude -c` can continue a conversation that started under a different account.
+- `--multi` and `--interactive` set the token on the tmux session. Reconnecting to an existing tmux session keeps the account that started it.
 
 ---
 

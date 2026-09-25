@@ -54,6 +54,7 @@ def build_claude_pane_command(
     sync_deps: bool = True,
     mcp_config_path: str | None = None,
     team_env: bool = False,
+    unset_vars: tuple[str, ...] = (),
 ) -> str:
     """Build the claude invocation string for a single tmux pane.
 
@@ -74,6 +75,9 @@ def build_claude_pane_command(
     ``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` so this pane runs in Agent
     Teams mode.
 
+    *unset_vars* are unset before Claude starts, e.g. the API-key variables
+    that would otherwise override a selected Claude account token.
+
     In non-safe mode, tries ``claude -c`` (continue previous conversation)
     first; falls back to a fresh session if that fails (e.g. no prior
     conversation exists).
@@ -83,6 +87,8 @@ def build_claude_pane_command(
     env_exports = f"export {uv_env};"
     if team_env:
         env_exports += " export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1;"
+    if unset_vars:
+        env_exports += " unset " + " ".join(shlex.quote(v) for v in unset_vars) + ";"
 
     dep_prefix = _build_dep_sync_prefix() if sync_deps else ""
 
@@ -171,12 +177,16 @@ def build_tmux_commands(
     container_name: str,
     session_name: str,
     panes: list[PaneSpec],
+    session_env: dict[str, str] | None = None,
 ) -> list[list[str]]:
     """Build the sequence of ``docker exec`` commands for the tmux session.
 
     Every command except the **last** is non-interactive (no ``-it``).
     The last command is an interactive ``docker exec -it ... tmux attach``
     intended to be executed via ``os.execvp`` to replace the current process.
+
+    *session_env* is set in the tmux session environment (``new-session -e``)
+    so every pane inherits it without the values being typed into a shell.
 
     Returns a list of argument lists suitable for ``subprocess.run()``.
     """
@@ -193,7 +203,21 @@ def build_tmux_commands(
 
     # 2. Create session with first pane
     first = panes[0]
-    cmds.append(_exec("tmux", "new-session", "-d", "-s", session_name, "-c", first.working_dir))
+    env_args: list[str] = []
+    for key, value in (session_env or {}).items():
+        env_args.extend(["-e", f"{key}={value}"])
+    cmds.append(
+        _exec(
+            "tmux",
+            "new-session",
+            "-d",
+            "-s",
+            session_name,
+            *env_args,
+            "-c",
+            first.working_dir,
+        )
+    )
 
     # 3. Split additional panes
     for pane in panes[1:]:

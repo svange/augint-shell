@@ -61,6 +61,8 @@ Priority: `extra_env` > `./.env` > `~/.augint/.env` > `os.environ` > defaults. L
 
 **GitHub auth**: Default auth is SSO via the `~/.config/gh` bind mount. `GH_TOKEN`/`GITHUB_TOKEN` are NOT injected by default. Pass `--env [.env]` on any dev container CLI command (`claude`, `codex`, `opencode`, `pi`, `shell`, `manage env`) to opt in to loading a `.env` file and injecting GH_TOKEN. Without a value, `--env` defaults to `./.env`.
 
+**Claude accounts**: `ai-shell claude --account NAME` (or `claude.account` config / `AI_SHELL_CLAUDE_ACCOUNT`) injects `.env` key `CLAUDE_CODE_OAUTH_TOKEN_{NAME}` as `CLAUDE_CODE_OAUTH_TOKEN` at exec time. `default` injects nothing. Suffixed tokens are never passed through to containers. Because `docker exec -e` cannot remove container-level vars, the claude command is prefixed with `env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN` (tmux panes: `unset ...;`, token via `tmux new-session -e`). `--account` with no value lists accounts. See `build_dev_environment` and `_claude_exec_env` in `cli/commands/tools.py`.
+
 ### OpenCode web mode
 
 `opencode` is a Click group (`invoke_without_command=True`). Default invocation launches the TUI; subcommands add web server features.
