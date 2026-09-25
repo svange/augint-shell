@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.109.0 (2026-09-25)
+
+### Features
+
+- **claude**: Add --account for Claude Code multi-account switching
+  ([`ce1f48a`](https://github.com/svange/augint-shell/commit/ce1f48a27ed47bc26549dababc46d87b7a4f658c))
+
+- **claude**: Add --account for Claude Code multi-account switching (#164)
+  ([#164](https://github.com/svange/augint-shell/pull/164),
+  [`f2ed6a1`](https://github.com/svange/augint-shell/commit/f2ed6a16b0ba7c5017581b9aa96245a2dec095d5))
+
+
 ## v0.108.0 (2026-09-03)
 
 ### Features
