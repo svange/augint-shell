@@ -176,6 +176,17 @@ class TestBuildClaudePaneCommand:
         assert "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1" in cmd
         assert "--mcp-config" in cmd
 
+    def test_unset_vars_unsets_before_claude(self):
+        cmd = build_claude_pane_command(
+            repo_name="my-repo", unset_vars=("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+        )
+        assert "unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN;" in cmd
+        assert cmd.index("unset") < cmd.index("claude ")
+
+    def test_no_unset_vars_by_default(self):
+        cmd = build_claude_pane_command(repo_name="my-repo")
+        assert "unset" not in cmd
+
 
 class TestPaneSpec:
     def test_construction(self):
@@ -190,6 +201,25 @@ class TestPaneSpec:
 class TestBuildTmuxCommands:
     def test_empty_panes_returns_empty(self):
         assert build_tmux_commands("container", "session", []) == []
+
+    def test_session_env_set_on_new_session(self):
+        panes = [
+            PaneSpec(name="a", command="cmd-a", working_dir="/w/a"),
+            PaneSpec(name="b", command="cmd-b", working_dir="/w/b"),
+        ]
+        cmds = build_tmux_commands("c", "s", panes, session_env={"CLAUDE_CODE_OAUTH_TOKEN": "tok"})
+        new_session = cmds[1]
+        assert "new-session" in new_session
+        idx = new_session.index("-e")
+        assert new_session[idx + 1] == "CLAUDE_CODE_OAUTH_TOKEN=tok"
+        # The token is never typed into a pane shell.
+        send_keys = [c for c in cmds if "send-keys" in c]
+        assert all("tok" not in " ".join(c) for c in send_keys)
+
+    def test_no_session_env_by_default(self):
+        panes = [PaneSpec(name="a", command="cmd-a", working_dir="/w/a")]
+        cmds = build_tmux_commands("c", "s", panes)
+        assert "-e" not in cmds[1]
 
     def test_2_panes_correct_structure(self):
         panes = [

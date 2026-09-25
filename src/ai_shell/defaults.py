@@ -707,6 +707,37 @@ _SHARED_ENV_PASSTHROUGH = (
 )
 
 
+# Claude Code multi-account switching. Tokens (from ``claude setup-token``) are
+# stored in .env as ``CLAUDE_CODE_OAUTH_TOKEN_{ACCOUNT}``; the selected one is
+# injected as ``CLAUDE_CODE_OAUTH_TOKEN``. The reserved account name
+# ``default`` injects no token, so the ``~/.claude`` login is used.
+CLAUDE_OAUTH_TOKEN_VAR = "CLAUDE_CODE_OAUTH_TOKEN"
+CLAUDE_ACCOUNT_TOKEN_PREFIX = f"{CLAUDE_OAUTH_TOKEN_VAR}_"
+CLAUDE_DEFAULT_ACCOUNT = "default"
+# Claude Code prefers these over CLAUDE_CODE_OAUTH_TOKEN. They must be removed
+# from the claude process when an account is selected, or the selection is
+# silently ignored.
+CLAUDE_AUTH_OVERRIDE_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+
+
+def claude_account_token_var(account: str) -> str:
+    """Return the .env key that holds the OAuth token for *account*."""
+    return CLAUDE_ACCOUNT_TOKEN_PREFIX + account.upper().replace("-", "_")
+
+
+def list_claude_accounts(
+    project_dir: Path | None = None,
+    env_file: Path | None = None,
+) -> list[str]:
+    """Return the Claude account names defined in the layered .env files."""
+    dotenv = _load_layered_dotenv(project_dir, env_file=env_file)
+    return sorted(
+        key[len(CLAUDE_ACCOUNT_TOKEN_PREFIX) :].lower()
+        for key, value in dotenv.items()
+        if key.startswith(CLAUDE_ACCOUNT_TOKEN_PREFIX) and value
+    )
+
+
 def build_dev_environment(
     extra_env: dict[str, str] | None = None,
     project_dir: Path | None = None,
@@ -719,6 +750,7 @@ def build_dev_environment(
     bedrock_region: str = "",
     bedrock_model: str = "",
     openai_profile: str = "",
+    claude_account: str = "",
     team_mode: bool = False,
     env_file: Path | None = None,
 ) -> dict[str, str]:
@@ -741,6 +773,11 @@ def build_dev_environment(
     When *openai_profile* is set, the suffixed env vars
     ``OPENAI_API_KEY_{NAME}`` and ``OPENAI_ORG_ID_{NAME}`` are resolved from
     ``.env`` and injected as ``OPENAI_API_KEY`` / ``OPENAI_ORG_ID``.
+
+    When *claude_account* is set (and is not ``default``), the token in
+    ``CLAUDE_CODE_OAUTH_TOKEN_{NAME}`` is injected as ``CLAUDE_CODE_OAUTH_TOKEN``
+    and ``ANTHROPIC_API_KEY`` / ``ANTHROPIC_AUTH_TOKEN`` are left out. The
+    suffixed per-account tokens are never passed through to the container.
 
     When *team_mode* is True, ``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` is
     injected to enable Claude Code's Agent Teams feature.
@@ -809,18 +846,46 @@ def build_dev_environment(
         if org_id:
             env["OPENAI_ORG_ID"] = org_id
 
+    excluded: set[str] = set()
+    if claude_account and claude_account.lower() != CLAUDE_DEFAULT_ACCOUNT:
+        if bedrock:
+            raise ValueError(
+                f"Claude account '{claude_account}' cannot be combined with Bedrock "
+                "(--aws or claude.provider: aws)"
+            )
+        token_var = claude_account_token_var(claude_account)
+        token = dotenv.get(token_var)
+        if not token:
+            available = ", ".join(
+                [CLAUDE_DEFAULT_ACCOUNT, *list_claude_accounts(project_dir, env_file)]
+            )
+            raise ValueError(
+                f"Claude account '{claude_account}' requires {token_var} in "
+                "~/.augint/.env, or pass --env to load it from ./.env. "
+                f"Available accounts: {available}"
+            )
+        env[CLAUDE_OAUTH_TOKEN_VAR] = token
+        excluded.update(CLAUDE_AUTH_OVERRIDE_VARS)
+
     if team_mode:
         env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
 
     for var in _SHARED_ENV_PASSTHROUGH:
         val = _resolve(var)
-        if val:
+        if val and var not in excluded:
             env[var] = val
 
     # Pass through every var loaded from .env, except keys already populated
-    # above (which preserves CLI-flag wins for AWS_PROFILE etc.).
+    # above (which preserves CLI-flag wins for AWS_PROFILE etc.) and the
+    # per-account Claude tokens (only the selected one is injected).
     for key, value in dotenv.items():
-        if value is not None and value != "" and key not in env:
+        if (
+            value is not None
+            and value != ""
+            and key not in env
+            and key not in excluded
+            and not key.startswith(CLAUDE_ACCOUNT_TOKEN_PREFIX)
+        ):
             env[key] = value
 
     if extra_env:

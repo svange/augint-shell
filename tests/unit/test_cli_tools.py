@@ -1496,3 +1496,161 @@ class TestHelpShortFlag:
         result = self.runner.invoke(cli, ["manage", "-h"])
         assert result.exit_code == 0
         assert "Usage" in result.output
+
+
+ACCOUNT_PREFIX = ["env", "-u", "ANTHROPIC_API_KEY", "-u", "ANTHROPIC_AUTH_TOKEN"]
+
+
+@patch("ai_shell.expo.attach")
+@patch("ai_shell.cli.commands.tools.ContainerManager")
+@patch("ai_shell.cli.commands.tools.load_config")
+class TestClaudeAccount:
+    """``claude --account`` resolves tokens through the real env builder."""
+
+    @pytest.fixture(autouse=True)
+    def _accounts(self, isolate_home):
+        env_path = isolate_home / ".augint" / ".env"
+        env_path.parent.mkdir()
+        env_path.write_text(
+            "CLAUDE_CODE_OAUTH_TOKEN_WOXOM=tok-woxom\n"
+            "CLAUDE_CODE_OAUTH_TOKEN_AI=tok-ai\n"
+            "ANTHROPIC_API_KEY=sk-ant-global\n"
+        )
+        self.runner = CliRunner()
+
+    def _setup(self, mock_config, mock_manager_cls, account: str = ""):
+        from ai_shell.config import AiShellConfig
+
+        mock_config.return_value = AiShellConfig(
+            project_name="demo", project_dir=Path("/tmp/demo"), claude_account=account
+        )
+        manager = MagicMock()
+        manager.ensure_dev_container.return_value = "augint-shell-demo-dev"
+        manager.run_interactive.return_value = (0, 30.0)
+        manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = manager
+        return manager
+
+    def test_account_injects_token_and_unsets_api_keys(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        result = self.runner.invoke(cli, ["claude", "--account", "woxom"])
+
+        assert result.exit_code == 0, result.output
+        cmd = manager.run_interactive.call_args[0][1]
+        assert cmd == [*ACCOUNT_PREFIX, "claude", "--dangerously-skip-permissions", "-c"]
+        env = manager.run_interactive.call_args[1]["extra_env"]
+        assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok-woxom"
+        assert "ANTHROPIC_API_KEY" not in env
+        assert "CLAUDE_CODE_OAUTH_TOKEN_AI" not in env
+        assert "account=woxom" in result.output
+
+    def test_retry_keeps_account_prefix(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls)
+        manager.run_interactive.return_value = (1, 1.0)
+
+        self.runner.invoke(cli, ["claude", "--account", "ai"])
+
+        cmd_fresh = manager.exec_interactive.call_args[0][1]
+        assert cmd_fresh == [*ACCOUNT_PREFIX, "claude", "--dangerously-skip-permissions"]
+        env = manager.exec_interactive.call_args[1]["extra_env"]
+        assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok-ai"
+
+    def test_no_account_is_unchanged(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        self.runner.invoke(cli, ["claude"])
+
+        cmd = manager.run_interactive.call_args[0][1]
+        assert cmd == ["claude", "--dangerously-skip-permissions", "-c"]
+        env = manager.run_interactive.call_args[1]["extra_env"]
+        assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
+        assert env["ANTHROPIC_API_KEY"] == "sk-ant-global"
+
+    def test_config_account_used_without_flag(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls, account="ai")
+
+        self.runner.invoke(cli, ["claude"])
+
+        env = manager.run_interactive.call_args[1]["extra_env"]
+        assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok-ai"
+
+    def test_default_flag_overrides_config_account(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls, account="ai")
+
+        self.runner.invoke(cli, ["claude", "--account", "default"])
+
+        cmd = manager.run_interactive.call_args[0][1]
+        assert cmd[0] == "claude"
+        env = manager.run_interactive.call_args[1]["extra_env"]
+        assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
+
+    def test_account_without_value_lists_accounts(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls, account="woxom")
+
+        result = self.runner.invoke(cli, ["claude", "--account"])
+
+        assert result.exit_code == 0, result.output
+        for name in ("default", "ai", "woxom"):
+            assert name in result.output
+        assert "CLAUDE_CODE_OAUTH_TOKEN_WOXOM" in result.output
+        assert "tok-" not in result.output
+        manager.ensure_dev_container.assert_not_called()
+
+    def test_unknown_account_fails_loudly(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        result = self.runner.invoke(cli, ["claude", "--account", "nope"])
+
+        assert result.exit_code == 1
+        assert "CLAUDE_CODE_OAUTH_TOKEN_NOPE" in result.output
+        assert "default, ai, woxom" in result.output
+        manager.run_interactive.assert_not_called()
+
+    def test_account_with_aws_fails_loudly(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        result = self.runner.invoke(cli, ["claude", "--aws", "--account", "woxom"])
+
+        assert result.exit_code == 1
+        assert "Bedrock" in result.output
+        manager.run_interactive.assert_not_called()
+
+    def test_team_mode_uses_account(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        self.runner.invoke(cli, ["claude", "--team", "--account", "woxom"])
+
+        cmd = manager.exec_interactive.call_args[0][1]
+        assert cmd[: len(ACCOUNT_PREFIX) + 1] == [*ACCOUNT_PREFIX, "claude"]
+        env = manager.exec_interactive.call_args[1]["extra_env"]
+        assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok-woxom"
+
+    @patch("ai_shell.cli.commands.tools.subprocess.run")
+    @patch("ai_shell.cli.commands.tools._setup_worktree", return_value="/wt")
+    def test_multi_passes_token_via_tmux_session_env(
+        self,
+        mock_worktree,
+        mock_run,
+        mock_config,
+        mock_manager_cls,
+        mock_expo,
+        tmp_path,
+        monkeypatch,
+    ):
+        monkeypatch.chdir(tmp_path)  # no workspace.yaml -> single-repo multi
+        self._setup(mock_config, mock_manager_cls)
+        mock_run.return_value = MagicMock(returncode=1, stderr="")
+
+        self.runner.invoke(cli, ["claude", "--multi", "--account", "woxom"], input="2\n")
+
+        calls = [c[0][0] for c in mock_run.call_args_list]
+        new_session = next(c for c in calls if "new-session" in c)
+        assert "CLAUDE_CODE_OAUTH_TOKEN=tok-woxom" in new_session
+        send_keys = [c for c in calls if "send-keys" in c]
+        assert send_keys
+        for c in send_keys:
+            assert "unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN;" in " ".join(c)
+            assert "tok-woxom" not in " ".join(c)
