@@ -133,12 +133,16 @@ llm:
 # ports:              Extra host ports to expose on the dev container.
 # isolate_home_paths: Home-config dirs to back with a shared named volume
 #                     instead of a host bind, so tool config/state never
-#                     touches the host home directory (e.g. ~/.claude,
-#                     ~/.codex). The volume persists across container
-#                     recreations and is shared across all projects. Put this
-#                     in ~/.augint/.ai-shell.yaml to apply it machine-wide.
+#                     touches the host home directory (e.g. ~/.claude). The
+#                     volume persists across container recreations and is shared
+#                     across all projects. Put this in ~/.augint/.ai-shell.yaml
+#                     to apply it machine-wide.
 #                     Note: ~/.claude.json is a file (not volume-backed); when
 #                     .claude is isolated it is simply kept off the host.
+#                     Note: ~/.codex is ALWAYS isolated (its OAuth auth.json uses
+#                     single-use refresh tokens, so it must not be shared between
+#                     host and container) — you need not list it. For Codex
+#                     automation an OPENAI_API_KEY beats a shared OAuth session.
 #
 # container:
 #   image: svange/augint-shell
@@ -152,4 +156,4 @@ llm:
 #     - 9229
 #   isolate_home_paths:
 #     - .claude
-#     - .codex
+#     # (.codex is always isolated automatically — no need to list it)
