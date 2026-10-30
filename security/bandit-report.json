@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-10-30T18:43:35Z",
+  "generated_at": "2026-10-30T19:43:34Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 65,
+      "CONFIDENCE.HIGH": 68,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 1,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 66,
+      "SEVERITY.LOW": 69,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 7811,
+      "loc": 8007,
       "nosec": 0,
       "skipped_tests": 12
     },
@@ -64,6 +64,19 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 37,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/claude_login.py": {
+      "CONFIDENCE.HIGH": 3,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 3,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 137,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -141,7 +154,7 @@
       "SEVERITY.LOW": 28,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 2161,
+      "loc": 2206,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -167,7 +180,7 @@
       "SEVERITY.LOW": 15,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1239,
+      "loc": 1253,
       "nosec": 0,
       "skipped_tests": 9
     },
