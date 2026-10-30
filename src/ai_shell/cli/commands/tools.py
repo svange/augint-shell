@@ -573,7 +573,14 @@ def _print_claude_accounts(config: AiShellConfig, env_file: Path | None) -> None
         for name in list_claude_accounts(config.project_dir, env_file)
     }
     login_accounts = {claude_account_slug(name): name for name in list_claude_login_accounts()}
-    names = {**login_accounts, **token_accounts}
+    # Accounts that only exist in claude.accounts config are listed too, so a
+    # freshly configured account is visible before its first login.
+    configured_accounts = {
+        claude_account_slug(name): name
+        for name in config.claude_accounts
+        if isinstance(name, str) and name
+    }
+    names = {**configured_accounts, **login_accounts, **token_accounts}
     accounts = [CLAUDE_DEFAULT_ACCOUNT, *(names[slug] for slug in sorted(names))]
     configured = claude_account_slug(config.claude_account or CLAUDE_DEFAULT_ACCOUNT)
     console.print("[bold]Claude accounts:[/bold]")
@@ -589,6 +596,8 @@ def _print_claude_accounts(config: AiShellConfig, env_file: Path | None) -> None
                 sources.append(
                     f"login profile: ~/.augint/claude-accounts/{claude_account_slug(name)}"
                 )
+            if slug not in token_accounts and slug not in login_accounts:
+                sources.append("configured only; first --rc or --login creates its login profile")
             account_cfg = config.claude_account_config(name)
             if account_cfg.chrome_profile:
                 sources.append(f"chrome profile: {account_cfg.chrome_profile}")

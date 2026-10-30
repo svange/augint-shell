@@ -1974,6 +1974,25 @@ class TestClaudeRemoteControl:
         assert "tok-" not in result.output
         manager.ensure_dev_container.assert_not_called()
 
+    def test_account_listing_includes_configured_accounts_without_login(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
+
+        config = AiShellConfig(
+            project_name="demo",
+            project_dir=Path("/tmp/demo"),
+            claude_accounts={"adam": ClaudeAccountConfig(local_chrome=True)},
+        )
+        self._setup(mock_config, mock_manager_cls, config=config)
+
+        result = self.runner.invoke(cli, ["claude", "--account"])
+
+        assert result.exit_code == 0, result.output
+        assert "adam" in result.output
+        assert "configured only" in result.output
+        assert "local_chrome: true" in result.output
+
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
     @patch("ai_shell.local_chrome.start_chrome_proxy")
