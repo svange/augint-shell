@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.110.1 (2026-10-30)
+
+### Bug Fixes
+
+- **claude**: List accounts configured in claude.accounts before first login (#172)
+  ([#172](https://github.com/svange/augint-shell/pull/172),
+  [`0cd97b3`](https://github.com/svange/augint-shell/commit/0cd97b3e7ae1403362c504c28aacad75cc9bb820))
+
+
 ## v0.110.0 (2026-10-30)
 
 ### Features
