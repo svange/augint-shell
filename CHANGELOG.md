@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.110.2 (2026-10-30)
+
+### Bug Fixes
+
+- **claude**: Drive claude auth login from the host so the code is accepted (#173)
+  ([#173](https://github.com/svange/augint-shell/pull/173),
+  [`502447a`](https://github.com/svange/augint-shell/commit/502447a830a7c6d5adfbc1ac2b7bf1723b8f50ff))
+
+
 ## v0.110.1 (2026-10-30)
 
 ### Bug Fixes
