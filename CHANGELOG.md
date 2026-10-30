@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.110.3 (2026-10-30)
+
+### Bug Fixes
+
+- **claude**: Percent-encode the login URL handed to Chrome's DevTools endpoint (#174)
+  ([#174](https://github.com/svange/augint-shell/pull/174),
+  [`9592b57`](https://github.com/svange/augint-shell/commit/9592b57009cee8189f7cd09787955719f05bd352))
+
+
 ## v0.110.2 (2026-10-30)
 
 ### Bug Fixes
