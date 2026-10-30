@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.110.0 (2026-10-30)
+
+### Features
+
+- **claude**: Remote control per account with its own host Chrome (#171)
+  ([#171](https://github.com/svange/augint-shell/pull/171),
+  [`cd937df`](https://github.com/svange/augint-shell/commit/cd937dff8669ba032686dad623883ae46b867132))
+
+
 ## v0.109.0 (2026-09-25)
 
 ### Features

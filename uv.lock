@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -122,7 +122,7 @@ wheels = [
 
 [[package]]
 name = "augint-shell"
-version = "0.109.0"
+version = "0.110.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
