@@ -155,6 +155,7 @@ class TestEnsureHostChrome:
             54321,
             project_name="my-project",
             project_dir=Path("/tmp/my-project"),
+            profile=None,
         )
 
     @patch("ai_shell.local_chrome._project_debug_port", return_value=54321)
@@ -264,3 +265,36 @@ class TestWriteMcpConfig:
         path = write_mcp_config(9222, config_dir=tmp_path)
         assert "old content" not in path.read_text()
         assert "mcpServers" in path.read_text()
+
+
+class TestAccountChromeState:
+    def test_account_profile_is_shared_across_projects(self):
+        dir_a = _chrome_profile_dir("project-a", Path("/tmp/project-a"), profile="mike")
+        dir_b = _chrome_profile_dir("project-b", Path("/tmp/project-b"), profile="mike")
+        port_a = _project_debug_port("project-a", Path("/tmp/project-a"), profile="mike")
+        port_b = _project_debug_port("project-b", Path("/tmp/project-b"), profile="mike")
+
+        assert dir_a == dir_b
+        assert dir_a.endswith("account-mike")
+        assert port_a == port_b
+
+    def test_account_profiles_differ_from_each_other_and_from_project(self):
+        project_dir = Path("/tmp/project-a")
+        mike = _project_debug_port("project-a", project_dir, profile="mike")
+        adam = _project_debug_port("project-a", project_dir, profile="adam")
+        project = _project_debug_port("project-a", project_dir)
+
+        assert len({mike, adam, project}) == 3
+        assert _chrome_profile_dir("project-a", project_dir, profile="Mike_B") != (
+            _chrome_profile_dir("project-a", project_dir)
+        )
+
+    def test_account_slug_is_sanitized(self):
+        assert _chrome_profile_dir("p", None, profile="Mike B!").endswith("account-mike-b")
+
+    def test_mcp_server_spec_points_at_proxy(self):
+        from ai_shell.local_chrome import chrome_mcp_server_spec
+
+        spec = chrome_mcp_server_spec(54321)
+        assert spec["command"] == "npx"
+        assert "http://localhost:54321" in spec["args"]  # type: ignore[operator]

@@ -134,6 +134,9 @@ If you need to work manually, see the full [contributor guide](CONTRIBUTING.md) 
 | `ai-shell opencode serve` | Headless server + attach all git repos as terminals |
 | `ai-shell opencode status` | Show server URL, mDNS name, attached terminals |
 | `ai-shell shell [bash\|zsh\|fish]` | Interactive shell in dev container |
+| `ai-shell claude --rc [NAME]` | [Remote Control](#remote-control-rc) server: drive the project from claude.ai/code or the Claude app |
+| `ai-shell claude --account NAME --rc` | Remote Control signed in as another Claude account (login profile) |
+| `ai-shell claude --account NAME --login` | Create or refresh an account's login profile |
 | `ai-shell <tool> --t3` | Also expose the project to [T3 Code](#remote-control-with-t3-code-t3) (phone/desktop app) |
 | `ai-shell <tool> --expo` | Also start a tunnelled [Expo dev server](#expo-apps-expo) and print its QR code |
 
@@ -181,7 +184,11 @@ openai:
   profile: work  # resolves OPENAI_API_KEY_WORK from .env
 
 claude:
-  account: work  # resolves CLAUDE_CODE_OAUTH_TOKEN_WORK from .env
+  account: work  # resolves CLAUDE_CODE_OAUTH_TOKEN_WORK from .env, or the login profile
+  accounts:      # optional per-account defaults (put in ~/.augint/.ai-shell.yaml)
+    mike:
+      local_chrome: true          # open Mike's own Chrome window on launch
+      chrome_profile: mike        # Chrome profile slug; defaults to the account name
 
 expo:
   auto: true  # start a detected Expo app automatically (--expo/--no-expo override)
@@ -198,7 +205,11 @@ llm:
   extra_models: []
 ```
 
-Global config at `~/.ai-shell.yaml` or `~/.config/ai-shell/config.yaml` also supported.
+Global config at `~/.augint/.ai-shell.yaml` (canonical), `~/.ai-shell.yaml` or `~/.config/ai-shell/config.yaml` also supported.
+
+### Host and container package installs never collide
+
+The container overlays named volumes on the project's `node_modules`, `vendor/` and the uv venv, so a Linux install never lands in the bind-mounted Windows checkout. Workspace packages declared in `pnpm-workspace.yaml` or `package.json` `workspaces` (any directory with a `package.json` that matches) are overlaid the same way automatically; without that, pnpm on Windows and pnpm in the container keep reinstalling over each other's workspace links. Add `container.node_modules_paths: [glob, ...]` for layouts those files do not describe.
 
 ### Launch-time caches
 
@@ -268,32 +279,52 @@ Set a default in config (`openai.profile: work`) or via `AI_SHELL_OPENAI_PROFILE
 
 ## Claude Code multi-account switching (`--account`)
 
-`ai-shell claude` can use a different Claude account for each launch. Each account is an OAuth token in `~/.augint/.env`. Get a token with `claude setup-token` while you are logged in to that account.
+`ai-shell claude` can use a different Claude account for each launch. An account has one of two credentials:
+
+| Credential | Where it lives | Good for | Not for |
+|---|---|---|---|
+| **Token** from `claude setup-token` | `CLAUDE_CODE_OAUTH_TOKEN_<NAME>` in `~/.augint/.env` | Normal terminal sessions. Shares your `~/.claude` settings and history. | Remote Control. Claude Code rejects these tokens for it. |
+| **Login profile** from `claude auth login` | `~/.augint/claude-accounts/<name>/` (that account's own `CLAUDE_CONFIG_DIR`) | Remote Control, and sessions that must keep that account's own settings and history. | Nothing. It is just slower to set up (one browser login). |
 
 ```bash
-# ~/.augint/.env
+# ~/.augint/.env  (token accounts)
 CLAUDE_CODE_OAUTH_TOKEN_WORK=sk-ant-oat01-...
 CLAUDE_CODE_OAUTH_TOKEN_CLIENT=sk-ant-oat01-...
 ```
 
 ```bash
-ai-shell claude --account work     # use CLAUDE_CODE_OAUTH_TOKEN_WORK
-ai-shell claude --account          # list the accounts (tokens are not shown)
-ai-shell claude --account default  # use the ~/.claude login
-ai-shell claude                    # use the configured account, else the ~/.claude login
+ai-shell claude --account work          # token if defined, else the login profile
+ai-shell claude --account mike --login  # create (or refresh) mike's login profile, then launch
+ai-shell claude --account mike --rc     # Remote Control as mike (login profile; asks to log in on first use)
+ai-shell claude --account               # list the accounts (no secrets are shown)
+ai-shell claude --account default       # use the ~/.claude login
+ai-shell claude                         # use the configured account, else the ~/.claude login
 ```
 
-The account name is the variable suffix, case-insensitive. A `-` in the name maps to `_`.
+The account name is the variable suffix, case-insensitive. A `-` in the name maps to `_`, and the login profile directory uses `-`.
 
 Set a default for a project in `.ai-shell.yaml` (`claude.account: work`) or with `AI_SHELL_CLAUDE_ACCOUNT=work`. Use `--account default` to override it for one launch.
 
 Rules:
 
 - The selected token is injected as `CLAUDE_CODE_OAUTH_TOKEN` for the Claude process only. The other `CLAUDE_CODE_OAUTH_TOKEN_*` values are never passed into containers.
-- `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are removed from the Claude process, because Claude Code prefers them over the OAuth token.
+- `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are removed from the Claude process, because Claude Code prefers them over the OAuth token. A login profile also removes `CLAUDE_CODE_OAUTH_TOKEN`, for the same reason.
 - An unknown account name, or an account together with `--aws`, stops the launch with an error.
-- All accounts share `~/.claude` (settings and history). `claude -c` can continue a conversation that started under a different account.
-- `--multi` and `--interactive` set the token on the tmux session. Reconnecting to an existing tmux session keeps the account that started it.
+- Token accounts share `~/.claude` (settings and history). `claude -c` can continue a conversation that started under a different token account. A login profile has its own settings, history and plugins.
+- `--multi` and `--interactive` set the credential on the tmux session. Reconnecting to an existing tmux session keeps the account that started it.
+- `--rc` and `--login` always use the login profile, even when a token exists. `~/.augint` is already bind-mounted, so no container recreation is needed, and the profile survives container recreation.
+
+Per-account defaults go under `claude.accounts` in `~/.augint/.ai-shell.yaml`, so every machine that has that file behaves the same:
+
+```yaml
+claude:
+  accounts:
+    mike:
+      local_chrome: true     # always open Mike's Chrome window
+      chrome_profile: mike   # optional; defaults to the account name
+    adam:
+      local_chrome: true
+```
 
 ---
 
@@ -303,9 +334,38 @@ Rules:
 
 - Claude drives Chrome tabs on your Windows desktop in real time.
 - **Separate Chrome profile per project** -- your normal browsing untouched, each repo keeps its own logged-in state.
+- **Separate Chrome profile per account** -- with `--account NAME`, the window is keyed by the account instead of the project, so Mike's sessions share one logged-in Chrome across repos and never touch Adam's. Override the slug with `claude.accounts.<name>.chrome_profile`.
+- Profiles live under `%LOCALAPPDATA%\Google\Chrome\ai-shell\<slug>` (`account-<name>` for accounts). Each has its own debug port, so several can run at once.
 - All traffic stays on `localhost`.
 
-Set `[claude] local_chrome = true` in `ai-shell.toml` (or `AI_SHELL_LOCAL_CHROME=1`) to persist.
+Set `claude.local_chrome: true` (or `AI_SHELL_LOCAL_CHROME=1`) to persist, or `claude.accounts.<name>.local_chrome: true` for one account only.
+
+---
+
+## Remote Control (`--rc`)
+
+`ai-shell claude --rc` runs `claude remote-control` (server mode) inside the dev container, so the project can be driven from [claude.ai/code](https://claude.ai/code) or the Claude mobile app. The process stays in your terminal; `Ctrl+C` stops it.
+
+```bash
+ai-shell claude --rc                                # your own account, session named after the project
+ai-shell claude --rc "Billing fix"                  # custom session name
+ai-shell claude --account mike --rc                 # as mike (login profile)
+ai-shell claude --account mike --rc --local-chrome  # ...and give the session Mike's Chrome window
+```
+
+What happens on `--account mike --rc`:
+
+1. `~/.augint/claude-accounts/mike/` becomes the session's `CLAUDE_CONFIG_DIR`. Your own `~/.claude` is not touched.
+2. If that profile has no login yet, `claude auth login` runs first. It prints a URL: open it in the Chrome window ai-shell just opened for `mike`, sign in as Mike, paste the code back. This happens once per account per machine.
+3. With `--local-chrome`, `chrome-devtools-mcp` is registered for this project in that profile (`claude mcp add-json --scope local`), because server mode does not accept `--mcp-config`.
+4. The server starts with `--permission-mode bypassPermissions` (omit with `--safe`) and the name `<project> (mike)`. Open claude.ai/code signed in as Mike to find it.
+
+Requirements and limits (from Claude Code, not ai-shell):
+
+- The account needs a Pro, Max, Team or Enterprise plan. Team/Enterprise owners must enable Remote Control in admin settings, and a "Trusted Devices" policy means your device must be verified under that account.
+- Remote Control refuses `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN` and Bedrock. ai-shell strips the first three and rejects `--aws`.
+- `--rc` is a single session: it cannot be combined with `--multi`, `--team` or `--interactive`.
+- Stopping the server and running the same command again brings the previous sessions back (Claude Code keeps them for about four hours).
 
 ---
 

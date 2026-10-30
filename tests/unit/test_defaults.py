@@ -1242,3 +1242,125 @@ class TestBuildN8nMounts:
             mounts = build_n8n_mounts(workflow_dir=missing)
         targets = [m["Target"] for m in mounts]
         assert "/workflows" not in targets
+
+
+class TestBuildDevEnvironmentClaudeLogin:
+    """Login profiles (CLAUDE_CONFIG_DIR) for accounts that need a real login."""
+
+    @pytest.fixture
+    def global_env(self, isolate_home):
+        env_path = isolate_home / ".augint" / ".env"
+        env_path.parent.mkdir()
+        env_path.write_text(
+            "CLAUDE_CODE_OAUTH_TOKEN_WOXOM=tok-woxom\nANTHROPIC_API_KEY=sk-global\n"
+        )
+        return isolate_home
+
+    def test_forced_login_uses_config_dir_not_token(self, global_env):
+        env = build_dev_environment(claude_account="woxom", claude_login=True)
+        assert env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/woxom"
+        assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
+        assert "ANTHROPIC_API_KEY" not in env
+        assert (global_env / ".augint" / "claude-accounts" / "woxom").is_dir()
+
+    def test_login_dir_is_used_when_account_has_no_token(self, global_env):
+        (global_env / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
+        env = build_dev_environment(claude_account="mike")
+        assert env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/mike"
+        assert "ANTHROPIC_API_KEY" not in env
+
+    def test_token_wins_over_login_dir_without_force(self, global_env):
+        (global_env / ".augint" / "claude-accounts" / "woxom").mkdir(parents=True)
+        env = build_dev_environment(claude_account="woxom")
+        assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok-woxom"
+        assert "CLAUDE_CONFIG_DIR" not in env
+
+    def test_unknown_account_mentions_both_ways_to_add_it(self, global_env):
+        (global_env / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
+        with pytest.raises(ValueError) as exc_info:
+            build_dev_environment(claude_account="nope")
+        msg = str(exc_info.value)
+        assert "CLAUDE_CODE_OAUTH_TOKEN_NOPE" in msg
+        assert "--login" in msg
+        assert "default, mike, woxom" in msg
+
+    def test_slug_and_dirs(self, global_env):
+        from ai_shell.defaults import (
+            claude_account_config_dir,
+            claude_account_login_dir,
+            claude_account_slug,
+        )
+
+        assert claude_account_slug("My_Org") == "my-org"
+        assert claude_account_config_dir("My_Org") == "/root/.augint/claude-accounts/my-org"
+        assert claude_account_login_dir("My_Org") == (
+            global_env / ".augint" / "claude-accounts" / "my-org"
+        )
+
+    def test_list_all_claude_accounts_merges_tokens_and_logins(self, global_env):
+        from ai_shell.defaults import list_all_claude_accounts, list_claude_login_accounts
+
+        (global_env / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
+        (global_env / ".augint" / "claude-accounts" / "woxom").mkdir(parents=True)
+        (global_env / ".augint" / "claude-accounts" / "stray.txt").write_text("")
+        assert list_claude_login_accounts() == ["mike", "woxom"]
+        assert list_all_claude_accounts() == ["mike", "woxom"]
+
+
+class TestWorkspaceNodeModulesGlobs:
+    def test_reads_pnpm_workspace_and_drops_negations(self, tmp_path):
+        from ai_shell.defaults import workspace_node_modules_globs
+
+        (tmp_path / "pnpm-workspace.yaml").write_text(
+            "packages:\n  - 'apps/*'\n  - packages/**\n  - '!**/test/**'\n  - ./tools/\n"
+        )
+        assert workspace_node_modules_globs(tmp_path) == ["apps/*", "packages/**", "tools"]
+
+    def test_reads_package_json_workspaces_list_and_dict(self, tmp_path):
+        from ai_shell.defaults import workspace_node_modules_globs
+
+        (tmp_path / "package.json").write_text('{"workspaces": ["packages/*"]}')
+        assert workspace_node_modules_globs(tmp_path) == ["packages/*"]
+        (tmp_path / "package.json").write_text('{"workspaces": {"packages": ["apps/*", "."]}}')
+        assert workspace_node_modules_globs(tmp_path) == ["apps/*"]
+
+    def test_no_manifests_means_no_globs(self, tmp_path):
+        from ai_shell.defaults import workspace_node_modules_globs
+
+        assert workspace_node_modules_globs(tmp_path) == []
+
+    def test_malformed_manifests_are_ignored(self, tmp_path):
+        from ai_shell.defaults import workspace_node_modules_globs
+
+        (tmp_path / "pnpm-workspace.yaml").write_text("packages: [\n")
+        (tmp_path / "package.json").write_text("{not json")
+        assert workspace_node_modules_globs(tmp_path) == []
+
+    def test_build_dev_mounts_overlays_declared_workspace_packages(self, tmp_path):
+        project_dir = tmp_path / "mono"
+        (project_dir / "packages" / "web").mkdir(parents=True)
+        (project_dir / "packages" / "web" / "package.json").write_text("{}")
+        (project_dir / "packages" / "api").mkdir(parents=True)
+        (project_dir / "packages" / "api" / "package.json").write_text("{}")
+        (project_dir / "packages" / "docs").mkdir(parents=True)  # no package.json
+        (project_dir / "pnpm-workspace.yaml").write_text("packages:\n  - packages/*\n")
+
+        mounts = build_dev_mounts(project_dir, "mono")
+
+        targets = {m.get("Target"): m for m in mounts}
+        assert "/root/projects/mono/packages/web/node_modules" in targets
+        assert "/root/projects/mono/packages/api/node_modules" in targets
+        assert "/root/projects/mono/packages/docs/node_modules" not in targets
+        assert targets["/root/projects/mono/packages/web/node_modules"].get(
+            "Source"
+        ) == node_modules_volume_name("mono", subpath="packages/web")
+
+    def test_explicit_paths_still_overlay_without_package_json(self, tmp_path):
+        project_dir = tmp_path / "mono"
+        (project_dir / "packages" / "docs").mkdir(parents=True)
+        (project_dir / "pnpm-workspace.yaml").write_text("packages:\n  - packages/*\n")
+
+        mounts = build_dev_mounts(project_dir, "mono", extra_node_modules_paths=["packages/docs"])
+
+        targets = {m.get("Target") for m in mounts}
+        assert "/root/projects/mono/packages/docs/node_modules" in targets

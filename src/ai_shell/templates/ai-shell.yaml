@@ -123,6 +123,11 @@ llm:
 # -----------------------------------------------------------------------------
 # claude:
 #   provider: aws
+#   account: work          # default --account; token in .env or login profile
+#   accounts:              # per-account defaults, usually in ~/.augint/.ai-shell.yaml
+#     mike:
+#       local_chrome: true
+#       chrome_profile: mike
 
 # -----------------------------------------------------------------------------
 # container - Docker image, env, mounts, ports. Uncomment to override.
@@ -131,6 +136,9 @@ llm:
 # extra_env:          Additional env vars injected into the dev container.
 # extra_volumes:      Additional bind mounts ("/host:/container" or ":/path:ro").
 # ports:              Extra host ports to expose on the dev container.
+# node_modules_paths: Extra globs whose node_modules get a container-local
+#                     volume. Workspaces from pnpm-workspace.yaml and
+#                     package.json "workspaces" are overlaid automatically.
 # isolate_home_paths: Home-config dirs to back with a shared named volume
 #                     instead of a host bind, so tool config/state never
 #                     touches the host home directory (e.g. ~/.claude,

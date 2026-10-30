@@ -612,6 +612,25 @@ class ContainerManager:
         logger.debug("exec-detached: %s", " ".join(args))
         return subprocess.run(args, check=True)
 
+    def exec_capture(
+        self,
+        container_name: str,
+        command: list[str],
+        extra_env: dict[str, str] | None = None,
+        workdir: str | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        """Run a non-interactive command in a container and capture its output."""
+        args = ["docker", "exec"]
+        if workdir:
+            args.extend(["-w", workdir])
+        if extra_env:
+            for key, value in extra_env.items():
+                args.extend(["-e", f"{key}={value}"])
+        args.append(container_name)
+        args.extend(command)
+        logger.debug("exec-capture: %s", " ".join(args))
+        return subprocess.run(args, capture_output=True, text=True)
+
     # =========================================================================
     # LLM stack (host-level singletons)
     # =========================================================================

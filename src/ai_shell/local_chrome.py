@@ -41,6 +41,9 @@ MCP_CONFIG_FILENAME = "chrome-mcp.json"
 # User-data-dir for ai-shell project-specific Chrome profiles (keeps them
 # separate from the user's normal browsing and from other repos).
 _CHROME_PROFILE_ROOT_DIR_NAME = "ai-shell"
+# Slug prefix for account-scoped profiles so they can never collide with a
+# project slug of the same name.
+_ACCOUNT_PROFILE_PREFIX = "account-"
 
 # Well-known Chrome install paths on Windows
 _CHROME_CANDIDATES = [
@@ -95,18 +98,44 @@ def _project_slug(project_name: str, project_dir: str | Path | None = None) -> s
     return slug or "project"
 
 
-def _chrome_profile_dir(project_name: str, project_dir: str | Path | None = None) -> str:
-    """Return the user-data-dir path for a project's ai-shell debug Chrome."""
-    slug = _project_slug(project_name, project_dir)
+def _chrome_slug(
+    project_name: str,
+    project_dir: str | Path | None = None,
+    profile: str | None = None,
+) -> str:
+    """Slug that keys a Chrome instance: per account when *profile* is set, else per project.
+
+    Logged-in browser state follows a person, not a repo, so a selected Claude
+    account gets one Chrome (profile dir + debug port) shared by every project
+    that uses that account. Two accounts never share a window.
+    """
+    if profile:
+        slug = "".join(ch if ch.isalnum() or ch == "-" else "-" for ch in profile.lower())
+        slug = "-".join(part for part in slug.split("-") if part)
+        return _ACCOUNT_PROFILE_PREFIX + (slug or "default")
+    return _project_slug(project_name, project_dir)
+
+
+def _chrome_profile_dir(
+    project_name: str,
+    project_dir: str | Path | None = None,
+    profile: str | None = None,
+) -> str:
+    """Return the user-data-dir path for a project's (or account's) ai-shell Chrome."""
+    slug = _chrome_slug(project_name, project_dir, profile)
     local_app = os.environ.get("LOCALAPPDATA", "")
     if local_app:
         return str(Path(local_app) / "Google" / "Chrome" / _CHROME_PROFILE_ROOT_DIR_NAME / slug)
     return str(Path.home() / ".config" / "google-chrome" / _CHROME_PROFILE_ROOT_DIR_NAME / slug)
 
 
-def _project_debug_port(project_name: str, project_dir: str | Path | None = None) -> int:
-    """Return a stable per-project Chrome remote debugging port."""
-    slug = _project_slug(project_name, project_dir)
+def _project_debug_port(
+    project_name: str,
+    project_dir: str | Path | None = None,
+    profile: str | None = None,
+) -> int:
+    """Return a stable Chrome remote debugging port for the project or account."""
+    slug = _chrome_slug(project_name, project_dir, profile)
     # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
     digest = sha1(slug.encode("utf-8"), usedforsecurity=False).hexdigest()
     return CHROME_DEBUG_PORT_RANGE_START + (int(digest[:8], 16) % CHROME_DEBUG_PORT_RANGE_SIZE)
@@ -134,6 +163,7 @@ def launch_chrome(
     *,
     project_name: str,
     project_dir: str | Path | None = None,
+    profile: str | None = None,
 ) -> bool:
     """Launch Chrome on the host with the debug port enabled.
 
@@ -144,7 +174,7 @@ def launch_chrome(
     if chrome_path is None:
         return False
 
-    profile_dir = _chrome_profile_dir(project_name, project_dir)
+    profile_dir = _chrome_profile_dir(project_name, project_dir, profile)
     args = [
         chrome_path,
         f"--remote-debugging-port={port}",
@@ -231,23 +261,27 @@ def ensure_host_chrome(
     *,
     project_name: str,
     project_dir: str | Path | None = None,
+    profile: str | None = None,
 ) -> int:
     """Ensure Chrome is running with a debug port reachable from the container.
 
     Each project gets its own debug profile directory and a stable debug port,
     so different repos can keep separate logged-in Chrome instances alive.
+    When *profile* is given (a Claude account), the profile and port are keyed
+    by it instead, so one account keeps one browser across projects and two
+    accounts never share one.
 
     Returns the port number Chrome is listening on.
     """
-    port = _project_debug_port(project_name, project_dir)
-    profile_dir = _chrome_profile_dir(project_name, project_dir)
+    port = _project_debug_port(project_name, project_dir, profile)
+    profile_dir = _chrome_profile_dir(project_name, project_dir, profile)
 
     if probe_chrome_port(container_name, port):
         return port
 
     logger.info("Chrome for project %s not found on port %d, launching it", project_name, port)
 
-    if not launch_chrome(port, project_name=project_name, project_dir=project_dir):
+    if not launch_chrome(port, project_name=project_name, project_dir=project_dir, profile=profile):
         raise LocalChromeUnavailable(_build_setup_instructions(project_name, profile_dir, port))
 
     if not _wait_until_ready(
@@ -309,33 +343,38 @@ def start_chrome_proxy(container_name: str, port: int) -> None:
         )
 
 
+CHROME_MCP_SERVER_NAME = "chrome-devtools"
+
+
+def chrome_mcp_server_spec(port: int) -> dict[str, object]:
+    """MCP server definition for chrome-devtools-mcp against the in-container proxy.
+
+    Points at ``localhost:<port>`` (the proxy), not ``host.docker.internal``,
+    because Chrome rejects the latter's Host header.
+    """
+    return {
+        "command": "npx",
+        "args": [
+            "-y",
+            "chrome-devtools-mcp@latest",
+            "--browserUrl",
+            f"http://localhost:{port}",
+        ],
+    }
+
+
 def write_mcp_config(port: int, config_dir: Path | None = None) -> Path:
     """Write the chrome-devtools-mcp server config JSON.
 
     Returns the path to the written file. The file lives under
     ``~/.config/ai-shell/`` by default so it persists across sessions
     without polluting the project directory.
-
-    The config points at ``localhost:<port>`` (the in-container proxy),
-    not ``host.docker.internal:<port>``, because Chrome rejects the latter.
     """
     if config_dir is None:
         config_dir = Path.home() / ".config" / "ai-shell"
     config_dir.mkdir(parents=True, exist_ok=True)
 
-    mcp_config = {
-        "mcpServers": {
-            "chrome-devtools": {
-                "command": "npx",
-                "args": [
-                    "-y",
-                    "chrome-devtools-mcp@latest",
-                    "--browserUrl",
-                    f"http://localhost:{port}",
-                ],
-            }
-        }
-    }
+    mcp_config = {"mcpServers": {CHROME_MCP_SERVER_NAME: chrome_mcp_server_spec(port)}}
 
     path = config_dir / MCP_CONFIG_FILENAME
     path.write_text(json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")

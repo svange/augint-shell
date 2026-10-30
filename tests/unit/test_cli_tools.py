@@ -882,6 +882,7 @@ class TestToolCommands:
         config.project_name = "test-project"
         config.project_dir = Path("/tmp/test-project")
         config.local_chrome = False
+        config.claude_account = ""
         mock_config.return_value = config
 
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
@@ -930,6 +931,7 @@ class TestToolCommands:
         config.project_name = "test-project"
         config.project_dir = Path("/tmp/test-project")
         config.local_chrome = False
+        config.claude_account = ""
         mock_config.return_value = config
 
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
@@ -973,6 +975,7 @@ class TestToolCommands:
         config.project_name = "test-project"
         config.project_dir = Path("/tmp/test-project")
         config.local_chrome = False
+        config.claude_account = ""
         mock_config.return_value = config
 
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
@@ -1654,3 +1657,315 @@ class TestClaudeAccount:
         for c in send_keys:
             assert "unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN;" in " ".join(c)
             assert "tok-woxom" not in " ".join(c)
+
+
+RC_PREFIX = [
+    "env",
+    "-u",
+    "ANTHROPIC_API_KEY",
+    "-u",
+    "ANTHROPIC_AUTH_TOKEN",
+    "-u",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+]
+
+
+@patch("ai_shell.expo.attach")
+@patch("ai_shell.cli.commands.tools.ContainerManager")
+@patch("ai_shell.cli.commands.tools.load_config")
+class TestClaudeRemoteControl:
+    """``claude --rc`` / ``--login`` use login profiles through the real env builder."""
+
+    @pytest.fixture(autouse=True)
+    def _accounts(self, isolate_home):
+        self.home = isolate_home
+        env_path = isolate_home / ".augint" / ".env"
+        env_path.parent.mkdir()
+        env_path.write_text(
+            "CLAUDE_CODE_OAUTH_TOKEN_WOXOM=tok-woxom\nANTHROPIC_API_KEY=sk-ant-global\n"
+        )
+        self.runner = CliRunner()
+
+    def _setup(self, mock_config, mock_manager_cls, config=None, logged_in=True):
+        from ai_shell.config import AiShellConfig
+
+        mock_config.return_value = config or AiShellConfig(
+            project_name="demo", project_dir=Path("/tmp/demo")
+        )
+        manager = MagicMock()
+        manager.ensure_dev_container.return_value = "augint-shell-demo-dev"
+        manager.exec_capture.return_value = MagicMock(
+            returncode=0 if logged_in else 1, stdout="", stderr=""
+        )
+        manager.run_interactive.return_value = (0, 30.0)
+        manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = manager
+        return manager
+
+    def test_rc_default_account_runs_server_mode_without_api_keys(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        result = self.runner.invoke(cli, ["claude", "--rc"])
+
+        assert result.exit_code == 0, result.output
+        cmd = manager.exec_interactive.call_args[0][1]
+        assert cmd == [
+            *RC_PREFIX,
+            "claude",
+            "remote-control",
+            "--name",
+            "demo",
+            "--permission-mode",
+            "bypassPermissions",
+        ]
+        env = manager.exec_interactive.call_args[1]["extra_env"]
+        assert "ANTHROPIC_API_KEY" not in env
+        assert "CLAUDE_CONFIG_DIR" not in env
+        # Logged in already: status checked, no login flow.
+        status_cmd = manager.exec_capture.call_args[0][1]
+        assert status_cmd == [*RC_PREFIX, "claude", "auth", "status"]
+        manager.run_interactive.assert_not_called()
+
+    def test_rc_with_token_account_uses_login_profile(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        result = self.runner.invoke(cli, ["claude", "--rc", "--account", "woxom"])
+
+        assert result.exit_code == 0, result.output
+        cmd = manager.exec_interactive.call_args[0][1]
+        assert cmd[: len(RC_PREFIX) + 4] == [
+            *RC_PREFIX,
+            "claude",
+            "remote-control",
+            "--name",
+            "demo (woxom)",
+        ]
+        env = manager.exec_interactive.call_args[1]["extra_env"]
+        assert env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/woxom"
+        assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
+        assert "ANTHROPIC_API_KEY" not in env
+        assert (self.home / ".augint" / "claude-accounts" / "woxom").is_dir()
+        assert "account=woxom, login profile" in result.output
+
+    def test_rc_runs_auth_login_when_not_logged_in(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls, logged_in=False)
+
+        result = self.runner.invoke(cli, ["claude", "--rc", "--account", "mike"])
+
+        assert result.exit_code == 0, result.output
+        login_cmd = manager.run_interactive.call_args[0][1]
+        assert login_cmd == [*RC_PREFIX, "claude", "auth", "login"]
+        login_env = manager.run_interactive.call_args[1]["extra_env"]
+        assert login_env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/mike"
+        assert manager.run_interactive.call_args[1]["workdir"] == "/root/projects/demo"
+        assert "No claude.ai login found" in result.output
+        # Then the server starts.
+        assert "remote-control" in manager.exec_interactive.call_args[0][1]
+
+    def test_rc_aborts_when_auth_login_fails(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls, logged_in=False)
+        manager.run_interactive.return_value = (1, 2.0)
+
+        result = self.runner.invoke(cli, ["claude", "--rc", "--account", "mike"])
+
+        assert result.exit_code == 1
+        assert "claude auth login" in result.output
+        manager.exec_interactive.assert_not_called()
+
+    def test_rc_custom_name_and_safe_mode(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        self.runner.invoke(cli, ["claude", "--safe", "--rc", "Mike laptop", "--", "--verbose"])
+
+        cmd = manager.exec_interactive.call_args[0][1]
+        assert cmd == [*RC_PREFIX, "claude", "remote-control", "--name", "Mike laptop", "--verbose"]
+
+    @patch("ai_shell.cli.commands.tools._inject_mcp_config")
+    @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.start_chrome_proxy")
+    @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=45678)
+    def test_rc_with_local_chrome_registers_mcp_at_local_scope(
+        self,
+        mock_ensure,
+        mock_proxy,
+        mock_write,
+        mock_inject,
+        mock_config,
+        mock_manager_cls,
+        mock_expo,
+    ):
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        result = self.runner.invoke(cli, ["claude", "--rc", "--account", "woxom", "--local-chrome"])
+
+        assert result.exit_code == 0, result.output
+        mock_ensure.assert_called_once_with(
+            "augint-shell-demo-dev",
+            project_name="demo",
+            project_dir=Path("/tmp/demo"),
+            profile="woxom",
+        )
+        mcp_calls = [c for c in manager.exec_capture.call_args_list if "mcp" in c[0][1]]
+        assert [c[0][1][:3] for c in mcp_calls] == [
+            ["claude", "mcp", "remove"],
+            ["claude", "mcp", "add-json"],
+        ]
+        add_cmd = mcp_calls[1][0][1]
+        assert add_cmd[3:6] == ["--scope", "local", "chrome-devtools"]
+        assert "http://localhost:45678" in add_cmd[6]
+        assert mcp_calls[1][1]["workdir"] == "/root/projects/demo"
+        assert mcp_calls[1][1]["extra_env"]["CLAUDE_CONFIG_DIR"].endswith("/woxom")
+        # Server mode cannot take --mcp-config.
+        cmd = manager.exec_interactive.call_args[0][1]
+        assert "--mcp-config" not in cmd
+
+    def test_rc_incompatible_with_multi_team_interactive(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        manager = self._setup(mock_config, mock_manager_cls)
+        for flag in ("--multi", "--team", "--interactive"):
+            result = self.runner.invoke(cli, ["claude", "--rc", flag])
+            assert result.exit_code == 1, flag
+            assert "incompatible" in result.output
+        manager.ensure_dev_container.assert_not_called()
+
+    def test_rc_rejects_bedrock(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        result = self.runner.invoke(cli, ["claude", "--rc", "--aws"])
+
+        assert result.exit_code == 1
+        assert "Bedrock" in result.output
+        manager.exec_interactive.assert_not_called()
+
+    def test_login_flag_creates_profile_and_launches_normal_session(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        manager = self._setup(mock_config, mock_manager_cls)
+        manager.exec_interactive.side_effect = None
+
+        result = self.runner.invoke(cli, ["claude", "--login", "--account", "mike"])
+
+        assert result.exit_code == 0, result.output
+        # Forced login runs without checking status first.
+        assert not any("status" in c[0][1] for c in manager.exec_capture.call_args_list)
+        calls = manager.run_interactive.call_args_list
+        assert calls[0][0][1] == [*RC_PREFIX, "claude", "auth", "login"]
+        assert calls[1][0][1] == [*RC_PREFIX, "claude", "--dangerously-skip-permissions", "-c"]
+        env = calls[1][1]["extra_env"]
+        assert env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/mike"
+        assert "ANTHROPIC_API_KEY" not in env
+
+    def test_account_with_only_login_profile_is_used_without_flags(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        (self.home / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
+        manager = self._setup(mock_config, mock_manager_cls)
+        manager.exec_interactive.side_effect = None
+
+        result = self.runner.invoke(cli, ["claude", "--account", "mike"])
+
+        assert result.exit_code == 0, result.output
+        status_cmd = manager.exec_capture.call_args[0][1]
+        assert status_cmd == [*RC_PREFIX, "claude", "auth", "status"]
+        cmd = manager.run_interactive.call_args[0][1]
+        assert cmd == [*RC_PREFIX, "claude", "--dangerously-skip-permissions", "-c"]
+        env = manager.run_interactive.call_args[1]["extra_env"]
+        assert env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/mike"
+
+    def test_token_account_skips_login_check(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls)
+        manager.exec_interactive.side_effect = None
+
+        self.runner.invoke(cli, ["claude", "--account", "woxom"])
+
+        manager.exec_capture.assert_not_called()
+
+    def test_account_listing_shows_login_profiles_and_chrome(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
+
+        (self.home / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
+        (self.home / ".augint" / "claude-accounts" / "woxom").mkdir(parents=True)
+        config = AiShellConfig(
+            project_name="demo",
+            project_dir=Path("/tmp/demo"),
+            claude_account="mike",
+            claude_accounts={"mike": ClaudeAccountConfig(chrome_profile="mike-browser")},
+        )
+        manager = self._setup(mock_config, mock_manager_cls, config=config)
+
+        result = self.runner.invoke(cli, ["claude", "--account"])
+
+        assert result.exit_code == 0, result.output
+        # Rich wraps at spaces, so assert on space-free tokens only.
+        assert "~/.augint/claude-accounts/mike" in result.output
+        assert "CLAUDE_CODE_OAUTH_TOKEN_WOXOM" in result.output
+        assert "~/.augint/claude-accounts/woxom" in result.output
+        assert "mike-browser" in result.output
+        assert "--rc" in result.output
+        assert "tok-" not in result.output
+        manager.ensure_dev_container.assert_not_called()
+
+    @patch("ai_shell.cli.commands.tools._inject_mcp_config")
+    @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.start_chrome_proxy")
+    @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=40001)
+    def test_per_account_local_chrome_config_and_profile(
+        self,
+        mock_ensure,
+        mock_proxy,
+        mock_write,
+        mock_inject,
+        mock_config,
+        mock_manager_cls,
+        mock_expo,
+    ):
+        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
+
+        config = AiShellConfig(
+            project_name="demo",
+            project_dir=Path("/tmp/demo"),
+            claude_accounts={
+                "woxom": ClaudeAccountConfig(chrome_profile="woxom-browser", local_chrome=True)
+            },
+        )
+        manager = self._setup(mock_config, mock_manager_cls, config=config)
+        manager.exec_interactive.side_effect = None
+
+        result = self.runner.invoke(cli, ["claude", "--account", "woxom"])
+
+        assert result.exit_code == 0, result.output
+        mock_ensure.assert_called_once_with(
+            "augint-shell-demo-dev",
+            project_name="demo",
+            project_dir=Path("/tmp/demo"),
+            profile="woxom-browser",
+        )
+        cmd = manager.run_interactive.call_args[0][1]
+        assert "--mcp-config" in cmd
+
+    @patch("ai_shell.local_chrome.ensure_host_chrome")
+    def test_per_account_local_chrome_false_overrides_global(
+        self, mock_ensure, mock_config, mock_manager_cls, mock_expo
+    ):
+        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
+
+        config = AiShellConfig(
+            project_name="demo",
+            project_dir=Path("/tmp/demo"),
+            local_chrome=True,
+            claude_accounts={"woxom": ClaudeAccountConfig(local_chrome=False)},
+        )
+        manager = self._setup(mock_config, mock_manager_cls, config=config)
+        manager.exec_interactive.side_effect = None
+
+        result = self.runner.invoke(cli, ["claude", "--account", "woxom"])
+
+        assert result.exit_code == 0, result.output
+        mock_ensure.assert_not_called()

@@ -53,6 +53,8 @@ CLI commands (cli/commands/)
 
 Dev containers mount: project dir, UV cache volume (shared), and conditionally: `~/.claude`, `~/.codex`, `~/.pi`, `~/.augint`, `~/.ssh` (ro), `~/.aws`, `~/.config/gh`, `~/.gitconfig` (ro), Docker socket (ro), plus `extra_volumes` from config.
 
+**node_modules overlays**: the project root `node_modules` is always a per-project named volume. Workspace globs from `pnpm-workspace.yaml` (`packages:`) and `package.json` (`workspaces`) are read by `workspace_node_modules_globs()` and every matching directory that has a `package.json` gets its own overlay too, so pnpm on the Windows host and pnpm in the container never rewrite each other's workspace links. `container.node_modules_paths` adds explicit globs (no `package.json` requirement).
+
 **Home-config isolation**: `container.isolate_home_paths` (config key, `AI_SHELL_ISOLATE_HOME_PATHS` env var) lists home-config basenames (e.g. `.claude`, `.codex`) to back with a shared named volume (`augint-shell-home-{name}`) instead of a host bind mount, so nothing is written into the host home dir. The volume persists across container recreations and is shared across all projects — set it in `~/.augint/.ai-shell.yaml` to apply machine-wide. Single-file configs can't be volume-backed: when named (or, for `.claude.json`, when `.claude` is isolated) their host bind is dropped and config stays container-local. Empty (default) = current bind-mount behavior. See `build_dev_mounts` / `home_config_volume_name` in `defaults.py`.
 
 ### Environment assembly
@@ -62,6 +64,12 @@ Priority: `extra_env` > `./.env` > `~/.augint/.env` > `os.environ` > defaults. L
 **GitHub auth**: Default auth is SSO via the `~/.config/gh` bind mount. `GH_TOKEN`/`GITHUB_TOKEN` are NOT injected by default. Pass `--env [.env]` on any dev container CLI command (`claude`, `codex`, `opencode`, `pi`, `shell`, `manage env`) to opt in to loading a `.env` file and injecting GH_TOKEN. Without a value, `--env` defaults to `./.env`.
 
 **Claude accounts**: `ai-shell claude --account NAME` (or `claude.account` config / `AI_SHELL_CLAUDE_ACCOUNT`) injects `.env` key `CLAUDE_CODE_OAUTH_TOKEN_{NAME}` as `CLAUDE_CODE_OAUTH_TOKEN` at exec time. `default` injects nothing. Suffixed tokens are never passed through to containers. Because `docker exec -e` cannot remove container-level vars, the claude command is prefixed with `env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN` (tmux panes: `unset ...;`, token via `tmux new-session -e`). `--account` with no value lists accounts. See `build_dev_environment` and `_claude_exec_env` in `cli/commands/tools.py`.
+
+**Login profiles**: a second credential kind for an account. `CLAUDE_CONFIG_DIR=/root/.augint/claude-accounts/{slug}` (host: `~/.augint/claude-accounts/{slug}`, inside the existing `~/.augint` bind, so no mount change) gives the account its own `claude auth login`, settings and history. Chosen when `--rc` or `--login` is given (`claude_login=True` in `build_dev_environment`), or when the account has no token but the directory exists. In that mode `CLAUDE_CODE_OAUTH_TOKEN` is also unset (`CLAUDE_REMOTE_CONTROL_UNSET_VARS`). Before launch, `claude auth status` (exit 0 = logged in) decides whether `claude auth login` runs interactively first (`_ensure_claude_login`). Per-account defaults live in `claude.accounts.<name>` (`ClaudeAccountConfig`: `chrome_profile`, `local_chrome`).
+
+**Remote Control**: `ai-shell claude --rc [NAME]` runs `claude remote-control --name NAME [--permission-mode bypassPermissions]` via `exec_interactive` (no `-c` retry). Claude Code rejects API keys, setup-token tokens and Bedrock for it, so the exec env is stripped of `CLAUDE_REMOTE_CONTROL_UNSET_VARS` and `--aws` errors. Server mode also refuses global flags such as `--mcp-config`, so with `--local-chrome` the chrome-devtools server is registered with `claude mcp add-json --scope local` in the active config dir and project workdir (`_register_chrome_mcp`). Incompatible with `--multi`/`--team`/`--interactive`.
+
+**Account-scoped Chrome**: with a named account, `--local-chrome` keys the host Chrome (profile dir + debug port) by `account-{chrome_profile or account}` instead of the project (`local_chrome._chrome_slug`), so one account shares one browser across repos and two accounts never share one.
 
 ### OpenCode web mode
 

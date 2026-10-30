@@ -5,12 +5,15 @@ Encodes all docker-compose.yml configuration as Python, so no compose file is ne
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
 from hashlib import sha1
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+import yaml
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -341,6 +344,61 @@ def project_dev_port(
     return project_dev_port_map(project_dir, ports, project_name)[container_port]
 
 
+def _as_str_list(value: object) -> list[str]:
+    """Coerce a JSON/YAML scalar-or-list into a list of strings."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [str(item) for item in value if isinstance(item, (str, int, float))]
+    return []
+
+
+def workspace_node_modules_globs(project_dir: Path) -> list[str]:
+    """Workspace package globs a project declares, relative to *project_dir*.
+
+    Reads ``pnpm-workspace.yaml`` (``packages:``) and ``package.json``
+    (``workspaces``, either a list or ``{"packages": [...]}``). Negated
+    patterns (``!**/test/**``) and the root itself are dropped. The result
+    feeds :func:`build_dev_mounts`, which overlays a container-local volume on
+    each matching package's ``node_modules``.
+    """
+    patterns: list[str] = []
+
+    pnpm_workspace = project_dir / "pnpm-workspace.yaml"
+    if pnpm_workspace.is_file():
+        try:
+            data = yaml.safe_load(pnpm_workspace.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError) as exc:
+            logger.warning("Could not read %s: %s", pnpm_workspace, exc)
+            data = {}
+        if isinstance(data, dict):
+            patterns.extend(_as_str_list(data.get("packages")))
+
+    package_json = project_dir / "package.json"
+    if package_json.is_file():
+        try:
+            pkg = json.loads(package_json.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            logger.warning("Could not read %s: %s", package_json, exc)
+            pkg = {}
+        workspaces = pkg.get("workspaces") if isinstance(pkg, dict) else None
+        if isinstance(workspaces, dict):
+            workspaces = workspaces.get("packages")
+        patterns.extend(_as_str_list(workspaces))
+
+    cleaned: list[str] = []
+    for raw in patterns:
+        pattern = raw.strip().replace("\\", "/")
+        if pattern.startswith("./"):
+            pattern = pattern[2:]
+        pattern = pattern.rstrip("/")
+        if not pattern or pattern == "." or pattern.startswith("!"):
+            continue
+        if pattern not in cleaned:
+            cleaned.append(pattern)
+    return cleaned
+
+
 def build_dev_mounts(
     project_dir: Path,
     project_name: str,
@@ -356,7 +414,10 @@ def build_dev_mounts(
     *project_dir*. Each glob match (that is a directory) gets its own named
     volume overlaid at ``{match}/node_modules`` inside the container, so each
     workspace in a monorepo isolates its Linux node_modules from the host
-    bind mount the same way the root overlay does.
+    bind mount the same way the root overlay does. Workspace globs declared in
+    ``pnpm-workspace.yaml`` or ``package.json`` ``workspaces`` are picked up
+    automatically (see :func:`workspace_node_modules_globs`); the explicit
+    list is for layouts those files don't describe.
 
     *isolate_home_paths* is a set of home-config basenames (e.g. ``.claude``,
     ``.codex``) that should be backed by a shared named volume instead of a
@@ -583,11 +644,25 @@ def build_dev_mounts(
     # Monorepo workspaces: overlay an isolated named volume on each matched
     # workspace's node_modules so per-app installs (npm/pnpm/yarn workspaces)
     # land in container-only storage rather than the host bind mount.
+    #
+    # Declared workspaces are overlaid automatically. pnpm in particular links
+    # every workspace package's node_modules into the root virtual store, so a
+    # Linux-made layout left on the host bind mount makes the Windows pnpm
+    # reinstall from scratch, and vice versa: the two installs keep deleting
+    # each other. Only directories holding a package.json count as workspace
+    # packages (pnpm's own rule), which also keeps Docker from creating empty
+    # node_modules dirs on the host for other glob matches.
     project_root = project_dir.resolve()
     seen_targets: set[str] = {f"/root/projects/{project_name}/node_modules"}
-    for pattern in extra_node_modules_paths or []:
+    patterns: list[tuple[str, bool]] = [
+        (pattern, True) for pattern in workspace_node_modules_globs(project_root)
+    ]
+    patterns.extend((pattern, False) for pattern in extra_node_modules_paths or [])
+    for pattern, packages_only in patterns:
         for match in sorted(project_root.glob(pattern)):
             if not match.is_dir():
+                continue
+            if packages_only and not (match / "package.json").is_file():
                 continue
             try:
                 rel = match.relative_to(project_root)
@@ -719,6 +794,43 @@ CLAUDE_DEFAULT_ACCOUNT = "default"
 # silently ignored.
 CLAUDE_AUTH_OVERRIDE_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 
+# Login profiles. A setup-token / CLAUDE_CODE_OAUTH_TOKEN can only make model
+# requests, so ``claude remote-control`` refuses it; Remote Control needs a
+# full ``claude auth login``. Each such account gets its own CLAUDE_CONFIG_DIR
+# (Claude Code's documented multi-account mechanism) under ~/.augint, which is
+# already bind-mounted at /root/.augint, so the login, settings and session
+# history of that account live in ~/.augint/claude-accounts/<name>/ and
+# survive container recreation without touching ~/.claude.
+CLAUDE_CONFIG_DIR_VAR = "CLAUDE_CONFIG_DIR"
+CLAUDE_ACCOUNTS_DIR_NAME = "claude-accounts"
+CLAUDE_ACCOUNTS_CONTAINER_ROOT = f"/root/.augint/{CLAUDE_ACCOUNTS_DIR_NAME}"
+# Every credential Claude Code ranks above a `claude auth login`. All of them
+# must be absent from a Remote Control process or the server refuses to start.
+CLAUDE_REMOTE_CONTROL_UNSET_VARS = (*CLAUDE_AUTH_OVERRIDE_VARS, CLAUDE_OAUTH_TOKEN_VAR)
+
+
+def claude_account_slug(account: str) -> str:
+    """Directory-safe form of an account name (``My_Org`` -> ``my-org``)."""
+    return _sanitize_name(account.lower().replace("_", "-"))
+
+
+def claude_account_login_dir(account: str) -> Path:
+    """Host directory that holds the login profile for *account*."""
+    return Path.home() / ".augint" / CLAUDE_ACCOUNTS_DIR_NAME / claude_account_slug(account)
+
+
+def claude_account_config_dir(account: str) -> str:
+    """Container path of the login profile for *account* (``CLAUDE_CONFIG_DIR``)."""
+    return f"{CLAUDE_ACCOUNTS_CONTAINER_ROOT}/{claude_account_slug(account)}"
+
+
+def list_claude_login_accounts() -> list[str]:
+    """Return the account names that have a login profile directory."""
+    root = Path.home() / ".augint" / CLAUDE_ACCOUNTS_DIR_NAME
+    if not root.is_dir():
+        return []
+    return sorted(p.name for p in root.iterdir() if p.is_dir())
+
 
 def claude_account_token_var(account: str) -> str:
     """Return the .env key that holds the OAuth token for *account*."""
@@ -738,6 +850,17 @@ def list_claude_accounts(
     )
 
 
+def list_all_claude_accounts(
+    project_dir: Path | None = None,
+    env_file: Path | None = None,
+) -> list[str]:
+    """Token accounts and login-profile accounts, deduplicated and sorted."""
+    names: dict[str, str] = {}
+    for name in [*list_claude_accounts(project_dir, env_file), *list_claude_login_accounts()]:
+        names.setdefault(claude_account_slug(name), name)
+    return sorted(names.values())
+
+
 def build_dev_environment(
     extra_env: dict[str, str] | None = None,
     project_dir: Path | None = None,
@@ -751,6 +874,7 @@ def build_dev_environment(
     bedrock_model: str = "",
     openai_profile: str = "",
     claude_account: str = "",
+    claude_login: bool = False,
     team_mode: bool = False,
     env_file: Path | None = None,
 ) -> dict[str, str]:
@@ -778,6 +902,12 @@ def build_dev_environment(
     ``CLAUDE_CODE_OAUTH_TOKEN_{NAME}`` is injected as ``CLAUDE_CODE_OAUTH_TOKEN``
     and ``ANTHROPIC_API_KEY`` / ``ANTHROPIC_AUTH_TOKEN`` are left out. The
     suffixed per-account tokens are never passed through to the container.
+
+    When *claude_login* is True, or the account has no token but a login
+    profile directory exists, the account's login profile is used instead:
+    ``CLAUDE_CONFIG_DIR`` points at ``~/.augint/claude-accounts/{name}`` and
+    every credential that would outrank the login is left out. The host
+    directory is created so the account shows up in listings from then on.
 
     When *team_mode* is True, ``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` is
     injected to enable Claude Code's Agent Teams feature.
@@ -855,17 +985,24 @@ def build_dev_environment(
             )
         token_var = claude_account_token_var(claude_account)
         token = dotenv.get(token_var)
-        if not token:
+        login_dir = claude_account_login_dir(claude_account)
+        if claude_login or (not token and login_dir.is_dir()):
+            login_dir.mkdir(parents=True, exist_ok=True)
+            env[CLAUDE_CONFIG_DIR_VAR] = claude_account_config_dir(claude_account)
+            excluded.update(CLAUDE_REMOTE_CONTROL_UNSET_VARS)
+        elif token:
+            env[CLAUDE_OAUTH_TOKEN_VAR] = token
+            excluded.update(CLAUDE_AUTH_OVERRIDE_VARS)
+        else:
             available = ", ".join(
-                [CLAUDE_DEFAULT_ACCOUNT, *list_claude_accounts(project_dir, env_file)]
+                [CLAUDE_DEFAULT_ACCOUNT, *list_all_claude_accounts(project_dir, env_file)]
             )
             raise ValueError(
                 f"Claude account '{claude_account}' requires {token_var} in "
-                "~/.augint/.env, or pass --env to load it from ./.env. "
-                f"Available accounts: {available}"
+                "~/.augint/.env (or pass --env to load it from ./.env), or a login "
+                f"profile created with 'ai-shell claude --account {claude_account} "
+                f"--login'. Available accounts: {available}"
             )
-        env[CLAUDE_OAUTH_TOKEN_VAR] = token
-        excluded.update(CLAUDE_AUTH_OVERRIDE_VARS)
 
     if team_mode:
         env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
