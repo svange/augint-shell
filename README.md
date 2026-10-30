@@ -356,7 +356,7 @@ ai-shell claude --account mike --rc --local-chrome  # ...and give the session Mi
 What happens on `--account mike --rc`:
 
 1. `~/.augint/claude-accounts/mike/` becomes the session's `CLAUDE_CONFIG_DIR`. Your own `~/.claude` is not touched.
-2. If that profile has no login yet, `claude auth login` runs first. It prints a URL: open it in the Chrome window ai-shell just opened for `mike`, sign in as Mike, paste the code back. This happens once per account per machine.
+2. If that profile has no login yet, `claude auth login` runs first, driven from the host: ai-shell opens the sign-in page in the Chrome window it just opened for `mike` (or prints the URL unwrapped when no Chrome is attached), you sign in as Mike, the browser shows a code, and you paste it at ai-shell's own prompt. The URL and the code never pass through the container TTY, which is what used to mangle them. This happens once per account per machine.
 3. With `--local-chrome`, `chrome-devtools-mcp` is registered for this project in that profile (`claude mcp add-json --scope local`), because server mode does not accept `--mcp-config`.
 4. The server starts with `--permission-mode bypassPermissions` (omit with `--safe`) and the name `<project> (mike)`. Open claude.ai/code signed in as Mike to find it.
 
