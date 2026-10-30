@@ -86,14 +86,20 @@ def node_modules_volume_name(
     never collides with the host's (e.g. Windows-built) node_modules in the
     bind-mounted project directory.
 
-    When *subpath* is given (e.g. ``"apps/web"``), a sanitized slug is appended
-    so monorepos can isolate each workspace's node_modules independently.
+    When *subpath* is given (e.g. ``"apps/web"``), a sanitized slug plus a
+    short hash of the exact path is appended so monorepos can isolate each
+    workspace's node_modules independently. The hash keeps paths that flatten
+    to the same slug (``packages/foo/bar`` and ``packages/foo-bar``) on
+    different volumes.
     """
     suffix = repo_name
     if worktree_name:
         suffix = f"{repo_name}-wt-{worktree_name}"
     if subpath:
-        suffix = f"{suffix}-{_sanitize_name(subpath.lower())}"
+        normalized = subpath.strip("/").lower()
+        # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
+        digest = sha1(normalized.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
+        suffix = f"{suffix}-{_sanitize_name(normalized)}-{digest}"
     return f"{NODE_MODULES_VOLUME_PREFIX}{suffix}"
 
 

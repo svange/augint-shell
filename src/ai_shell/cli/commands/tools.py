@@ -617,6 +617,44 @@ def _print_claude_accounts(config: AiShellConfig, env_file: Path | None) -> None
     )
 
 
+# ``claude auth status`` reports how the session would authenticate. Remote
+# Control accepts only a claude.ai subscription login; an older CLI omits the
+# field, in which case the exit code is all there is to go on.
+CLAUDE_AI_AUTH_METHOD = "claude.ai"
+ANTHROPIC_API_HOST = "api.anthropic.com"
+
+
+def _claude_auth_method(status_output: str) -> str | None:
+    """Return ``authMethod`` from ``claude auth status`` JSON, or ``None`` if absent."""
+    try:
+        data = json.loads(status_output or "")
+    except ValueError:
+        return None
+    method = data.get("authMethod") if isinstance(data, dict) else None
+    return method if isinstance(method, str) else None
+
+
+def _check_remote_control_base_url(exec_env: dict[str, str]) -> None:
+    """Fail early when ``ANTHROPIC_BASE_URL`` points away from the Anthropic API.
+
+    Remote Control requires talking to ``api.anthropic.com`` directly, so a
+    gateway or proxy URL from ``.env`` or ``extra_env`` can only fail later
+    with a less specific error.
+    """
+    base_url = exec_env.get("ANTHROPIC_BASE_URL", "").strip()
+    if not base_url:
+        return
+    from urllib.parse import urlparse
+
+    host = (urlparse(base_url).hostname or "").lower()
+    if host != ANTHROPIC_API_HOST:
+        raise click.ClickException(
+            f"Remote Control requires the Anthropic API, but ANTHROPIC_BASE_URL={base_url} "
+            "points elsewhere (an LLM gateway or proxy). Remove it from .env / extra_env "
+            "for --rc."
+        )
+
+
 def _ensure_claude_login(
     manager: ContainerManager,
     container_name: str,
@@ -626,13 +664,17 @@ def _ensure_claude_login(
     workdir: str | None,
     force: bool,
     chrome_profile: str | None,
+    require_claude_ai: bool = False,
 ) -> None:
-    """Make sure the Claude process will find a claude.ai login; run ``claude auth login`` if not.
+    """Make sure the Claude process will find a login; run ``claude auth login`` if not.
 
     Used for login-profile accounts and for Remote Control, which refuses
-    API keys and setup-token tokens. ``claude auth status`` exits 0 when a
-    login is present. The login flow is interactive: Claude prints a URL and
-    waits for the code, so it runs on the terminal before the real launch.
+    API keys and setup-token tokens. ``claude auth status`` exits 0 when some
+    credential is present; with *require_claude_ai* (Remote Control) its
+    ``authMethod`` must also be ``claude.ai``, because a stored API key or an
+    ``apiKeyHelper`` also count as logged in but are rejected by the server.
+    The login flow is interactive: Claude prints a URL and waits for the
+    code, so it runs on the terminal before the real launch.
     """
     prefix = _unset_prefix(CLAUDE_REMOTE_CONTROL_UNSET_VARS)
     if not force:
@@ -642,12 +684,21 @@ def _ensure_claude_login(
             extra_env=exec_env,
             workdir=workdir,
         )
-        if status.returncode == 0:
+        method = _claude_auth_method(status.stdout) if status.returncode == 0 else None
+        if status.returncode == 0 and (
+            not require_claude_ai or method in (None, CLAUDE_AI_AUTH_METHOD)
+        ):
             return
-        console.print(
-            f"[yellow]No claude.ai login found{account_label}. "
-            "Starting 'claude auth login'...[/yellow]"
-        )
+        if status.returncode == 0:
+            console.print(
+                f"[yellow]Current credential{account_label} is '{method}', but Remote "
+                "Control needs a claude.ai login. Starting 'claude auth login'...[/yellow]"
+            )
+        else:
+            console.print(
+                f"[yellow]No claude.ai login found{account_label}. "
+                "Starting 'claude auth login'...[/yellow]"
+            )
     else:
         console.print(f"[bold]Running 'claude auth login'{account_label}...[/bold]")
     if chrome_profile:
@@ -779,6 +830,7 @@ def _launch_loaded_config_claude(
             exec_env = {
                 k: v for k, v in exec_env.items() if k not in CLAUDE_REMOTE_CONTROL_UNSET_VARS
             }
+            _check_remote_control_base_url(exec_env)
         account_prefix = _claude_account_cmd_prefix(exec_env)
         account_label = _claude_account_label(claude_account, exec_env)
         chrome_profile = _account_chrome_profile(config, claude_account)
@@ -871,6 +923,7 @@ def _launch_loaded_config_claude(
             workdir=session_workdir,
             force=force_login,
             chrome_profile=chrome_profile if local_chrome else None,
+            require_claude_ai=remote_control is not None,
         )
 
     if remote_cmd is not None:

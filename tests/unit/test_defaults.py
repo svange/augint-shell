@@ -275,11 +275,18 @@ class TestBuildDevMounts:
 
     def test_node_modules_volume_name_with_subpath(self):
         v = node_modules_volume_name("repo", subpath="apps/web")
-        assert v == f"{NODE_MODULES_VOLUME_PREFIX}repo-apps-web"
+        assert v.startswith(f"{NODE_MODULES_VOLUME_PREFIX}repo-apps-web-")
+        assert len(v) == len(f"{NODE_MODULES_VOLUME_PREFIX}repo-apps-web-") + 8
+        assert v == node_modules_volume_name("repo", subpath="apps/web/")
 
     def test_node_modules_volume_name_with_worktree_and_subpath(self):
         v = node_modules_volume_name("repo", worktree_name="feature", subpath="apps/web")
-        assert v == f"{NODE_MODULES_VOLUME_PREFIX}repo-wt-feature-apps-web"
+        assert v.startswith(f"{NODE_MODULES_VOLUME_PREFIX}repo-wt-feature-apps-web-")
+
+    def test_node_modules_volume_name_subpaths_with_same_slug_differ(self):
+        nested = node_modules_volume_name("repo", subpath="packages/foo/bar")
+        flat = node_modules_volume_name("repo", subpath="packages/foo-bar")
+        assert nested != flat
 
     def test_build_dev_mounts_expands_node_modules_globs(self, tmp_path):
         project_dir = tmp_path / "test-project"

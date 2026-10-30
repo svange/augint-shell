@@ -1766,6 +1766,68 @@ class TestClaudeRemoteControl:
         # Then the server starts.
         assert "remote-control" in manager.exec_interactive.call_args[0][1]
 
+    def test_rc_relogs_in_when_credential_is_not_claude_ai(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        manager = self._setup(mock_config, mock_manager_cls)
+        manager.exec_capture.return_value = MagicMock(
+            returncode=0, stdout='{"loggedIn": true, "authMethod": "api_key"}', stderr=""
+        )
+
+        result = self.runner.invoke(cli, ["claude", "--rc"])
+
+        assert result.exit_code == 0, result.output
+        assert manager.run_interactive.call_args[0][1] == [*RC_PREFIX, "claude", "auth", "login"]
+        assert "api_key" in result.output
+
+    def test_rc_accepts_claude_ai_auth_method(self, mock_config, mock_manager_cls, mock_expo):
+        manager = self._setup(mock_config, mock_manager_cls)
+        manager.exec_capture.return_value = MagicMock(
+            returncode=0, stdout='{"loggedIn": true, "authMethod": "claude.ai"}', stderr=""
+        )
+
+        self.runner.invoke(cli, ["claude", "--rc"])
+
+        manager.run_interactive.assert_not_called()
+
+    def test_login_profile_without_rc_accepts_any_auth_method(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        (self.home / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
+        manager = self._setup(mock_config, mock_manager_cls)
+        manager.exec_interactive.side_effect = None
+        manager.exec_capture.return_value = MagicMock(
+            returncode=0, stdout='{"authMethod": "api_key"}', stderr=""
+        )
+
+        self.runner.invoke(cli, ["claude", "--account", "mike"])
+
+        assert manager.run_interactive.call_count == 1
+        assert "auth" not in manager.run_interactive.call_args[0][1]
+
+    def test_rc_rejects_foreign_anthropic_base_url(self, mock_config, mock_manager_cls, mock_expo):
+        (self.home / ".augint" / ".env").write_text(
+            "ANTHROPIC_BASE_URL=https://gateway.example.com/v1\n"
+        )
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        result = self.runner.invoke(cli, ["claude", "--rc"])
+
+        assert result.exit_code == 1
+        assert "ANTHROPIC_BASE_URL" in result.output
+        manager.exec_interactive.assert_not_called()
+
+    def test_rc_allows_official_anthropic_base_url(self, mock_config, mock_manager_cls, mock_expo):
+        (self.home / ".augint" / ".env").write_text(
+            "ANTHROPIC_BASE_URL=https://api.anthropic.com\n"
+        )
+        manager = self._setup(mock_config, mock_manager_cls)
+
+        result = self.runner.invoke(cli, ["claude", "--rc"])
+
+        assert result.exit_code == 0, result.output
+        assert "remote-control" in manager.exec_interactive.call_args[0][1]
+
     def test_rc_aborts_when_auth_login_fails(self, mock_config, mock_manager_cls, mock_expo):
         manager = self._setup(mock_config, mock_manager_cls, logged_in=False)
         manager.run_interactive.return_value = (1, 2.0)
