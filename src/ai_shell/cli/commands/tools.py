@@ -19,12 +19,16 @@ from ai_shell.config import AiShellConfig, load_config
 from ai_shell.container import ContainerManager
 from ai_shell.defaults import (
     CLAUDE_AUTH_OVERRIDE_VARS,
+    CLAUDE_CONFIG_DIR_VAR,
     CLAUDE_DEFAULT_ACCOUNT,
     CLAUDE_OAUTH_TOKEN_VAR,
+    CLAUDE_REMOTE_CONTROL_UNSET_VARS,
     build_dev_environment,
+    claude_account_slug,
     claude_account_token_var,
     dev_container_name,
     list_claude_accounts,
+    list_claude_login_accounts,
     project_dev_port,
     sanitize_project_name,
     uv_venv_path,
@@ -421,8 +425,14 @@ def _configure_local_chrome(
     *,
     project_name: str,
     project_dir: Path | str | None,
-) -> tuple[list[str], str]:
-    """Attach chrome-devtools-mcp to a host Chrome instance."""
+    chrome_profile: str | None = None,
+) -> tuple[list[str], str, int]:
+    """Attach chrome-devtools-mcp to a host Chrome instance.
+
+    Returns the ``--mcp-config`` args for an interactive launch, the config
+    path inside the container, and the Chrome debug port (for launch modes
+    that cannot take ``--mcp-config``, such as ``claude remote-control``).
+    """
     from ai_shell.local_chrome import (
         LocalChromeUnavailable,
         ensure_host_chrome,
@@ -430,12 +440,14 @@ def _configure_local_chrome(
         write_mcp_config,
     )
 
-    console.print("[dim]Connecting to host Chrome...[/dim]")
+    label = f" (profile: {chrome_profile})" if chrome_profile else ""
+    console.print(f"[dim]Connecting to host Chrome{label}...[/dim]")
     try:
         chrome_port = ensure_host_chrome(
             container_name,
             project_name=project_name,
             project_dir=project_dir,
+            **({"profile": chrome_profile} if chrome_profile else {}),
         )
     except LocalChromeUnavailable as exc:
         raise click.ClickException(str(exc)) from exc
@@ -451,7 +463,31 @@ def _configure_local_chrome(
     container_mcp_path = "/etc/ai-shell/chrome-mcp.json"
     _inject_mcp_config(container_name, str(host_mcp_path), container_mcp_path)
     console.print("[dim]Chrome DevTools MCP attached.[/dim]")
-    return ["--mcp-config", container_mcp_path], container_mcp_path
+    return ["--mcp-config", container_mcp_path], container_mcp_path, chrome_port
+
+
+def _is_named_account(claude_account: str) -> bool:
+    """True when a non-default Claude account is selected."""
+    return bool(claude_account) and str(claude_account).lower() != CLAUDE_DEFAULT_ACCOUNT
+
+
+def _account_chrome_profile(config: AiShellConfig, claude_account: str) -> str | None:
+    """Host Chrome profile slug for *claude_account*; ``None`` keeps the per-project Chrome."""
+    if not _is_named_account(claude_account):
+        return None
+    configured = config.claude_account_config(claude_account).chrome_profile
+    return configured if isinstance(configured, str) and configured else str(claude_account)
+
+
+def _resolve_local_chrome(config: AiShellConfig, claude_account: str, cli_flag: bool) -> bool:
+    """``--local-chrome`` > ``claude.accounts.<name>.local_chrome`` > ``claude.local_chrome``."""
+    if cli_flag:
+        return True
+    if _is_named_account(claude_account):
+        per_account = config.claude_account_config(claude_account).local_chrome
+        if isinstance(per_account, bool):
+            return per_account
+    return config.local_chrome is True
 
 
 def _claude_exec_env(
@@ -462,6 +498,7 @@ def _claude_exec_env(
     claude_account: str,
     env_file: Path | None,
     team_mode: bool = False,
+    claude_login: bool = False,
 ) -> dict[str, str]:
     """Build the exec env for a Claude launch; config errors fail loudly."""
     try:
@@ -476,6 +513,7 @@ def _claude_exec_env(
             bedrock_region=config.bedrock_region,
             bedrock_model=config.bedrock_model,
             claude_account=claude_account,
+            claude_login=claude_login,
             team_mode=team_mode,
             env_file=env_file,
         )
@@ -484,58 +522,261 @@ def _claude_exec_env(
 
 
 def _claude_account_unset_vars(exec_env: dict[str, str]) -> tuple[str, ...]:
-    """Vars to unset in the claude process so a selected account token wins.
+    """Vars to unset in the claude process so the selected account's credential wins.
 
     ``docker exec -e`` cannot remove variables baked into the container at
-    creation, so they are removed from the claude process itself.
+    creation, so they are removed from the claude process itself. A login
+    profile also needs ``CLAUDE_CODE_OAUTH_TOKEN`` gone, because Claude Code
+    ranks it above the login.
     """
-    if CLAUDE_OAUTH_TOKEN_VAR not in exec_env:
-        return ()
-    return CLAUDE_AUTH_OVERRIDE_VARS
+    if CLAUDE_CONFIG_DIR_VAR in exec_env:
+        return CLAUDE_REMOTE_CONTROL_UNSET_VARS
+    if CLAUDE_OAUTH_TOKEN_VAR in exec_env:
+        return CLAUDE_AUTH_OVERRIDE_VARS
+    return ()
 
 
-def _claude_account_cmd_prefix(exec_env: dict[str, str]) -> list[str]:
-    """Return an ``env -u ...`` prefix for the claude command, or nothing."""
-    unset_vars = _claude_account_unset_vars(exec_env)
+def _unset_prefix(unset_vars: tuple[str, ...]) -> list[str]:
+    """``env -u VAR ...`` prefix for *unset_vars*, or nothing."""
     if not unset_vars:
         return []
     return ["env", *(arg for var in unset_vars for arg in ("-u", var))]
 
 
+def _claude_account_cmd_prefix(exec_env: dict[str, str]) -> list[str]:
+    """Return an ``env -u ...`` prefix for the claude command, or nothing."""
+    return _unset_prefix(_claude_account_unset_vars(exec_env))
+
+
 def _claude_account_label(claude_account: str, exec_env: dict[str, str]) -> str:
-    if CLAUDE_OAUTH_TOKEN_VAR not in exec_env:
-        return ""
-    return f" (account={claude_account})"
+    if CLAUDE_OAUTH_TOKEN_VAR in exec_env:
+        return f" (account={claude_account})"
+    if CLAUDE_CONFIG_DIR_VAR in exec_env:
+        return f" (account={claude_account}, login profile)"
+    return ""
 
 
 def _claude_session_env(exec_env: dict[str, str]) -> dict[str, str] | None:
-    """Return the tmux session env that carries the selected account token."""
-    token = exec_env.get(CLAUDE_OAUTH_TOKEN_VAR)
-    if token is None:
-        return None
-    return {CLAUDE_OAUTH_TOKEN_VAR: token}
+    """Return the tmux session env that carries the selected account credential."""
+    session_env = {
+        key: exec_env[key]
+        for key in (CLAUDE_OAUTH_TOKEN_VAR, CLAUDE_CONFIG_DIR_VAR)
+        if key in exec_env
+    }
+    return session_env or None
 
 
 def _print_claude_accounts(config: AiShellConfig, env_file: Path | None) -> None:
-    """List the Claude accounts defined in .env without their tokens."""
-    accounts = [CLAUDE_DEFAULT_ACCOUNT, *list_claude_accounts(config.project_dir, env_file)]
-    configured = config.claude_account.lower().replace("-", "_") or CLAUDE_DEFAULT_ACCOUNT
+    """List the Claude accounts (tokens in .env and login profiles) without secrets."""
+    token_accounts = {
+        claude_account_slug(name): name
+        for name in list_claude_accounts(config.project_dir, env_file)
+    }
+    login_accounts = {claude_account_slug(name): name for name in list_claude_login_accounts()}
+    names = {**login_accounts, **token_accounts}
+    accounts = [CLAUDE_DEFAULT_ACCOUNT, *(names[slug] for slug in sorted(names))]
+    configured = claude_account_slug(config.claude_account or CLAUDE_DEFAULT_ACCOUNT)
     console.print("[bold]Claude accounts:[/bold]")
     for name in accounts:
-        source = (
-            "~/.claude login" if name == CLAUDE_DEFAULT_ACCOUNT else claude_account_token_var(name)
-        )
-        note = f" [dim]({source})[/dim]"
+        slug = claude_account_slug(name)
+        sources: list[str] = []
+        if name == CLAUDE_DEFAULT_ACCOUNT:
+            sources.append("~/.claude login")
+        else:
+            if slug in token_accounts:
+                sources.append(f"token: {claude_account_token_var(name)}")
+            if slug in login_accounts:
+                sources.append(
+                    f"login profile: ~/.augint/claude-accounts/{claude_account_slug(name)}"
+                )
+            account_cfg = config.claude_account_config(name)
+            if account_cfg.chrome_profile:
+                sources.append(f"chrome profile: {account_cfg.chrome_profile}")
+            if account_cfg.local_chrome is not None:
+                sources.append(f"local_chrome: {str(account_cfg.local_chrome).lower()}")
+        note = f" [dim]({'; '.join(sources)})[/dim]"
         marker = (
-            " [green]<- selected when --account is omitted[/green]" if name == configured else ""
+            " [green]<- selected when --account is omitted[/green]" if slug == configured else ""
         )
         console.print(f"  {name}{note}{marker}")
     if len(accounts) == 1:
         console.print(
             "[dim]Add accounts to ~/.augint/.env as "
-            f"{claude_account_token_var('<name>')}=<token from 'claude setup-token'>[/dim]"
+            f"{claude_account_token_var('<name>')}=<token from 'claude setup-token'>, "
+            "or create a login profile with: ai-shell claude --account <name> --login[/dim]"
         )
-    console.print("[dim]Use: ai-shell claude --account <name>[/dim]")
+    console.print(
+        "[dim]Use: ai-shell claude --account <name>          # token or login profile[/dim]"
+    )
+    console.print(
+        "[dim]     ai-shell claude --account <name> --rc     "
+        "# Remote Control (login profile; created on first use)[/dim]"
+    )
+    console.print(
+        "[dim]     ai-shell claude --account <name> --login  # (re)authenticate the login profile[/dim]"
+    )
+
+
+# ``claude auth status`` reports how the session would authenticate. Remote
+# Control accepts only a claude.ai subscription login; an older CLI omits the
+# field, in which case the exit code is all there is to go on.
+CLAUDE_AI_AUTH_METHOD = "claude.ai"
+ANTHROPIC_API_HOST = "api.anthropic.com"
+
+
+def _claude_auth_method(status_output: str) -> str | None:
+    """Return ``authMethod`` from ``claude auth status`` JSON, or ``None`` if absent."""
+    try:
+        data = json.loads(status_output or "")
+    except ValueError:
+        return None
+    method = data.get("authMethod") if isinstance(data, dict) else None
+    return method if isinstance(method, str) else None
+
+
+def _check_remote_control_base_url(exec_env: dict[str, str]) -> None:
+    """Fail early when ``ANTHROPIC_BASE_URL`` points away from the Anthropic API.
+
+    Remote Control requires talking to ``api.anthropic.com`` directly, so a
+    gateway or proxy URL from ``.env`` or ``extra_env`` can only fail later
+    with a less specific error.
+    """
+    base_url = exec_env.get("ANTHROPIC_BASE_URL", "").strip()
+    if not base_url:
+        return
+    from urllib.parse import urlparse
+
+    host = (urlparse(base_url).hostname or "").lower()
+    if host != ANTHROPIC_API_HOST:
+        raise click.ClickException(
+            f"Remote Control requires the Anthropic API, but ANTHROPIC_BASE_URL={base_url} "
+            "points elsewhere (an LLM gateway or proxy). Remove it from .env / extra_env "
+            "for --rc."
+        )
+
+
+def _ensure_claude_login(
+    manager: ContainerManager,
+    container_name: str,
+    exec_env: dict[str, str],
+    *,
+    account_label: str,
+    workdir: str | None,
+    force: bool,
+    chrome_profile: str | None,
+    require_claude_ai: bool = False,
+) -> None:
+    """Make sure the Claude process will find a login; run ``claude auth login`` if not.
+
+    Used for login-profile accounts and for Remote Control, which refuses
+    API keys and setup-token tokens. ``claude auth status`` exits 0 when some
+    credential is present; with *require_claude_ai* (Remote Control) its
+    ``authMethod`` must also be ``claude.ai``, because a stored API key or an
+    ``apiKeyHelper`` also count as logged in but are rejected by the server.
+    The login flow is interactive: Claude prints a URL and waits for the
+    code, so it runs on the terminal before the real launch.
+    """
+    prefix = _unset_prefix(CLAUDE_REMOTE_CONTROL_UNSET_VARS)
+    if not force:
+        status = manager.exec_capture(
+            container_name,
+            [*prefix, "claude", "auth", "status"],
+            extra_env=exec_env,
+            workdir=workdir,
+        )
+        method = _claude_auth_method(status.stdout) if status.returncode == 0 else None
+        if status.returncode == 0 and (
+            not require_claude_ai or method in (None, CLAUDE_AI_AUTH_METHOD)
+        ):
+            return
+        if status.returncode == 0:
+            console.print(
+                f"[yellow]Current credential{account_label} is '{method}', but Remote "
+                "Control needs a claude.ai login. Starting 'claude auth login'...[/yellow]"
+            )
+        else:
+            console.print(
+                f"[yellow]No claude.ai login found{account_label}. "
+                "Starting 'claude auth login'...[/yellow]"
+            )
+    else:
+        console.print(f"[bold]Running 'claude auth login'{account_label}...[/bold]")
+    if chrome_profile:
+        console.print(
+            f"[dim]Open the login URL in the Chrome window for profile '{chrome_profile}' "
+            "so the browser session matches the account.[/dim]"
+        )
+    exit_code, _ = manager.run_interactive(
+        container_name,
+        [*prefix, "claude", "auth", "login"],
+        extra_env=exec_env,
+        workdir=workdir,
+    )
+    if exit_code != 0:
+        raise click.ClickException(
+            f"'claude auth login' failed{account_label}. A claude.ai login is required."
+        )
+
+
+def _register_chrome_mcp(
+    manager: ContainerManager,
+    container_name: str,
+    exec_env: dict[str, str],
+    *,
+    workdir: str,
+    chrome_port: int,
+) -> None:
+    """Register chrome-devtools-mcp in the account's Claude config for this project.
+
+    ``claude remote-control`` refuses global flags such as ``--mcp-config``,
+    so the server is stored at ``local`` scope (this project, in the active
+    ``CLAUDE_CONFIG_DIR``) with ``claude mcp add-json``. Re-adding an existing
+    name fails, so any previous entry is removed first; that also refreshes
+    the port if it changed.
+    """
+    from ai_shell.local_chrome import CHROME_MCP_SERVER_NAME, chrome_mcp_server_spec
+
+    base = ["claude", "mcp"]
+    manager.exec_capture(
+        container_name,
+        [*base, "remove", "--scope", "local", CHROME_MCP_SERVER_NAME],
+        extra_env=exec_env,
+        workdir=workdir,
+    )
+    result = manager.exec_capture(
+        container_name,
+        [
+            *base,
+            "add-json",
+            "--scope",
+            "local",
+            CHROME_MCP_SERVER_NAME,
+            json.dumps(chrome_mcp_server_spec(chrome_port)),
+        ],
+        extra_env=exec_env,
+        workdir=workdir,
+    )
+    if result.returncode != 0:
+        raise click.ClickException(
+            "Could not register the Chrome MCP server for Remote Control: "
+            f"{(result.stderr or result.stdout or '').strip()}"
+        )
+    console.print("[dim]Chrome DevTools MCP registered for the Remote Control session.[/dim]")
+
+
+def _remote_control_cmd(*, name: str, safe: bool, extra_args: tuple[str, ...]) -> list[str]:
+    """Build the ``claude remote-control`` command for a server-mode session."""
+    cmd = [
+        *_unset_prefix(CLAUDE_REMOTE_CONTROL_UNSET_VARS),
+        "claude",
+        "remote-control",
+        "--name",
+        name,
+    ]
+    if not safe:
+        cmd.extend(["--permission-mode", "bypassPermissions"])
+    cmd.extend(extra_args)
+    return cmd
 
 
 def _launch_loaded_config_claude(
@@ -552,11 +793,26 @@ def _launch_loaded_config_claude(
     use_t3: bool = False,
     use_expo: bool | None = None,
     cli_account: str | None = None,
+    remote_control: str | None = None,
+    force_login: bool = False,
 ) -> None:
-    """Launch Claude for an already loaded project config."""
+    """Launch Claude for an already loaded project config.
+
+    *remote_control* switches to ``claude remote-control`` (server mode) with
+    the given session name (empty string = derived from project and account).
+    *force_login* runs ``claude auth login`` for the selected account before
+    the launch. Both use the account's login profile instead of its token.
+    """
     with capture_typeahead() as typeahead:
         use_bedrock = use_aws or config.claude_provider == "aws"
         claude_account = cli_account or config.claude_account
+        named_account = _is_named_account(claude_account)
+        use_login_profile = named_account and (force_login or remote_control is not None)
+        if remote_control is not None and use_bedrock:
+            raise click.ClickException(
+                "Remote Control needs a claude.ai login on the Anthropic API; "
+                "it cannot run via Bedrock (--aws or claude.provider: aws)."
+            )
         manager = ContainerManager(config)
         container_name = manager.ensure_dev_container()
         _print_dev_ports(manager, container_name)
@@ -567,9 +823,17 @@ def _launch_loaded_config_claude(
             cli_profile=cli_profile,
             claude_account=claude_account,
             env_file=env_file,
+            claude_login=use_login_profile,
         )
+        if remote_control is not None:
+            # Server mode refuses API keys and setup-token tokens outright.
+            exec_env = {
+                k: v for k, v in exec_env.items() if k not in CLAUDE_REMOTE_CONTROL_UNSET_VARS
+            }
+            _check_remote_control_base_url(exec_env)
         account_prefix = _claude_account_cmd_prefix(exec_env)
         account_label = _claude_account_label(claude_account, exec_env)
+        chrome_profile = _account_chrome_profile(config, claude_account)
 
         if team_mode:
             exec_env = dict(exec_env)
@@ -602,30 +866,83 @@ def _launch_loaded_config_claude(
         _attach_expo(manager, container_name, config, exec_env, use_expo=use_expo)
 
         mcp_args: list[str] = []
+        chrome_port: int | None = None
         if local_chrome:
-            mcp_args, _ = _configure_local_chrome(
+            mcp_args, _, chrome_port = _configure_local_chrome(
                 container_name,
                 project_name=config.project_name,
                 project_dir=config.project_dir,
+                chrome_profile=chrome_profile,
             )
 
         # AUTO-UPDATE: Check tool freshness before launch
         manager.ensure_tool_fresh(container_name, "claude")
 
+        needs_login = force_login or remote_control is not None or CLAUDE_CONFIG_DIR_VAR in exec_env
+        session_workdir = workdir or f"/root/projects/{config.project_name}"
+
+        remote_cmd: list[str] | None = None
+        if remote_control is not None:
+            session_name = remote_control or (
+                f"{config.project_name} ({claude_account})"
+                if named_account
+                else config.project_name
+            )
+            remote_cmd = _remote_control_cmd(name=session_name, safe=safe, extra_args=extra_args)
+            console.print(
+                f"[bold]Starting Claude Code Remote Control{account_label} "
+                f"as '{session_name}' in {container_name}...[/bold]"
+            )
+            console.print(
+                "[dim]Drive it from claude.ai/code or the Claude app signed in to that account. "
+                "Ctrl+C stops the server.[/dim]"
+            )
+
         safe_cmd: list[str] | None = None
-        if safe:
+        if remote_cmd is None and safe:
             safe_cmd = [*account_prefix, "claude", *mcp_args, *extra_args]
             console.print(
                 f"[bold]Launching Claude Code (safe mode){bedrock_label}{account_label} "
                 f"in {container_name}...[/bold]"
             )
-        else:
+        elif remote_cmd is None:
             console.print(
                 f"[bold]Launching Claude Code{bedrock_label}{account_label} "
                 f"in {container_name}...[/bold]"
             )
 
     typeahead_bytes = typeahead.bytes()
+
+    # Interactive steps run outside the typeahead capture so they own the TTY.
+    if needs_login:
+        _ensure_claude_login(
+            manager,
+            container_name,
+            exec_env,
+            account_label=account_label,
+            workdir=session_workdir,
+            force=force_login,
+            chrome_profile=chrome_profile if local_chrome else None,
+            require_claude_ai=remote_control is not None,
+        )
+
+    if remote_cmd is not None:
+        if chrome_port is not None:
+            _register_chrome_mcp(
+                manager,
+                container_name,
+                exec_env,
+                workdir=session_workdir,
+                chrome_port=chrome_port,
+            )
+        manager.exec_interactive(
+            container_name,
+            remote_cmd,
+            extra_env=exec_env,
+            workdir=workdir,
+            typeahead=typeahead_bytes,
+        )
+        return
 
     if safe_cmd is not None:
         manager.exec_interactive(
@@ -843,10 +1160,11 @@ def _launch_interactive(
     # Handle shared Chrome if requested.
     mcp_config_path: str | None = None
     if interactive_config.shared_chrome:
-        _, mcp_config_path = _configure_local_chrome(
+        _, mcp_config_path, _ = _configure_local_chrome(
             container_name,
             project_name=config.project_name,
             project_dir=config.project_dir,
+            chrome_profile=_account_chrome_profile(config, cli_account or config.claude_account),
         )
 
     # Build pane specs.
@@ -1364,6 +1682,31 @@ def _launch_multi(
     ),
 )
 @click.option(
+    "--rc",
+    "--remote-control",
+    "remote_control",
+    default=None,
+    is_flag=False,
+    flag_value="",
+    help=(
+        "Start a Claude Code Remote Control server (claude remote-control) instead of "
+        "a terminal session, so the project can be driven from claude.ai/code or the "
+        "Claude app. An optional value names the session. With --account, the "
+        "account's login profile (~/.augint/claude-accounts/<name>) is used because "
+        "Remote Control rejects setup-token tokens; the first run asks you to log in."
+    ),
+)
+@click.option(
+    "--login",
+    "force_login",
+    is_flag=True,
+    default=False,
+    help=(
+        "Run 'claude auth login' before launching. With --account, this creates or "
+        "refreshes that account's login profile (used by --rc)."
+    ),
+)
+@click.option(
     "--t3",
     "use_t3",
     is_flag=True,
@@ -1408,6 +1751,8 @@ def claude(
     do_multi,
     do_team,
     local_chrome,
+    remote_control,
+    force_login,
     use_t3,
     use_expo,
     do_interactive,
@@ -1435,6 +1780,11 @@ def claude(
         raise click.ClickException(
             "--interactive and --local-chrome are incompatible "
             "(interactive handles Chrome setup itself)."
+        )
+    if (remote_control is not None or force_login) and (do_multi or do_team or do_interactive):
+        raise click.ClickException(
+            "--rc and --login run a single session; they are incompatible with "
+            "--multi, --team and --interactive."
         )
 
     if do_interactive or do_multi or do_team:
@@ -1490,7 +1840,7 @@ def claude(
     # Load config for the current project and launch a normal Claude session.
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
-    local_chrome = local_chrome or config.local_chrome is True
+    local_chrome = _resolve_local_chrome(config, cli_account or config.claude_account, local_chrome)
     _launch_loaded_config_claude(
         config,
         safe=safe,
@@ -1503,6 +1853,8 @@ def claude(
         use_t3=use_t3,
         use_expo=use_expo,
         cli_account=cli_account,
+        remote_control=remote_control,
+        force_login=force_login,
     )
 
 

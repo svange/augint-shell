@@ -72,6 +72,17 @@
 # claude:
 #   provider: anthropic          # "anthropic" (direct API) or "aws" (Bedrock)
 #   local_chrome: false          # Attach Chrome DevTools MCP to host Chrome
+#   account: work                # Default account (--account overrides)
+#   # Per-account defaults. The credential is NOT here: it is either
+#   # CLAUDE_CODE_OAUTH_TOKEN_<NAME> in ~/.augint/.env (terminal sessions) or
+#   # the login profile ~/.augint/claude-accounts/<name>/ created by
+#   # `ai-shell claude --account <name> --login` (needed for --rc).
+#   accounts:
+#     mike:
+#       local_chrome: true       # Open Mike's own Chrome window on launch
+#       chrome_profile: mike     # Chrome profile slug; defaults to the account name
+#     adam:
+#       local_chrome: true
 
 # --- Voice Agent -------------------------------------------------------------
 # voice_agent:
