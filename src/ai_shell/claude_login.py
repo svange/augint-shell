@@ -19,6 +19,7 @@ on the host terminal.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import subprocess
@@ -26,6 +27,7 @@ import threading
 from collections.abc import Callable
 from http.client import HTTPConnection, HTTPException
 from queue import Empty, Queue
+from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
@@ -49,21 +51,44 @@ def open_in_chrome(port: int, url: str) -> bool:
     """Open *url* as a new tab in the host Chrome listening on *port*.
 
     Uses the DevTools HTTP endpoint ``PUT /json/new?<url>`` from the host,
-    so the tab lands in the account's own profile window. Returns ``True``
-    when Chrome accepted the request.
+    so the tab lands in the account's own profile window. The URL is
+    percent-encoded in full: passed raw, Chrome cuts it at the first ``&``
+    and the sign-in page fails with "Missing client_id parameter". Chrome
+    unescapes the query before opening it. Returns ``True`` only when
+    Chrome's reply shows the new tab carries the full URL.
     """
     connection = HTTPConnection("127.0.0.1", port, timeout=5)
     try:
-        # Chrome takes everything after ``?`` verbatim as the URL to open.
-        connection.request("PUT", f"/json/new?{url}")
+        connection.request("PUT", f"/json/new?{quote(url, safe='')}")
         response = connection.getresponse()
-        response.read()
-        return response.status == 200
+        body = response.read()
+        if response.status != 200:
+            return False
     except (OSError, HTTPException) as exc:
         logger.debug("Could not open login URL in Chrome on port %s: %s", port, exc)
         return False
     finally:
         connection.close()
+    try:
+        target = json.loads(body.decode("utf-8", "replace"))
+    except ValueError:
+        target = {}
+    opened = target.get("url", "") if isinstance(target, dict) else ""
+    if not _same_login_url(opened, url):
+        logger.warning("Chrome opened %r instead of the full login URL", opened)
+        return False
+    return True
+
+
+def _same_login_url(opened: str, wanted: str) -> bool:
+    """True when the tab Chrome reports carries every query parameter we sent."""
+    if not opened:
+        return False
+    wanted_query = wanted.split("?", 1)[1] if "?" in wanted else ""
+    opened_query = opened.split("?", 1)[1] if "?" in opened else ""
+    wanted_params = {part.split("=", 1)[0] for part in wanted_query.split("&") if part}
+    opened_params = {part.split("=", 1)[0] for part in opened_query.split("&") if part}
+    return wanted_params <= opened_params
 
 
 def _pump(stream: object, queue: Queue[str | None]) -> None:
