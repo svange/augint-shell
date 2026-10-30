@@ -673,6 +673,7 @@ def _ensure_claude_login(
     workdir: str | None,
     force: bool,
     chrome_profile: str | None,
+    chrome_port: int | None = None,
     require_claude_ai: bool = False,
 ) -> None:
     """Make sure the Claude process will find a login; run ``claude auth login`` if not.
@@ -710,21 +711,72 @@ def _ensure_claude_login(
             )
     else:
         console.print(f"[bold]Running 'claude auth login'{account_label}...[/bold]")
-    if chrome_profile:
-        console.print(
-            f"[dim]Open the login URL in the Chrome window for profile '{chrome_profile}' "
-            "so the browser session matches the account.[/dim]"
-        )
-    exit_code, _ = manager.run_interactive(
+    login_cmd = [*prefix, "claude", "auth", "login"]
+    exit_code = _piped_claude_login(
+        manager,
         container_name,
-        [*prefix, "claude", "auth", "login"],
-        extra_env=exec_env,
+        login_cmd,
+        exec_env=exec_env,
         workdir=workdir,
+        chrome_port=chrome_port,
+        chrome_profile=chrome_profile,
     )
+    if exit_code is None:
+        # No login URL came through the pipe; fall back to Claude's own TTY flow.
+        if chrome_profile:
+            console.print(
+                f"[dim]Open the login URL in the Chrome window for profile '{chrome_profile}' "
+                "so the browser session matches the account.[/dim]"
+            )
+        exit_code, _ = manager.run_interactive(
+            container_name, login_cmd, extra_env=exec_env, workdir=workdir
+        )
     if exit_code != 0:
         raise click.ClickException(
             f"'claude auth login' failed{account_label}. A claude.ai login is required."
         )
+
+
+def _piped_claude_login(
+    manager: ContainerManager,
+    container_name: str,
+    login_cmd: list[str],
+    *,
+    exec_env: dict[str, str],
+    workdir: str | None,
+    chrome_port: int | None,
+    chrome_profile: str | None,
+) -> int | None:
+    """Run ``claude auth login`` over pipes from the host (see ``claude_login``).
+
+    The authorize URL never crosses the container TTY: it opens in the
+    account's host Chrome window when one is attached, otherwise it is printed
+    unwrapped. The code is read from a prompt on the host terminal and piped
+    to Claude. Returns the exit code, or ``None`` if no URL appeared.
+    """
+    from ai_shell.claude_login import open_in_chrome, run_piped_login
+
+    def open_url(url: str) -> bool:
+        if chrome_port is not None and open_in_chrome(chrome_port, url):
+            console.print(
+                f"[bold]Sign-in page opened in the Chrome window for '{chrome_profile}'.[/bold] "
+                "Sign in there as that account; the browser then shows a code."
+            )
+            return True
+        console.print("[bold]Open this URL in a browser signed in as the account:[/bold]")
+        console.print(url, soft_wrap=True, markup=False, highlight=False)
+        return True
+
+    def prompt_code() -> str:
+        return str(click.prompt("Paste the code the browser shows", default="", show_default=False))
+
+    def echo(line: str) -> None:
+        console.print(line, style="dim", markup=False, highlight=False, soft_wrap=True)
+
+    args = manager.exec_args(
+        container_name, login_cmd, extra_env=exec_env, workdir=workdir, stdin=True
+    )
+    return run_piped_login(args, open_url=open_url, prompt_code=prompt_code, echo=echo)
 
 
 def _register_chrome_mcp(
@@ -932,6 +984,7 @@ def _launch_loaded_config_claude(
             workdir=session_workdir,
             force=force_login,
             chrome_profile=chrome_profile if local_chrome else None,
+            chrome_port=chrome_port,
             require_claude_ai=remote_control is not None,
         )
 

@@ -612,6 +612,28 @@ class ContainerManager:
         logger.debug("exec-detached: %s", " ".join(args))
         return subprocess.run(args, check=True)
 
+    @staticmethod
+    def exec_args(
+        container_name: str,
+        command: list[str],
+        extra_env: dict[str, str] | None = None,
+        workdir: str | None = None,
+        *,
+        stdin: bool = False,
+    ) -> list[str]:
+        """Build a ``docker exec`` argv without a TTY (``-i`` when *stdin* is piped)."""
+        args = ["docker", "exec"]
+        if stdin:
+            args.append("-i")
+        if workdir:
+            args.extend(["-w", workdir])
+        if extra_env:
+            for key, value in extra_env.items():
+                args.extend(["-e", f"{key}={value}"])
+        args.append(container_name)
+        args.extend(command)
+        return args
+
     def exec_capture(
         self,
         container_name: str,
@@ -620,14 +642,7 @@ class ContainerManager:
         workdir: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         """Run a non-interactive command in a container and capture its output."""
-        args = ["docker", "exec"]
-        if workdir:
-            args.extend(["-w", workdir])
-        if extra_env:
-            for key, value in extra_env.items():
-                args.extend(["-e", f"{key}={value}"])
-        args.append(container_name)
-        args.extend(command)
+        args = self.exec_args(container_name, command, extra_env, workdir)
         logger.debug("exec-capture: %s", " ".join(args))
         return subprocess.run(args, capture_output=True, text=True)
 

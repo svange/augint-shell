@@ -1685,6 +1685,10 @@ class TestClaudeRemoteControl:
             "CLAUDE_CODE_OAUTH_TOKEN_WOXOM=tok-woxom\nANTHROPIC_API_KEY=sk-ant-global\n"
         )
         self.runner = CliRunner()
+        # The piped login talks to a real subprocess; stub it at the module seam.
+        with patch("ai_shell.claude_login.run_piped_login", return_value=0) as piped:
+            self.piped_login = piped
+            yield
 
     def _setup(self, mock_config, mock_manager_cls, config=None, logged_in=True):
         from ai_shell.config import AiShellConfig
@@ -1757,13 +1761,31 @@ class TestClaudeRemoteControl:
         result = self.runner.invoke(cli, ["claude", "--rc", "--account", "mike"])
 
         assert result.exit_code == 0, result.output
-        login_cmd = manager.run_interactive.call_args[0][1]
-        assert login_cmd == [*RC_PREFIX, "claude", "auth", "login"]
-        login_env = manager.run_interactive.call_args[1]["extra_env"]
-        assert login_env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/mike"
-        assert manager.run_interactive.call_args[1]["workdir"] == "/root/projects/demo"
+        # Login runs over pipes from the host, not through the container TTY.
+        self.piped_login.assert_called_once()
+        exec_args_call = manager.exec_args.call_args
+        assert exec_args_call[0][1] == [*RC_PREFIX, "claude", "auth", "login"]
+        assert exec_args_call[1]["extra_env"]["CLAUDE_CONFIG_DIR"] == (
+            "/root/.augint/claude-accounts/mike"
+        )
+        assert exec_args_call[1]["workdir"] == "/root/projects/demo"
+        assert exec_args_call[1]["stdin"] is True
+        manager.run_interactive.assert_not_called()
         assert "No claude.ai login found" in result.output
         # Then the server starts.
+        assert "remote-control" in manager.exec_interactive.call_args[0][1]
+
+    def test_rc_falls_back_to_tty_login_when_no_url_appears(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        manager = self._setup(mock_config, mock_manager_cls, logged_in=False)
+        self.piped_login.return_value = None
+
+        result = self.runner.invoke(cli, ["claude", "--rc", "--account", "mike"])
+
+        assert result.exit_code == 0, result.output
+        login_cmd = manager.run_interactive.call_args[0][1]
+        assert login_cmd == [*RC_PREFIX, "claude", "auth", "login"]
         assert "remote-control" in manager.exec_interactive.call_args[0][1]
 
     def test_rc_relogs_in_when_credential_is_not_claude_ai(
@@ -1777,7 +1799,7 @@ class TestClaudeRemoteControl:
         result = self.runner.invoke(cli, ["claude", "--rc"])
 
         assert result.exit_code == 0, result.output
-        assert manager.run_interactive.call_args[0][1] == [*RC_PREFIX, "claude", "auth", "login"]
+        self.piped_login.assert_called_once()
         assert "api_key" in result.output
 
     def test_rc_accepts_claude_ai_auth_method(self, mock_config, mock_manager_cls, mock_expo):
@@ -1830,7 +1852,7 @@ class TestClaudeRemoteControl:
 
     def test_rc_aborts_when_auth_login_fails(self, mock_config, mock_manager_cls, mock_expo):
         manager = self._setup(mock_config, mock_manager_cls, logged_in=False)
-        manager.run_interactive.return_value = (1, 2.0)
+        self.piped_login.return_value = 1
 
         result = self.runner.invoke(cli, ["claude", "--rc", "--account", "mike"])
 
@@ -1915,10 +1937,11 @@ class TestClaudeRemoteControl:
         assert result.exit_code == 0, result.output
         # Forced login runs without checking status first.
         assert not any("status" in c[0][1] for c in manager.exec_capture.call_args_list)
+        self.piped_login.assert_called_once()
+        assert manager.exec_args.call_args[0][1] == [*RC_PREFIX, "claude", "auth", "login"]
         calls = manager.run_interactive.call_args_list
-        assert calls[0][0][1] == [*RC_PREFIX, "claude", "auth", "login"]
-        assert calls[1][0][1] == [*RC_PREFIX, "claude", "--dangerously-skip-permissions", "-c"]
-        env = calls[1][1]["extra_env"]
+        assert calls[0][0][1] == [*RC_PREFIX, "claude", "--dangerously-skip-permissions", "-c"]
+        env = calls[0][1]["extra_env"]
         assert env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/mike"
         assert "ANTHROPIC_API_KEY" not in env
 
