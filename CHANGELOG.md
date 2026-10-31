@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.113.1 (2026-10-31)
+
+### Bug Fixes
+
+- **local-chrome**: Bake in chrome-devtools-mcp and check it answers before Claude starts (#178)
+  ([#178](https://github.com/svange/augint-shell/pull/178),
+  [`52f49c1`](https://github.com/svange/augint-shell/commit/52f49c1a9d08354649eb3ced098ea01f68a48532))
+
+
 ## v0.113.0 (2026-10-31)
 
 ### Features
