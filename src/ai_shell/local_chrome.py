@@ -22,6 +22,7 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from collections.abc import Callable, Mapping
@@ -123,14 +124,15 @@ def find_chrome() -> str | None:
 
 
 def chrome_bind_address(container_name: str) -> str:
-    """Address Chrome's debug port must listen on so the container can reach it.
+    """Address the container reaches the host at, where the DevTools port must answer.
 
     Docker Desktop (Windows, macOS) forwards ``host.docker.internal`` to the
     host's loopback, so ``127.0.0.1`` works there. On a Linux host (Docker or
-    podman) ``host.docker.internal`` resolves to the bridge gateway address,
-    and a loopback-only listener is unreachable from containers, so Chrome
-    binds to the address the container actually resolves for the host. That
-    address is reachable from the host and its containers only.
+    podman) ``host.docker.internal`` resolves to a real host address, and a
+    loopback-only listener is unreachable from containers. A windowed Chrome
+    binds to loopback only (it ignores ``--remote-debugging-address``), so on
+    that address ai-shell runs :mod:`ai_shell.cdp_relay`, which forwards to
+    Chrome's loopback port and serves the host's own addresses only.
     """
     if platform.system() != "Linux":
         return LOOPBACK
@@ -148,7 +150,7 @@ def chrome_bind_address(container_name: str) -> str:
         else:
             return candidate
     logger.warning(
-        "%s does not resolve inside %s; Chrome will bind to loopback, which Linux "
+        "%s does not resolve inside %s; only Chrome's loopback port exists, which Linux "
         "containers cannot reach. Docker needs `host-gateway` support (20.10+), podman 4.1+.",
         CHROME_DEBUG_HOST,
         container_name,
@@ -228,11 +230,11 @@ is not reachable.
 To fix, launch Chrome manually with these flags:
 
   {binary} --remote-debugging-port={port} \\
-    --remote-debugging-address={bind_address} \\
     --remote-allow-origins=* \\
     --user-data-dir="{profile_dir}"{proxy_flag}
 
-Then re-run this command for project '{project_name}'.
+Then re-run this command for project '{project_name}'; ai-shell relays the port to \
+{bind_address} for the container when that is needed.
 See README.md "Attaching to host Chrome" for details."""
 
 
@@ -358,10 +360,12 @@ def launch_chrome(
         return False
 
     profile_dir = _chrome_profile_dir(project_name, project_dir, profile)
+    # No --remote-debugging-address: a windowed Chrome ignores it and binds to
+    # loopback regardless; *bind_address* is served by the relay instead.
+    del bind_address
     args = [
         chrome_path,
         f"--remote-debugging-port={port}",
-        f"--remote-debugging-address={bind_address}",
         "--remote-allow-origins=*",
         f"--user-data-dir={profile_dir}",
         # A fresh profile dir otherwise opens first-run / default-browser dialogs.
@@ -506,6 +510,27 @@ def probe_chrome_port(container_name: str, port: int) -> bool:
     return True
 
 
+def relay_log_path(port: int) -> Path:
+    """Where the relay for *port* writes its log."""
+    return Path.home() / ".augint" / "chrome" / f"cdp-relay-{port}.log"
+
+
+def start_cdp_relay(bind_address: str, port: int) -> None:
+    """Relay *bind_address*:*port* to Chrome's loopback port, detached, unless one answers already.
+
+    The relay is :mod:`ai_shell.cdp_relay`, run with the same interpreter
+    that runs ai-shell; it exits by itself once Chrome's port is gone.
+    """
+    if probe_host_chrome_port(port, bind_address):
+        return
+    log_path = relay_log_path(port)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    args = [sys.executable, "-m", "ai_shell.cdp_relay", bind_address, str(port)]
+    logger.info("Starting the DevTools relay: %s", " ".join(args))
+    with log_path.open("ab") as log:
+        _spawn_detached(args, stderr=log)
+
+
 def probe_host_chrome_port(port: int, host: str = LOOPBACK) -> bool:
     """Check whether a Chrome debug port is reachable on the host at *host*."""
     connection = HTTPConnection(host, port, timeout=2)
@@ -580,16 +605,32 @@ def ensure_host_chrome(
     if not _wait_until_ready(
         probe_host_chrome_port,
         port,
-        bind_address,
+        LOOPBACK,
         timeout_seconds=CHROME_HOST_PROBE_TIMEOUT_SECONDS,
     ):
         raise LocalChromeUnavailable(
             f"Chrome was launched for project '{project_name}' on port {port}, but the "
-            f"debug port did not open on {bind_address} within "
+            f"debug port did not open on {LOOPBACK} within "
             f"{int(CHROME_HOST_PROBE_TIMEOUT_SECONDS)} seconds.\n\n"
             "If another ai-shell Chrome window for this project is already open, "
             "close it and retry."
         )
+
+    if bind_address != LOOPBACK:
+        # Linux: the container reaches the host at bind_address, where only
+        # the relay can answer (Chrome itself listens on loopback alone).
+        start_cdp_relay(bind_address, port)
+        if not _wait_until_ready(
+            probe_host_chrome_port,
+            port,
+            bind_address,
+            timeout_seconds=CHROME_HOST_PROBE_TIMEOUT_SECONDS,
+        ):
+            raise LocalChromeUnavailable(
+                f"Chrome answers on {LOOPBACK}:{port}, but ai-shell's relay did not open "
+                f"{bind_address}:{port} within {int(CHROME_HOST_PROBE_TIMEOUT_SECONDS)} "
+                f"seconds. Its log: {relay_log_path(port)}"
+            )
 
     if _wait_until_ready(
         probe_chrome_port,
