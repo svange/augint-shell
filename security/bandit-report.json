@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-10-31T03:28:30Z",
+  "generated_at": "2026-10-31T03:41:30Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 74,
+      "CONFIDENCE.HIGH": 82,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 2,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 76,
+      "SEVERITY.LOW": 84,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 8942,
+      "loc": 9106,
       "nosec": 0,
       "skipped_tests": 13
     },
@@ -154,7 +154,7 @@
       "SEVERITY.LOW": 28,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 2470,
+      "loc": 2475,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -263,15 +263,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/local_chrome.py": {
-      "CONFIDENCE.HIGH": 10,
+      "CONFIDENCE.HIGH": 18,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 10,
+      "SEVERITY.LOW": 18,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 520,
+      "loc": 679,
       "nosec": 0,
       "skipped_tests": 0
     },
