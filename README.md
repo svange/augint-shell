@@ -365,7 +365,7 @@ Without `--local-chrome`, the sign-in URL is printed and works in any browser on
 
 On a host whose own address sites refuse (a cloud dev box, a datacenter), Chrome gets a proxy. `claude.chrome_proxy` (or `claude.accounts.<name>.chrome_proxy`, `AI_SHELL_CHROME_PROXY`, `--chrome-proxy` on `claude` and `chrome`) is either:
 
-- **`vpn`**: ai-shell's own VPN container. ai-shell runs [gluetun](https://github.com/qdm12/gluetun) (NordVPN over WireGuard) as a host-level singleton container, `augint-shell-vpn`, with an HTTP proxy on `127.0.0.1:8888`, starts it before the first window opens, waits until traffic flows through it, and points Chrome at it. Rootless Podman is enough: `NET_ADMIN` and `/dev/net/tun`, no root. Settings under `vpn:` (country, firewall, proxy port); a changed setting recreates the container. When gluetun's firewall cannot run in the container runtime, ai-shell recreates the container once without it and remembers (`~/.augint/vpn/firewall-off`).
+- **`vpn`**: ai-shell's own VPN container. ai-shell runs [gluetun](https://github.com/qdm12/gluetun) (NordVPN over WireGuard) as a host-level singleton container, `augint-shell-vpn`, with an HTTP proxy on `127.0.0.1:8888`, starts it before the first window opens, waits until traffic flows through it, and points Chrome at it. Rootless Podman is enough: `NET_ADMIN` and `/dev/net/tun`, no root. An account that owns a NordVPN [dedicated IP](https://nordvpn.com/features/dedicated-ip/) gets it without being asked: the token also names the account's dedicated-IP server, and gluetun is pinned to that server. A shared NordVPN exit is a datacenter address that Google scores like the host's own; the dedicated IP is the one its owner already uses on a phone or laptop. Settings under `vpn:` (country, firewall, proxy port); a changed setting recreates the container, and the country filter is ignored while a server is pinned. When gluetun's firewall cannot run in the container runtime, ai-shell recreates the container once without it and remembers (`~/.augint/vpn/firewall-off`).
 - **a Chrome `--proxy-server` value** (`http://host:port`, `socks5://host:port`) for a proxy you run yourself.
 
 Only the browser is proxied. The dev container and Claude Code keep the machine's own route, which Anthropic accepts. A running Chrome keeps the proxy it was started with; ai-shell's sign-in flow closes and reopens its own windows, so this matters only for a window you keep open across a config change.
@@ -377,6 +377,8 @@ NORDVPN_TOKEN=<access token>   # Nord Account -> NordVPN -> Manual setup -> Acce
 ```
 
 ai-shell trades the token once for the account's WireGuard key through NordVPN's API and caches the key under `~/.augint/vpn/` (mode 0600); the token can expire, the key does not. `NORDVPN_WIREGUARD_PRIVATE_KEY=...` works too. Without either, `ai-shell vpn up` asks for the token on the terminal; a `--local-chrome` launch asks as well.
+
+The same token is used once to look up the account's dedicated-IP server; the answer (a hostname, or "none") is cached in `~/.augint/vpn/nordvpn-server`. `NORDVPN_SERVER=us2943` (or the full `us2943.nordvpn.com`) in `.env` pins another server, `NORDVPN_SERVER=any` forces a shared one, and `ai-shell vpn down` forgets the cached answer. `ai-shell vpn status` prints the pinned server and the exit address, which should be the dedicated IP.
 
 ```bash
 ai-shell vpn up        # start it now and print the exit address

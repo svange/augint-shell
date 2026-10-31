@@ -14,14 +14,19 @@ from ai_shell.vpn import (
     VPN_IMAGE,
     VpnUnavailable,
     config_digest,
+    configured_server,
     ensure_vpn,
     ensure_vpn_for_config,
+    fetch_dedicated_ip_server,
     fetch_wireguard_key,
     firewall_off_marker,
     key_cache_path,
+    normalize_server,
     remove_vpn,
+    resolve_server,
     resolve_wireguard_key,
     run_kwargs,
+    server_cache_path,
     vpn_status,
     wait_for_proxy,
 )
@@ -98,6 +103,122 @@ class TestFetchKey:
             fetch_wireguard_key(TOKEN)
 
 
+def _json_response(payload):
+    response = MagicMock()
+    response.read.return_value = json.dumps(payload).encode()
+    response.__enter__ = lambda s: s
+    response.__exit__ = MagicMock(return_value=False)
+    return response
+
+
+SERVICES = [
+    {"id": 1, "service": {"id": 1, "identifier": "vpn"}, "details": {}},
+    {
+        "id": 2,
+        "service": {"id": 7, "identifier": "dedicated_ip"},
+        "details": {"servers": [{"id": 947235}]},
+    },
+]
+SERVER_ROWS = [{"hostname": "us2943.nordvpn.com", "id": 947235}]
+
+
+class TestDedicatedIpServer:
+    @patch("ai_shell.vpn.urllib.request.urlopen")
+    def test_looks_up_the_account_server(self, mock_open):
+        mock_open.side_effect = [_json_response(SERVICES), _json_response(SERVER_ROWS)]
+
+        assert fetch_dedicated_ip_server(TOKEN) == "us2943.nordvpn.com"
+
+        services_request = mock_open.call_args_list[0][0][0]
+        expected = base64.b64encode(f"token:{TOKEN}".encode()).decode()
+        assert services_request.full_url == "https://api.nordvpn.com/v1/users/services"
+        assert services_request.get_header("Authorization") == f"Basic {expected}"
+        servers_request = mock_open.call_args_list[1][0][0]
+        assert servers_request.full_url == (
+            "https://api.nordvpn.com/v1/servers?filters[servers.id]=947235&fields[servers.hostname]"
+        )
+        assert servers_request.get_header("Authorization") is None
+
+    @patch("ai_shell.vpn.urllib.request.urlopen")
+    def test_account_without_dedicated_ip_is_empty(self, mock_open):
+        mock_open.return_value = _json_response(SERVICES[:1])
+        assert fetch_dedicated_ip_server(TOKEN) == ""
+        mock_open.assert_called_once()
+
+    @patch("ai_shell.vpn.urllib.request.urlopen")
+    def test_server_without_hostname_is_an_error(self, mock_open):
+        mock_open.side_effect = [_json_response(SERVICES), _json_response([])]
+        with pytest.raises(VpnUnavailable, match="no hostname"):
+            fetch_dedicated_ip_server(TOKEN)
+
+    @patch("ai_shell.vpn.urllib.request.urlopen")
+    def test_api_error_names_the_status(self, mock_open):
+        mock_open.side_effect = urllib.error.HTTPError(
+            "https://api.nordvpn.com", 500, "Server Error", {}, io.BytesIO(b"")
+        )
+        with pytest.raises(VpnUnavailable, match="answered 500"):
+            fetch_dedicated_ip_server(TOKEN)
+
+    def test_normalize(self):
+        assert normalize_server("us2943") == "us2943.nordvpn.com"
+        assert normalize_server(" US2943.nordvpn.com\n") == "us2943.nordvpn.com"
+        assert normalize_server("") == ""
+        assert normalize_server("any") == ""
+        with pytest.raises(VpnUnavailable, match="not a NordVPN server name"):
+            normalize_server("us 2943")
+
+
+class TestResolveServer:
+    def test_override_wins_without_api(self, isolate_home):
+        fetch = MagicMock()
+        env = {"NORDVPN_SERVER": "us2943", "NORDVPN_TOKEN": TOKEN}
+        assert resolve_server(env, fetch=fetch) == "us2943.nordvpn.com"
+        assert configured_server(env) == "us2943.nordvpn.com"
+        fetch.assert_not_called()
+
+    def test_any_forces_a_shared_server(self, isolate_home):
+        server_cache_path().parent.mkdir(parents=True)
+        server_cache_path().write_text("us2943.nordvpn.com\n")
+        assert resolve_server({"NORDVPN_SERVER": "any"}, fetch=MagicMock()) == ""
+
+    def test_token_lookup_is_cached(self, isolate_home):
+        fetch = MagicMock(return_value="us2943.nordvpn.com")
+        env = {"NORDVPN_TOKEN": TOKEN}
+
+        assert resolve_server(env, fetch=fetch) == "us2943.nordvpn.com"
+        fetch.assert_called_once_with(TOKEN)
+        assert server_cache_path().read_text().strip() == "us2943.nordvpn.com"
+        assert configured_server({}) == "us2943.nordvpn.com"
+
+        assert resolve_server(env, fetch=fetch) == "us2943.nordvpn.com"
+        fetch.assert_called_once()
+
+    def test_no_dedicated_ip_is_remembered(self, isolate_home):
+        fetch = MagicMock(return_value="")
+        assert resolve_server({"NORDVPN_TOKEN": TOKEN}, fetch=fetch) == ""
+        assert server_cache_path().is_file()
+        assert configured_server({}) == ""
+        assert resolve_server({"NORDVPN_TOKEN": TOKEN}, fetch=fetch) == ""
+        fetch.assert_called_once()
+
+    def test_without_token_nothing_is_pinned(self, isolate_home):
+        fetch = MagicMock()
+        assert resolve_server({}, fetch=fetch) == ""
+        assert configured_server({}) is None
+        fetch.assert_not_called()
+        assert not server_cache_path().exists()
+
+    def test_refused_token_does_not_block(self, isolate_home):
+        fetch = MagicMock(side_effect=VpnUnavailable("NordVPN API answered 401 for x."))
+        assert resolve_server({"NORDVPN_TOKEN": TOKEN}, fetch=fetch) == ""
+        assert not server_cache_path().exists()
+
+    def test_other_lookup_failures_propagate(self, isolate_home):
+        fetch = MagicMock(side_effect=VpnUnavailable("Could not reach the NordVPN API: x"))
+        with pytest.raises(VpnUnavailable, match="Could not reach"):
+            resolve_server({"NORDVPN_TOKEN": TOKEN}, fetch=fetch)
+
+
 class TestRunKwargs:
     def test_gluetun_settings(self):
         kwargs = run_kwargs(
@@ -122,13 +243,27 @@ class TestRunKwargs:
             "environment"
         ]
         assert "SERVER_COUNTRIES" not in env
+        assert "SERVER_HOSTNAMES" not in env
         assert env["FIREWALL"] == "off"
+
+    def test_server_pins_the_hostname_and_replaces_the_country(self):
+        env = run_kwargs(
+            key=KEY,
+            country="Canada",
+            firewall=True,
+            proxy_port=1,
+            digest="d",
+            server="us2943.nordvpn.com",
+        )["environment"]
+        assert env["SERVER_HOSTNAMES"] == "us2943.nordvpn.com"
+        assert "SERVER_COUNTRIES" not in env
 
     def test_digest_changes_with_settings_and_hides_the_key(self):
         a = config_digest(KEY, "US", True, 8888)
         assert a != config_digest(KEY, "CA", True, 8888)
         assert a != config_digest(KEY, "US", False, 8888)
         assert a != config_digest("other", "US", True, 8888)
+        assert a != config_digest(KEY, "US", True, 8888, "us2943.nordvpn.com")
         assert KEY not in a and len(a) == 16
 
 
@@ -264,7 +399,9 @@ class TestEnsureVpn:
 
         augint = isolate_home / ".augint"
         augint.mkdir()
-        (augint / ".env").write_text(f"NORDVPN_WIREGUARD_PRIVATE_KEY={KEY}\n")
+        (augint / ".env").write_text(
+            f"NORDVPN_WIREGUARD_PRIVATE_KEY={KEY}\nNORDVPN_SERVER=us2943\n"
+        )
         config = AiShellConfig(project_name="demo", project_dir=tmp_path)
         config.vpn_country = "United States"
         config.vpn_firewall = False
@@ -277,20 +414,53 @@ class TestEnsureVpn:
             "country": "United States",
             "firewall": False,
             "proxy_port": 8890,
+            "server": "us2943.nordvpn.com",
             "echo": None,
         }
+
+    @patch("ai_shell.vpn.urllib.request.urlopen")
+    @patch("ai_shell.vpn.ensure_vpn", return_value="http://127.0.0.1:8888")
+    def test_for_config_prompted_token_serves_both_lookups(
+        self, mock_ensure, mock_open, isolate_home, tmp_path
+    ):
+        from ai_shell.config import AiShellConfig
+
+        mock_open.side_effect = [
+            _json_response({"nordlynx_private_key": KEY}),
+            _json_response(SERVICES),
+            _json_response(SERVER_ROWS),
+        ]
+        config = AiShellConfig(project_name="demo", project_dir=tmp_path)
+        lines: list[str] = []
+        prompt = MagicMock(return_value=TOKEN)
+
+        ensure_vpn_for_config(MagicMock(), config, prompt_token=prompt, echo=lines.append)
+
+        prompt.assert_called_once()
+        expected = base64.b64encode(f"token:{TOKEN}".encode()).decode()
+        for call in mock_open.call_args_list[:2]:
+            assert call[0][0].get_header("Authorization") == f"Basic {expected}"
+        assert mock_ensure.call_args[1]["key"] == KEY
+        assert mock_ensure.call_args[1]["server"] == "us2943.nordvpn.com"
+        assert lines == ["Using the account's dedicated-IP server us2943.nordvpn.com."]
+        assert key_cache_path().read_text().strip() == KEY
+        assert server_cache_path().read_text().strip() == "us2943.nordvpn.com"
 
     @patch("ai_shell.vpn.exit_address", return_value="203.0.113.9")
     def test_status_and_remove(self, mock_exit, isolate_home):
         manager = self._manager(MagicMock(status="running"), status="running")
-        assert vpn_status(manager) == {
-            "status": "running",
-            "exit_address": "203.0.113.9",
-            "proxy": "http://127.0.0.1:8888",
-        }
         firewall_off_marker().parent.mkdir(parents=True)
+        server_cache_path().write_text("us2943.nordvpn.com\n")
+        with patch.dict("os.environ", {}, clear=False):
+            assert vpn_status(manager) == {
+                "status": "running",
+                "exit_address": "203.0.113.9",
+                "proxy": "http://127.0.0.1:8888",
+                "server": "us2943.nordvpn.com",
+            }
         firewall_off_marker().write_text("x")
         assert remove_vpn(manager) is True
         manager.remove_container.assert_called_once_with(VPN_CONTAINER)
         assert not firewall_off_marker().exists()
+        assert not server_cache_path().exists()
         assert remove_vpn(self._manager()) is False

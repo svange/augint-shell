@@ -63,7 +63,7 @@ def vpn_up(ctx):
 @vpn_group.command("down")
 @click.pass_context
 def vpn_down(ctx):
-    """Stop and remove the VPN container."""
+    """Stop and remove the VPN container (and forget the cached server and firewall fallback)."""
     from ai_shell.vpn import remove_vpn
 
     manager, _config = _manager(ctx)
@@ -84,5 +84,6 @@ def vpn_status_cmd(ctx):
     status = info["status"] or "not created"
     console.print(f"VPN container: {status}")
     console.print(f"Proxy: {info['proxy']}")
+    console.print(f"Server: {info['server'] or 'any (no dedicated IP known)'}")
     if info["status"] == "running":
         console.print(f"Exit address: {info['exit_address'] or 'not answering yet'}")
