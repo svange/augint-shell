@@ -328,14 +328,15 @@ claude:
 
 ---
 
-## Attaching to Windows Chrome (`--local-chrome`)
+## Attaching to host Chrome (`--local-chrome`)
 
-`ai-shell claude --local-chrome` bridges Claude inside the container to your real Chrome on Windows via the Chrome DevTools Protocol (using `chrome-devtools-mcp`). Unblocks OAuth popups, CAPTCHA pages, and "click around in a logged-in site" tasks.
+`ai-shell claude --local-chrome` bridges Claude inside the container to a real Chrome on your desktop via the Chrome DevTools Protocol (using `chrome-devtools-mcp`). Unblocks OAuth popups, CAPTCHA pages, and "click around in a logged-in site" tasks.
 
-- Claude drives Chrome tabs on your Windows desktop in real time.
+- Claude drives Chrome tabs on your desktop in real time.
+- **Windows, macOS and Linux hosts.** Chrome is found at its usual install paths (Windows, macOS) or on `PATH` as `google-chrome` / `chromium` (Linux). On Docker Desktop the debug port binds to loopback; on a Linux host (Docker or podman) it binds to the address the container resolves for `host.docker.internal`, which only the host and its containers can reach. podman needs the `docker` CLI shim (`podman-docker`) and 4.1+ for `host-gateway`.
 - **Separate Chrome profile per project** -- your normal browsing untouched, each repo keeps its own logged-in state.
 - **Separate Chrome profile per account** -- with `--account NAME`, the window is keyed by the account instead of the project, so Mike's sessions share one logged-in Chrome across repos and never touch Adam's. Override the slug with `claude.accounts.<name>.chrome_profile`.
-- Profiles live under `%LOCALAPPDATA%\Google\Chrome\ai-shell\<slug>` (`account-<name>` for accounts). Each has its own debug port, so several can run at once.
+- Profiles live under `%LOCALAPPDATA%\Google\Chrome\ai-shell\<slug>` on Windows and `~/.config/google-chrome/ai-shell/<slug>` elsewhere (`account-<name>` for accounts). Each has its own debug port, so several can run at once.
 - All traffic stays on `localhost`.
 
 Set `claude.local_chrome: true` (or `AI_SHELL_LOCAL_CHROME=1`) to persist, or `claude.accounts.<name>.local_chrome: true` for one account only.
@@ -355,7 +356,7 @@ ai-shell claude --account mike --rc --local-chrome  # ...and give the session Mi
 
 What happens on `--account mike --rc`:
 
-1. `~/.augint/claude-accounts/mike/` becomes the session's `CLAUDE_CONFIG_DIR`. Your own `~/.claude` is not touched.
+1. `~/.augint/claude-accounts/mike/` becomes the session's `CLAUDE_CONFIG_DIR`. Your own `~/.claude` is not touched. A new profile gets a `CLAUDE.md` that imports your `~/.claude/CLAUDE.md` (`@/root/.claude/CLAUDE.md`, through the bind mount), so your personal instructions apply in Mike's sessions too; edit or delete that file to give the account its own. Settings, plugins and `~/.claude/rules/` stay per profile.
 2. If that profile has no login yet, `claude auth login` runs first, driven from the host: ai-shell opens the sign-in page in the Chrome window it just opened for `mike` (or prints the URL unwrapped when no Chrome is attached), you sign in as Mike, the browser shows a code, and you paste it at ai-shell's own prompt. The URL and the code never pass through the container TTY, which is what used to mangle them. This happens once per account per machine.
 3. With `--local-chrome`, `chrome-devtools-mcp` is registered for this project in that profile (`claude mcp add-json --scope local`), because server mode does not accept `--mcp-config`.
 4. The server starts with `--permission-mode bypassPermissions` (omit with `--safe`) and the name `<project> (mike)`. Open claude.ai/code signed in as Mike to find it.
