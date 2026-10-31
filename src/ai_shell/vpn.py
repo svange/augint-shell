@@ -97,6 +97,7 @@ def fetch_wireguard_key(token: str) -> str:
     )
     try:
         # Fixed https URL to NordVPN's API, never a user-supplied scheme.
+        # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310 # nosec B310
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
