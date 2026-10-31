@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.114.2 (2026-10-31)
+
+### Bug Fixes
+
+- **chrome**: Relay the DevTools port to the address containers reach on Linux hosts (#182)
+  ([#182](https://github.com/svange/augint-shell/pull/182),
+  [`02553c6`](https://github.com/svange/augint-shell/commit/02553c6009a08f5a6ca80e73ab6ced8189948714))
+
+
 ## v0.114.1 (2026-10-31)
 
 ### Bug Fixes
