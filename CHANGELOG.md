@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.114.1 (2026-10-31)
+
+### Bug Fixes
+
+- **chrome**: Fail loudly when the sign-in window cannot open (#181)
+  ([#181](https://github.com/svange/augint-shell/pull/181),
+  [`d87e24a`](https://github.com/svange/augint-shell/commit/d87e24a8df28e0331032c19808411cf0d9e4dfa4))
+
+
 ## v0.114.0 (2026-10-31)
 
 ### Features
