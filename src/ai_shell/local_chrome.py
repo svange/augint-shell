@@ -29,9 +29,12 @@ from hashlib import sha1
 from http.client import HTTPConnection, HTTPException
 from pathlib import Path
 
+from rich.console import Console
+
 from ai_shell.defaults import unique_project_name
 
 logger = logging.getLogger(__name__)
+console = Console()
 
 CHROME_DEBUG_HOST = "host.docker.internal"
 CHROME_HOST_PROBE_TIMEOUT_SECONDS = 20.0
@@ -585,23 +588,198 @@ def start_chrome_proxy(container_name: str, port: int) -> None:
 
 
 CHROME_MCP_SERVER_NAME = "chrome-devtools"
+CHROME_MCP_BIN = "chrome-devtools-mcp"
+CHROME_MCP_PACKAGE = "chrome-devtools-mcp@latest"
+CHROME_MCP_INSTALL_TIMEOUT_SECONDS = 900
+CHROME_MCP_PROBE_TIMEOUT_SECONDS = 45.0
+_MCP_PROTOCOL_VERSION = "2025-06-18"
 
 
 def chrome_mcp_server_spec(port: int) -> dict[str, object]:
     """MCP server definition for chrome-devtools-mcp against the in-container proxy.
 
     Points at ``localhost:<port>`` (the proxy), not ``host.docker.internal``,
-    because Chrome rejects the latter's Host header.
+    because Chrome rejects the latter's Host header. The command is the
+    binary installed in the image (``npm install -g``), not ``npx ...@latest``:
+    an npx fetch on a cold container took longer than Claude Code's MCP
+    startup timeout, and the server then showed as "failed to start" with
+    no reason. :func:`ensure_chrome_mcp` installs it on older images.
     """
     return {
-        "command": "npx",
-        "args": [
-            "-y",
-            "chrome-devtools-mcp@latest",
-            "--browserUrl",
-            f"http://localhost:{port}",
-        ],
+        "command": CHROME_MCP_BIN,
+        "args": ["--browserUrl", f"http://localhost:{port}"],
     }
+
+
+def _login_shell(script: str) -> list[str]:
+    return ["bash", "-lc", script]
+
+
+def ensure_chrome_mcp(container_name: str) -> None:
+    """Install ``chrome-devtools-mcp`` globally in the container when the image lacks it."""
+    probe = subprocess.run(
+        ["docker", "exec", container_name, *_login_shell(f"command -v {CHROME_MCP_BIN}")],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if probe.returncode == 0:
+        return
+    console.print(
+        f"[dim]Installing the Chrome DevTools MCP server (npm install -g {CHROME_MCP_PACKAGE})...[/dim]"
+    )
+    result = subprocess.run(
+        ["docker", "exec", container_name, *_login_shell(f"npm install -g {CHROME_MCP_PACKAGE}")],
+        capture_output=True,
+        text=True,
+        timeout=CHROME_MCP_INSTALL_TIMEOUT_SECONDS,
+    )
+    if result.returncode != 0:
+        raise LocalChromeUnavailable(
+            "Could not install chrome-devtools-mcp in the dev container, so Claude would "
+            "have no Chrome tools.\n"
+            f"  npm said: {(result.stderr or result.stdout).strip()[-500:]}"
+        )
+
+
+def _mcp_probe_messages() -> str:
+    """The three JSON-RPC lines of the probe: handshake, then one real tool call."""
+    messages = [
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": _MCP_PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": "ai-shell", "version": "0"},
+            },
+        },
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": "list_pages", "arguments": {}},
+        },
+    ]
+    return "".join(json.dumps(m) + "\n" for m in messages)
+
+
+def _mcp_tool_text(result: dict[str, object]) -> str:
+    content = result.get("content")
+    if not isinstance(content, list):
+        return ""
+    return "\n".join(
+        str(item.get("text", "")) for item in content if isinstance(item, dict)
+    ).strip()
+
+
+def probe_chrome_mcp(
+    container_name: str,
+    port: int,
+    *,
+    timeout_seconds: float = CHROME_MCP_PROBE_TIMEOUT_SECONDS,
+) -> str:
+    """Start chrome-devtools-mcp once in the container and make it list Chrome's pages.
+
+    The server connects to the browser lazily, so a handshake alone proves
+    nothing; ``list_pages`` exercises the whole path (binary, Node, the
+    in-container proxy, the DevTools port). Returns the tool's text on
+    success and raises :class:`LocalChromeUnavailable` with the server's own
+    output otherwise, so the failure is reported at launch instead of
+    surfacing inside Claude as a server that "failed to start".
+    """
+    import tempfile
+    import threading
+
+    spec = chrome_mcp_server_spec(port)
+    command = " ".join(str(part) for part in [spec["command"], *spec["args"]])  # type: ignore[misc]
+    lines: list[str] = []
+    done = threading.Event()
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as stderr:
+        proc = subprocess.Popen(
+            ["docker", "exec", "-i", container_name, *_login_shell(f"exec {command}")],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=stderr,
+            text=True,
+            encoding="utf-8",
+        )
+
+        def _read() -> None:
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                lines.append(line)
+                try:
+                    message = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(message, dict) and message.get("id") == 2:
+                    done.set()
+                    return
+            done.set()
+
+        reader = threading.Thread(target=_read, daemon=True)
+        reader.start()
+        try:
+            assert proc.stdin is not None
+            proc.stdin.write(_mcp_probe_messages())
+            proc.stdin.flush()
+        except (OSError, ValueError):
+            pass
+        answered = done.wait(timeout_seconds)
+        try:
+            if proc.stdin is not None:
+                proc.stdin.close()
+        except OSError:
+            pass
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        reader.join(timeout=1)
+        stderr.seek(0)
+        server_said = stderr.read().strip()[-800:]
+
+    reply: dict[str, object] | None = None
+    for line in lines:
+        try:
+            message = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(message, dict) and message.get("id") == 2:
+            reply = message
+            break
+
+    detail = f"\n  server output: {server_said}" if server_said else ""
+    if not answered or reply is None:
+        raise LocalChromeUnavailable(
+            f"chrome-devtools-mcp did not answer within {int(timeout_seconds)} seconds "
+            f"(command: {command}).{detail}"
+        )
+    error = reply.get("error")
+    if isinstance(error, dict):
+        raise LocalChromeUnavailable(
+            f"chrome-devtools-mcp refused list_pages: {error.get('message', error)}{detail}"
+        )
+    result = reply.get("result")
+    if not isinstance(result, dict):
+        raise LocalChromeUnavailable(f"chrome-devtools-mcp sent no result for list_pages.{detail}")
+    text = _mcp_tool_text(result)
+    if result.get("isError"):
+        raise LocalChromeUnavailable(
+            f"chrome-devtools-mcp could not reach Chrome on localhost:{port} from the "
+            f"container: {text or 'no detail'}{detail}"
+        )
+    return text
+
+
+def prepare_chrome_mcp(container_name: str, port: int) -> str:
+    """Make sure the Chrome MCP server is installed and answers before Claude starts."""
+    ensure_chrome_mcp(container_name)
+    return probe_chrome_mcp(container_name, port)
 
 
 def write_mcp_config(port: int, config_dir: Path | None = None) -> Path:

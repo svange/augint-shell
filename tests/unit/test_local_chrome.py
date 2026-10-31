@@ -250,8 +250,7 @@ class TestWriteMcpConfig:
         assert path.exists()
         data = json.loads(path.read_text())
         server = data["mcpServers"]["chrome-devtools"]
-        assert server["command"] == "npx"
-        assert "chrome-devtools-mcp@latest" in server["args"]
+        assert server["command"] == "chrome-devtools-mcp"
         assert "http://localhost:9222" in server["args"]
 
     def test_uses_custom_port(self, tmp_path):
@@ -304,8 +303,8 @@ class TestAccountChromeState:
         from ai_shell.local_chrome import chrome_mcp_server_spec
 
         spec = chrome_mcp_server_spec(54321)
-        assert spec["command"] == "npx"
-        assert "http://localhost:54321" in spec["args"]  # type: ignore[operator]
+        assert spec["command"] == "chrome-devtools-mcp"
+        assert spec["args"] == ["--browserUrl", "http://localhost:54321"]
 
 
 class TestFindChromeAcrossPlatforms:
@@ -568,3 +567,151 @@ class TestClosingChrome:
         process.poll.return_value = 0
         assert PlainChrome(profile_dir="/p", port=1, process=process).close() is True
         process.terminate.assert_not_called()
+
+
+class _KeptStringIO:
+    """Collects writes and keeps them readable after close()."""
+
+    def __init__(self) -> None:
+        self.text = ""
+
+    def write(self, data: str) -> int:
+        self.text += data
+        return len(data)
+
+    def flush(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
+class _FakeProc:
+    """A Popen stand-in: stdout yields the given lines, stdin collects writes."""
+
+    def __init__(self, lines: list[str]) -> None:
+        self.stdout = iter(lines)
+        self.stdin = _KeptStringIO()
+        self.terminated = False
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    def wait(self, timeout: float | None = None) -> int:
+        return 0
+
+    def kill(self) -> None:
+        pass
+
+
+def _rpc(id_: int, result: dict | None = None, error: dict | None = None) -> str:
+    import json
+
+    message: dict = {"jsonrpc": "2.0", "id": id_}
+    if error is not None:
+        message["error"] = error
+    else:
+        message["result"] = result or {}
+    return json.dumps(message) + "\n"
+
+
+class TestEnsureChromeMcp:
+    @patch("ai_shell.local_chrome.subprocess.run")
+    def test_skips_install_when_the_binary_exists(self, mock_run):
+        from ai_shell.local_chrome import ensure_chrome_mcp
+
+        mock_run.return_value = MagicMock(returncode=0)
+        ensure_chrome_mcp("demo-dev")
+        assert mock_run.call_count == 1
+        assert "command -v chrome-devtools-mcp" in mock_run.call_args[0][0][-1]
+
+    @patch("ai_shell.local_chrome.subprocess.run")
+    def test_installs_globally_on_an_older_image(self, mock_run):
+        from ai_shell.local_chrome import ensure_chrome_mcp
+
+        mock_run.side_effect = [MagicMock(returncode=1), MagicMock(returncode=0)]
+        ensure_chrome_mcp("demo-dev")
+        install = mock_run.call_args_list[1][0][0]
+        assert install[:3] == ["docker", "exec", "demo-dev"]
+        assert "npm install -g chrome-devtools-mcp@latest" in install[-1]
+
+    @patch("ai_shell.local_chrome.subprocess.run")
+    def test_failed_install_names_npm_output(self, mock_run):
+        from ai_shell.local_chrome import LocalChromeUnavailable, ensure_chrome_mcp
+
+        mock_run.side_effect = [
+            MagicMock(returncode=1),
+            MagicMock(returncode=1, stderr="EACCES boom", stdout=""),
+        ]
+        with pytest.raises(LocalChromeUnavailable, match="EACCES boom"):
+            ensure_chrome_mcp("demo-dev")
+
+
+class TestProbeChromeMcp:
+    def _probe(self, lines: list[str], **kwargs):
+        from ai_shell.local_chrome import probe_chrome_mcp
+
+        proc = _FakeProc(lines)
+        with patch("ai_shell.local_chrome.subprocess.Popen", return_value=proc) as popen:
+            text = probe_chrome_mcp("demo-dev", 9222, timeout_seconds=2, **kwargs)
+        return text, proc, popen
+
+    def test_handshake_then_list_pages_through_the_proxy(self):
+        lines = [
+            _rpc(1, {"serverInfo": {"name": "chrome-devtools-mcp"}}),
+            _rpc(2, {"content": [{"type": "text", "text": "0: about:blank [selected]"}]}),
+        ]
+        text, proc, popen = self._probe(lines)
+
+        assert text == "0: about:blank [selected]"
+        argv = popen.call_args[0][0]
+        assert argv[:4] == ["docker", "exec", "-i", "demo-dev"]
+        assert argv[-1] == "exec chrome-devtools-mcp --browserUrl http://localhost:9222"
+        sent = proc.stdin.text.splitlines()
+        assert '"method": "initialize"' in sent[0]
+        assert '"method": "notifications/initialized"' in sent[1]
+        assert '"name": "list_pages"' in sent[2]
+        assert proc.terminated
+
+    def test_tool_error_means_chrome_was_unreachable(self):
+        from ai_shell.local_chrome import LocalChromeUnavailable
+
+        lines = [
+            _rpc(1, {}),
+            _rpc(2, {"isError": True, "content": [{"type": "text", "text": "ECONNREFUSED"}]}),
+        ]
+        with pytest.raises(LocalChromeUnavailable, match="ECONNREFUSED"):
+            self._probe(lines)
+
+    def test_rpc_error_is_reported(self):
+        from ai_shell.local_chrome import LocalChromeUnavailable
+
+        lines = [_rpc(1, {}), _rpc(2, error={"code": -32601, "message": "Unknown tool"})]
+        with pytest.raises(LocalChromeUnavailable, match="Unknown tool"):
+            self._probe(lines)
+
+    def test_silence_is_a_timeout_with_the_server_output(self):
+        from ai_shell.local_chrome import LocalChromeUnavailable, probe_chrome_mcp
+
+        proc = _FakeProc([])
+
+        def _popen(*args, **kwargs):
+            kwargs["stderr"].write("Error: Cannot find module 'puppeteer-core'\n")
+            return proc
+
+        with (
+            patch("ai_shell.local_chrome.subprocess.Popen", side_effect=_popen),
+            pytest.raises(LocalChromeUnavailable, match="puppeteer-core"),
+        ):
+            probe_chrome_mcp("demo-dev", 9222, timeout_seconds=0.2)
+
+
+class TestPrepareChromeMcp:
+    @patch("ai_shell.local_chrome.probe_chrome_mcp", return_value="pages")
+    @patch("ai_shell.local_chrome.ensure_chrome_mcp")
+    def test_installs_then_probes(self, mock_ensure, mock_probe):
+        from ai_shell.local_chrome import prepare_chrome_mcp
+
+        assert prepare_chrome_mcp("demo-dev", 9222) == "pages"
+        mock_ensure.assert_called_once_with("demo-dev")
+        mock_probe.assert_called_once_with("demo-dev", 9222)

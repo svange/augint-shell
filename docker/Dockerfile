@@ -199,6 +199,12 @@ RUN npm install -g agent-browser && \
 # Install Playwright CLI (advanced browser automation)
 RUN npm install -g @playwright/cli
 
+# Install the Chrome DevTools MCP server that `--local-chrome` attaches to
+# the host browser. Baked in because an `npx ...@latest` fetch on a cold
+# container outlasts Claude Code's MCP startup timeout; ai-shell installs it
+# on demand too, so older images keep working.
+RUN npm install -g chrome-devtools-mcp@latest
+
 # Install Zapier Platform CLI (register/validate/push Zapier integrations
 # that live inside project repos). Auth persists via the ~/.zapierrc bind.
 RUN npm install -g zapier-platform-cli

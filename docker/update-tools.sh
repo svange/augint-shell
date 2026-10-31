@@ -100,8 +100,8 @@ _update_t3() {
 }
 
 _update_npm_tools() {
-    _log "Updating npm tools (aws-cdk, playwright-cli, agent-browser, zapier)..."
-    npm install -g aws-cdk@latest @playwright/cli@latest agent-browser@latest zapier-platform-cli@latest 2>&1 || true
+    _log "Updating npm tools (aws-cdk, playwright-cli, agent-browser, zapier, chrome-devtools-mcp)..."
+    npm install -g aws-cdk@latest @playwright/cli@latest agent-browser@latest zapier-platform-cli@latest chrome-devtools-mcp@latest 2>&1 || true
 }
 
 _update_tool() {
