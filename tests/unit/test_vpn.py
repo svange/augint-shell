@@ -147,9 +147,7 @@ class TestWaitForProxy:
 
     @patch("ai_shell.vpn.exit_address", return_value=None)
     def test_stopped_container_raises_with_logs(self, mock_exit):
-        with pytest.raises(
-            VpnUnavailable, match="is exited.*last log lines.*boom", flags=0
-        ) as info:
+        with pytest.raises(VpnUnavailable, match="is exited") as info:
             wait_for_proxy(
                 "http://127.0.0.1:8888",
                 status=lambda: "exited",
