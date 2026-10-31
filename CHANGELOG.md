@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.113.0 (2026-10-31)
+
+### Features
+
+- **claude**: Run the VPN container and the Google-safe sign-in by itself (#177)
+  ([#177](https://github.com/svange/augint-shell/pull/177),
+  [`e3fe229`](https://github.com/svange/augint-shell/commit/e3fe2296974d764c72c66936048a3b1b628618f8))
+
+
 ## v0.112.0 (2026-10-31)
 
 ### Features
