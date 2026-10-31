@@ -137,6 +137,8 @@ If you need to work manually, see the full [contributor guide](CONTRIBUTING.md) 
 | `ai-shell claude --rc [NAME]` | [Remote Control](#remote-control-rc) server: drive the project from claude.ai/code or the Claude app |
 | `ai-shell claude --account NAME --rc` | Remote Control signed in as another Claude account (login profile) |
 | `ai-shell claude --account NAME --login` | Create or refresh an account's login profile |
+| `ai-shell claude --local-chrome --chrome-proxy URL` | Host Chrome through a proxy (a VPN container), see [Chrome through a VPN](#chrome-through-a-vpn-or-proxy-chrome_proxy) |
+| `ai-shell chrome [--account NAME] [URL]` | The same Chrome window without the DevTools port, for a [Google sign-in](#google-sign-in-ai-shell-chrome) |
 | `ai-shell <tool> --t3` | Also expose the project to [T3 Code](#remote-control-with-t3-code-t3) (phone/desktop app) |
 | `ai-shell <tool> --expo` | Also start a tunnelled [Expo dev server](#expo-apps-expo) and print its QR code |
 
@@ -185,10 +187,12 @@ openai:
 
 claude:
   account: work  # resolves CLAUDE_CODE_OAUTH_TOKEN_WORK from .env, or the login profile
+  chrome_proxy: ""  # --proxy-server for every host Chrome ai-shell opens (see "Chrome through a VPN")
   accounts:      # optional per-account defaults (put in ~/.augint/.ai-shell.yaml)
     mike:
       local_chrome: true          # open Mike's own Chrome window on launch
       chrome_profile: mike        # Chrome profile slug; defaults to the account name
+      chrome_proxy: http://127.0.0.1:8888  # this account's Chrome goes through a VPN container
 
 expo:
   auto: true  # start a detected Expo app automatically (--expo/--no-expo override)
@@ -340,6 +344,79 @@ claude:
 - All traffic stays on `localhost`.
 
 Set `claude.local_chrome: true` (or `AI_SHELL_LOCAL_CHROME=1`) to persist, or `claude.accounts.<name>.local_chrome: true` for one account only.
+
+### Google sign-in (`ai-shell chrome`)
+
+Google refuses to sign in inside a browser that exposes a DevTools port ("This browser or app may not be secure"), and that is the Chrome `--local-chrome` opens. It is Google's rule for automated browsers, not an address problem, so a VPN does not change it. Two ways around it:
+
+- **The claude.ai sign-in** that `--rc` and `--login` run: ai-shell opens the sign-in page in the account's Chrome window and also prints the URL. For a Google (or Google SSO) account, open that URL in any other browser, on any device, sign in there, and paste the code at ai-shell's prompt. Only the code travels back.
+- **A Google session inside the account's Chrome** (so Mike's sessions can drive Gmail, GHL behind Google SSO, and so on): open the same profile once without the DevTools port, sign in, and close it. The next `--local-chrome` launch opens the same profile with the port and keeps the cookies.
+
+```bash
+ai-shell chrome --account mike https://accounts.google.com/   # no DevTools port, same profile, configured proxy
+# sign in, then close every window of it
+ai-shell claude --account mike --rc --local-chrome             # reuses the session
+```
+
+`ai-shell chrome` refuses while a Chrome already holds that profile, because a second launch would only open a window inside the running (debug-port) process. Without `--account` it opens the current project's window.
+
+### Chrome through a VPN or proxy (`chrome_proxy`)
+
+On a host whose own address sites refuse (a cloud dev box, a datacenter), give Chrome a proxy. ai-shell passes it as Chrome's `--proxy-server`; the dev container and Claude Code itself are not proxied, only the browser.
+
+```yaml
+# ~/.augint/.ai-shell.yaml
+claude:
+  chrome_proxy: http://127.0.0.1:8888      # every ai-shell Chrome on this machine
+  accounts:
+    mike:
+      chrome_proxy: http://127.0.0.1:8888  # or one account only
+```
+
+Equivalent: `AI_SHELL_CHROME_PROXY=...` or `--chrome-proxy URL` for one launch (`claude` and `chrome` both take it). Chrome accepts `http://host:port`, `socks5://host:port` or a bare `host:port`. A running Chrome keeps the proxy it was started with, so close the window after changing the value. Chrome never proxies loopback, so the DevTools bridge is unaffected.
+
+A proxy that is a VPN, without root, on a Linux host with rootless Podman: [gluetun](https://github.com/qdm12/gluetun) runs the VPN inside a container of your own user and exposes an HTTP proxy on localhost. NordVPN over WireGuard, as a user unit that starts with your session (Podman 4.4+ reads `~/.config/containers/systemd/`):
+
+```bash
+# 1. Token: Nord Account -> NordVPN -> Manual setup -> Access token (a plain token, not a password).
+read -rsp "NordVPN access token: " NORD_TOKEN; echo
+mkdir -p ~/.config/containers/systemd ~/.config/gluetun
+curl -fsS -u "token:$NORD_TOKEN" https://api.nordvpn.com/v1/users/services/credentials \
+  | python3 -c 'import json,sys; print("WIREGUARD_PRIVATE_KEY=" + json.load(sys.stdin)["nordlynx_private_key"])' \
+  > ~/.config/gluetun/nordvpn.env
+chmod 600 ~/.config/gluetun/nordvpn.env; unset NORD_TOKEN
+
+# 2. The unit. SERVER_COUNTRIES picks the exit; FIREWALL=off only if gluetun cannot set iptables in your Podman.
+cat > ~/.config/containers/systemd/nordvpn.container <<'EOF'
+[Unit]
+Description=NordVPN (gluetun) with an HTTP proxy on 127.0.0.1:8888 for ai-shell Chrome
+
+[Container]
+Image=docker.io/qmcgaw/gluetun:latest
+AddCapability=NET_ADMIN
+AddDevice=/dev/net/tun
+EnvironmentFile=%h/.config/gluetun/nordvpn.env
+Environment=VPN_SERVICE_PROVIDER=nordvpn
+Environment=VPN_TYPE=wireguard
+Environment=SERVER_COUNTRIES=United States
+Environment=HTTPPROXY=on
+Environment=HTTPPROXY_STEALTH=on
+PublishPort=127.0.0.1:8888:8888
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
+EOF
+
+# 3. Start it and check the exit address.
+systemctl --user daemon-reload && systemctl --user start nordvpn
+sleep 20; curl -fsS -x http://127.0.0.1:8888 https://api.ipify.org; echo
+# then: claude.accounts.<name>.chrome_proxy: http://127.0.0.1:8888 in ~/.augint/.ai-shell.yaml
+```
+
+`journalctl --user -u nordvpn -f` shows gluetun's log. If it stops at the firewall step, add `Environment=FIREWALL=off` to the unit (traffic then falls back to the host's own address while the tunnel is down, which is fine for a sign-in proxy).
 
 ---
 

@@ -169,6 +169,10 @@ class ClaudeAccountConfig:
     # Attach host Chrome by default when this account is selected.
     # None = fall back to the global ``claude.local_chrome``.
     local_chrome: bool | None = None
+    # Proxy for this account's host Chrome (``--proxy-server`` value, e.g.
+    # ``http://127.0.0.1:8888`` for a VPN container). Empty = the global
+    # ``claude.chrome_proxy``.
+    chrome_proxy: str = ""
 
 
 def _claude_account_key(account: str) -> str:
@@ -235,6 +239,7 @@ class AiShellConfig:
     claude_account: str = ""  # Suffixed .env token name for multi-account switching
     claude_accounts: dict[str, ClaudeAccountConfig] = field(default_factory=dict)
     local_chrome: bool = False  # Attach Chrome DevTools MCP to project-scoped host Chrome
+    chrome_proxy: str = ""  # --proxy-server for every host Chrome ai-shell launches
     skip_updates: bool = False  # When True, skip pre-launch tool freshness checks
 
     # Expo. When False, a detected Expo app is not started automatically;
@@ -556,9 +561,13 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
                     account_cfg.chrome_profile = str(entry["chrome_profile"] or "")
                 if "local_chrome" in entry:
                     account_cfg.local_chrome = bool(entry["local_chrome"])
+                if "chrome_proxy" in entry:
+                    account_cfg.chrome_proxy = str(entry["chrome_proxy"] or "")
             config.claude_accounts[key] = account_cfg
     if "local_chrome" in claude_sec:
         config.local_chrome = bool(claude_sec["local_chrome"])
+    if "chrome_proxy" in claude_sec:
+        config.chrome_proxy = str(claude_sec["chrome_proxy"] or "")
     if "skip_updates" in container:
         config.skip_updates = bool(container["skip_updates"])
     if "image_pull_cache_ttl" in container:
@@ -608,6 +617,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_CLAUDE_PROVIDER": ("claude_provider", str),
         "AI_SHELL_CLAUDE_ACCOUNT": ("claude_account", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
+        "AI_SHELL_CHROME_PROXY": ("chrome_proxy", str),
         "AI_SHELL_EXPO_AUTO": ("expo_auto", bool),
         "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),
         "AI_SHELL_IMAGE_PULL_CACHE_TTL": ("image_pull_cache_ttl", int),

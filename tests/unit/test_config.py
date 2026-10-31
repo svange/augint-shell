@@ -675,6 +675,25 @@ class TestClaudeAccountsConfig:
         account = config.claude_account_config("mike")
         assert account.chrome_profile == ""
         assert account.local_chrome is None
+        assert account.chrome_proxy == ""
+        assert config.chrome_proxy == ""
+
+    def test_chrome_proxy_from_yaml_and_env(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "claude:\n"
+            "  chrome_proxy: http://127.0.0.1:8888\n"
+            "  accounts:\n"
+            "    mike:\n"
+            "      chrome_proxy: socks5://127.0.0.1:1080\n"
+            "    adam:\n"
+            "      chrome_proxy: null\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.chrome_proxy == "http://127.0.0.1:8888"
+        assert config.claude_account_config("mike").chrome_proxy == "socks5://127.0.0.1:1080"
+        assert config.claude_account_config("adam").chrome_proxy == ""
+        with patch.dict("os.environ", {"AI_SHELL_CHROME_PROXY": "http://10.0.0.5:3128"}):
+            assert load_config(project_dir=tmp_path).chrome_proxy == "http://10.0.0.5:3128"
 
     def test_accounts_from_yaml(self, tmp_path):
         (tmp_path / ".ai-shell.yaml").write_text(

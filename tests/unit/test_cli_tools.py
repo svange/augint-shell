@@ -1907,6 +1907,106 @@ class TestClaudeRemoteControl:
         cmd = manager.exec_interactive.call_args[0][1]
         assert "--mcp-config" not in cmd
 
+    @patch("ai_shell.cli.commands.tools._inject_mcp_config")
+    @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.start_chrome_proxy")
+    @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=45678)
+    def test_rc_local_chrome_uses_account_proxy(
+        self,
+        mock_ensure,
+        mock_proxy,
+        mock_write,
+        mock_inject,
+        mock_config,
+        mock_manager_cls,
+        mock_expo,
+    ):
+        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
+
+        config = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
+        config.chrome_proxy = "http://127.0.0.1:3128"
+        config.claude_accounts["woxom"] = ClaudeAccountConfig(chrome_proxy="http://127.0.0.1:8888")
+        self._setup(mock_config, mock_manager_cls, config=config)
+
+        result = self.runner.invoke(cli, ["claude", "--rc", "--account", "woxom", "--local-chrome"])
+
+        assert result.exit_code == 0, result.output
+        assert mock_ensure.call_args[1]["proxy"] == "http://127.0.0.1:8888"
+        assert "proxy: http://127.0.0.1:8888" in result.output
+
+    @patch("ai_shell.cli.commands.tools._inject_mcp_config")
+    @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.start_chrome_proxy")
+    @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=45678)
+    def test_rc_chrome_proxy_flag_overrides_config(
+        self,
+        mock_ensure,
+        mock_proxy,
+        mock_write,
+        mock_inject,
+        mock_config,
+        mock_manager_cls,
+        mock_expo,
+    ):
+        from ai_shell.config import AiShellConfig
+
+        config = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
+        config.chrome_proxy = "http://127.0.0.1:3128"
+        self._setup(mock_config, mock_manager_cls, config=config)
+
+        result = self.runner.invoke(
+            cli,
+            [
+                "claude",
+                "--rc",
+                "--account",
+                "woxom",
+                "--local-chrome",
+                "--chrome-proxy",
+                "socks5://127.0.0.1:1080",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert mock_ensure.call_args[1]["proxy"] == "socks5://127.0.0.1:1080"
+
+    def test_login_prints_url_even_when_chrome_opened_it(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
+        """A Google-SSO account cannot sign in inside the debug-port Chrome."""
+        from ai_shell.cli.commands.tools import _piped_claude_login
+
+        manager = self._setup(mock_config, mock_manager_cls)
+        manager.exec_args.return_value = ["docker", "exec", "c", "claude", "auth", "login"]
+        url = "https://claude.ai/oauth/authorize?code=true&client_id=abc&state=xyz"
+        seen: dict[str, object] = {}
+
+        def fake_run(args, *, open_url, prompt_code, echo, **_kwargs):
+            seen["opened"] = open_url(url)
+            return 0
+
+        with (
+            patch("ai_shell.claude_login.run_piped_login", side_effect=fake_run),
+            patch("ai_shell.claude_login.open_in_chrome", return_value=True) as opened,
+            patch("ai_shell.cli.commands.tools.console") as console,
+        ):
+            code = _piped_claude_login(
+                manager,
+                "c",
+                ["claude", "auth", "login"],
+                exec_env={},
+                workdir=None,
+                chrome_port=45678,
+                chrome_profile="woxom",
+            )
+
+        assert code == 0
+        assert seen["opened"] is True
+        opened.assert_called_once_with(45678, url)
+        printed = [str(c.args[0]) for c in console.print.call_args_list]
+        assert any(url == line for line in printed)
+        assert any("other browser" in line for line in printed)
+
     def test_rc_incompatible_with_multi_team_interactive(
         self, mock_config, mock_manager_cls, mock_expo
     ):
@@ -2073,3 +2173,66 @@ class TestClaudeRemoteControl:
 
         assert result.exit_code == 0, result.output
         mock_ensure.assert_not_called()
+
+
+@patch("ai_shell.cli.commands.tools.load_config")
+class TestChromeCommand:
+    """``ai-shell chrome``: the account's window without the DevTools port."""
+
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    def _config(self, mock_config, **overrides):
+        from ai_shell.config import AiShellConfig
+
+        config = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
+        for key, value in overrides.items():
+            setattr(config, key, value)
+        mock_config.return_value = config
+        return config
+
+    @patch("ai_shell.local_chrome.launch_plain_chrome", return_value="/home/u/account-mike")
+    def test_opens_account_window_with_configured_proxy(self, mock_launch, mock_config):
+        from ai_shell.config import ClaudeAccountConfig
+
+        config = self._config(mock_config)
+        config.claude_accounts["mike"] = ClaudeAccountConfig(chrome_proxy="http://127.0.0.1:8888")
+
+        result = self.runner.invoke(
+            cli, ["chrome", "--account", "mike", "https://accounts.google.com/"]
+        )
+
+        assert result.exit_code == 0, result.output
+        mock_launch.assert_called_once_with(
+            project_name="demo",
+            project_dir=Path("/tmp/demo"),
+            profile="mike",
+            proxy="http://127.0.0.1:8888",
+            url="https://accounts.google.com/",
+        )
+        assert "account 'mike'" in result.output
+        assert "http://127.0.0.1:8888" in result.output
+
+    @patch("ai_shell.local_chrome.launch_plain_chrome", return_value="/home/u/demo")
+    def test_defaults_to_project_window_and_flag_proxy(self, mock_launch, mock_config):
+        self._config(mock_config)
+
+        result = self.runner.invoke(cli, ["chrome", "--chrome-proxy", "socks5://127.0.0.1:1080"])
+
+        assert result.exit_code == 0, result.output
+        assert mock_launch.call_args[1]["profile"] is None
+        assert mock_launch.call_args[1]["proxy"] == "socks5://127.0.0.1:1080"
+        assert mock_launch.call_args[1]["url"] is None
+        assert "project 'demo'" in result.output
+
+    @patch("ai_shell.local_chrome.launch_plain_chrome")
+    def test_reports_running_window(self, mock_launch, mock_config):
+        from ai_shell.local_chrome import LocalChromeUnavailable
+
+        self._config(mock_config)
+        mock_launch.side_effect = LocalChromeUnavailable("A Chrome window already uses the profile")
+
+        result = self.runner.invoke(cli, ["chrome", "--account", "mike"])
+
+        assert result.exit_code != 0
+        assert "already uses the profile" in result.output
