@@ -14,10 +14,12 @@ The MCP server then connects to ``localhost:<port>`` and Chrome sees a
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import os
 import platform
+import shutil
 import subprocess
 import time
 from collections.abc import Callable
@@ -50,6 +52,21 @@ _CHROME_CANDIDATES = [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
 ]
+# macOS app bundles (system-wide, then per-user)
+_CHROME_MAC_CANDIDATES = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "~/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+]
+# Linux: whatever is on PATH, Chrome first, then Chromium builds
+_CHROME_LINUX_CANDIDATES = (
+    "google-chrome",
+    "google-chrome-stable",
+    "google-chrome-beta",
+    "chromium",
+    "chromium-browser",
+)
+LOOPBACK = "127.0.0.1"
 
 # Inline Node.js TCP proxy template -- forwards localhost:PORT to
 # host.docker.internal:PORT so Chrome sees Host: localhost.
@@ -67,23 +84,69 @@ class LocalChromeUnavailable(Exception):
 
 
 def find_chrome() -> str | None:
-    """Locate chrome.exe on the Windows host.
+    """Locate the Chrome executable on the host.
 
-    Checks well-known install paths.  Returns the path as a string
-    or ``None`` if Chrome is not found.
+    Windows: well-known install paths, then the per-user install. macOS: the
+    app bundles. Linux: Chrome or Chromium on PATH. Returns the path as a
+    string or ``None`` if Chrome is not found.
     """
-    if platform.system() != "Windows":
+    system = platform.system()
+    if system == "Windows":
+        for candidate in _CHROME_CANDIDATES:
+            if Path(candidate).exists():
+                return candidate
+        # Fallback: per-user Chrome install
+        local_app = os.environ.get("LOCALAPPDATA", "")
+        if local_app:
+            user_chrome = Path(local_app) / "Google" / "Chrome" / "Application" / "chrome.exe"
+            if user_chrome.exists():
+                return str(user_chrome)
         return None
-    for candidate in _CHROME_CANDIDATES:
-        if Path(candidate).exists():
-            return candidate
-    # Fallback: per-user Chrome install
-    local_app = os.environ.get("LOCALAPPDATA", "")
-    if local_app:
-        user_chrome = Path(local_app) / "Google" / "Chrome" / "Application" / "chrome.exe"
-        if user_chrome.exists():
-            return str(user_chrome)
+    if system == "Darwin":
+        for candidate in _CHROME_MAC_CANDIDATES:
+            path = Path(candidate).expanduser()
+            if path.exists():
+                return str(path)
+        return None
+    for name in _CHROME_LINUX_CANDIDATES:
+        found = shutil.which(name)
+        if found:
+            return found
     return None
+
+
+def chrome_bind_address(container_name: str) -> str:
+    """Address Chrome's debug port must listen on so the container can reach it.
+
+    Docker Desktop (Windows, macOS) forwards ``host.docker.internal`` to the
+    host's loopback, so ``127.0.0.1`` works there. On a Linux host (Docker or
+    podman) ``host.docker.internal`` resolves to the bridge gateway address,
+    and a loopback-only listener is unreachable from containers, so Chrome
+    binds to the address the container actually resolves for the host. That
+    address is reachable from the host and its containers only.
+    """
+    if platform.system() != "Linux":
+        return LOOPBACK
+    result = subprocess.run(
+        ["docker", "exec", container_name, "getent", "hosts", CHROME_DEBUG_HOST],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        candidate = result.stdout.split()[0]
+        try:
+            ipaddress.ip_address(candidate)
+        except ValueError:
+            logger.debug("Unexpected %s resolution %r", CHROME_DEBUG_HOST, candidate)
+        else:
+            return candidate
+    logger.warning(
+        "%s does not resolve inside %s; Chrome will bind to loopback, which Linux "
+        "containers cannot reach. Docker needs `host-gateway` support (20.10+), podman 4.1+.",
+        CHROME_DEBUG_HOST,
+        container_name,
+    )
+    return LOOPBACK
 
 
 def _project_slug(project_name: str, project_dir: str | Path | None = None) -> str:
@@ -141,21 +204,24 @@ def _project_debug_port(
     return CHROME_DEBUG_PORT_RANGE_START + (int(digest[:8], 16) % CHROME_DEBUG_PORT_RANGE_SIZE)
 
 
-def _build_setup_instructions(project_name: str, profile_dir: str, port: int) -> str:
+def _build_setup_instructions(
+    project_name: str, profile_dir: str, port: int, bind_address: str = LOOPBACK
+) -> str:
     """Return manual setup instructions for the project's Chrome profile."""
+    binary = "chrome.exe" if platform.system() == "Windows" else "google-chrome"
     return f"""\
 Chrome could not be found or launched automatically, and the debug port \
 is not reachable.
 
 To fix, launch Chrome manually with these flags:
 
-  chrome.exe --remote-debugging-port={port} \\
-    --remote-debugging-address=127.0.0.1 \\
+  {binary} --remote-debugging-port={port} \\
+    --remote-debugging-address={bind_address} \\
     --remote-allow-origins=* \\
     --user-data-dir="{profile_dir}"
 
 Then re-run this command for project '{project_name}'.
-See README.md "Attaching to your Windows Chrome" for details."""
+See README.md "Attaching to host Chrome" for details."""
 
 
 def launch_chrome(
@@ -164,6 +230,7 @@ def launch_chrome(
     project_name: str,
     project_dir: str | Path | None = None,
     profile: str | None = None,
+    bind_address: str = LOOPBACK,
 ) -> bool:
     """Launch Chrome on the host with the debug port enabled.
 
@@ -178,25 +245,35 @@ def launch_chrome(
     args = [
         chrome_path,
         f"--remote-debugging-port={port}",
-        "--remote-debugging-address=127.0.0.1",
+        f"--remote-debugging-address={bind_address}",
         "--remote-allow-origins=*",
         f"--user-data-dir={profile_dir}",
+        # A fresh profile dir otherwise opens first-run / default-browser dialogs.
+        "--no-first-run",
+        "--no-default-browser-check",
     ]
     logger.info("Launching Chrome: %s", " ".join(args))
 
     # Start detached so Chrome outlives the CLI process.
-    creation_flags = 0
     if platform.system() == "Windows":
         creation_flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(
             subprocess, "DETACHED_PROCESS", 0
         )
-    subprocess.Popen(  # noqa: S603
-        args,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
-        creationflags=creation_flags,
-    )
+        subprocess.Popen(  # noqa: S603
+            args,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            creationflags=creation_flags,
+        )
+    else:
+        subprocess.Popen(  # noqa: S603
+            args,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
     return True
 
 
@@ -226,9 +303,9 @@ def probe_chrome_port(container_name: str, port: int) -> bool:
     return True
 
 
-def probe_host_chrome_port(port: int) -> bool:
-    """Check whether a Chrome debug port is reachable on the host."""
-    connection = HTTPConnection("127.0.0.1", port, timeout=2)
+def probe_host_chrome_port(port: int, host: str = LOOPBACK) -> bool:
+    """Check whether a Chrome debug port is reachable on the host at *host*."""
+    connection = HTTPConnection(host, port, timeout=2)
     try:
         connection.request("GET", "/json/version")
         response = connection.getresponse()
@@ -281,17 +358,27 @@ def ensure_host_chrome(
 
     logger.info("Chrome for project %s not found on port %d, launching it", project_name, port)
 
-    if not launch_chrome(port, project_name=project_name, project_dir=project_dir, profile=profile):
-        raise LocalChromeUnavailable(_build_setup_instructions(project_name, profile_dir, port))
+    bind_address = chrome_bind_address(container_name)
+    if not launch_chrome(
+        port,
+        project_name=project_name,
+        project_dir=project_dir,
+        profile=profile,
+        bind_address=bind_address,
+    ):
+        raise LocalChromeUnavailable(
+            _build_setup_instructions(project_name, profile_dir, port, bind_address)
+        )
 
     if not _wait_until_ready(
         probe_host_chrome_port,
         port,
+        bind_address,
         timeout_seconds=CHROME_HOST_PROBE_TIMEOUT_SECONDS,
     ):
         raise LocalChromeUnavailable(
             f"Chrome was launched for project '{project_name}' on port {port}, but the "
-            f"debug port did not open on localhost within "
+            f"debug port did not open on {bind_address} within "
             f"{int(CHROME_HOST_PROBE_TIMEOUT_SECONDS)} seconds.\n\n"
             "If another ai-shell Chrome window for this project is already open, "
             "close it and retry."
@@ -307,10 +394,11 @@ def ensure_host_chrome(
         return port
 
     raise LocalChromeUnavailable(
-        f"Chrome is listening on localhost:{port} for project '{project_name}', but the "
+        f"Chrome is listening on {bind_address}:{port} for project '{project_name}', but the "
         "debug port did not become reachable from the dev container within "
         f"{int(CHROME_CONTAINER_PROBE_TIMEOUT_SECONDS)} seconds.\n\n"
-        "Check that Docker Desktop can reach the host via host.docker.internal."
+        "Check that the container can reach the host via host.docker.internal "
+        "(Docker Desktop on Windows/macOS; `host-gateway` on Linux Docker 20.10+ or podman 4.1+)."
     )
 
 

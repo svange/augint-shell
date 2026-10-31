@@ -121,6 +121,12 @@ class TestProbeHostChromePort:
 
 
 class TestEnsureHostChrome:
+    @pytest.fixture(autouse=True)
+    def _loopback_bind(self):
+        """Keep these tests host-independent: the bind address probe shells out."""
+        with patch("ai_shell.local_chrome.chrome_bind_address", return_value="127.0.0.1"):
+            yield
+
     @patch("ai_shell.local_chrome._project_debug_port", return_value=54321)
     @patch("ai_shell.local_chrome.probe_chrome_port")
     def test_returns_project_port_when_already_running(self, mock_probe, mock_port):
@@ -156,6 +162,7 @@ class TestEnsureHostChrome:
             project_name="my-project",
             project_dir=Path("/tmp/my-project"),
             profile=None,
+            bind_address="127.0.0.1",
         )
 
     @patch("ai_shell.local_chrome._project_debug_port", return_value=54321)
@@ -178,7 +185,7 @@ class TestEnsureHostChrome:
     ):
         with pytest.raises(
             LocalChromeUnavailable,
-            match=f"localhost within {int(CHROME_HOST_PROBE_TIMEOUT_SECONDS)} seconds",
+            match=f"127.0.0.1 within {int(CHROME_HOST_PROBE_TIMEOUT_SECONDS)} seconds",
         ):
             ensure_host_chrome("test-dev", project_name="my-project")
 
@@ -298,3 +305,80 @@ class TestAccountChromeState:
         spec = chrome_mcp_server_spec(54321)
         assert spec["command"] == "npx"
         assert "http://localhost:54321" in spec["args"]  # type: ignore[operator]
+
+
+class TestFindChromeAcrossPlatforms:
+    @patch("ai_shell.local_chrome.shutil.which")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_linux_uses_path_lookup_in_preference_order(self, mock_system, mock_which):
+        from ai_shell.local_chrome import find_chrome
+
+        mock_which.side_effect = lambda name: "/usr/bin/chromium" if name == "chromium" else None
+        assert find_chrome() == "/usr/bin/chromium"
+        tried = [c[0][0] for c in mock_which.call_args_list]
+        assert tried[:2] == ["google-chrome", "google-chrome-stable"]
+
+    @patch("ai_shell.local_chrome.shutil.which", return_value=None)
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_linux_none_when_nothing_on_path(self, mock_system, mock_which):
+        from ai_shell.local_chrome import find_chrome
+
+        assert find_chrome() is None
+
+    @patch("ai_shell.local_chrome.Path.exists", return_value=True)
+    @patch("ai_shell.local_chrome.platform.system", return_value="Darwin")
+    def test_macos_uses_app_bundle(self, mock_system, mock_exists):
+        from ai_shell.local_chrome import find_chrome
+
+        assert find_chrome() == "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+
+class TestChromeBindAddress:
+    @patch("ai_shell.local_chrome.platform.system", return_value="Windows")
+    def test_loopback_on_docker_desktop_hosts(self, mock_system):
+        from ai_shell.local_chrome import chrome_bind_address
+
+        assert chrome_bind_address("c") == "127.0.0.1"
+
+    @patch("ai_shell.local_chrome.subprocess.run")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_linux_binds_to_the_address_the_container_resolves(self, mock_system, mock_run):
+        from ai_shell.local_chrome import chrome_bind_address
+
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="172.17.0.1      host.docker.internal\n"
+        )
+        assert chrome_bind_address("augint-shell-demo-dev") == "172.17.0.1"
+        args = mock_run.call_args[0][0]
+        assert args[:3] == ["docker", "exec", "augint-shell-demo-dev"]
+        assert args[-1] == "host.docker.internal"
+
+    @patch("ai_shell.local_chrome.subprocess.run")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_linux_falls_back_to_loopback_when_unresolvable(self, mock_system, mock_run):
+        from ai_shell.local_chrome import chrome_bind_address
+
+        mock_run.return_value = MagicMock(returncode=2, stdout="")
+        assert chrome_bind_address("c") == "127.0.0.1"
+
+
+class TestLaunchChromeArgs:
+    @patch("ai_shell.local_chrome.subprocess.Popen")
+    @patch("ai_shell.local_chrome.find_chrome", return_value="/usr/bin/google-chrome")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_linux_launch_binds_requested_address_and_detaches(
+        self, mock_system, mock_find, mock_popen
+    ):
+        from ai_shell.local_chrome import launch_chrome
+
+        assert (
+            launch_chrome(40001, project_name="p", profile="mike", bind_address="172.17.0.1")
+            is True
+        )
+        args = mock_popen.call_args[0][0]
+        assert "--remote-debugging-address=172.17.0.1" in args
+        assert "--remote-debugging-port=40001" in args
+        assert any(a.endswith("account-mike") for a in args if a.startswith("--user-data-dir="))
+        assert "--no-first-run" in args
+        assert mock_popen.call_args[1]["start_new_session"] is True
+        assert "creationflags" not in mock_popen.call_args[1]

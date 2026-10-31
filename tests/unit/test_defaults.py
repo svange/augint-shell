@@ -1291,6 +1291,31 @@ class TestBuildDevEnvironmentClaudeLogin:
         assert "--login" in msg
         assert "default, mike, woxom" in msg
 
+    def test_login_profile_imports_host_claude_md(self, global_env):
+        (global_env / ".claude").mkdir()
+        (global_env / ".claude" / "CLAUDE.md").write_text("# Sam's rules\n")
+
+        build_dev_environment(claude_account="mike", claude_login=True)
+
+        memory = global_env / ".augint" / "claude-accounts" / "mike" / "CLAUDE.md"
+        assert memory.is_file()
+        assert "@/root/.claude/CLAUDE.md" in memory.read_text()
+
+    def test_login_profile_memory_not_written_without_host_claude_md(self, global_env):
+        build_dev_environment(claude_account="mike", claude_login=True)
+        assert not (global_env / ".augint" / "claude-accounts" / "mike" / "CLAUDE.md").exists()
+
+    def test_login_profile_memory_never_overwritten(self, global_env):
+        (global_env / ".claude").mkdir()
+        (global_env / ".claude" / "CLAUDE.md").write_text("# Sam's rules\n")
+        profile = global_env / ".augint" / "claude-accounts" / "mike"
+        profile.mkdir(parents=True)
+        (profile / "CLAUDE.md").write_text("# Mike's own\n")
+
+        build_dev_environment(claude_account="mike", claude_login=True)
+
+        assert (profile / "CLAUDE.md").read_text() == "# Mike's own\n"
+
     def test_slug_and_dirs(self, global_env):
         from ai_shell.defaults import (
             claude_account_config_dir,

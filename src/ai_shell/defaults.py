@@ -830,6 +830,36 @@ def claude_account_config_dir(account: str) -> str:
     return f"{CLAUDE_ACCOUNTS_CONTAINER_ROOT}/{claude_account_slug(account)}"
 
 
+# Written into a new login profile so the user's own ~/.claude/CLAUDE.md
+# applies there too. Claude Code expands ``@path`` imports in user-scope
+# memory files without an approval dialog, and ~/.claude is bind-mounted at
+# /root/.claude, so one file stays the source of truth instead of a copy.
+CLAUDE_LOGIN_PROFILE_MEMORY = (
+    "# Shared user instructions\n"
+    "\n"
+    "This login profile imports the host user's own Claude Code memory file\n"
+    "through the ~/.claude bind mount. Edit or delete this file to give the\n"
+    "account its own instructions instead.\n"
+    "\n"
+    "@/root/.claude/CLAUDE.md\n"
+)
+
+
+def seed_claude_login_profile(login_dir: Path) -> bool:
+    """Give a new login profile the user's ``~/.claude/CLAUDE.md`` via an import.
+
+    A login profile is a separate ``CLAUDE_CONFIG_DIR``, so Claude never reads
+    ``~/.claude/CLAUDE.md`` in it. Only written when the profile has no
+    ``CLAUDE.md`` yet and the host has one, so an account can diverge later by
+    editing its own file. Returns True when the file was written.
+    """
+    target = login_dir / "CLAUDE.md"
+    if target.exists() or not (Path.home() / ".claude" / "CLAUDE.md").is_file():
+        return False
+    target.write_text(CLAUDE_LOGIN_PROFILE_MEMORY, encoding="utf-8")
+    return True
+
+
 def list_claude_login_accounts() -> list[str]:
     """Return the account names that have a login profile directory."""
     root = Path.home() / ".augint" / CLAUDE_ACCOUNTS_DIR_NAME
@@ -994,6 +1024,7 @@ def build_dev_environment(
         login_dir = claude_account_login_dir(claude_account)
         if claude_login or (not token and login_dir.is_dir()):
             login_dir.mkdir(parents=True, exist_ok=True)
+            seed_claude_login_profile(login_dir)
             env[CLAUDE_CONFIG_DIR_VAR] = claude_account_config_dir(claude_account)
             excluded.update(CLAUDE_REMOTE_CONTROL_UNSET_VARS)
         elif token:
