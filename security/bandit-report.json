@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-10-31T04:41:43Z",
+  "generated_at": "2026-10-31T05:18:38Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 82,
@@ -11,9 +11,9 @@
       "SEVERITY.LOW": 84,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 9130,
+      "loc": 9285,
       "nosec": 0,
-      "skipped_tests": 13
+      "skipped_tests": 14
     },
     "src/ai_shell/__init__.py": {
       "CONFIDENCE.HIGH": 0,
@@ -167,7 +167,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 66,
+      "loc": 67,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -453,9 +453,9 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 319,
+      "loc": 473,
       "nosec": 0,
-      "skipped_tests": 1
+      "skipped_tests": 2
     }
   },
   "results": []
