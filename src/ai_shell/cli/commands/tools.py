@@ -1119,11 +1119,6 @@ def _launch_loaded_config_claude(
         mcp_args: list[str] = []
         chrome_port: int | None = None
         chrome_proxy_url: str | None = None
-        if local_chrome:
-            # Resolved before any window opens: "vpn" starts the VPN container.
-            chrome_proxy_url = _resolve_chrome_proxy(
-                manager, config, claude_account, chrome_proxy, env_file=env_file
-            )
 
         # AUTO-UPDATE: Check tool freshness before launch
         manager.ensure_tool_fresh(container_name, "claude")
@@ -1151,6 +1146,13 @@ def _launch_loaded_config_claude(
     typeahead_bytes = typeahead.bytes()
 
     # Interactive steps run outside the typeahead capture so they own the TTY.
+    # The proxy comes first: "vpn" starts the VPN container and may prompt for
+    # the NordVPN token, and it must be known before any window opens.
+    if local_chrome:
+        chrome_proxy_url = _resolve_chrome_proxy(
+            manager, config, claude_account, chrome_proxy, env_file=env_file
+        )
+
     # With --local-chrome the sign-in runs first, in a window WITHOUT the
     # DevTools port (Google refuses automated browsers); the debug-port
     # Chrome opens afterwards on the same profile and reuses the session.

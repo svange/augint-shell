@@ -1986,19 +1986,38 @@ class TestClaudeRemoteControl:
         mock_manager_cls,
         mock_expo,
     ):
+        from contextlib import contextmanager
+
         from ai_shell.config import AiShellConfig
+        from ai_shell.typeahead import TypeaheadBuffer
 
         config = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
         config.chrome_proxy = "vpn"
         manager = self._setup(mock_config, mock_manager_cls, config=config)
 
-        result = self.runner.invoke(cli, ["claude", "--rc", "--account", "woxom", "--local-chrome"])
+        # The VPN step may prompt for the NordVPN token, so it must run after
+        # the typeahead capture has given the terminal back.
+        order: list[str] = []
+
+        @contextmanager
+        def fake_capture():
+            order.append("capture-start")
+            yield TypeaheadBuffer()
+            order.append("capture-end")
+
+        mock_vpn.side_effect = lambda *a, **k: (order.append("vpn"), "http://127.0.0.1:8888")[1]
+
+        with patch("ai_shell.cli.commands.tools.capture_typeahead", fake_capture):
+            result = self.runner.invoke(
+                cli, ["claude", "--rc", "--account", "woxom", "--local-chrome"]
+            )
 
         assert result.exit_code == 0, result.output
         mock_vpn.assert_called_once()
         assert mock_vpn.call_args[0][0] is manager
         assert mock_vpn.call_args[0][1] is config
         assert mock_ensure.call_args[1]["proxy"] == "http://127.0.0.1:8888"
+        assert order == ["capture-start", "capture-end", "vpn"]
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
