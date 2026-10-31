@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.114.0 (2026-10-31)
+
+### Features
+
+- **vpn**: Pin gluetun to the account's NordVPN dedicated-IP server (#180)
+  ([#180](https://github.com/svange/augint-shell/pull/180),
+  [`04e53ac`](https://github.com/svange/augint-shell/commit/04e53acd2080b92c2a2ad75596c4f521985cb0ce))
+
+
 ## v0.113.2 (2026-10-31)
 
 ### Bug Fixes
