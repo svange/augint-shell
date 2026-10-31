@@ -71,6 +71,8 @@ Priority: `extra_env` > `./.env` > `~/.augint/.env` > `os.environ` > defaults. L
 
 **Account-scoped Chrome**: with a named account, `--local-chrome` keys the host Chrome (profile dir + debug port) by `account-{chrome_profile or account}` instead of the project (`local_chrome._chrome_slug`), so one account shares one browser across repos and two accounts never share one.
 
+**Chrome proxy and the plain window**: `--chrome-proxy URL` > `claude.accounts.<name>.chrome_proxy` > `claude.chrome_proxy` / `AI_SHELL_CHROME_PROXY` (`_account_chrome_proxy`) becomes Chrome's `--proxy-server` when ai-shell launches it (`launch_chrome(proxy=)`); a VPN container's HTTP proxy for a host whose own address sites refuse. Only the browser is proxied, never the dev container. Google refuses to sign in inside a browser with a DevTools port, so `ai-shell chrome [--account NAME] [URL]` (`launch_plain_chrome`) opens the same profile dir without the port, with the configured proxy, and refuses while a Chrome holds the profile (`SingletonLock` on POSIX, the debug-port probe elsewhere). The piped login prints the authorize URL even after opening it in Chrome, for the same reason.
+
 **Host Chrome on Linux/macOS**: `find_chrome()` checks Windows paths, macOS app bundles, then `PATH` (`google-chrome`, `chromium`, ...). `chrome_bind_address()` decides what the debug port binds to: loopback on Docker Desktop hosts, but on Linux the IP the container resolves for `host.docker.internal` (`getent hosts` inside the container), because Linux containers cannot reach a loopback-only listener. The in-container node proxy and `host.docker.internal` (`extra_hosts: host-gateway`) are unchanged. Untested on podman; needs the `docker` CLI shim and podman 4.1+.
 
 ### OpenCode web mode

@@ -426,12 +426,14 @@ def _configure_local_chrome(
     project_name: str,
     project_dir: Path | str | None,
     chrome_profile: str | None = None,
+    chrome_proxy: str | None = None,
 ) -> tuple[list[str], str, int]:
     """Attach chrome-devtools-mcp to a host Chrome instance.
 
     Returns the ``--mcp-config`` args for an interactive launch, the config
     path inside the container, and the Chrome debug port (for launch modes
     that cannot take ``--mcp-config``, such as ``claude remote-control``).
+    *chrome_proxy* becomes Chrome's ``--proxy-server`` when ai-shell launches it.
     """
     from ai_shell.local_chrome import (
         LocalChromeUnavailable,
@@ -441,6 +443,8 @@ def _configure_local_chrome(
     )
 
     label = f" (profile: {chrome_profile})" if chrome_profile else ""
+    if chrome_proxy:
+        label += f" (proxy: {chrome_proxy})"
     console.print(f"[dim]Connecting to host Chrome{label}...[/dim]")
     try:
         chrome_port = ensure_host_chrome(
@@ -448,6 +452,7 @@ def _configure_local_chrome(
             project_name=project_name,
             project_dir=project_dir,
             **({"profile": chrome_profile} if chrome_profile else {}),
+            **({"proxy": chrome_proxy} if chrome_proxy else {}),
         )
     except LocalChromeUnavailable as exc:
         raise click.ClickException(str(exc)) from exc
@@ -488,6 +493,26 @@ def _resolve_local_chrome(config: AiShellConfig, claude_account: str, cli_flag: 
         if isinstance(per_account, bool):
             return per_account
     return config.local_chrome is True
+
+
+def _account_chrome_proxy(
+    config: AiShellConfig, claude_account: str, cli_value: str | None = None
+) -> str | None:
+    """``--chrome-proxy`` > ``claude.accounts.<name>.chrome_proxy`` > ``claude.chrome_proxy``.
+
+    Returns ``None`` when no proxy is configured. The value is Chrome's
+    ``--proxy-server`` argument, typically the HTTP proxy of a VPN container
+    (``http://127.0.0.1:8888``) on a host whose own address sites refuse.
+    """
+    if cli_value is not None and cli_value.strip():
+        return cli_value.strip()
+    if _is_named_account(claude_account):
+        per_account = config.claude_account_config(claude_account).chrome_proxy
+        if isinstance(per_account, str) and per_account.strip():
+            return per_account.strip()
+    if isinstance(config.chrome_proxy, str) and config.chrome_proxy.strip():
+        return config.chrome_proxy.strip()
+    return None
 
 
 def _claude_exec_env(
@@ -603,6 +628,8 @@ def _print_claude_accounts(config: AiShellConfig, env_file: Path | None) -> None
                 sources.append(f"chrome profile: {account_cfg.chrome_profile}")
             if account_cfg.local_chrome is not None:
                 sources.append(f"local_chrome: {str(account_cfg.local_chrome).lower()}")
+            if account_cfg.chrome_proxy:
+                sources.append(f"chrome proxy: {account_cfg.chrome_proxy}")
         note = f" [dim]({'; '.join(sources)})[/dim]"
         marker = (
             " [green]<- selected when --account is omitted[/green]" if slug == configured else ""
@@ -762,6 +789,15 @@ def _piped_claude_login(
                 f"[bold]Sign-in page opened in the Chrome window for '{chrome_profile}'.[/bold] "
                 "Sign in there as that account; the browser then shows a code."
             )
+            # Google refuses to sign in inside a browser that exposes a DevTools
+            # port, so a Google (or Google SSO) account needs another browser:
+            # the same URL works on any device, and only the code comes back.
+            console.print(
+                "[dim]If the account signs in with Google, that window will refuse it "
+                '("This browser or app may not be secure"). Open the same URL in any '
+                "other browser, on any device, and paste the code here:[/dim]"
+            )
+            console.print(url, soft_wrap=True, markup=False, highlight=False)
             return True
         console.print("[bold]Open this URL in a browser signed in as the account:[/bold]")
         console.print(url, soft_wrap=True, markup=False, highlight=False)
@@ -856,6 +892,7 @@ def _launch_loaded_config_claude(
     cli_account: str | None = None,
     remote_control: str | None = None,
     force_login: bool = False,
+    chrome_proxy: str | None = None,
 ) -> None:
     """Launch Claude for an already loaded project config.
 
@@ -863,6 +900,8 @@ def _launch_loaded_config_claude(
     the given session name (empty string = derived from project and account).
     *force_login* runs ``claude auth login`` for the selected account before
     the launch. Both use the account's login profile instead of its token.
+    *chrome_proxy* (``--chrome-proxy``) overrides the configured proxy for
+    the host Chrome that ``--local-chrome`` launches.
     """
     with capture_typeahead() as typeahead:
         use_bedrock = use_aws or config.claude_provider == "aws"
@@ -934,6 +973,7 @@ def _launch_loaded_config_claude(
                 project_name=config.project_name,
                 project_dir=config.project_dir,
                 chrome_profile=chrome_profile,
+                chrome_proxy=_account_chrome_proxy(config, claude_account, chrome_proxy),
             )
 
         # AUTO-UPDATE: Check tool freshness before launch
@@ -1227,6 +1267,7 @@ def _launch_interactive(
             project_name=config.project_name,
             project_dir=config.project_dir,
             chrome_profile=_account_chrome_profile(config, cli_account or config.claude_account),
+            chrome_proxy=_account_chrome_proxy(config, cli_account or config.claude_account),
         )
 
     # Build pane specs.
@@ -1744,6 +1785,19 @@ def _launch_multi(
     ),
 )
 @click.option(
+    "--chrome-proxy",
+    "chrome_proxy",
+    default=None,
+    metavar="URL",
+    help=(
+        "Proxy for the host Chrome that --local-chrome launches, as Chrome's "
+        "--proxy-server value (http://127.0.0.1:8888, socks5://host:port). Use it when "
+        "sites refuse the machine's own address (a datacenter box) and a VPN container "
+        "exposes a proxy. Default: claude.accounts.<name>.chrome_proxy, then "
+        "claude.chrome_proxy / AI_SHELL_CHROME_PROXY."
+    ),
+)
+@click.option(
     "--rc",
     "--remote-control",
     "remote_control",
@@ -1813,6 +1867,7 @@ def claude(
     do_multi,
     do_team,
     local_chrome,
+    chrome_proxy,
     remote_control,
     force_login,
     use_t3,
@@ -1917,6 +1972,62 @@ def claude(
         cli_account=cli_account,
         remote_control=remote_control,
         force_login=force_login,
+        chrome_proxy=chrome_proxy,
+    )
+
+
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.option(
+    "--account",
+    "cli_account",
+    default=None,
+    help=(
+        "Open the Chrome window of this Claude account (the one --local-chrome uses "
+        "with --account NAME). Without it, the current project's window."
+    ),
+)
+@click.option(
+    "--chrome-proxy",
+    "chrome_proxy",
+    default=None,
+    metavar="URL",
+    help="Proxy for this window (Chrome --proxy-server value). Default: the configured one.",
+)
+@click.argument("url", required=False)
+@click.pass_context
+def chrome(ctx, cli_account, chrome_proxy, url):
+    """Open an ai-shell Chrome window WITHOUT the DevTools port, for sign-ins.
+
+    Google refuses to sign in inside a browser that exposes a DevTools port,
+    which is what --local-chrome launches. Sign in to Google (or any site that
+    refuses an automated browser) here once, close the window, and the next
+    --local-chrome launch reuses the session. The window is the same profile
+    directory, so nothing else changes.
+    """
+    from ai_shell.local_chrome import LocalChromeUnavailable, launch_plain_chrome
+
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    account = cli_account or config.claude_account
+    profile = _account_chrome_profile(config, account)
+    proxy = _account_chrome_proxy(config, account, chrome_proxy)
+    try:
+        profile_dir = launch_plain_chrome(
+            project_name=config.project_name,
+            project_dir=config.project_dir,
+            profile=profile,
+            proxy=proxy,
+            url=url,
+        )
+    except LocalChromeUnavailable as exc:
+        raise click.ClickException(str(exc)) from exc
+    label = f"account '{account}'" if profile else f"project '{config.project_name}'"
+    proxy_label = f" through {proxy}" if proxy else ""
+    console.print(f"[bold]Chrome opened for {label}{proxy_label} (no DevTools port).[/bold]")
+    console.print(f"[dim]Profile: {profile_dir}[/dim]")
+    console.print(
+        "[dim]Sign in, then close every window of it before the next --local-chrome launch; "
+        "that launch opens the same profile with the DevTools port and keeps the session.[/dim]"
     )
 
 

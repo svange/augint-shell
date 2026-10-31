@@ -9,7 +9,7 @@ from ai_shell import __version__
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.cli.commands.llm import llm_group
 from ai_shell.cli.commands.manage import manage_group
-from ai_shell.cli.commands.tools import claude, codex, init, opencode, pi, shell
+from ai_shell.cli.commands.tools import chrome, claude, codex, init, opencode, pi, shell
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -34,6 +34,7 @@ def cli(ctx, project, verbose, skip_updates):
 
 # Tool subcommands
 cli.add_command(claude)
+cli.add_command(chrome)
 cli.add_command(codex)
 cli.add_command(opencode)
 cli.add_command(pi)

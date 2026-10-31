@@ -205,10 +205,15 @@ def _project_debug_port(
 
 
 def _build_setup_instructions(
-    project_name: str, profile_dir: str, port: int, bind_address: str = LOOPBACK
+    project_name: str,
+    profile_dir: str,
+    port: int,
+    bind_address: str = LOOPBACK,
+    proxy: str | None = None,
 ) -> str:
     """Return manual setup instructions for the project's Chrome profile."""
     binary = "chrome.exe" if platform.system() == "Windows" else "google-chrome"
+    proxy_flag = f" \\\n    --proxy-server={proxy}" if proxy else ""
     return f"""\
 Chrome could not be found or launched automatically, and the debug port \
 is not reachable.
@@ -218,43 +223,24 @@ To fix, launch Chrome manually with these flags:
   {binary} --remote-debugging-port={port} \\
     --remote-debugging-address={bind_address} \\
     --remote-allow-origins=* \\
-    --user-data-dir="{profile_dir}"
+    --user-data-dir="{profile_dir}"{proxy_flag}
 
 Then re-run this command for project '{project_name}'.
 See README.md "Attaching to host Chrome" for details."""
 
 
-def launch_chrome(
-    port: int,
-    *,
-    project_name: str,
-    project_dir: str | Path | None = None,
-    profile: str | None = None,
-    bind_address: str = LOOPBACK,
-) -> bool:
-    """Launch Chrome on the host with the debug port enabled.
+def _proxy_args(proxy: str | None) -> list[str]:
+    """Chrome flags that send its traffic through *proxy* (empty when unset).
 
-    Returns ``True`` if Chrome was launched, ``False`` if Chrome could
-    not be found.  The process is started detached so it outlives the CLI.
+    ``--proxy-server`` takes ``http://host:port``, ``socks5://host:port`` or
+    a bare ``host:port``. Chrome never proxies loopback, so the DevTools
+    bridge and the sign-in code flow are unaffected.
     """
-    chrome_path = find_chrome()
-    if chrome_path is None:
-        return False
+    return [f"--proxy-server={proxy}"] if proxy else []
 
-    profile_dir = _chrome_profile_dir(project_name, project_dir, profile)
-    args = [
-        chrome_path,
-        f"--remote-debugging-port={port}",
-        f"--remote-debugging-address={bind_address}",
-        "--remote-allow-origins=*",
-        f"--user-data-dir={profile_dir}",
-        # A fresh profile dir otherwise opens first-run / default-browser dialogs.
-        "--no-first-run",
-        "--no-default-browser-check",
-    ]
-    logger.info("Launching Chrome: %s", " ".join(args))
 
-    # Start detached so Chrome outlives the CLI process.
+def _spawn_detached(args: list[str]) -> None:
+    """Start *args* so the process outlives the CLI, on every platform."""
     if platform.system() == "Windows":
         creation_flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(
             subprocess, "DETACHED_PROCESS", 0
@@ -274,7 +260,104 @@ def launch_chrome(
             stdin=subprocess.DEVNULL,
             start_new_session=True,
         )
+
+
+def launch_chrome(
+    port: int,
+    *,
+    project_name: str,
+    project_dir: str | Path | None = None,
+    profile: str | None = None,
+    bind_address: str = LOOPBACK,
+    proxy: str | None = None,
+) -> bool:
+    """Launch Chrome on the host with the debug port enabled.
+
+    Returns ``True`` if Chrome was launched, ``False`` if Chrome could
+    not be found.  The process is started detached so it outlives the CLI.
+    With *proxy*, Chrome sends its traffic through that proxy server (a VPN
+    container's HTTP proxy, for example).
+    """
+    chrome_path = find_chrome()
+    if chrome_path is None:
+        return False
+
+    profile_dir = _chrome_profile_dir(project_name, project_dir, profile)
+    args = [
+        chrome_path,
+        f"--remote-debugging-port={port}",
+        f"--remote-debugging-address={bind_address}",
+        "--remote-allow-origins=*",
+        f"--user-data-dir={profile_dir}",
+        # A fresh profile dir otherwise opens first-run / default-browser dialogs.
+        "--no-first-run",
+        "--no-default-browser-check",
+        *_proxy_args(proxy),
+    ]
+    logger.info("Launching Chrome: %s", " ".join(args))
+    _spawn_detached(args)
     return True
+
+
+def chrome_profile_in_use(profile_dir: str | Path) -> bool:
+    """True when a Chrome process holds *profile_dir* open.
+
+    Chrome on Linux and macOS leaves a ``SingletonLock`` link in the profile
+    while it runs and removes it on exit. Windows keeps its ``lockfile`` on
+    disk, so there the answer is always ``False`` and the caller relies on
+    the debug port probe instead.
+    """
+    if platform.system() == "Windows":
+        return False
+    return Path(profile_dir, "SingletonLock").is_symlink()
+
+
+def launch_plain_chrome(
+    *,
+    project_name: str,
+    project_dir: str | Path | None = None,
+    profile: str | None = None,
+    proxy: str | None = None,
+    url: str | None = None,
+) -> str:
+    """Open the project's (or account's) ai-shell Chrome WITHOUT the debug port.
+
+    Google refuses to sign in inside a browser that exposes a DevTools port
+    ("This browser or app may not be secure"), so a Google (or Google SSO)
+    sign-in has to happen in a plain window on the same profile directory.
+    The cookies it leaves behind are what the debug-port Chrome reuses on
+    the next ``--local-chrome`` launch. Returns the profile directory.
+
+    Raises :class:`LocalChromeUnavailable` when Chrome is not installed, or
+    when a Chrome already holds that profile: a second launch would only
+    open a window inside the running (debug-port) process.
+    """
+    chrome_path = find_chrome()
+    if chrome_path is None:
+        raise LocalChromeUnavailable(
+            "Chrome could not be found. Install Google Chrome or Chromium, or put it on PATH."
+        )
+    profile_dir = _chrome_profile_dir(project_name, project_dir, profile)
+    port = _project_debug_port(project_name, project_dir, profile)
+    if chrome_profile_in_use(profile_dir) or probe_host_chrome_port(port):
+        raise LocalChromeUnavailable(
+            f"A Chrome window already uses the profile {profile_dir}.\n"
+            "Close every window of that Chrome (the one ai-shell opened with the "
+            "DevTools port) and run this again: a second launch would open inside "
+            "the running process, where Google still refuses the sign-in."
+        )
+    args = [
+        chrome_path,
+        f"--user-data-dir={profile_dir}",
+        "--no-first-run",
+        "--no-default-browser-check",
+        *_proxy_args(proxy),
+    ]
+    if url:
+        args.append(url)
+    logger.info("Launching plain Chrome: %s", " ".join(args))
+    _spawn_detached(args)
+    return profile_dir
 
 
 def probe_chrome_port(container_name: str, port: int) -> bool:
@@ -339,6 +422,7 @@ def ensure_host_chrome(
     project_name: str,
     project_dir: str | Path | None = None,
     profile: str | None = None,
+    proxy: str | None = None,
 ) -> int:
     """Ensure Chrome is running with a debug port reachable from the container.
 
@@ -346,7 +430,9 @@ def ensure_host_chrome(
     so different repos can keep separate logged-in Chrome instances alive.
     When *profile* is given (a Claude account), the profile and port are keyed
     by it instead, so one account keeps one browser across projects and two
-    accounts never share one.
+    accounts never share one. *proxy* is handed to Chrome as
+    ``--proxy-server`` when ai-shell has to launch it; a Chrome that is
+    already running keeps whatever proxy it was started with.
 
     Returns the port number Chrome is listening on.
     """
@@ -365,9 +451,10 @@ def ensure_host_chrome(
         project_dir=project_dir,
         profile=profile,
         bind_address=bind_address,
+        proxy=proxy,
     ):
         raise LocalChromeUnavailable(
-            _build_setup_instructions(project_name, profile_dir, port, bind_address)
+            _build_setup_instructions(project_name, profile_dir, port, bind_address, proxy)
         )
 
     if not _wait_until_ready(

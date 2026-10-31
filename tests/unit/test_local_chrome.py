@@ -163,6 +163,7 @@ class TestEnsureHostChrome:
             project_dir=Path("/tmp/my-project"),
             profile=None,
             bind_address="127.0.0.1",
+            proxy=None,
         )
 
     @patch("ai_shell.local_chrome._project_debug_port", return_value=54321)
@@ -382,3 +383,115 @@ class TestLaunchChromeArgs:
         assert "--no-first-run" in args
         assert mock_popen.call_args[1]["start_new_session"] is True
         assert "creationflags" not in mock_popen.call_args[1]
+
+
+class TestChromeProxy:
+    @patch("ai_shell.local_chrome.subprocess.Popen")
+    @patch("ai_shell.local_chrome.find_chrome", return_value="/usr/bin/google-chrome")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_launch_passes_proxy_server(self, mock_system, mock_find, mock_popen):
+        from ai_shell.local_chrome import launch_chrome
+
+        assert launch_chrome(40001, project_name="p", proxy="http://127.0.0.1:8888") is True
+        args = mock_popen.call_args[0][0]
+        assert "--proxy-server=http://127.0.0.1:8888" in args
+        assert "--remote-debugging-port=40001" in args
+
+    @patch("ai_shell.local_chrome.subprocess.Popen")
+    @patch("ai_shell.local_chrome.find_chrome", return_value="/usr/bin/google-chrome")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_launch_without_proxy_adds_no_flag(self, mock_system, mock_find, mock_popen):
+        from ai_shell.local_chrome import launch_chrome
+
+        launch_chrome(40001, project_name="p")
+        assert not [a for a in mock_popen.call_args[0][0] if a.startswith("--proxy-server")]
+
+    @patch("ai_shell.local_chrome.chrome_bind_address", return_value="127.0.0.1")
+    @patch("ai_shell.local_chrome._wait_until_ready", side_effect=[True, True])
+    @patch("ai_shell.local_chrome.launch_chrome", return_value=True)
+    @patch("ai_shell.local_chrome._project_debug_port", return_value=54321)
+    @patch("ai_shell.local_chrome.probe_chrome_port", return_value=False)
+    def test_ensure_hands_proxy_to_launch(
+        self, mock_probe, mock_port, mock_launch, mock_wait, mock_bind
+    ):
+        ensure_host_chrome(
+            "test-dev", project_name="p", profile="mike", proxy="socks5://127.0.0.1:1080"
+        )
+        assert mock_launch.call_args[1]["proxy"] == "socks5://127.0.0.1:1080"
+
+    @patch("ai_shell.local_chrome.chrome_bind_address", return_value="127.0.0.1")
+    @patch("ai_shell.local_chrome.launch_chrome", return_value=False)
+    @patch("ai_shell.local_chrome.probe_chrome_port", return_value=False)
+    def test_manual_instructions_include_proxy(self, mock_probe, mock_launch, mock_bind):
+        with pytest.raises(LocalChromeUnavailable, match=r"--proxy-server=http://127.0.0.1:8888"):
+            ensure_host_chrome("test-dev", project_name="p", proxy="http://127.0.0.1:8888")
+
+
+class TestLaunchPlainChrome:
+    """``ai-shell chrome``: the profile's window without the DevTools port."""
+
+    @patch("ai_shell.local_chrome.probe_host_chrome_port", return_value=False)
+    @patch("ai_shell.local_chrome.subprocess.Popen")
+    @patch("ai_shell.local_chrome.find_chrome", return_value="/usr/bin/google-chrome")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_opens_profile_without_debug_flags(
+        self, mock_system, mock_find, mock_popen, mock_probe
+    ):
+        from ai_shell.local_chrome import launch_plain_chrome
+
+        profile_dir = launch_plain_chrome(
+            project_name="p",
+            profile="mike",
+            proxy="http://127.0.0.1:8888",
+            url="https://accounts.google.com/",
+        )
+        args = mock_popen.call_args[0][0]
+        assert profile_dir.endswith("account-mike")
+        assert f"--user-data-dir={profile_dir}" in args
+        assert "--proxy-server=http://127.0.0.1:8888" in args
+        assert args[-1] == "https://accounts.google.com/"
+        assert not [a for a in args if a.startswith("--remote-")]
+        assert mock_popen.call_args[1]["start_new_session"] is True
+
+    @patch("ai_shell.local_chrome.find_chrome", return_value=None)
+    def test_fails_when_chrome_missing(self, mock_find):
+        from ai_shell.local_chrome import launch_plain_chrome
+
+        with pytest.raises(LocalChromeUnavailable, match="could not be found"):
+            launch_plain_chrome(project_name="p")
+
+    @patch("ai_shell.local_chrome.probe_host_chrome_port", return_value=True)
+    @patch("ai_shell.local_chrome.subprocess.Popen")
+    @patch("ai_shell.local_chrome.find_chrome", return_value="/usr/bin/google-chrome")
+    def test_refuses_while_debug_port_chrome_runs(self, mock_find, mock_popen, mock_probe):
+        from ai_shell.local_chrome import launch_plain_chrome
+
+        with pytest.raises(LocalChromeUnavailable, match="already uses the profile"):
+            launch_plain_chrome(project_name="p", profile="mike")
+        mock_popen.assert_not_called()
+
+    @patch("ai_shell.local_chrome.probe_host_chrome_port", return_value=False)
+    @patch("ai_shell.local_chrome.subprocess.Popen")
+    @patch("ai_shell.local_chrome.find_chrome", return_value="/usr/bin/google-chrome")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_refuses_while_profile_lock_is_held(
+        self, mock_system, mock_find, mock_popen, mock_probe, tmp_path
+    ):
+        from ai_shell.local_chrome import launch_plain_chrome
+
+        profile_dir = tmp_path / "account-mike"
+        profile_dir.mkdir()
+        (profile_dir / "SingletonLock").symlink_to("otherhost-1234")
+        with (
+            patch("ai_shell.local_chrome._chrome_profile_dir", return_value=str(profile_dir)),
+            pytest.raises(LocalChromeUnavailable, match="already uses the profile"),
+        ):
+            launch_plain_chrome(project_name="p", profile="mike")
+        mock_popen.assert_not_called()
+
+    @patch("ai_shell.local_chrome.platform.system", return_value="Windows")
+    def test_lock_check_is_posix_only(self, mock_system, tmp_path):
+        from ai_shell.local_chrome import chrome_profile_in_use
+
+        (tmp_path / "SingletonLock").symlink_to("host-1")
+        assert chrome_profile_in_use(tmp_path) is False
