@@ -367,9 +367,7 @@ class TestLaunchChromeArgs:
     @patch("ai_shell.local_chrome.subprocess.Popen")
     @patch("ai_shell.local_chrome.find_chrome", return_value="/usr/bin/google-chrome")
     @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
-    def test_linux_launch_binds_requested_address_and_detaches(
-        self, mock_system, mock_find, mock_popen
-    ):
+    def test_linux_launch_keeps_loopback_and_detaches(self, mock_system, mock_find, mock_popen):
         from ai_shell.local_chrome import launch_chrome
 
         assert (
@@ -377,12 +375,78 @@ class TestLaunchChromeArgs:
             is True
         )
         args = mock_popen.call_args[0][0]
-        assert "--remote-debugging-address=172.17.0.1" in args
+        # A windowed Chrome ignores --remote-debugging-address; the relay serves 172.17.0.1.
+        assert not [a for a in args if a.startswith("--remote-debugging-address")]
         assert "--remote-debugging-port=40001" in args
         assert any(a.endswith("account-mike") for a in args if a.startswith("--user-data-dir="))
         assert "--no-first-run" in args
         assert mock_popen.call_args[1]["start_new_session"] is True
         assert "creationflags" not in mock_popen.call_args[1]
+
+
+class TestLinuxRelay:
+    """On a Linux host the container reaches the host at a real address; the relay serves it."""
+
+    @patch("ai_shell.local_chrome.start_cdp_relay")
+    @patch("ai_shell.local_chrome._wait_until_ready", side_effect=[True, True, True])
+    @patch("ai_shell.local_chrome.launch_chrome", return_value=True)
+    @patch("ai_shell.local_chrome._project_debug_port", return_value=54321)
+    @patch("ai_shell.local_chrome.probe_chrome_port", return_value=False)
+    @patch("ai_shell.local_chrome.chrome_bind_address", return_value="10.67.0.102")
+    def test_relay_starts_after_chrome_answers_on_loopback(
+        self, mock_bind, mock_probe, mock_port, mock_launch, mock_wait, mock_relay
+    ):
+        assert ensure_host_chrome("test-dev", project_name="p") == 54321
+        # 1: Chrome on loopback, 2: the relay on the bind address, 3: the container.
+        first, second, third = mock_wait.call_args_list
+        assert first[0][1:3] == (54321, "127.0.0.1")
+        assert second[0][1:3] == (54321, "10.67.0.102")
+        assert third[0][0] is mock_probe
+        mock_relay.assert_called_once_with("10.67.0.102", 54321)
+
+    @patch("ai_shell.local_chrome.start_cdp_relay")
+    @patch("ai_shell.local_chrome._wait_until_ready", side_effect=[True, False])
+    @patch("ai_shell.local_chrome.launch_chrome", return_value=True)
+    @patch("ai_shell.local_chrome._project_debug_port", return_value=54321)
+    @patch("ai_shell.local_chrome.probe_chrome_port", return_value=False)
+    @patch("ai_shell.local_chrome.chrome_bind_address", return_value="10.67.0.102")
+    def test_relay_that_never_opens_names_its_log(
+        self, mock_bind, mock_probe, mock_port, mock_launch, mock_wait, mock_relay
+    ):
+        with pytest.raises(LocalChromeUnavailable, match=r"relay did not open 10.67.0.102:54321"):
+            ensure_host_chrome("test-dev", project_name="p")
+
+    @patch("ai_shell.local_chrome.start_cdp_relay")
+    @patch("ai_shell.local_chrome._wait_until_ready", side_effect=[True, True])
+    @patch("ai_shell.local_chrome.launch_chrome", return_value=True)
+    @patch("ai_shell.local_chrome._project_debug_port", return_value=54321)
+    @patch("ai_shell.local_chrome.probe_chrome_port", return_value=False)
+    @patch("ai_shell.local_chrome.chrome_bind_address", return_value="127.0.0.1")
+    def test_no_relay_on_docker_desktop(
+        self, mock_bind, mock_probe, mock_port, mock_launch, mock_wait, mock_relay
+    ):
+        ensure_host_chrome("test-dev", project_name="p")
+        mock_relay.assert_not_called()
+
+    @patch("ai_shell.local_chrome._spawn_detached")
+    @patch("ai_shell.local_chrome.probe_host_chrome_port", return_value=False)
+    def test_start_relay_runs_the_module_detached(self, mock_probe, mock_spawn, isolate_home):
+        import sys
+
+        from ai_shell.local_chrome import relay_log_path, start_cdp_relay
+
+        start_cdp_relay("10.67.0.102", 54321)
+        args = mock_spawn.call_args[0][0]
+        assert args == [sys.executable, "-m", "ai_shell.cdp_relay", "10.67.0.102", "54321"]
+        assert relay_log_path(54321).parent.is_dir()
+
+    @patch("ai_shell.local_chrome._spawn_detached")
+    @patch("ai_shell.local_chrome.probe_host_chrome_port", return_value=True)
+    def test_start_relay_reuses_a_running_one(self, mock_probe, mock_spawn, isolate_home):
+        from ai_shell.local_chrome import start_cdp_relay
+
+        start_cdp_relay("10.67.0.102", 54321)
+        mock_spawn.assert_not_called()
 
 
 class TestChromeProxy:
