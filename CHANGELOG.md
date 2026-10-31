@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.111.0 (2026-10-31)
+
+### Features
+
+- **claude**: Share ~/.claude/CLAUDE.md with login profiles; host Chrome on Linux/macOS (#175)
+  ([#175](https://github.com/svange/augint-shell/pull/175),
+  [`da57ea8`](https://github.com/svange/augint-shell/commit/da57ea8a4f38b1cadeefb62a6e685a0fd0b7f5a0))
+
+
 ## v0.110.3 (2026-10-30)
 
 ### Bug Fixes
