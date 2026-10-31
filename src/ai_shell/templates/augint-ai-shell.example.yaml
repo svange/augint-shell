@@ -77,15 +77,17 @@
 #   # CLAUDE_CODE_OAUTH_TOKEN_<NAME> in ~/.augint/.env (terminal sessions) or
 #   # the login profile ~/.augint/claude-accounts/<name>/ created by
 #   # `ai-shell claude --account <name> --login` (needed for --rc).
-#   # Proxy for every host Chrome ai-shell opens (Chrome --proxy-server value),
-#   # for a machine whose own address sites refuse. See README "Chrome through
-#   # a VPN or proxy". Per account below overrides it.
+#   # Proxy for every host Chrome ai-shell opens, for a machine whose own
+#   # address sites refuse: "vpn" (ai-shell's gluetun/NordVPN container; the
+#   # token is NORDVPN_TOKEN in ~/.augint/.env) or a Chrome --proxy-server
+#   # value. See README "Chrome through a VPN or proxy". Per account below
+#   # overrides it.
 #   chrome_proxy: ""
 #   accounts:
 #     mike:
 #       local_chrome: true       # Open Mike's own Chrome window on launch
 #       chrome_profile: mike     # Chrome profile slug; defaults to the account name
-#       chrome_proxy: http://127.0.0.1:8888  # Mike's Chrome through a VPN container
+#       chrome_proxy: vpn        # Mike's Chrome through the VPN container
 #     adam:
 #       local_chrome: true
 
@@ -131,3 +133,9 @@
 #   wake_word:
 #     enabled: false
 #     name: hey_jarvis
+
+# --- VPN container (claude.chrome_proxy: vpn) -------------------------------
+# vpn:
+#   country: United States   # gluetun SERVER_COUNTRIES; empty = any NordVPN server
+#   firewall: true           # gluetun's firewall; turned off by itself where it cannot run
+#   proxy_port: 8888         # loopback port of the HTTP proxy Chrome uses
