@@ -96,7 +96,8 @@ def fetch_wireguard_key(token: str) -> str:
         headers={"Authorization": f"Basic {auth}", "Accept": "application/json"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310
+        # Fixed https URL to NordVPN's API, never a user-supplied scheme.
+        with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310 # nosec B310
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403):
