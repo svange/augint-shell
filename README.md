@@ -348,6 +348,7 @@ claude:
 - **Separate Chrome profile per account** -- with `--account NAME`, the window is keyed by the account instead of the project, so Mike's sessions share one logged-in Chrome across repos and never touch Adam's. Override the slug with `claude.accounts.<name>.chrome_profile`.
 - Profiles live under `%LOCALAPPDATA%\Google\Chrome\ai-shell\<slug>` on Windows and `~/.config/google-chrome/ai-shell/<slug>` elsewhere (`account-<name>` for accounts). Each has its own debug port, so several can run at once.
 - All traffic stays on `localhost`.
+- **The MCP server is checked before Claude starts.** `chrome-devtools-mcp` is installed in the image (and installed on demand in an older container). At every launch ai-shell starts it once, makes it list Chrome's pages through the bridge, and only then hands it to Claude. A broken bridge fails the launch with the server's own output instead of showing up inside Claude as an MCP server that "failed to start" (which is what an `npx` fetch on a cold container used to do when it outlasted Claude Code's startup timeout).
 
 Set `claude.local_chrome: true` (or `AI_SHELL_LOCAL_CHROME=1`) to persist, or `claude.accounts.<name>.local_chrome: true` for one account only.
 

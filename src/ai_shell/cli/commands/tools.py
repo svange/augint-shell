@@ -439,6 +439,7 @@ def _configure_local_chrome(
     from ai_shell.local_chrome import (
         LocalChromeUnavailable,
         ensure_host_chrome,
+        prepare_chrome_mcp,
         start_chrome_proxy,
         write_mcp_config,
     )
@@ -465,10 +466,18 @@ def _configure_local_chrome(
     # must connect via localhost.
     start_chrome_proxy(container_name, chrome_port)
 
+    # The server is started once here and asked for Chrome's pages, so a
+    # broken bridge fails the launch with the server's own words instead of
+    # showing up inside Claude as an MCP server that "failed to start".
+    try:
+        prepare_chrome_mcp(container_name, chrome_port)
+    except LocalChromeUnavailable as exc:
+        raise click.ClickException(str(exc)) from exc
+
     host_mcp_path = write_mcp_config(chrome_port)
     container_mcp_path = "/etc/ai-shell/chrome-mcp.json"
     _inject_mcp_config(container_name, str(host_mcp_path), container_mcp_path)
-    console.print("[dim]Chrome DevTools MCP attached.[/dim]")
+    console.print("[dim]Chrome DevTools MCP attached and answering.[/dim]")
     return ["--mcp-config", container_mcp_path], container_mcp_path, chrome_port
 
 

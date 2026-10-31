@@ -859,12 +859,14 @@ class TestToolCommands:
         assert "DOOM" in result.output
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
+    @patch("ai_shell.local_chrome.prepare_chrome_mcp", return_value="1 page")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
     @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=9222)
     def test_claude_local_chrome_injects_mcp_config(
         self,
         mock_ensure,
         mock_proxy,
+        mock_prepare,
         mock_inject_mcp,
         mock_config,
         mock_manager_cls,
@@ -908,12 +910,14 @@ class TestToolCommands:
         mock_proxy.assert_called_once_with("augint-shell-test-dev", 9222)
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
+    @patch("ai_shell.local_chrome.prepare_chrome_mcp", return_value="1 page")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
     @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=54321)
     def test_claude_local_chrome_retry_includes_mcp_config(
         self,
         mock_ensure,
         mock_proxy,
+        mock_prepare,
         mock_inject_mcp,
         mock_config,
         mock_manager_cls,
@@ -1870,12 +1874,14 @@ class TestClaudeRemoteControl:
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.prepare_chrome_mcp", return_value="1 page")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
     @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=45678)
     def test_rc_with_local_chrome_registers_mcp_at_local_scope(
         self,
         mock_ensure,
         mock_proxy,
+        mock_prepare,
         mock_write,
         mock_inject,
         mock_config,
@@ -1909,12 +1915,14 @@ class TestClaudeRemoteControl:
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.prepare_chrome_mcp", return_value="1 page")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
     @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=45678)
     def test_rc_local_chrome_uses_account_proxy(
         self,
         mock_ensure,
         mock_proxy,
+        mock_prepare,
         mock_write,
         mock_inject,
         mock_config,
@@ -1936,12 +1944,14 @@ class TestClaudeRemoteControl:
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.prepare_chrome_mcp", return_value="1 page")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
     @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=45678)
     def test_rc_chrome_proxy_flag_overrides_config(
         self,
         mock_ensure,
         mock_proxy,
+        mock_prepare,
         mock_write,
         mock_inject,
         mock_config,
@@ -1972,6 +1982,7 @@ class TestClaudeRemoteControl:
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.prepare_chrome_mcp", return_value="1 page")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
     @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=45678)
     @patch("ai_shell.vpn.ensure_vpn_for_config", return_value="http://127.0.0.1:8888")
@@ -1980,6 +1991,7 @@ class TestClaudeRemoteControl:
         mock_vpn,
         mock_ensure,
         mock_proxy,
+        mock_prepare,
         mock_write,
         mock_inject,
         mock_config,
@@ -2021,6 +2033,7 @@ class TestClaudeRemoteControl:
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.prepare_chrome_mcp", return_value="1 page")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
     @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=45678)
     @patch("ai_shell.local_chrome.launch_plain_chrome")
@@ -2029,6 +2042,7 @@ class TestClaudeRemoteControl:
         mock_plain,
         mock_ensure,
         mock_proxy,
+        mock_prepare,
         mock_write,
         mock_inject,
         mock_config,
@@ -2229,12 +2243,14 @@ class TestClaudeRemoteControl:
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.prepare_chrome_mcp", return_value="1 page")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
     @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=40001)
     def test_per_account_local_chrome_config_and_profile(
         self,
         mock_ensure,
         mock_proxy,
+        mock_prepare,
         mock_write,
         mock_inject,
         mock_config,
