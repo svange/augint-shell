@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.113.2 (2026-10-31)
+
+### Bug Fixes
+
+- **cli**: Send Podman's docker CLI to the service that DOCKER_HOST names (#179)
+  ([#179](https://github.com/svange/augint-shell/pull/179),
+  [`2489c2a`](https://github.com/svange/augint-shell/commit/2489c2a3ab725dfa860b6e90bf3144a2c57ba890))
+
+
 ## v0.113.1 (2026-10-31)
 
 ### Bug Fixes
