@@ -1484,6 +1484,25 @@ class TestHelpShortFlag:
     def setup_method(self):
         self.runner = CliRunner()
 
+    def test_podman_docker_host_sets_container_host(self, monkeypatch):
+        import os
+
+        monkeypatch.setenv("DOCKER_HOST", "unix:///run/user/2004/podman/podman.sock")
+        monkeypatch.delenv("CONTAINER_HOST", raising=False)
+        monkeypatch.delenv("CONTAINER_CONNECTION", raising=False)
+        # --version exits before the group callback; a subcommand's --help does not.
+        result = self.runner.invoke(cli, ["vpn", "--help"])
+        assert result.exit_code == 0, result.output
+        assert os.environ["CONTAINER_HOST"] == "unix:///run/user/2004/podman/podman.sock"
+
+    def test_docker_socket_leaves_container_host_unset(self, monkeypatch):
+        import os
+
+        monkeypatch.setenv("DOCKER_HOST", "unix:///var/run/docker.sock")
+        monkeypatch.delenv("CONTAINER_HOST", raising=False)
+        self.runner.invoke(cli, ["vpn", "--help"])
+        assert "CONTAINER_HOST" not in os.environ
+
     def test_main_group_h_flag(self):
         result = self.runner.invoke(cli, ["-h"])
         assert result.exit_code == 0

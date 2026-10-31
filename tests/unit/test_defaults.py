@@ -31,6 +31,7 @@ from ai_shell.defaults import (
     home_config_volume_name,
     list_claude_accounts,
     node_modules_volume_name,
+    podman_cli_host,
     project_dev_port,
     project_dev_port_map,
     sanitize_project_name,
@@ -1396,3 +1397,25 @@ class TestWorkspaceNodeModulesGlobs:
 
         targets = {m.get("Target") for m in mounts}
         assert "/root/projects/mono/packages/docs/node_modules" in targets
+
+
+class TestPodmanCliHost:
+    """The podman CLI behind `docker` must use the service DOCKER_HOST names."""
+
+    def test_podman_socket_becomes_container_host(self):
+        env = {"DOCKER_HOST": "unix:///run/user/2004/podman/podman.sock"}
+        assert podman_cli_host(env) == "unix:///run/user/2004/podman/podman.sock"
+
+    def test_docker_socket_and_tcp_are_left_alone(self):
+        assert podman_cli_host({"DOCKER_HOST": "unix:///var/run/docker.sock"}) is None
+        assert podman_cli_host({"DOCKER_HOST": "tcp://host.docker.internal:2375"}) is None
+        assert podman_cli_host({}) is None
+
+    def test_an_explicit_connection_wins(self):
+        env = {
+            "DOCKER_HOST": "unix:///run/user/2004/podman/podman.sock",
+            "CONTAINER_HOST": "ssh://box/run/podman/podman.sock",
+        }
+        assert podman_cli_host(env) is None
+        env = {"DOCKER_HOST": "unix:///run/podman/podman.sock", "CONTAINER_CONNECTION": "box"}
+        assert podman_cli_host(env) is None
