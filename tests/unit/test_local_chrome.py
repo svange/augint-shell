@@ -439,14 +439,16 @@ class TestLaunchPlainChrome:
     ):
         from ai_shell.local_chrome import launch_plain_chrome
 
-        profile_dir = launch_plain_chrome(
+        window = launch_plain_chrome(
             project_name="p",
             profile="mike",
             proxy="http://127.0.0.1:8888",
             url="https://accounts.google.com/",
         )
+        profile_dir = window.profile_dir
         args = mock_popen.call_args[0][0]
         assert profile_dir.endswith("account-mike")
+        assert window.process is mock_popen.return_value
         assert f"--user-data-dir={profile_dir}" in args
         assert "--proxy-server=http://127.0.0.1:8888" in args
         assert args[-1] == "https://accounts.google.com/"
@@ -495,3 +497,74 @@ class TestLaunchPlainChrome:
 
         (tmp_path / "SingletonLock").symlink_to("host-1")
         assert chrome_profile_in_use(tmp_path) is False
+
+
+class TestClosingChrome:
+    @patch("ai_shell.local_chrome.close_chrome_profile", return_value=True)
+    @patch("ai_shell.local_chrome.probe_host_chrome_port", return_value=True)
+    @patch("ai_shell.local_chrome.subprocess.Popen")
+    @patch("ai_shell.local_chrome.find_chrome", return_value="/usr/bin/google-chrome")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_close_running_quits_the_debug_chrome_first(
+        self, mock_system, mock_find, mock_popen, mock_probe, mock_close
+    ):
+        from ai_shell.local_chrome import launch_plain_chrome
+
+        window = launch_plain_chrome(project_name="p", profile="mike", close_running=True)
+        mock_close.assert_called_once()
+        assert mock_close.call_args[0][0] == window.profile_dir
+        assert mock_close.call_args[0][1] == window.port
+        mock_popen.assert_called_once()
+
+    @patch("ai_shell.local_chrome.close_chrome_profile", return_value=False)
+    @patch("ai_shell.local_chrome.probe_host_chrome_port", return_value=True)
+    @patch("ai_shell.local_chrome.subprocess.Popen")
+    @patch("ai_shell.local_chrome.find_chrome", return_value="/usr/bin/google-chrome")
+    def test_close_running_that_fails_still_refuses(
+        self, mock_find, mock_popen, mock_probe, mock_close
+    ):
+        from ai_shell.local_chrome import launch_plain_chrome
+
+        with pytest.raises(LocalChromeUnavailable, match="already uses the profile"):
+            launch_plain_chrome(project_name="p", profile="mike", close_running=True)
+        mock_popen.assert_not_called()
+
+    @patch("ai_shell.local_chrome._wait_until_profile_free", return_value=True)
+    @patch("ai_shell.local_chrome.subprocess.run")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_close_chrome_profile_sends_term_by_profile_dir(self, mock_system, mock_run, mock_wait):
+        from ai_shell.local_chrome import close_chrome_profile
+
+        assert close_chrome_profile("/home/u/.config/google-chrome/ai-shell/account-mike", 40001)
+        args = mock_run.call_args[0][0]
+        assert args[:3] == ["pkill", "-TERM", "-f"]
+        assert args[-1].startswith("--user-data-dir=")
+        import re
+
+        pattern = args[-1][len("--user-data-dir=") :]
+        assert re.fullmatch(pattern, "/home/u/.config/google-chrome/ai-shell/account-mike")
+        assert not re.fullmatch(pattern, "/home/u/.config/google-chrome/ai-shell/account-mikey")
+        mock_wait.assert_called_once()
+
+    @patch("ai_shell.local_chrome._wait_until_profile_free", return_value=True)
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_plain_chrome_close_terminates_and_waits(self, mock_system, mock_wait):
+        from ai_shell.local_chrome import PlainChrome
+
+        process = MagicMock()
+        process.poll.return_value = None
+        window = PlainChrome(profile_dir="/p", port=40001, process=process)
+
+        assert window.close() is True
+        process.terminate.assert_called_once()
+        process.wait.assert_called_once()
+        mock_wait.assert_called_once_with("/p", 40001, 20.0)
+
+    @patch("ai_shell.local_chrome._wait_until_profile_free", return_value=True)
+    def test_plain_chrome_close_skips_a_dead_process(self, mock_wait):
+        from ai_shell.local_chrome import PlainChrome
+
+        process = MagicMock()
+        process.poll.return_value = 0
+        assert PlainChrome(profile_dir="/p", port=1, process=process).close() is True
+        process.terminate.assert_not_called()

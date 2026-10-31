@@ -239,8 +239,16 @@ class AiShellConfig:
     claude_account: str = ""  # Suffixed .env token name for multi-account switching
     claude_accounts: dict[str, ClaudeAccountConfig] = field(default_factory=dict)
     local_chrome: bool = False  # Attach Chrome DevTools MCP to project-scoped host Chrome
-    chrome_proxy: str = ""  # --proxy-server for every host Chrome ai-shell launches
-    skip_updates: bool = False  # When True, skip pre-launch tool freshness checks
+    chrome_proxy: str = (
+        ""  # --proxy-server for every host Chrome ai-shell launches ("vpn" = own VPN)
+    )
+    skip_updates: bool = False
+
+    # VPN container (chrome_proxy: vpn). NordVPN over WireGuard through gluetun;
+    # the credential is NORDVPN_TOKEN in ~/.augint/.env, never config.
+    vpn_country: str = ""  # gluetun SERVER_COUNTRIES; empty = any server
+    vpn_firewall: bool = True  # gluetun's own firewall; turned off by itself where it cannot run
+    vpn_proxy_port: int = 8888  # loopback port of the HTTP proxy Chrome uses  # When True, skip pre-launch tool freshness checks
 
     # Expo. When False, a detected Expo app is not started automatically;
     # an explicit --expo still works. --expo/--no-expo override this.
@@ -568,6 +576,16 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.local_chrome = bool(claude_sec["local_chrome"])
     if "chrome_proxy" in claude_sec:
         config.chrome_proxy = str(claude_sec["chrome_proxy"] or "")
+
+    # [vpn] section
+    vpn = data.get("vpn", {})
+    if isinstance(vpn, dict):
+        if "country" in vpn:
+            config.vpn_country = str(vpn["country"] or "")
+        if "firewall" in vpn:
+            config.vpn_firewall = bool(vpn["firewall"])
+        if "proxy_port" in vpn:
+            config.vpn_proxy_port = int(vpn["proxy_port"])
     if "skip_updates" in container:
         config.skip_updates = bool(container["skip_updates"])
     if "image_pull_cache_ttl" in container:
@@ -618,6 +636,9 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_CLAUDE_ACCOUNT": ("claude_account", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
         "AI_SHELL_CHROME_PROXY": ("chrome_proxy", str),
+        "AI_SHELL_VPN_COUNTRY": ("vpn_country", str),
+        "AI_SHELL_VPN_FIREWALL": ("vpn_firewall", bool),
+        "AI_SHELL_VPN_PROXY_PORT": ("vpn_proxy_port", int),
         "AI_SHELL_EXPO_AUTO": ("expo_auto", bool),
         "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),
         "AI_SHELL_IMAGE_PULL_CACHE_TTL": ("image_pull_cache_ttl", int),

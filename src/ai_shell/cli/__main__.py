@@ -10,6 +10,7 @@ from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.cli.commands.llm import llm_group
 from ai_shell.cli.commands.manage import manage_group
 from ai_shell.cli.commands.tools import chrome, claude, codex, init, opencode, pi, shell
+from ai_shell.cli.commands.vpn import vpn_group
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -44,6 +45,7 @@ cli.add_command(init)
 # Command groups
 cli.add_command(llm_group, "llm")
 cli.add_command(manage_group, "manage")
+cli.add_command(vpn_group, "vpn")
 
 
 def main():

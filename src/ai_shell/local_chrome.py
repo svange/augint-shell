@@ -19,10 +19,12 @@ import json
 import logging
 import os
 import platform
+import re
 import shutil
 import subprocess
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from hashlib import sha1
 from http.client import HTTPConnection, HTTPException
 from pathlib import Path
@@ -239,27 +241,63 @@ def _proxy_args(proxy: str | None) -> list[str]:
     return [f"--proxy-server={proxy}"] if proxy else []
 
 
-def _spawn_detached(args: list[str]) -> None:
+def _spawn_detached(args: list[str]) -> subprocess.Popen[bytes]:
     """Start *args* so the process outlives the CLI, on every platform."""
     if platform.system() == "Windows":
         creation_flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(
             subprocess, "DETACHED_PROCESS", 0
         )
-        subprocess.Popen(  # noqa: S603
+        return subprocess.Popen(  # noqa: S603
             args,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
             creationflags=creation_flags,
         )
-    else:
-        subprocess.Popen(  # noqa: S603
-            args,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
+    return subprocess.Popen(  # noqa: S603
+        args,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
+CHROME_CLOSE_TIMEOUT_SECONDS = 20.0
+
+
+def _wait_until_profile_free(profile_dir: str | Path, port: int, timeout: float) -> bool:
+    """Wait until no Chrome holds *profile_dir* (lock gone, debug port closed)."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not chrome_profile_in_use(profile_dir) and not probe_host_chrome_port(port):
+            return True
+        time.sleep(0.5)
+    return not chrome_profile_in_use(profile_dir) and not probe_host_chrome_port(port)
+
+
+def close_chrome_profile(profile_dir: str | Path, port: int) -> bool:
+    """Ask the Chrome that holds *profile_dir* to quit, and wait for it.
+
+    The window is ai-shell's own (its profile directory is under the
+    ``ai-shell`` folder), so closing it is in scope. The request is a
+    graceful one (SIGTERM on POSIX, ``taskkill`` without ``/F`` on Windows), so
+    Chrome flushes its cookies: the whole point is to keep the session for
+    the next launch. Returns ``True`` when the profile is free afterwards.
+    """
+    profile_dir = str(profile_dir)
+    if platform.system() == "Windows":
+        script = (
+            "Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | "
+            f"Where-Object {{ $_.CommandLine -like '*--user-data-dir={profile_dir}*' }} | "
+            "ForEach-Object { taskkill /PID $_.ProcessId | Out-Null }"
         )
+        args = ["powershell", "-NoProfile", "-NonInteractive", "-Command", script]
+    else:
+        args = ["pkill", "-TERM", "-f", "--", f"--user-data-dir={re.escape(profile_dir)}"]
+    logger.info("Closing Chrome on profile %s", profile_dir)
+    subprocess.run(args, capture_output=True, text=True)  # noqa: S603
+    return _wait_until_profile_free(profile_dir, port, CHROME_CLOSE_TIMEOUT_SECONDS)
 
 
 def launch_chrome(
@@ -312,6 +350,31 @@ def chrome_profile_in_use(profile_dir: str | Path) -> bool:
     return Path(profile_dir, "SingletonLock").is_symlink()
 
 
+@dataclass
+class PlainChrome:
+    """A Chrome window ai-shell opened without the DevTools port."""
+
+    profile_dir: str
+    port: int
+    process: subprocess.Popen[bytes]
+
+    def close(self) -> bool:
+        """Quit the window gracefully and wait until the profile is free."""
+        if self.process.poll() is None:
+            if platform.system() == "Windows":
+                subprocess.run(  # noqa: S603
+                    ["taskkill", "/PID", str(self.process.pid)], capture_output=True, text=True
+                )
+            else:
+                self.process.terminate()
+            try:
+                self.process.wait(timeout=CHROME_CLOSE_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired:
+                logger.warning("Chrome did not quit in time; forcing it")
+                self.process.kill()
+        return _wait_until_profile_free(self.profile_dir, self.port, CHROME_CLOSE_TIMEOUT_SECONDS)
+
+
 def launch_plain_chrome(
     *,
     project_name: str,
@@ -319,18 +382,21 @@ def launch_plain_chrome(
     profile: str | None = None,
     proxy: str | None = None,
     url: str | None = None,
-) -> str:
+    close_running: bool = False,
+) -> PlainChrome:
     """Open the project's (or account's) ai-shell Chrome WITHOUT the debug port.
 
     Google refuses to sign in inside a browser that exposes a DevTools port
     ("This browser or app may not be secure"), so a Google (or Google SSO)
     sign-in has to happen in a plain window on the same profile directory.
     The cookies it leaves behind are what the debug-port Chrome reuses on
-    the next ``--local-chrome`` launch. Returns the profile directory.
+    the next ``--local-chrome`` launch.
 
     Raises :class:`LocalChromeUnavailable` when Chrome is not installed, or
-    when a Chrome already holds that profile: a second launch would only
-    open a window inside the running (debug-port) process.
+    when a Chrome already holds that profile (a second launch would only
+    open a window inside the running, debug-port process). With
+    *close_running*, that Chrome is asked to quit first: it is ai-shell's own
+    window.
     """
     chrome_path = find_chrome()
     if chrome_path is None:
@@ -340,12 +406,13 @@ def launch_plain_chrome(
     profile_dir = _chrome_profile_dir(project_name, project_dir, profile)
     port = _project_debug_port(project_name, project_dir, profile)
     if chrome_profile_in_use(profile_dir) or probe_host_chrome_port(port):
-        raise LocalChromeUnavailable(
-            f"A Chrome window already uses the profile {profile_dir}.\n"
-            "Close every window of that Chrome (the one ai-shell opened with the "
-            "DevTools port) and run this again: a second launch would open inside "
-            "the running process, where Google still refuses the sign-in."
-        )
+        if not (close_running and close_chrome_profile(profile_dir, port)):
+            raise LocalChromeUnavailable(
+                f"A Chrome window already uses the profile {profile_dir}.\n"
+                "Close every window of that Chrome (the one ai-shell opened with the "
+                "DevTools port) and run this again: a second launch would open inside "
+                "the running process, where Google still refuses the sign-in."
+            )
     args = [
         chrome_path,
         f"--user-data-dir={profile_dir}",
@@ -356,8 +423,7 @@ def launch_plain_chrome(
     if url:
         args.append(url)
     logger.info("Launching plain Chrome: %s", " ".join(args))
-    _spawn_detached(args)
-    return profile_dir
+    return PlainChrome(profile_dir=profile_dir, port=port, process=_spawn_detached(args))
 
 
 def probe_chrome_port(container_name: str, port: int) -> bool:

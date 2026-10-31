@@ -695,6 +695,33 @@ class TestClaudeAccountsConfig:
         with patch.dict("os.environ", {"AI_SHELL_CHROME_PROXY": "http://10.0.0.5:3128"}):
             assert load_config(project_dir=tmp_path).chrome_proxy == "http://10.0.0.5:3128"
 
+    def test_vpn_section_and_env(self, tmp_path):
+        config = AiShellConfig()
+        assert (config.vpn_country, config.vpn_firewall, config.vpn_proxy_port) == ("", True, 8888)
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "claude:\n  chrome_proxy: vpn\nvpn:\n  country: Canada\n  firewall: false\n"
+            "  proxy_port: 18888\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.chrome_proxy == "vpn"
+        assert (config.vpn_country, config.vpn_firewall, config.vpn_proxy_port) == (
+            "Canada",
+            False,
+            18888,
+        )
+        env = {
+            "AI_SHELL_VPN_COUNTRY": "United States",
+            "AI_SHELL_VPN_FIREWALL": "1",
+            "AI_SHELL_VPN_PROXY_PORT": "8890",
+        }
+        with patch.dict("os.environ", env):
+            config = load_config(project_dir=tmp_path)
+        assert (config.vpn_country, config.vpn_firewall, config.vpn_proxy_port) == (
+            "United States",
+            True,
+            8890,
+        )
+
     def test_accounts_from_yaml(self, tmp_path):
         (tmp_path / ".ai-shell.yaml").write_text(
             "claude:\n"

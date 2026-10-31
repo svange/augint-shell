@@ -8,6 +8,7 @@ import subprocess
 import sys
 import uuid
 import webbrowser
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -515,6 +516,33 @@ def _account_chrome_proxy(
     return None
 
 
+def _resolve_chrome_proxy(
+    manager: ContainerManager,
+    config: AiShellConfig,
+    claude_account: str,
+    cli_value: str | None = None,
+    *,
+    env_file: Path | None = None,
+) -> str | None:
+    """The proxy URL for the host Chrome, starting ai-shell's VPN when the value is ``vpn``."""
+    from ai_shell.vpn import VPN_PROXY_SENTINEL, VpnUnavailable, ensure_vpn_for_config
+
+    value = _account_chrome_proxy(config, claude_account, cli_value)
+    if value is None or value.lower() != VPN_PROXY_SENTINEL:
+        return value
+    from ai_shell.cli.commands.vpn import prompt_token
+
+    def echo(line: str) -> None:
+        console.print(f"[dim]{line}[/dim]")
+
+    try:
+        return ensure_vpn_for_config(
+            manager, config, env_file=env_file, prompt_token=prompt_token, echo=echo
+        )
+    except VpnUnavailable as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
 def _claude_exec_env(
     config: AiShellConfig,
     *,
@@ -714,30 +742,16 @@ def _ensure_claude_login(
     code, so it runs on the terminal before the real launch.
     """
     prefix = _unset_prefix(CLAUDE_REMOTE_CONTROL_UNSET_VARS)
-    if not force:
-        status = manager.exec_capture(
-            container_name,
-            [*prefix, "claude", "auth", "status"],
-            extra_env=exec_env,
-            workdir=workdir,
-        )
-        method = _claude_auth_method(status.stdout) if status.returncode == 0 else None
-        if status.returncode == 0 and (
-            not require_claude_ai or method in (None, CLAUDE_AI_AUTH_METHOD)
-        ):
-            return
-        if status.returncode == 0:
-            console.print(
-                f"[yellow]Current credential{account_label} is '{method}', but Remote "
-                "Control needs a claude.ai login. Starting 'claude auth login'...[/yellow]"
-            )
-        else:
-            console.print(
-                f"[yellow]No claude.ai login found{account_label}. "
-                "Starting 'claude auth login'...[/yellow]"
-            )
-    else:
-        console.print(f"[bold]Running 'claude auth login'{account_label}...[/bold]")
+    if not _claude_login_needed(
+        manager,
+        container_name,
+        exec_env,
+        account_label=account_label,
+        workdir=workdir,
+        force=force,
+        require_claude_ai=require_claude_ai,
+    ):
+        return
     login_cmd = [*prefix, "claude", "auth", "login"]
     exit_code = _piped_claude_login(
         manager,
@@ -764,6 +778,139 @@ def _ensure_claude_login(
         )
 
 
+def _claude_login_needed(
+    manager: ContainerManager,
+    container_name: str,
+    exec_env: dict[str, str],
+    *,
+    account_label: str,
+    workdir: str | None,
+    force: bool,
+    require_claude_ai: bool,
+) -> bool:
+    """Run ``claude auth status`` and say whether a login must run first (and why)."""
+    if force:
+        console.print(f"[bold]Running 'claude auth login'{account_label}...[/bold]")
+        return True
+    prefix = _unset_prefix(CLAUDE_REMOTE_CONTROL_UNSET_VARS)
+    status = manager.exec_capture(
+        container_name,
+        [*prefix, "claude", "auth", "status"],
+        extra_env=exec_env,
+        workdir=workdir,
+    )
+    method = _claude_auth_method(status.stdout) if status.returncode == 0 else None
+    if status.returncode == 0 and (
+        not require_claude_ai or method in (None, CLAUDE_AI_AUTH_METHOD)
+    ):
+        return False
+    if status.returncode == 0:
+        console.print(
+            f"[yellow]Current credential{account_label} is '{method}', but Remote "
+            "Control needs a claude.ai login. Starting 'claude auth login'...[/yellow]"
+        )
+    else:
+        console.print(
+            f"[yellow]No claude.ai login found{account_label}. "
+            "Starting 'claude auth login'...[/yellow]"
+        )
+    return True
+
+
+def _plain_chrome_login(
+    manager: ContainerManager,
+    container_name: str,
+    exec_env: dict[str, str],
+    *,
+    account_label: str,
+    workdir: str | None,
+    force: bool,
+    require_claude_ai: bool,
+    project_name: str,
+    project_dir: Path | str | None,
+    chrome_profile: str | None,
+    chrome_proxy: str | None,
+) -> bool:
+    """Sign in through the account's Chrome opened WITHOUT the DevTools port.
+
+    Google refuses to sign in inside an automated browser, so with
+    ``--local-chrome`` the sign-in page opens in a plain window on the same
+    profile directory (through the configured proxy), the code is typed at
+    the terminal, and the window is closed again; the debug-port Chrome that
+    ``--local-chrome`` opens next reuses the session. A Chrome that already
+    holds the profile (a previous session's window) is asked to quit first:
+    it is ai-shell's own window. Returns ``True`` when a login ran.
+    """
+    from ai_shell.local_chrome import LocalChromeUnavailable, PlainChrome, launch_plain_chrome
+
+    if not _claude_login_needed(
+        manager,
+        container_name,
+        exec_env,
+        account_label=account_label,
+        workdir=workdir,
+        force=force,
+        require_claude_ai=require_claude_ai,
+    ):
+        return False
+    window: PlainChrome | None = None
+
+    def open_url(url: str) -> bool:
+        nonlocal window
+        try:
+            window = launch_plain_chrome(
+                project_name=project_name,
+                project_dir=project_dir,
+                profile=chrome_profile,
+                proxy=chrome_proxy,
+                url=url,
+                close_running=True,
+            )
+        except LocalChromeUnavailable as exc:
+            console.print(f"[yellow]{exc}[/yellow]")
+            console.print("[bold]Open this URL in a browser signed in as the account:[/bold]")
+            console.print(url, soft_wrap=True, markup=False, highlight=False)
+            return True
+        where = f"the Chrome window for '{chrome_profile}'" if chrome_profile else "a Chrome window"
+        via = f" through {chrome_proxy}" if chrome_proxy else ""
+        console.print(
+            f"[bold]Sign-in page opened in {where}{via} (no DevTools port, so Google sign-in "
+            "works there).[/bold] Sign in as that account; the browser then shows a code."
+        )
+        return True
+
+    prefix = _unset_prefix(CLAUDE_REMOTE_CONTROL_UNSET_VARS)
+    login_cmd = [*prefix, "claude", "auth", "login"]
+    exit_code = _piped_claude_login(
+        manager,
+        container_name,
+        login_cmd,
+        exec_env=exec_env,
+        workdir=workdir,
+        chrome_port=None,
+        chrome_profile=chrome_profile,
+        open_url=open_url,
+    )
+    if exit_code is None:
+        exit_code, _ = manager.run_interactive(
+            container_name, login_cmd, extra_env=exec_env, workdir=workdir
+        )
+    if window is not None:
+        console.print(
+            "[dim]Closing the sign-in window so the next launch can reuse its session.[/dim]"
+        )
+        if not window.close():
+            console.print(
+                "[yellow]That Chrome window is still open; close it, or the next launch "
+                "cannot attach the DevTools port.[/yellow]"
+            )
+    if exit_code != 0:
+        raise click.ClickException(
+            f"'claude auth login' failed{account_label}. A claude.ai login is required."
+        )
+    return True
+
+
 def _piped_claude_login(
     manager: ContainerManager,
     container_name: str,
@@ -773,6 +920,7 @@ def _piped_claude_login(
     workdir: str | None,
     chrome_port: int | None,
     chrome_profile: str | None,
+    open_url: Callable[[str], bool] | None = None,
 ) -> int | None:
     """Run ``claude auth login`` over pipes from the host (see ``claude_login``).
 
@@ -780,10 +928,11 @@ def _piped_claude_login(
     account's host Chrome window when one is attached, otherwise it is printed
     unwrapped. The code is read from a prompt on the host terminal and piped
     to Claude. Returns the exit code, or ``None`` if no URL appeared.
+    *open_url* replaces the default opener.
     """
     from ai_shell.claude_login import open_in_chrome, run_piped_login
 
-    def open_url(url: str) -> bool:
+    def default_open_url(url: str) -> bool:
         if chrome_port is not None and open_in_chrome(chrome_port, url):
             console.print(
                 f"[bold]Sign-in page opened in the Chrome window for '{chrome_profile}'.[/bold] "
@@ -812,7 +961,9 @@ def _piped_claude_login(
     args = manager.exec_args(
         container_name, login_cmd, extra_env=exec_env, workdir=workdir, stdin=True
     )
-    return run_piped_login(args, open_url=open_url, prompt_code=prompt_code, echo=echo)
+    return run_piped_login(
+        args, open_url=open_url or default_open_url, prompt_code=prompt_code, echo=echo
+    )
 
 
 def _register_chrome_mcp(
@@ -967,14 +1118,7 @@ def _launch_loaded_config_claude(
 
         mcp_args: list[str] = []
         chrome_port: int | None = None
-        if local_chrome:
-            mcp_args, _, chrome_port = _configure_local_chrome(
-                container_name,
-                project_name=config.project_name,
-                project_dir=config.project_dir,
-                chrome_profile=chrome_profile,
-                chrome_proxy=_account_chrome_proxy(config, claude_account, chrome_proxy),
-            )
+        chrome_proxy_url: str | None = None
 
         # AUTO-UPDATE: Check tool freshness before launch
         manager.ensure_tool_fresh(container_name, "claude")
@@ -999,23 +1143,58 @@ def _launch_loaded_config_claude(
                 "Ctrl+C stops the server.[/dim]"
             )
 
-        safe_cmd: list[str] | None = None
-        if remote_cmd is None and safe:
-            safe_cmd = [*account_prefix, "claude", *mcp_args, *extra_args]
-            console.print(
-                f"[bold]Launching Claude Code (safe mode){bedrock_label}{account_label} "
-                f"in {container_name}...[/bold]"
-            )
-        elif remote_cmd is None:
-            console.print(
-                f"[bold]Launching Claude Code{bedrock_label}{account_label} "
-                f"in {container_name}...[/bold]"
-            )
-
     typeahead_bytes = typeahead.bytes()
 
     # Interactive steps run outside the typeahead capture so they own the TTY.
-    if needs_login:
+    # The proxy comes first: "vpn" starts the VPN container and may prompt for
+    # the NordVPN token, and it must be known before any window opens.
+    if local_chrome:
+        chrome_proxy_url = _resolve_chrome_proxy(
+            manager, config, claude_account, chrome_proxy, env_file=env_file
+        )
+
+    # With --local-chrome the sign-in runs first, in a window WITHOUT the
+    # DevTools port (Google refuses automated browsers); the debug-port
+    # Chrome opens afterwards on the same profile and reuses the session.
+    logged_in_here = False
+    if needs_login and local_chrome:
+        logged_in_here = _plain_chrome_login(
+            manager,
+            container_name,
+            exec_env,
+            account_label=account_label,
+            workdir=session_workdir,
+            force=force_login,
+            require_claude_ai=remote_control is not None,
+            project_name=config.project_name,
+            project_dir=config.project_dir,
+            chrome_profile=chrome_profile,
+            chrome_proxy=chrome_proxy_url,
+        )
+
+    if local_chrome:
+        mcp_args, _, chrome_port = _configure_local_chrome(
+            container_name,
+            project_name=config.project_name,
+            project_dir=config.project_dir,
+            chrome_profile=chrome_profile,
+            chrome_proxy=chrome_proxy_url,
+        )
+
+    safe_cmd: list[str] | None = None
+    if remote_cmd is None and safe:
+        safe_cmd = [*account_prefix, "claude", *mcp_args, *extra_args]
+        console.print(
+            f"[bold]Launching Claude Code (safe mode){bedrock_label}{account_label} "
+            f"in {container_name}...[/bold]"
+        )
+    elif remote_cmd is None:
+        console.print(
+            f"[bold]Launching Claude Code{bedrock_label}{account_label} "
+            f"in {container_name}...[/bold]"
+        )
+
+    if needs_login and not logged_in_here:
         _ensure_claude_login(
             manager,
             container_name,
@@ -1267,7 +1446,9 @@ def _launch_interactive(
             project_name=config.project_name,
             project_dir=config.project_dir,
             chrome_profile=_account_chrome_profile(config, cli_account or config.claude_account),
-            chrome_proxy=_account_chrome_proxy(config, cli_account or config.claude_account),
+            chrome_proxy=_resolve_chrome_proxy(
+                manager, config, cli_account or config.claude_account, env_file=env_file
+            ),
         )
 
     # Build pane specs.
@@ -2005,14 +2186,17 @@ def chrome(ctx, cli_account, chrome_proxy, url):
     directory, so nothing else changes.
     """
     from ai_shell.local_chrome import LocalChromeUnavailable, launch_plain_chrome
+    from ai_shell.vpn import VPN_PROXY_SENTINEL
 
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
     account = cli_account or config.claude_account
     profile = _account_chrome_profile(config, account)
     proxy = _account_chrome_proxy(config, account, chrome_proxy)
+    if proxy is not None and proxy.lower() == VPN_PROXY_SENTINEL:
+        proxy = _resolve_chrome_proxy(ContainerManager(config), config, account, chrome_proxy)
     try:
-        profile_dir = launch_plain_chrome(
+        window = launch_plain_chrome(
             project_name=config.project_name,
             project_dir=config.project_dir,
             profile=profile,
@@ -2024,7 +2208,7 @@ def chrome(ctx, cli_account, chrome_proxy, url):
     label = f"account '{account}'" if profile else f"project '{config.project_name}'"
     proxy_label = f" through {proxy}" if proxy else ""
     console.print(f"[bold]Chrome opened for {label}{proxy_label} (no DevTools port).[/bold]")
-    console.print(f"[dim]Profile: {profile_dir}[/dim]")
+    console.print(f"[dim]Profile: {window.profile_dir}[/dim]")
     console.print(
         "[dim]Sign in, then close every window of it before the next --local-chrome launch; "
         "that launch opens the same profile with the DevTools port and keeps the session.[/dim]"

@@ -1970,6 +1970,117 @@ class TestClaudeRemoteControl:
         assert result.exit_code == 0, result.output
         assert mock_ensure.call_args[1]["proxy"] == "socks5://127.0.0.1:1080"
 
+    @patch("ai_shell.cli.commands.tools._inject_mcp_config")
+    @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.start_chrome_proxy")
+    @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=45678)
+    @patch("ai_shell.vpn.ensure_vpn_for_config", return_value="http://127.0.0.1:8888")
+    def test_rc_chrome_proxy_vpn_starts_the_vpn_container(
+        self,
+        mock_vpn,
+        mock_ensure,
+        mock_proxy,
+        mock_write,
+        mock_inject,
+        mock_config,
+        mock_manager_cls,
+        mock_expo,
+    ):
+        from contextlib import contextmanager
+
+        from ai_shell.config import AiShellConfig
+        from ai_shell.typeahead import TypeaheadBuffer
+
+        config = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
+        config.chrome_proxy = "vpn"
+        manager = self._setup(mock_config, mock_manager_cls, config=config)
+
+        # The VPN step may prompt for the NordVPN token, so it must run after
+        # the typeahead capture has given the terminal back.
+        order: list[str] = []
+
+        @contextmanager
+        def fake_capture():
+            order.append("capture-start")
+            yield TypeaheadBuffer()
+            order.append("capture-end")
+
+        mock_vpn.side_effect = lambda *a, **k: (order.append("vpn"), "http://127.0.0.1:8888")[1]
+
+        with patch("ai_shell.cli.commands.tools.capture_typeahead", fake_capture):
+            result = self.runner.invoke(
+                cli, ["claude", "--rc", "--account", "woxom", "--local-chrome"]
+            )
+
+        assert result.exit_code == 0, result.output
+        mock_vpn.assert_called_once()
+        assert mock_vpn.call_args[0][0] is manager
+        assert mock_vpn.call_args[0][1] is config
+        assert mock_ensure.call_args[1]["proxy"] == "http://127.0.0.1:8888"
+        assert order == ["capture-start", "capture-end", "vpn"]
+
+    @patch("ai_shell.cli.commands.tools._inject_mcp_config")
+    @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
+    @patch("ai_shell.local_chrome.start_chrome_proxy")
+    @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=45678)
+    @patch("ai_shell.local_chrome.launch_plain_chrome")
+    def test_rc_local_chrome_signs_in_through_a_plain_window_first(
+        self,
+        mock_plain,
+        mock_ensure,
+        mock_proxy,
+        mock_write,
+        mock_inject,
+        mock_config,
+        mock_manager_cls,
+        mock_expo,
+    ):
+        """Not logged in + --local-chrome: plain window, code, close, then the debug-port Chrome."""
+        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
+
+        config = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
+        config.claude_accounts["woxom"] = ClaudeAccountConfig(chrome_proxy="http://127.0.0.1:8888")
+        manager = self._setup(mock_config, mock_manager_cls, config=config)
+
+        def exec_capture(container, cmd, **_kwargs):
+            # Not logged in; every other captured command (claude mcp ...) succeeds.
+            code = 1 if cmd[-2:] == ["auth", "status"] else 0
+            return MagicMock(returncode=code, stdout="", stderr="")
+
+        manager.exec_capture.side_effect = exec_capture
+        order: list[str] = []
+        window = MagicMock()
+        window.close.side_effect = lambda: order.append("close") or True
+        mock_plain.side_effect = lambda **kw: order.append("plain") or window
+        mock_ensure.side_effect = lambda *a, **kw: order.append("debug-chrome") or 45678
+        url = "https://claude.ai/oauth/authorize?code=true&client_id=abc"
+
+        def fake_run(args, *, open_url, prompt_code, echo, **_kw):
+            assert open_url(url) is True
+            return 0
+
+        self.piped_login.side_effect = fake_run
+
+        result = self.runner.invoke(cli, ["claude", "--rc", "--account", "woxom", "--local-chrome"])
+
+        assert result.exit_code == 0, result.output
+        assert order == ["plain", "close", "debug-chrome"]
+        assert mock_plain.call_args[1] == {
+            "project_name": "demo",
+            "project_dir": Path("/tmp/demo"),
+            "profile": "woxom",
+            "proxy": "http://127.0.0.1:8888",
+            "url": url,
+            "close_running": True,
+        }
+        assert "no DevTools port" in result.output
+        # The status check ran once; no second login after the plain one.
+        status_calls = [
+            c for c in manager.exec_capture.call_args_list if c[0][1][-2:] == ["auth", "status"]
+        ]
+        assert len(status_calls) == 1
+        assert "remote-control" in manager.exec_interactive.call_args[0][1]
+
     def test_login_prints_url_even_when_chrome_opened_it(
         self, mock_config, mock_manager_cls, mock_expo
     ):
@@ -2191,7 +2302,10 @@ class TestChromeCommand:
         mock_config.return_value = config
         return config
 
-    @patch("ai_shell.local_chrome.launch_plain_chrome", return_value="/home/u/account-mike")
+    @patch(
+        "ai_shell.local_chrome.launch_plain_chrome",
+        return_value=MagicMock(profile_dir="/home/u/account-mike"),
+    )
     def test_opens_account_window_with_configured_proxy(self, mock_launch, mock_config):
         from ai_shell.config import ClaudeAccountConfig
 
@@ -2213,7 +2327,10 @@ class TestChromeCommand:
         assert "account 'mike'" in result.output
         assert "http://127.0.0.1:8888" in result.output
 
-    @patch("ai_shell.local_chrome.launch_plain_chrome", return_value="/home/u/demo")
+    @patch(
+        "ai_shell.local_chrome.launch_plain_chrome",
+        return_value=MagicMock(profile_dir="/home/u/demo"),
+    )
     def test_defaults_to_project_window_and_flag_proxy(self, mock_launch, mock_config):
         self._config(mock_config)
 
@@ -2236,3 +2353,62 @@ class TestChromeCommand:
 
         assert result.exit_code != 0
         assert "already uses the profile" in result.output
+
+
+@patch("ai_shell.cli.commands.vpn.ContainerManager")
+@patch("ai_shell.cli.commands.vpn.load_config")
+class TestVpnCommands:
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    def _config(self, mock_config):
+        from ai_shell.config import AiShellConfig
+
+        config = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
+        mock_config.return_value = config
+        return config
+
+    @patch("ai_shell.vpn.ensure_vpn_for_config", return_value="http://127.0.0.1:8888")
+    def test_up_starts_and_prints_proxy(self, mock_ensure, mock_config, mock_manager_cls):
+        config = self._config(mock_config)
+
+        result = self.runner.invoke(cli, ["vpn", "up"])
+
+        assert result.exit_code == 0, result.output
+        assert mock_ensure.call_args[0][1] is config
+        assert mock_ensure.call_args[1]["prompt_token"] is not None
+        assert "http://127.0.0.1:8888" in result.output
+
+    @patch("ai_shell.vpn.ensure_vpn_for_config")
+    def test_up_reports_missing_credential(self, mock_ensure, mock_config, mock_manager_cls):
+        from ai_shell.vpn import VpnUnavailable
+
+        self._config(mock_config)
+        mock_ensure.side_effect = VpnUnavailable("No NordVPN credential. Add NORDVPN_TOKEN=...")
+
+        result = self.runner.invoke(cli, ["vpn", "up"])
+
+        assert result.exit_code != 0
+        assert "NORDVPN_TOKEN" in result.output
+
+    @patch("ai_shell.vpn.remove_vpn", return_value=True)
+    def test_down_removes(self, mock_remove, mock_config, mock_manager_cls):
+        self._config(mock_config)
+        result = self.runner.invoke(cli, ["vpn", "down"])
+        assert result.exit_code == 0, result.output
+        assert "removed" in result.output
+
+    @patch(
+        "ai_shell.vpn.vpn_status",
+        return_value={
+            "status": "running",
+            "exit_address": "203.0.113.9",
+            "proxy": "http://127.0.0.1:8888",
+        },
+    )
+    def test_status_shows_exit_address(self, mock_status, mock_config, mock_manager_cls):
+        self._config(mock_config)
+        result = self.runner.invoke(cli, ["vpn", "status"])
+        assert result.exit_code == 0, result.output
+        assert "running" in result.output
+        assert "203.0.113.9" in result.output

@@ -137,8 +137,9 @@ If you need to work manually, see the full [contributor guide](CONTRIBUTING.md) 
 | `ai-shell claude --rc [NAME]` | [Remote Control](#remote-control-rc) server: drive the project from claude.ai/code or the Claude app |
 | `ai-shell claude --account NAME --rc` | Remote Control signed in as another Claude account (login profile) |
 | `ai-shell claude --account NAME --login` | Create or refresh an account's login profile |
-| `ai-shell claude --local-chrome --chrome-proxy URL` | Host Chrome through a proxy (a VPN container), see [Chrome through a VPN](#chrome-through-a-vpn-or-proxy-chrome_proxy) |
-| `ai-shell chrome [--account NAME] [URL]` | The same Chrome window without the DevTools port, for a [Google sign-in](#google-sign-in-ai-shell-chrome) |
+| `ai-shell claude --local-chrome --chrome-proxy vpn` | Host Chrome through ai-shell's own VPN container, see [Chrome through a VPN](#chrome-through-a-vpn-or-proxy-chrome_proxy) |
+| `ai-shell vpn up\|down\|status` | The VPN container (gluetun, NordVPN) behind `chrome_proxy: vpn` |
+| `ai-shell chrome [--account NAME] [URL]` | The same Chrome window without the DevTools port, for a [Google sign-in](#google-sign-in) by hand |
 | `ai-shell <tool> --t3` | Also expose the project to [T3 Code](#remote-control-with-t3-code-t3) (phone/desktop app) |
 | `ai-shell <tool> --expo` | Also start a tunnelled [Expo dev server](#expo-apps-expo) and print its QR code |
 
@@ -187,12 +188,17 @@ openai:
 
 claude:
   account: work  # resolves CLAUDE_CODE_OAUTH_TOKEN_WORK from .env, or the login profile
-  chrome_proxy: ""  # --proxy-server for every host Chrome ai-shell opens (see "Chrome through a VPN")
+  chrome_proxy: ""  # host Chrome proxy: "vpn" (ai-shell's VPN container) or a --proxy-server value
   accounts:      # optional per-account defaults (put in ~/.augint/.ai-shell.yaml)
     mike:
       local_chrome: true          # open Mike's own Chrome window on launch
       chrome_profile: mike        # Chrome profile slug; defaults to the account name
-      chrome_proxy: http://127.0.0.1:8888  # this account's Chrome goes through a VPN container
+      chrome_proxy: vpn           # this account's Chrome goes through the VPN container
+
+vpn:
+  country: United States  # gluetun SERVER_COUNTRIES; empty = any NordVPN server
+  firewall: true          # gluetun's own firewall; ai-shell turns it off by itself where it cannot run
+  proxy_port: 8888        # loopback port of the proxy Chrome uses
 
 expo:
   auto: true  # start a detected Expo app automatically (--expo/--no-expo override)
@@ -345,78 +351,37 @@ claude:
 
 Set `claude.local_chrome: true` (or `AI_SHELL_LOCAL_CHROME=1`) to persist, or `claude.accounts.<name>.local_chrome: true` for one account only.
 
-### Google sign-in (`ai-shell chrome`)
+### Google sign-in
 
-Google refuses to sign in inside a browser that exposes a DevTools port ("This browser or app may not be secure"), and that is the Chrome `--local-chrome` opens. It is Google's rule for automated browsers, not an address problem, so a VPN does not change it. Two ways around it:
+Google refuses to sign in inside a browser that exposes a DevTools port ("This browser or app may not be secure"), and that is the Chrome `--local-chrome` opens. It is Google's rule for automated browsers, not an address problem, so a VPN alone does not change it. ai-shell works around it by itself:
 
-- **The claude.ai sign-in** that `--rc` and `--login` run: ai-shell opens the sign-in page in the account's Chrome window and also prints the URL. For a Google (or Google SSO) account, open that URL in any other browser, on any device, sign in there, and paste the code at ai-shell's prompt. Only the code travels back.
-- **A Google session inside the account's Chrome** (so Mike's sessions can drive Gmail, GHL behind Google SSO, and so on): open the same profile once without the DevTools port, sign in, and close it. The next `--local-chrome` launch opens the same profile with the port and keeps the cookies.
+- **The claude.ai sign-in** that `--rc` and `--login` run (once per account per machine) opens, with `--local-chrome`, in a window on the same profile directory but WITHOUT the DevTools port, through the configured proxy. You sign in there (Google SSO works), the browser shows a code, you type it at ai-shell's prompt, and ai-shell closes that window and opens the debug-port Chrome on the same profile, which keeps the session. A previous session's debug-port window on that profile is closed first; it is ai-shell's own.
+- **A Google session for later browser tasks** (Gmail, GHL behind Google SSO) comes with that same sign-in when the account is a Google one. For any other site that refuses an automated browser, `ai-shell chrome --account mike <url>` opens the plain window by hand: sign in, close it, and the next `--local-chrome` launch reuses the session.
 
-```bash
-ai-shell chrome --account mike https://accounts.google.com/   # no DevTools port, same profile, configured proxy
-# sign in, then close every window of it
-ai-shell claude --account mike --rc --local-chrome             # reuses the session
-```
-
-`ai-shell chrome` refuses while a Chrome already holds that profile, because a second launch would only open a window inside the running (debug-port) process. Without `--account` it opens the current project's window.
+Without `--local-chrome`, the sign-in URL is printed and works in any browser on any device; only the code comes back.
 
 ### Chrome through a VPN or proxy (`chrome_proxy`)
 
-On a host whose own address sites refuse (a cloud dev box, a datacenter), give Chrome a proxy. ai-shell passes it as Chrome's `--proxy-server`; the dev container and Claude Code itself are not proxied, only the browser.
+On a host whose own address sites refuse (a cloud dev box, a datacenter), Chrome gets a proxy. `claude.chrome_proxy` (or `claude.accounts.<name>.chrome_proxy`, `AI_SHELL_CHROME_PROXY`, `--chrome-proxy` on `claude` and `chrome`) is either:
 
-```yaml
-# ~/.augint/.ai-shell.yaml
-claude:
-  chrome_proxy: http://127.0.0.1:8888      # every ai-shell Chrome on this machine
-  accounts:
-    mike:
-      chrome_proxy: http://127.0.0.1:8888  # or one account only
-```
+- **`vpn`**: ai-shell's own VPN container. ai-shell runs [gluetun](https://github.com/qdm12/gluetun) (NordVPN over WireGuard) as a host-level singleton container, `augint-shell-vpn`, with an HTTP proxy on `127.0.0.1:8888`, starts it before the first window opens, waits until traffic flows through it, and points Chrome at it. Rootless Podman is enough: `NET_ADMIN` and `/dev/net/tun`, no root. Settings under `vpn:` (country, firewall, proxy port); a changed setting recreates the container. When gluetun's firewall cannot run in the container runtime, ai-shell recreates the container once without it and remembers (`~/.augint/vpn/firewall-off`).
+- **a Chrome `--proxy-server` value** (`http://host:port`, `socks5://host:port`) for a proxy you run yourself.
 
-Equivalent: `AI_SHELL_CHROME_PROXY=...` or `--chrome-proxy URL` for one launch (`claude` and `chrome` both take it). Chrome accepts `http://host:port`, `socks5://host:port` or a bare `host:port`. A running Chrome keeps the proxy it was started with, so close the window after changing the value. Chrome never proxies loopback, so the DevTools bridge is unaffected.
+Only the browser is proxied. The dev container and Claude Code keep the machine's own route, which Anthropic accepts. A running Chrome keeps the proxy it was started with; ai-shell's sign-in flow closes and reopens its own windows, so this matters only for a window you keep open across a config change.
 
-A proxy that is a VPN, without root, on a Linux host with rootless Podman: [gluetun](https://github.com/qdm12/gluetun) runs the VPN inside a container of your own user and exposes an HTTP proxy on localhost. NordVPN over WireGuard, as a user unit that starts with your session (Podman 4.4+ reads `~/.config/containers/systemd/`):
+The VPN credential is one line in `~/.augint/.env`:
 
 ```bash
-# 1. Token: Nord Account -> NordVPN -> Manual setup -> Access token (a plain token, not a password).
-read -rsp "NordVPN access token: " NORD_TOKEN; echo
-mkdir -p ~/.config/containers/systemd ~/.config/gluetun
-curl -fsS -u "token:$NORD_TOKEN" https://api.nordvpn.com/v1/users/services/credentials \
-  | python3 -c 'import json,sys; print("WIREGUARD_PRIVATE_KEY=" + json.load(sys.stdin)["nordlynx_private_key"])' \
-  > ~/.config/gluetun/nordvpn.env
-chmod 600 ~/.config/gluetun/nordvpn.env; unset NORD_TOKEN
-
-# 2. The unit. SERVER_COUNTRIES picks the exit; FIREWALL=off only if gluetun cannot set iptables in your Podman.
-cat > ~/.config/containers/systemd/nordvpn.container <<'EOF'
-[Unit]
-Description=NordVPN (gluetun) with an HTTP proxy on 127.0.0.1:8888 for ai-shell Chrome
-
-[Container]
-Image=docker.io/qmcgaw/gluetun:latest
-AddCapability=NET_ADMIN
-AddDevice=/dev/net/tun
-EnvironmentFile=%h/.config/gluetun/nordvpn.env
-Environment=VPN_SERVICE_PROVIDER=nordvpn
-Environment=VPN_TYPE=wireguard
-Environment=SERVER_COUNTRIES=United States
-Environment=HTTPPROXY=on
-Environment=HTTPPROXY_STEALTH=on
-PublishPort=127.0.0.1:8888:8888
-
-[Service]
-Restart=always
-
-[Install]
-WantedBy=default.target
-EOF
-
-# 3. Start it and check the exit address.
-systemctl --user daemon-reload && systemctl --user start nordvpn
-sleep 20; curl -fsS -x http://127.0.0.1:8888 https://api.ipify.org; echo
-# then: claude.accounts.<name>.chrome_proxy: http://127.0.0.1:8888 in ~/.augint/.ai-shell.yaml
+NORDVPN_TOKEN=<access token>   # Nord Account -> NordVPN -> Manual setup -> Access token
 ```
 
-`journalctl --user -u nordvpn -f` shows gluetun's log. If it stops at the firewall step, add `Environment=FIREWALL=off` to the unit (traffic then falls back to the host's own address while the tunnel is down, which is fine for a sign-in proxy).
+ai-shell trades the token once for the account's WireGuard key through NordVPN's API and caches the key under `~/.augint/vpn/` (mode 0600); the token can expire, the key does not. `NORDVPN_WIREGUARD_PRIVATE_KEY=...` works too. Without either, `ai-shell vpn up` asks for the token on the terminal; a `--local-chrome` launch asks as well.
+
+```bash
+ai-shell vpn up        # start it now and print the exit address
+ai-shell vpn status    # container state and exit address
+ai-shell vpn down      # stop and remove it (and forget the firewall fallback)
+```
 
 ---
 
