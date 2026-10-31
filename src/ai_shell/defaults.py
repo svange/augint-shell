@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 import yaml
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     from docker.types import Mount
 
@@ -688,6 +688,28 @@ def build_dev_mounts(
             )
 
     return mounts
+
+
+def podman_cli_host(environ: Mapping[str, str]) -> str | None:
+    """``CONTAINER_HOST`` to set so Podman's CLI talks to the service ``DOCKER_HOST`` names.
+
+    On a rootless Podman host the ``docker`` command is Podman's own CLI
+    (``podman-docker``), which ignores ``DOCKER_HOST`` and runs containers
+    itself. ai-shell creates the dev container through the API on the
+    socket, inside the user's Podman service, and then runs ``docker exec``
+    as a subprocess: the CLI performs that exec from the terminal's own
+    cgroup, and the kernel refuses to move a process into the service's
+    cgroup subtree ("writing cgroup.procs: Permission denied: OCI permission
+    denied"). ``CONTAINER_HOST`` turns on Podman's remote mode, so the exec
+    runs in the service too. Returns ``None`` when ``DOCKER_HOST`` is not a
+    Podman socket or the user already chose a connection.
+    """
+    if environ.get("CONTAINER_HOST") or environ.get("CONTAINER_CONNECTION"):
+        return None
+    host = (environ.get("DOCKER_HOST") or "").strip()
+    if not host.startswith("unix://") or "podman" not in host:
+        return None
+    return host
 
 
 def docker_tcp_fallback_host() -> str | None:
