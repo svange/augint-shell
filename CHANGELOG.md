@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.112.0 (2026-10-31)
+
+### Features
+
+- **claude**: Route host Chrome through a proxy and open it without the DevTools port (#176)
+  ([#176](https://github.com/svange/augint-shell/pull/176),
+  [`a010549`](https://github.com/svange/augint-shell/commit/a010549b7a23ce02c12785b9efb197fc18e160b9))
+
+
 ## v0.111.0 (2026-10-31)
 
 ### Features
