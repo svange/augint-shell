@@ -22,12 +22,14 @@ import platform
 import re
 import shutil
 import subprocess
+import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from hashlib import sha1
 from http.client import HTTPConnection, HTTPException
 from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 
@@ -244,7 +246,7 @@ def _proxy_args(proxy: str | None) -> list[str]:
     return [f"--proxy-server={proxy}"] if proxy else []
 
 
-def _spawn_detached(args: list[str]) -> subprocess.Popen[bytes]:
+def _spawn_detached(args: list[str], stderr: Any = subprocess.DEVNULL) -> subprocess.Popen[bytes]:
     """Start *args* so the process outlives the CLI, on every platform."""
     if platform.system() == "Windows":
         creation_flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(
@@ -253,17 +255,49 @@ def _spawn_detached(args: list[str]) -> subprocess.Popen[bytes]:
         return subprocess.Popen(  # noqa: S603
             args,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=stderr,
             stdin=subprocess.DEVNULL,
             creationflags=creation_flags,
         )
     return subprocess.Popen(  # noqa: S603
         args,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=stderr,
         stdin=subprocess.DEVNULL,
         start_new_session=True,
     )
+
+
+#: How long a freshly started Chrome gets to prove it stays up. A Chrome that
+#: cannot open a window (no display, a broken profile) exits well within it.
+CHROME_START_SECONDS = 2.0
+
+
+def no_display_reason(environ: Mapping[str, str] | None = None) -> str | None:
+    """Why Chrome cannot open a window from this terminal, or None when it can.
+
+    Only Linux needs a display variable; Windows and macOS always have a
+    desktop. A terminal reached over SSH or Session Manager has neither
+    ``DISPLAY`` nor ``WAYLAND_DISPLAY``, and Chrome then exits at once.
+    """
+    if platform.system() != "Linux":
+        return None
+    env = os.environ if environ is None else environ
+    if env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"):
+        return None
+    return (
+        "This terminal has no desktop display (DISPLAY and WAYLAND_DISPLAY are unset), so "
+        "Chrome cannot open a window from it. Run this in a terminal on the desktop itself "
+        "(on a dev box, the DCV session), not over SSH or Session Manager."
+    )
+
+
+def _exited_early(process: subprocess.Popen[bytes], seconds: float) -> int | None:
+    """The exit code when *process* ends within *seconds*, else None (it is still up)."""
+    try:
+        return process.wait(timeout=seconds)
+    except subprocess.TimeoutExpired:
+        return None
 
 
 CHROME_CLOSE_TIMEOUT_SECONDS = 20.0
@@ -416,6 +450,9 @@ def launch_plain_chrome(
                 "DevTools port) and run this again: a second launch would open inside "
                 "the running process, where Google still refuses the sign-in."
             )
+    reason = no_display_reason()
+    if reason:
+        raise LocalChromeUnavailable(reason)
     args = [
         chrome_path,
         f"--user-data-dir={profile_dir}",
@@ -426,7 +463,21 @@ def launch_plain_chrome(
     if url:
         args.append(url)
     logger.info("Launching plain Chrome: %s", " ".join(args))
-    return PlainChrome(profile_dir=profile_dir, port=port, process=_spawn_detached(args))
+    # Chrome's stderr goes to a temp file: when it exits at once, its own
+    # words ("Missing X server or $DISPLAY", a profile error) are the reason.
+    stderr = tempfile.TemporaryFile()
+    process = _spawn_detached(args, stderr=stderr)
+    code = _exited_early(process, CHROME_START_SECONDS)
+    if code is not None:
+        stderr.seek(0)
+        output = stderr.read().decode("utf-8", "replace").strip()
+        stderr.close()
+        tail = "\n".join(output.splitlines()[-8:]) or "(no output)"
+        raise LocalChromeUnavailable(
+            f"Chrome exited at once (code {code}) instead of opening the window. Its output:\n{tail}"
+        )
+    stderr.close()
+    return PlainChrome(profile_dir=profile_dir, port=port, process=process)
 
 
 def probe_chrome_port(container_name: str, port: int) -> bool:

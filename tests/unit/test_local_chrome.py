@@ -1,5 +1,6 @@
 """Tests for local Chrome bridge (probe + auto-launch + proxy + MCP config)."""
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -426,6 +427,14 @@ class TestChromeProxy:
             ensure_host_chrome("test-dev", project_name="p", proxy="http://127.0.0.1:8888")
 
 
+def _staying_up(mock_popen):
+    """Make the patched Popen's process survive the start check."""
+    import subprocess
+
+    mock_popen.return_value.wait.side_effect = subprocess.TimeoutExpired(cmd="chrome", timeout=2)
+    return mock_popen
+
+
 class TestLaunchPlainChrome:
     """``ai-shell chrome``: the profile's window without the DevTools port."""
 
@@ -438,12 +447,14 @@ class TestLaunchPlainChrome:
     ):
         from ai_shell.local_chrome import launch_plain_chrome
 
-        window = launch_plain_chrome(
-            project_name="p",
-            profile="mike",
-            proxy="http://127.0.0.1:8888",
-            url="https://accounts.google.com/",
-        )
+        _staying_up(mock_popen)
+        with patch.dict("os.environ", {"DISPLAY": ":3"}):
+            window = launch_plain_chrome(
+                project_name="p",
+                profile="mike",
+                proxy="http://127.0.0.1:8888",
+                url="https://accounts.google.com/",
+            )
         profile_dir = window.profile_dir
         args = mock_popen.call_args[0][0]
         assert profile_dir.endswith("account-mike")
@@ -490,6 +501,52 @@ class TestLaunchPlainChrome:
             launch_plain_chrome(project_name="p", profile="mike")
         mock_popen.assert_not_called()
 
+    @patch("ai_shell.local_chrome.probe_host_chrome_port", return_value=False)
+    @patch("ai_shell.local_chrome.subprocess.Popen")
+    @patch("ai_shell.local_chrome.find_chrome", return_value="/usr/bin/google-chrome")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_refuses_without_a_display(self, mock_system, mock_find, mock_popen, mock_probe):
+        from ai_shell.local_chrome import launch_plain_chrome
+
+        env = {k: v for k, v in os.environ.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
+        with (
+            patch.dict("os.environ", env, clear=True),
+            pytest.raises(LocalChromeUnavailable, match="no desktop display"),
+        ):
+            launch_plain_chrome(project_name="p", profile="mike")
+        mock_popen.assert_not_called()
+
+    @patch("ai_shell.local_chrome.platform.system", return_value="Windows")
+    def test_display_check_is_linux_only(self, mock_system):
+        from ai_shell.local_chrome import no_display_reason
+
+        assert no_display_reason({}) is None
+
+    @patch("ai_shell.local_chrome.probe_host_chrome_port", return_value=False)
+    @patch("ai_shell.local_chrome.subprocess.Popen")
+    @patch("ai_shell.local_chrome.find_chrome", return_value="/usr/bin/google-chrome")
+    @patch("ai_shell.local_chrome.platform.system", return_value="Linux")
+    def test_chrome_that_exits_at_once_is_an_error_with_its_output(
+        self, mock_system, mock_find, mock_popen, mock_probe
+    ):
+        from ai_shell.local_chrome import launch_plain_chrome
+
+        def popen(args, **kwargs):
+            kwargs["stderr"].write(
+                b"[1:1:ERROR:ozone_platform_x11.cc] Missing X server or $DISPLAY\n"
+            )
+            process = MagicMock()
+            process.wait.return_value = 1
+            return process
+
+        mock_popen.side_effect = popen
+        with (
+            patch.dict("os.environ", {"DISPLAY": ":3"}),
+            pytest.raises(LocalChromeUnavailable, match=r"exited at once \(code 1\)") as info,
+        ):
+            launch_plain_chrome(project_name="p", profile="mike")
+        assert "Missing X server" in str(info.value)
+
     @patch("ai_shell.local_chrome.platform.system", return_value="Windows")
     def test_lock_check_is_posix_only(self, mock_system, tmp_path):
         from ai_shell.local_chrome import chrome_profile_in_use
@@ -509,7 +566,9 @@ class TestClosingChrome:
     ):
         from ai_shell.local_chrome import launch_plain_chrome
 
-        window = launch_plain_chrome(project_name="p", profile="mike", close_running=True)
+        _staying_up(mock_popen)
+        with patch.dict("os.environ", {"DISPLAY": ":3"}):
+            window = launch_plain_chrome(project_name="p", profile="mike", close_running=True)
         mock_close.assert_called_once()
         assert mock_close.call_args[0][0] == window.profile_dir
         assert mock_close.call_args[0][1] == window.port
