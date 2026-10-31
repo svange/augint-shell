@@ -2439,6 +2439,7 @@ class TestVpnCommands:
             "status": "running",
             "exit_address": "203.0.113.9",
             "proxy": "http://127.0.0.1:8888",
+            "server": "us2943.nordvpn.com",
         },
     )
     def test_status_shows_exit_address(self, mock_status, mock_config, mock_manager_cls):
@@ -2447,3 +2448,4 @@ class TestVpnCommands:
         assert result.exit_code == 0, result.output
         assert "running" in result.output
         assert "203.0.113.9" in result.output
+        assert "Server: us2943.nordvpn.com" in result.output
