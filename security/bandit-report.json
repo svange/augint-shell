@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-10-31T03:41:30Z",
+  "generated_at": "2026-10-31T04:41:43Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 82,
@@ -11,7 +11,7 @@
       "SEVERITY.LOW": 84,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 9106,
+      "loc": 9130,
       "nosec": 0,
       "skipped_tests": 13
     },
@@ -102,7 +102,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 47,
+      "loc": 52,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -206,7 +206,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 873,
+      "loc": 892,
       "nosec": 0,
       "skipped_tests": 1
     },
