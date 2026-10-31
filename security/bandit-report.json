@@ -1,19 +1,19 @@
 {
   "errors": [],
-  "generated_at": "2026-10-31T02:58:22Z",
+  "generated_at": "2026-10-31T03:28:30Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 71,
+      "CONFIDENCE.HIGH": 74,
       "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.MEDIUM": 2,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 72,
+      "SEVERITY.LOW": 76,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 8321,
+      "loc": 8942,
       "nosec": 0,
-      "skipped_tests": 12
+      "skipped_tests": 13
     },
     "src/ai_shell/__init__.py": {
       "CONFIDENCE.HIGH": 0,
@@ -102,7 +102,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 45,
+      "loc": 47,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -154,9 +154,22 @@
       "SEVERITY.LOW": 28,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 2307,
+      "loc": 2470,
       "nosec": 0,
       "skipped_tests": 2
+    },
+    "src/ai_shell/cli/commands/vpn.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 66,
+      "nosec": 0,
+      "skipped_tests": 0
     },
     "src/ai_shell/config.py": {
       "CONFIDENCE.HIGH": 0,
@@ -167,7 +180,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 512,
+      "loc": 528,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -250,15 +263,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/local_chrome.py": {
-      "CONFIDENCE.HIGH": 7,
+      "CONFIDENCE.HIGH": 10,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 7,
+      "SEVERITY.LOW": 10,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 465,
+      "loc": 520,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -430,6 +443,19 @@
       "loc": 78,
       "nosec": 0,
       "skipped_tests": 0
+    },
+    "src/ai_shell/vpn.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 319,
+      "nosec": 0,
+      "skipped_tests": 1
     }
   },
   "results": []
