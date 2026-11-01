@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.115.0 (2026-11-01)
+
+### Features
+
+- **image**: Install chezmoi; align repo context with the org standards (#183)
+  ([#183](https://github.com/svange/augint-shell/pull/183),
+  [`084d728`](https://github.com/svange/augint-shell/commit/084d72832d98c69d69eadabce3487f1d664359a0))
+
+
 ## v0.114.2 (2026-10-31)
 
 ### Bug Fixes
