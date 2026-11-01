@@ -111,8 +111,10 @@ RUN curl -fsSL https://bun.sh/install | bash && \
     ln -s /root/.bun/bin/bunx /usr/local/bin/bunx
 
 # Enable corepack so pnpm and yarn shims are on PATH for monorepos that
-# declare them via package.json "packageManager". Ships with Node.js LTS.
-RUN corepack enable
+# declare them via package.json "packageManager". Node.js 25+ no longer
+# bundles corepack (`corepack enable` exits 127 on the current LTS), so it
+# is installed from npm first; harmless on a Node that still ships it.
+RUN npm install -g corepack && corepack enable
 
 # Install PHP 8.4 CLI + extensions (deb.sury.org) for the Laravel dev loop
 # (artisan, Pest, Pint, tinker). 8.4 matches the FrankenPHP 1-php8.4 runtime
