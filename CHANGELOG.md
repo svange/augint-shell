@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.115.1 (2026-11-01)
+
+### Bug Fixes
+
+- **image**: Install corepack from npm before enabling it (#184)
+  ([#184](https://github.com/svange/augint-shell/pull/184),
+  [`6743c39`](https://github.com/svange/augint-shell/commit/6743c3982c3c3ee15704f891807bd194fc04d244))
+
+
 ## v0.115.0 (2026-11-01)
 
 ### Features
