@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`src/ai_shell/` contains the packaged CLI and runtime modules. Core behavior lives in files such as `config.py`, `container.py`, `local_chrome.py`, and `tmux.py`; CLI entrypoints are under `src/ai_shell/cli/`. Project templates ship in `src/ai_shell/templates/`. Tests live in `tests/unit/` and follow the source module layout with `test_*.py` files. CI support assets are in `ci-resources/`, Docker packaging is in `docker/`, and automation/workflow definitions are in `.github/workflows/` and `.agents/`.
+`src/ai_shell/` contains the packaged CLI and runtime modules. Core behavior lives in files such as `config.py`, `container.py`, `local_chrome.py`, and `tmux.py`; CLI entrypoints are under `src/ai_shell/cli/`. Project templates ship in `src/ai_shell/templates/`. Tests live in `tests/unit/` and follow the source module layout with `test_*.py` files. CI support assets are in `ci-resources/`, Docker packaging is in `docker/`, and the pipeline is `.github/workflows/publish.yaml`.
 
 ## Build, Test, and Development Commands
 Use `uv` for local development.
@@ -24,9 +24,10 @@ Add unit tests in `tests/unit/` using `test_<module>.py` naming. Prefer focused 
 Git history uses Conventional Commits, for example `feat: ...`, `fix: ...`, and `chore(release): ...`. Keep subjects imperative and scoped to one change. Pull requests should summarize behavior changes, link the relevant issue when applicable, and note any config, Docker, or release impacts. Include terminal output or screenshots only when they clarify CLI-visible changes.
 
 ## Security & Configuration Tips
-Do not commit `.env` files; pre-commit blocks them. Keep project-specific settings in `ai-shell.toml` or `~/.config/ai-shell/config.toml`, and update `uv.lock` whenever dependencies change.
+Do not commit `.env` files; pre-commit blocks them. Project settings live in `.ai-shell.yaml` and machine-wide settings in `~/.augint/.ai-shell.yaml` (see CLAUDE.md, "Config layering"); credentials live in `~/.augint/.env`, never in YAML. Update `uv.lock` with `uv lock` or `uv add` whenever dependencies change, never by hand.
 
 ## Further Reading
-- [CLAUDE.md](CLAUDE.md) — architecture: dependency flow, container categories, config/env layering, mount assembly, and the scaffold system.
+- [CLAUDE.md](CLAUDE.md) — the vision pointer, what to read before you implement, and the architecture: dependency flow, container categories, config/env layering, mount assembly, Claude accounts and Remote Control, host Chrome, and the scaffold system.
+- [Org standards in ai-agency](https://github.com/Augmenting-Integrations/ai-agency/tree/main/docs/standards) — Claude setup, dependency bots, CI mechanics, GitHub Pages and test reports.
 - [README.md](README.md) — project overview, command reference, and the release/branch model (branch-to-publish mapping).
 - [TMUX.md](TMUX.md) — runbook for the multi-pane `ai-shell claude --multi` workflow.

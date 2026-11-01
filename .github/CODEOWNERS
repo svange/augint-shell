@@ -1,3 +1,6 @@
-# Require owner review for workflow, ruleset, and settings changes.
-# Code-only PRs do not require code-owner review and can automerge.
+# Require owner review for workflow, ruleset, and settings changes, and for
+# the file every session reads before it plans work (ai-agency
+# docs/standards/project-vision.md). Code-only PRs do not require
+# code-owner review and can automerge.
 .github/ @svange
+/CLAUDE.md @svange

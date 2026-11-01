@@ -1,10 +1,16 @@
 # CLAUDE.md
 
-Project-specific guidance for Claude Code. All canonical workflow, CI, commit, and standardization rules live in the `ai-cc-tools` plugin (`augint-workflow`, `ai-standardize-*` skills) — do not duplicate them here.
+Project-specific guidance for Claude Code. Org-wide rules (Claude setup, dependency bots, CI mechanics, GitHub Pages, test reports) are the standards in `ai-agency` ([`docs/standards/`](https://github.com/Augmenting-Integrations/ai-agency/tree/main/docs/standards)); they are not repeated here. A rule in this repository depends only on its files, git and GitHub, never on a plugin, skill or hook.
+
+**Vision:** the Augmenting Integrations vision is `VISION.md` in the `ai-agency` repository ([on GitHub](https://github.com/Augmenting-Integrations/ai-agency/blob/main/VISION.md)). Read it before you plan a feature, an integration or an architecture change. Never edit it to match a request or the code; an agreed line changes only through a meeting readback (ai-agency `docs/standards/project-vision.md`).
+
+## Before you implement
+
+Read [`VISION.md` in `ai-agency`](https://github.com/Augmenting-Integrations/ai-agency/blob/main/VISION.md), the issue and its comments, and the last two weeks of commits and open pull requests on the paths you will touch. Comment on the issue when you start (the thread or branch) and when the pull request opens, and nowhere else. A ticket you write carries the links a stranger needs and one line that says when it is done.
 
 ## Overview
 
-Python CLI tool (`ai-shell`) for launching AI coding tools and local LLMs in Docker containers. Published to PyPI as `augint-shell`. Replaces Makefile + docker-compose.yml workflow with per-project containers and optional `.ai-shell.yaml` config.
+Python CLI tool (`ai-shell`) for launching AI coding tools and local LLMs in per-project containers on Docker or Podman. Published to PyPI as `augint-shell`. Replaces the Makefile + docker-compose.yml workflow with per-project containers and an optional `.ai-shell.yaml` config. The dev image (`docker/Dockerfile`) ships the agents, the cloud and language toolchains, and `chezmoi` so a host's dotfiles can be applied inside a container.
 
 ## Development
 
@@ -25,17 +31,22 @@ uv run pre-commit run --all-files            # All pre-commit hooks
 ### Dependency flow
 
 ```
-CLI commands (cli/commands/)
+CLI commands (cli/commands/: tools.py, llm.py, manage.py, vpn.py)
   -> ContainerManager (container.py)
     -> AiShellConfig (config.py)
     -> defaults.py (constants, mount/env builders)
     -> gpu.py (NVIDIA detection)
+  -> host-side helpers the claude command uses:
+     local_chrome.py (host Chrome + DevTools bridge), cdp_relay.py (Linux relay),
+     claude_login.py (piped `claude auth login`), vpn.py (gluetun container),
+     t3.py, expo.py, tmux.py / interactive.py (multi-pane)
 ```
 
-### Two container categories
+### Three container categories
 
 1. **Per-project dev containers** (`augint-shell-{project}-dev`) — one per project directory. Created on-demand, reused if running. Uses `tail -f /dev/null` to stay alive; commands exec into it.
 2. **Host-level LLM stack** (singletons) — Ollama, Open WebUI, Kokoro TTS, Speaches STT, voice-agent, and n8n containers shared across projects via the `augint-shell-llm` Docker network. Persistent named volumes. GPU auto-detected for Ollama, Kokoro, and Whisper; those containers auto-recreate when GPU availability changes. Voice-agent image is built locally on first use.
+3. **The VPN container** (singleton `augint-shell-vpn`, `vpn.py`) — gluetun with NordVPN, started only when a host Chrome is configured with `chrome_proxy: vpn`. Only the browser is proxied, never a dev container.
 
 ### Config layering (highest priority first)
 
@@ -123,9 +134,7 @@ Pi (`@mariozechner/pi-coding-agent`) is a provider-agnostic terminal coding agen
 
 ### Scaffold system
 
-`ai-shell init` and per-tool `--init`/`--update`/`--reset`/`--clean` flags write tool config files (`.claude/`, `.codex/`, `.agents/`, etc.) into the project. `--update` merges settings (preserves user customizations) and overwrites managed skills. `--reset` force-overwrites all managed files. `--clean` removes all managed paths then recreates them fresh.
-
-**Claude Code skills** are delivered via the `augint-workflow` plugin in the `ai-cc-tools` repo, not scaffolded by `ai-shell`. `ai-shell claude --init` only writes `settings.json`. Skills for agents/opencode/codex are still scaffolded from `src/ai_shell/templates/agents/skills/`.
+`ai-shell init` (`scaffold.py`) writes three files and nothing else: `~/.augint/.env.example` and `~/.augint/.ai-shell.example.yaml` (always refreshed from `templates/augint-env.example` and `templates/augint-ai-shell.example.yaml`) and `.ai-shell.yaml` in the current directory (from `templates/ai-shell.yaml`, never overwritten). Edit the templates in `src/ai_shell/templates/`, not the generated files. ai-shell scaffolds no agent skills or tool settings; `templates/claude/settings.json` and `templates/pi/models.json` are consumed by the image and the `pi` command, not written into projects.
 
 ## Testing
 
@@ -135,6 +144,7 @@ An autouse `isolate_home` fixture in `tests/unit/conftest.py` patches `pathlib.P
 
 ## Project-specific notes
 
-- Version lives in `pyproject.toml:project.version` and `src/ai_shell/__init__.py:__version__`. Python Semantic Release owns both.
-- Tag format is `v{version}` (canonical per ai-standardize-release).
-- Do not hand-edit files under `.agents/skills/` — scaffolded from `src/ai_shell/templates/agents/skills/`. Edit the templates and re-run scaffold.
+- Version lives in `pyproject.toml:project.version` and `src/ai_shell/__init__.py:__version__`. Python Semantic Release owns both; never edit them by hand.
+- Tag format is `v{version}`.
+- This repository is public, so its reports may be published to GitHub Pages (ai-agency `docs/standards/github-pages-and-test-reports.md` forbids that for private repositories only).
+- A change under `docker/` rebuilds and publishes the image on merge to `main`, with or without a version bump.

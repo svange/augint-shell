@@ -105,6 +105,7 @@ get_version "aws"        "aws --version"            &
 get_version "sam"        "sam --version"             &
 get_version "cdk"        "cdk --version"            &
 get_version "stripe"     "stripe version"           &
+get_version "chezmoi"    "chezmoi --version"        &
 
 # LLM service checks (all in parallel)
 # Parse AUGINT_LLM_PORTS if available, otherwise use defaults
@@ -206,7 +207,7 @@ printf "${AMBER}│${RESET}  ${AMBER_BOLD}Tools${RESET}\n"
 
 # Collect tools into array for column formatting
 declare -a _tool_entries=()
-_tool_list="claude codex opencode uv node gh playwright aws sam cdk stripe"
+_tool_list="claude codex opencode uv node gh playwright aws sam cdk stripe chezmoi"
 for _t in $_tool_list; do
     if [ -f "$MOTD_TMP/tool_${_t}" ]; then
         _v=$(cat "$MOTD_TMP/tool_${_t}")

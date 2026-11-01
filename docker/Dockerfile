@@ -312,6 +312,12 @@ RUN curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux
     -o /usr/local/bin/yq && \
     chmod +x /usr/local/bin/yq
 
+# Install chezmoi (dotfile manager). The host keeps its dotfiles in a chezmoi
+# source repo; with the binary in the image, `chezmoi init --apply <repo>`
+# brings the same shell, git and tool config into a dev container.
+RUN sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin && \
+    chezmoi --version
+
 # Configure git globally as root
 RUN git config --global --add safe.directory '*' && \
     git config --global color.ui auto && \

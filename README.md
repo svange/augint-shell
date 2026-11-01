@@ -55,7 +55,7 @@ The single deploy environment is the GitHub Actions `pypi` environment (trusted 
 
 `ai-shell` is a Python CLI that stands up:
 
-1. **Per-project dev containers** (`augint-shell-{project}-dev`) -- one per repo, runs Claude Code, Codex, opencode, or aider with your project mounted, SSH keys, AWS creds, and tool configs wired in.
+1. **Per-project dev containers** (`augint-shell-{project}-dev`) -- one per repo, runs Claude Code, Codex, opencode, or aider with your project mounted, SSH keys, AWS creds, and tool configs wired in. The image also carries `chezmoi`, so `chezmoi init --apply <your-dotfiles-repo>` inside a container gives it your shell and tool config.
 2. **Host-level LLM stack** (shared singletons) -- Ollama, Open WebUI, Kokoro TTS, Speaches STT, a Pipecat voice agent, and n8n on a common Docker network. GPU auto-detected.
 
 One command replaces the old Makefile + docker-compose.yml workflow.
@@ -69,7 +69,7 @@ One command replaces the old Makefile + docker-compose.yml workflow.
 
 ### Prerequisites
 
-- Docker
+- Docker, or Podman with the `docker` CLI shim (`podman-docker`) and `DOCKER_HOST` pointing at its socket
 - Python >= 3.12
 - (Optional) NVIDIA GPU + drivers for local LLM acceleration
 
@@ -114,7 +114,7 @@ ai-shell opencode
 4. **Review the PR** when the agent is done. CI runs automatically.
 5. **Merge** once CI is green.
 
-If you need to work manually, see the full [contributor guide](CONTRIBUTING.md) (if available).
+If you need to work manually, [AGENTS.md](AGENTS.md) has the build, test and commit conventions.
 
 ---
 
@@ -261,7 +261,7 @@ Four role-specific model slots, each sized for an RTX 4090 (24 GiB VRAM). All fo
 | `--webui` | Open WebUI | 3000 | Implies `--voice` so Kokoro is wired as "read aloud" backend. Use `--no-voice` to skip. |
 | `--voice` | Kokoro TTS | 8880 | OpenAI-compatible `/v1/audio/speech` |
 | `--whisper` | Speaches STT | 8001 | OpenAI-compatible `/v1/audio/transcriptions`. GPU image auto-used when NVIDIA is detected |
-| `--voice-agent` | Pipecat voice agent | 8010 | Push-to-talk PWA (Speaches -> Ollama -> Kokoro). See `VOICE_AGENT_PLAN.md` |
+| `--voice-agent` | Pipecat voice agent | 8010 | Push-to-talk PWA (Speaches -> Ollama -> Kokoro). Image built locally from `docker/voice-agent/` on first use |
 | `--image-gen` | ComfyUI | 8188 | GPU image generation. Wires into WebUI when combined with `--webui` |
 | `--n8n` | n8n | 5678 | Workflow automation |
 
@@ -544,6 +544,6 @@ OPENCODE_SERVER_USERNAME=admin
 
 ## Requirements
 
-- Docker
+- Docker, or Podman with the `docker` CLI shim
 - Python >= 3.12
 - (Optional) NVIDIA GPU for local LLM acceleration
