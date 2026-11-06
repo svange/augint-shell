@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.115.2 (2026-11-06)
+
+### Bug Fixes
+
+- **chrome**: Skip Windows-reserved debug ports and recover a port-less profile window (#187)
+  ([#187](https://github.com/svange/augint-shell/pull/187),
+  [`6f22192`](https://github.com/svange/augint-shell/commit/6f22192da4dc73603c2518db5ff40f9963f91f96))
+
+
 ## v0.115.1 (2026-11-01)
 
 ### Bug Fixes
