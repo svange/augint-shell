@@ -19,6 +19,17 @@ from ai_shell.local_chrome import (
     start_chrome_proxy,
     write_mcp_config,
 )
+from ai_shell.local_chrome import _port_bindable as real_port_bindable
+
+
+@pytest.fixture(autouse=True)
+def _quiet_host():
+    """No test reads the real host's Chrome processes or binds its ports."""
+    with (
+        patch("ai_shell.local_chrome._chrome_command_lines", return_value=[]),
+        patch("ai_shell.local_chrome._port_bindable", return_value=True),
+    ):
+        yield
 
 
 class TestProbeChromePort:
@@ -128,15 +139,58 @@ class TestEnsureHostChrome:
         with patch("ai_shell.local_chrome.chrome_bind_address", return_value="127.0.0.1"):
             yield
 
-    @patch("ai_shell.local_chrome._project_debug_port", return_value=54321)
-    @patch("ai_shell.local_chrome.probe_chrome_port")
-    def test_returns_project_port_when_already_running(self, mock_probe, mock_port):
-        mock_probe.return_value = True
-
+    @patch("ai_shell.local_chrome.launch_chrome")
+    @patch("ai_shell.local_chrome.probe_host_chrome_port", return_value=True)
+    @patch("ai_shell.local_chrome.running_chrome_port", return_value=54321)
+    @patch("ai_shell.local_chrome.probe_chrome_port", return_value=True)
+    def test_reuses_the_port_of_the_chrome_on_the_profile(
+        self, mock_probe, mock_running, mock_host, mock_launch
+    ):
         port = ensure_host_chrome("test-dev", project_name="my-project")
 
         assert port == 54321
         mock_probe.assert_called_once_with("test-dev", 54321)
+        mock_launch.assert_not_called()
+
+    @patch("ai_shell.local_chrome._wait_until_ready", side_effect=[True, True])
+    @patch("ai_shell.local_chrome.launch_chrome", return_value=True)
+    @patch("ai_shell.local_chrome._project_debug_port", return_value=54321)
+    @patch("ai_shell.local_chrome.probe_chrome_port", return_value=False)
+    def test_skips_a_port_the_host_reserves(self, mock_probe, mock_port, mock_launch, mock_wait):
+        # Windows reserved 54321-54322 (excludedportrange): Chrome would open with no port.
+        with patch("ai_shell.local_chrome._port_bindable", side_effect=[False, False, True]):
+            port = ensure_host_chrome("test-dev", project_name="my-project")
+
+        assert port == 54323
+        assert mock_launch.call_args[0][0] == 54323
+
+    @patch("ai_shell.local_chrome._wait_until_ready", side_effect=[True, True])
+    @patch("ai_shell.local_chrome.launch_chrome", return_value=True)
+    @patch("ai_shell.local_chrome.close_chrome_profile", return_value=True)
+    @patch("ai_shell.local_chrome.probe_host_chrome_port", return_value=False)
+    @patch("ai_shell.local_chrome.running_chrome_port", return_value=57538)
+    @patch("ai_shell.local_chrome._project_debug_port", return_value=57538)
+    @patch("ai_shell.local_chrome.probe_chrome_port", return_value=False)
+    def test_closes_a_chrome_whose_port_never_opened_then_relaunches(
+        self, mock_probe, mock_port, mock_running, mock_host, mock_close, mock_launch, mock_wait
+    ):
+        with patch("ai_shell.local_chrome._port_bindable", side_effect=[False, True]):
+            port = ensure_host_chrome("test-dev", project_name="p", profile="mike")
+
+        mock_close.assert_called_once()
+        assert mock_close.call_args[0][0].endswith("account-mike")
+        assert port == 57539
+        mock_launch.assert_called_once()
+
+    @patch("ai_shell.local_chrome.launch_chrome")
+    @patch("ai_shell.local_chrome.close_chrome_profile", return_value=False)
+    @patch("ai_shell.local_chrome.running_chrome_port", return_value=0)
+    def test_refuses_when_the_portless_chrome_will_not_close(
+        self, mock_running, mock_close, mock_launch
+    ):
+        with pytest.raises(LocalChromeUnavailable, match="without a DevTools port"):
+            ensure_host_chrome("test-dev", project_name="p", profile="mike")
+        mock_launch.assert_not_called()
 
     @patch("ai_shell.local_chrome._wait_until_ready", side_effect=[True, True])
     @patch("ai_shell.local_chrome.launch_chrome")
@@ -612,11 +666,79 @@ class TestLaunchPlainChrome:
         assert "Missing X server" in str(info.value)
 
     @patch("ai_shell.local_chrome.platform.system", return_value="Windows")
-    def test_lock_check_is_posix_only(self, mock_system, tmp_path):
+    def test_windows_asks_the_processes_not_the_lock(self, mock_system, tmp_path):
         from ai_shell.local_chrome import chrome_profile_in_use
 
-        (tmp_path / "SingletonLock").symlink_to("host-1")
         assert chrome_profile_in_use(tmp_path) is False
+        line = f"chrome.exe --user-data-dir={tmp_path} --no-first-run"
+        with patch("ai_shell.local_chrome._chrome_command_lines", return_value=[line]):
+            assert chrome_profile_in_use(tmp_path) is True
+
+
+class TestRunningChromePort:
+    PROFILE = r"C:\Users\u\AppData\Local\Google\Chrome\ai-shell\account-mike"
+
+    def _port(self, lines):
+        from ai_shell.local_chrome import running_chrome_port
+
+        with patch("ai_shell.local_chrome._chrome_command_lines", return_value=lines):
+            return running_chrome_port(self.PROFILE)
+
+    def test_reads_the_port_from_the_browser_process(self):
+        lines = [
+            f'"chrome.exe" --type=renderer --user-data-dir={self.PROFILE} --x',
+            f'"chrome.exe" --remote-debugging-port=57582 --user-data-dir={self.PROFILE} --y',
+        ]
+        assert self._port(lines) == 57582
+
+    def test_zero_when_the_profile_has_no_port(self):
+        assert self._port([f'"chrome.exe" --user-data-dir={self.PROFILE} --no-first-run']) == 0
+
+    def test_none_when_no_chrome_holds_the_profile(self):
+        assert self._port([]) is None
+
+    def test_never_matches_a_profile_with_a_longer_name(self):
+        line = f'"chrome.exe" --remote-debugging-port=40001 --user-data-dir={self.PROFILE}ey --z'
+        assert self._port([line]) is None
+
+    def test_matches_a_quoted_path_with_spaces(self):
+        from ai_shell.local_chrome import running_chrome_port
+
+        profile = r"C:\Users\First Last\ai-shell\account-mike"
+        line = f'"chrome.exe" --remote-debugging-port=40002 "--user-data-dir={profile}" --a'
+        with patch("ai_shell.local_chrome._chrome_command_lines", return_value=[line]):
+            assert running_chrome_port(profile) == 40002
+
+
+class TestFreeDebugPort:
+    def test_wraps_inside_the_range(self):
+        from ai_shell.local_chrome import (
+            CHROME_DEBUG_PORT_RANGE_SIZE,
+            CHROME_DEBUG_PORT_RANGE_START,
+            _free_debug_port,
+        )
+
+        last = CHROME_DEBUG_PORT_RANGE_START + CHROME_DEBUG_PORT_RANGE_SIZE - 1
+        with patch("ai_shell.local_chrome._port_bindable", side_effect=[False, True]):
+            assert _free_debug_port(last) == CHROME_DEBUG_PORT_RANGE_START
+
+    def test_raises_when_every_port_is_taken(self):
+        from ai_shell.local_chrome import _free_debug_port
+
+        with (
+            patch("ai_shell.local_chrome._port_bindable", return_value=False),
+            pytest.raises(LocalChromeUnavailable, match="excludedportrange"),
+        ):
+            _free_debug_port(57538)
+
+    def test_bind_check_sees_a_listener(self):
+        import socket
+
+        # Imported at module load, before the autouse fixture stubs the attribute.
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen()
+            assert real_port_bindable(listener.getsockname()[1]) is False
 
 
 class TestClosingChrome:
