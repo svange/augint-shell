@@ -132,7 +132,10 @@ fi
 if [ -x /usr/local/bin/update-tools.sh ] && command -v cron >/dev/null 2>&1; then
     echo "0 */6 * * * flock -n /var/run/ai-shell/update.lock /usr/local/bin/update-tools.sh --all >> /var/log/ai-shell/cron-update.log 2>&1" | crontab -
     cron
-    /usr/local/bin/update-tools.sh --all >> /var/log/ai-shell/initial-update.log 2>&1 &
+    # After a pause: the first session starts seconds after the container,
+    # and an `npm install -g` relinks /usr/bin while it runs (update-tools.sh,
+    # _npm_update), which a starting session's MCP server spawn must not hit.
+    (sleep "${AI_SHELL_UPDATE_BOOT_DELAY:-120}" && /usr/local/bin/update-tools.sh --all) >> /var/log/ai-shell/initial-update.log 2>&1 &
 fi
 # =========================================================================
 
