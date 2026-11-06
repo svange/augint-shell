@@ -21,6 +21,7 @@ import os
 import platform
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -213,6 +214,90 @@ def _project_debug_port(
     return CHROME_DEBUG_PORT_RANGE_START + (int(digest[:8], 16) % CHROME_DEBUG_PORT_RANGE_SIZE)
 
 
+#: How many ports after the preferred one to try. Windows reserves ports in
+#: blocks of 100, often several in a row, so a short walk is not enough.
+CHROME_DEBUG_PORT_ATTEMPTS = 2000
+
+
+def _port_bindable(port: int, host: str = LOOPBACK) -> bool:
+    """True when the host lets a process listen on *host*:*port*."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return False
+    return True
+
+
+def _free_debug_port(preferred: int) -> int:
+    """*preferred*, or the first port after it (inside the range) that the host lets Chrome bind.
+
+    Windows reserves blocks of ports for Hyper-V, WSL and Docker Desktop
+    (``netsh int ipv4 show excludedportrange protocol=tcp``), and the blocks
+    move between boots. Chrome told to listen inside one opens its window
+    with no DevTools port and reports nothing, so the port is checked first.
+    """
+    offset = preferred - CHROME_DEBUG_PORT_RANGE_START
+    for step in range(CHROME_DEBUG_PORT_ATTEMPTS):
+        port = CHROME_DEBUG_PORT_RANGE_START + (offset + step) % CHROME_DEBUG_PORT_RANGE_SIZE
+        if _port_bindable(port):
+            if port != preferred:
+                logger.info("Port %d is reserved or in use; Chrome gets port %d", preferred, port)
+            return port
+    raise LocalChromeUnavailable(
+        f"No free port for Chrome's DevTools in the {CHROME_DEBUG_PORT_ATTEMPTS} ports from "
+        f"{preferred}. See `netsh int ipv4 show excludedportrange protocol=tcp` on Windows."
+    )
+
+
+def _chrome_command_lines() -> list[str]:
+    """Command lines of the Chrome processes running on the host (empty when unknown)."""
+    if platform.system() == "Windows":
+        script = (
+            "Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | "
+            "ForEach-Object { $_.CommandLine }"
+        )
+        args = ["powershell", "-NoProfile", "-NonInteractive", "-Command", script]
+    else:
+        args = ["ps", "-axww", "-o", "command="]
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=30)  # noqa: S603
+    except (OSError, subprocess.TimeoutExpired):
+        logger.debug("Could not list Chrome processes", exc_info=True)
+        return []
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def _holds_profile(command_line: str, profile_dir: str) -> bool:
+    """True when *command_line* names exactly *profile_dir* as its user-data-dir."""
+    flag = f"--user-data-dir={profile_dir}"
+    start = command_line.find(flag)
+    while start != -1:
+        end = start + len(flag)
+        if end == len(command_line) or command_line[end] in " \"'":
+            return True
+        start = command_line.find(flag, end)
+    return False
+
+
+def running_chrome_port(profile_dir: str | Path) -> int | None:
+    """The DevTools port of the Chrome that holds *profile_dir*.
+
+    Returns ``None`` when no Chrome holds the profile, and ``0`` when one
+    holds it without a DevTools port. The answer comes from the browser
+    process's own command line, so a port is never taken from a Chrome on
+    another profile (another account's window on a neighbouring port).
+    """
+    profile_dir = str(profile_dir)
+    for line in _chrome_command_lines():
+        # Renderer and helper processes repeat the user-data-dir; only the browser has no --type.
+        if "--type=" in line or not _holds_profile(line, profile_dir):
+            continue
+        match = re.search(r"--remote-debugging-port=(\d+)", line)
+        return int(match.group(1)) if match else 0
+    return None
+
+
 def _build_setup_instructions(
     project_name: str,
     profile_dir: str,
@@ -383,11 +468,10 @@ def chrome_profile_in_use(profile_dir: str | Path) -> bool:
 
     Chrome on Linux and macOS leaves a ``SingletonLock`` link in the profile
     while it runs and removes it on exit. Windows keeps its ``lockfile`` on
-    disk, so there the answer is always ``False`` and the caller relies on
-    the debug port probe instead.
+    disk after exit, so there the running processes are asked instead.
     """
     if platform.system() == "Windows":
-        return False
+        return running_chrome_port(profile_dir) is not None
     return Path(profile_dir, "SingletonLock").is_symlink()
 
 
@@ -579,42 +663,60 @@ def ensure_host_chrome(
     ``--proxy-server`` when ai-shell has to launch it; a Chrome that is
     already running keeps whatever proxy it was started with.
 
+    The port is the one the Chrome already holding the profile listens on,
+    else the stable hashed port, else the next one the host lets Chrome bind
+    (Windows reserves port blocks that move between boots). A Chrome that
+    holds the profile without a working port is ai-shell's own window and
+    useless to the container, and a new launch would only open inside it,
+    so it is closed gracefully (cookies kept) first.
+
     Returns the port number Chrome is listening on.
     """
-    port = _project_debug_port(project_name, project_dir, profile)
     profile_dir = _chrome_profile_dir(project_name, project_dir, profile)
+    running = running_chrome_port(profile_dir)
 
-    if probe_chrome_port(container_name, port):
-        return port
+    if running and probe_host_chrome_port(running):
+        port = running
+        if probe_chrome_port(container_name, port):
+            return port
+        bind_address = chrome_bind_address(container_name)
+    else:
+        if running is not None:
+            logger.info("Chrome holds %s without a working DevTools port; closing it", profile_dir)
+            if not close_chrome_profile(profile_dir, running):
+                raise LocalChromeUnavailable(
+                    f"A Chrome window uses the profile {profile_dir} without a DevTools port "
+                    "ai-shell can reach, and it did not close when asked.\n"
+                    "Close every window of that Chrome and run this again."
+                )
+        port = _free_debug_port(_project_debug_port(project_name, project_dir, profile))
+        logger.info("Launching Chrome for project %s on port %d", project_name, port)
 
-    logger.info("Chrome for project %s not found on port %d, launching it", project_name, port)
+        bind_address = chrome_bind_address(container_name)
+        if not launch_chrome(
+            port,
+            project_name=project_name,
+            project_dir=project_dir,
+            profile=profile,
+            bind_address=bind_address,
+            proxy=proxy,
+        ):
+            raise LocalChromeUnavailable(
+                _build_setup_instructions(project_name, profile_dir, port, bind_address, proxy)
+            )
 
-    bind_address = chrome_bind_address(container_name)
-    if not launch_chrome(
-        port,
-        project_name=project_name,
-        project_dir=project_dir,
-        profile=profile,
-        bind_address=bind_address,
-        proxy=proxy,
-    ):
-        raise LocalChromeUnavailable(
-            _build_setup_instructions(project_name, profile_dir, port, bind_address, proxy)
-        )
-
-    if not _wait_until_ready(
-        probe_host_chrome_port,
-        port,
-        LOOPBACK,
-        timeout_seconds=CHROME_HOST_PROBE_TIMEOUT_SECONDS,
-    ):
-        raise LocalChromeUnavailable(
-            f"Chrome was launched for project '{project_name}' on port {port}, but the "
-            f"debug port did not open on {LOOPBACK} within "
-            f"{int(CHROME_HOST_PROBE_TIMEOUT_SECONDS)} seconds.\n\n"
-            "If another ai-shell Chrome window for this project is already open, "
-            "close it and retry."
-        )
+        if not _wait_until_ready(
+            probe_host_chrome_port,
+            port,
+            LOOPBACK,
+            timeout_seconds=CHROME_HOST_PROBE_TIMEOUT_SECONDS,
+        ):
+            raise LocalChromeUnavailable(
+                f"Chrome was launched for project '{project_name}' on port {port}, but the "
+                f"debug port did not open on {LOOPBACK} within "
+                f"{int(CHROME_HOST_PROBE_TIMEOUT_SECONDS)} seconds.\n\n"
+                f"Close every window of the Chrome on {profile_dir} and retry."
+            )
 
     if bind_address != LOOPBACK:
         # Linux: the container reaches the host at bind_address, where only
