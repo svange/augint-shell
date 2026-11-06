@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.115.3 (2026-11-06)
+
+### Bug Fixes
+
+- **update-tools**: Install npm tools only when one is behind, and keep installs clear of a starting
+  session (#188) ([#188](https://github.com/svange/augint-shell/pull/188),
+  [`8a0dea3`](https://github.com/svange/augint-shell/commit/8a0dea35401509fed9b62cbc2329a10f52c5c7ab))
+
+
 ## v0.115.2 (2026-11-06)
 
 ### Bug Fixes
