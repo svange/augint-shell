@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.115.4 (2026-11-07)
+
+### Bug Fixes
+
+- Always isolate ~/.codex to a container-local named volume (#149)
+  ([#149](https://github.com/svange/augint-shell/pull/149),
+  [`93830c7`](https://github.com/svange/augint-shell/commit/93830c72c001b33458e8e84d349701f864376df8))
+
+
 ## v0.115.3 (2026-11-06)
 
 ### Bug Fixes
