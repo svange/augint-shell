@@ -21,6 +21,14 @@ git config --global core.editor vim
 # Prefer SSO keyring token over the env-var PAT.
 # When ~/.config/gh is mounted, the SSO token carries org-level access that a PAT
 # scoped to a personal account may lack (e.g. private marketplace plugins in augmenting-integrations).
+#
+# SCOPE: this runs only in PID 1 (the entrypoint), so it governs the entrypoint
+# itself and its background children (uv sync, the auto-update cron, pi installs).
+# Interactive tools (`ai-shell claude|codex|opencode|pi|shell`) launch via
+# `docker exec`, which does NOT re-run this entrypoint and does NOT inherit these
+# exports; those sessions receive their env from build_dev_environment (and any
+# GH_TOKEN injected via `--env` / ~/.augint/.env, which the exec passes with -e).
+# So for interactive tools a PAT supplied via env overrides the mounted SSO token.
 _SAVED_GH_TOKEN="${GH_TOKEN:-}"
 unset GH_TOKEN GITHUB_TOKEN
 _SSO_TOKEN=$(gh auth token --hostname github.com 2>/dev/null || true)
