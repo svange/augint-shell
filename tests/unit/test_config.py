@@ -275,6 +275,28 @@ extra_env = { FOO = "bar", BAZ = "qux" }
         config = load_config(project_dir=tmp_path)
         assert config.node_modules_paths == ["apps/*", "packages/*"]
 
+    def test_expo_auto_defaults_on(self):
+        assert AiShellConfig().expo_auto is True
+
+    def test_expo_auto_from_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("expo:\n  auto: false\n")
+        assert load_config(project_dir=tmp_path).expo_auto is False
+
+    def test_expo_auto_from_env(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_SHELL_EXPO_AUTO", "0")
+        assert load_config(project_dir=tmp_path).expo_auto is False
+
+    def test_claude_account_defaults_empty(self):
+        assert AiShellConfig().claude_account == ""
+
+    def test_claude_account_from_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text("claude:\n  account: woxom\n")
+        assert load_config(project_dir=tmp_path).claude_account == "woxom"
+
+    def test_claude_account_from_env(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_SHELL_CLAUDE_ACCOUNT", "ai")
+        assert load_config(project_dir=tmp_path).claude_account == "ai"
+
     def test_dev_ports_defaults(self):
         config = AiShellConfig()
         assert config.dev_ports == sorted(DEFAULT_DEV_PORTS)
@@ -645,3 +667,95 @@ profile = "bedrock-acct"
         assert not hasattr(config, "codex_provider")
         assert not hasattr(config, "codex_openai_api_key")
         assert not hasattr(config, "codex_profile")
+
+
+class TestClaudeAccountsConfig:
+    def test_defaults_when_unconfigured(self):
+        config = AiShellConfig()
+        account = config.claude_account_config("mike")
+        assert account.chrome_profile == ""
+        assert account.local_chrome is None
+        assert account.chrome_proxy == ""
+        assert config.chrome_proxy == ""
+
+    def test_chrome_proxy_from_yaml_and_env(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "claude:\n"
+            "  chrome_proxy: http://127.0.0.1:8888\n"
+            "  accounts:\n"
+            "    mike:\n"
+            "      chrome_proxy: socks5://127.0.0.1:1080\n"
+            "    adam:\n"
+            "      chrome_proxy: null\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.chrome_proxy == "http://127.0.0.1:8888"
+        assert config.claude_account_config("mike").chrome_proxy == "socks5://127.0.0.1:1080"
+        assert config.claude_account_config("adam").chrome_proxy == ""
+        with patch.dict("os.environ", {"AI_SHELL_CHROME_PROXY": "http://10.0.0.5:3128"}):
+            assert load_config(project_dir=tmp_path).chrome_proxy == "http://10.0.0.5:3128"
+
+    def test_vpn_section_and_env(self, tmp_path):
+        config = AiShellConfig()
+        assert (config.vpn_country, config.vpn_firewall, config.vpn_proxy_port) == ("", True, 8888)
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "claude:\n  chrome_proxy: vpn\nvpn:\n  country: Canada\n  firewall: false\n"
+            "  proxy_port: 18888\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.chrome_proxy == "vpn"
+        assert (config.vpn_country, config.vpn_firewall, config.vpn_proxy_port) == (
+            "Canada",
+            False,
+            18888,
+        )
+        env = {
+            "AI_SHELL_VPN_COUNTRY": "United States",
+            "AI_SHELL_VPN_FIREWALL": "1",
+            "AI_SHELL_VPN_PROXY_PORT": "8890",
+        }
+        with patch.dict("os.environ", env):
+            config = load_config(project_dir=tmp_path)
+        assert (config.vpn_country, config.vpn_firewall, config.vpn_proxy_port) == (
+            "United States",
+            True,
+            8890,
+        )
+
+    def test_accounts_from_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "claude:\n"
+            "  accounts:\n"
+            "    Mike:\n"
+            "      chrome_profile: mike-browser\n"
+            "      local_chrome: true\n"
+            "    adam: {}\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        mike = config.claude_account_config("mike")
+        assert mike.chrome_profile == "mike-browser"
+        assert mike.local_chrome is True
+        assert config.claude_account_config("MIKE") is mike
+        adam = config.claude_account_config("adam")
+        assert adam.chrome_profile == ""
+        assert adam.local_chrome is None
+
+    def test_account_keys_ignore_separator_and_case(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "claude:\n  accounts:\n    my_org:\n      local_chrome: false\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.claude_account_config("My-Org").local_chrome is False
+
+    def test_project_config_merges_over_global(self, tmp_path, isolate_home):
+        global_dir = isolate_home / ".augint"
+        global_dir.mkdir()
+        (global_dir / ".ai-shell.yaml").write_text(
+            "claude:\n  accounts:\n    mike:\n      chrome_profile: mike\n      local_chrome: true\n"
+        )
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "claude:\n  accounts:\n    mike:\n      local_chrome: false\n"
+        )
+        mike = load_config(project_dir=tmp_path).claude_account_config("mike")
+        assert mike.chrome_profile == "mike"
+        assert mike.local_chrome is False

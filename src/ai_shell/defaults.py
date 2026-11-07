@@ -5,6 +5,7 @@ Encodes all docker-compose.yml configuration as Python, so no compose file is ne
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -12,8 +13,10 @@ from hashlib import sha1
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import yaml
+
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     from docker.types import Mount
 
@@ -83,19 +86,32 @@ def node_modules_volume_name(
     never collides with the host's (e.g. Windows-built) node_modules in the
     bind-mounted project directory.
 
-    When *subpath* is given (e.g. ``"apps/web"``), a sanitized slug is appended
-    so monorepos can isolate each workspace's node_modules independently.
+    When *subpath* is given (e.g. ``"apps/web"``), a sanitized slug plus a
+    short hash of the exact path is appended so monorepos can isolate each
+    workspace's node_modules independently. The hash keeps paths that flatten
+    to the same slug (``packages/foo/bar`` and ``packages/foo-bar``) on
+    different volumes.
     """
     suffix = repo_name
     if worktree_name:
         suffix = f"{repo_name}-wt-{worktree_name}"
     if subpath:
-        suffix = f"{suffix}-{_sanitize_name(subpath.lower())}"
+        normalized = subpath.strip("/").lower()
+        # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
+        digest = sha1(normalized.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
+        suffix = f"{suffix}-{_sanitize_name(normalized)}-{digest}"
     return f"{NODE_MODULES_VOLUME_PREFIX}{suffix}"
 
 
 COMPOSER_CACHE_VOLUME = "augint-shell-composer-cache"
 PNPM_STORE_VOLUME = "augint-shell-pnpm-store"
+# T3 Code: per-project data dir (~/.t3 holds the server DB, pairing sessions
+# and the T3 Connect credential) plus a shared cache for the managed
+# cloudflared binary so only the first project pays for the download.
+T3_HOME_VOLUME_PREFIX = "augint-shell-t3-"
+T3_TOOLS_VOLUME = "augint-shell-t3-tools"
+T3_HOME_PATH = "/root/.t3"
+T3_TOOLS_PATH = "/root/.t3/tools"
 VENDOR_VOLUME_PREFIX = "augint-shell-vendor-"
 
 
@@ -110,6 +126,20 @@ def vendor_volume_name(repo_name: str, worktree_name: str | None = None) -> str:
     if worktree_name:
         suffix = f"{repo_name}-wt-{worktree_name}"
     return f"{VENDOR_VOLUME_PREFIX}{suffix}"
+
+
+def t3_home_volume_name(project_dir: Path, project_name: str | None = None) -> str:
+    """Per-project named volume backing ``~/.t3`` inside the dev container.
+
+    A T3 Code environment *is* its data directory: the sqlite state, the
+    pairing sessions and the T3 Connect credential all live there.  Since each
+    project gets its own container, each also gets its own environment — a
+    shared volume would mean several containers writing one sqlite file while
+    listing projects that only exist in one of them.  The host's own ``~/.t3``
+    is deliberately not bind-mounted so a desktop T3 Code install and the
+    container servers never share a database.
+    """
+    return f"{T3_HOME_VOLUME_PREFIX}{unique_project_name(project_dir, project_name)}"
 
 
 PRE_COMMIT_CACHE_VOLUME = "augint-shell-pre-commit-cache"
@@ -158,7 +188,30 @@ DEFAULT_WHISPER_MODEL = "Systran/faster-distil-whisper-large-v3"
 DEFAULT_VOICE_AGENT_PORT = 8010
 DEFAULT_COMFYUI_PORT = 8188
 DEFAULT_KOKORO_VOICE = "af_bella"
-DEFAULT_DEV_PORTS = [3000, 4096, 4200, 5000, 5173, 5678, 8000, 8080, 8888, 19432, 31415]
+# T3 Code server port inside the dev container (t3's own default). It is in
+# DEFAULT_DEV_PORTS so every dev container publishes it, which is what lets a
+# phone or the desktop app pair with the in-container server over the LAN.
+T3_CONTAINER_PORT = 3773
+# Metro / Expo dev server port inside the dev container (Expo's own default).
+# The tunnel path does not need it published — ngrok dials out from the
+# container — but publishing it lets a host browser reach Metro and
+# `expo start --web`.
+EXPO_METRO_PORT = 8081
+DEFAULT_DEV_PORTS = [
+    3000,
+    3773,
+    4096,
+    4200,
+    5000,
+    5173,
+    5678,
+    8000,
+    8080,
+    8081,
+    8888,
+    19432,
+    31415,
+]
 
 # Deterministic dev port mapping (avoids Chrome debug range 40000-60000)
 DEV_PORT_RANGE_START = 10000
@@ -297,6 +350,61 @@ def project_dev_port(
     return project_dev_port_map(project_dir, ports, project_name)[container_port]
 
 
+def _as_str_list(value: object) -> list[str]:
+    """Coerce a JSON/YAML scalar-or-list into a list of strings."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [str(item) for item in value if isinstance(item, (str, int, float))]
+    return []
+
+
+def workspace_node_modules_globs(project_dir: Path) -> list[str]:
+    """Workspace package globs a project declares, relative to *project_dir*.
+
+    Reads ``pnpm-workspace.yaml`` (``packages:``) and ``package.json``
+    (``workspaces``, either a list or ``{"packages": [...]}``). Negated
+    patterns (``!**/test/**``) and the root itself are dropped. The result
+    feeds :func:`build_dev_mounts`, which overlays a container-local volume on
+    each matching package's ``node_modules``.
+    """
+    patterns: list[str] = []
+
+    pnpm_workspace = project_dir / "pnpm-workspace.yaml"
+    if pnpm_workspace.is_file():
+        try:
+            data = yaml.safe_load(pnpm_workspace.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError) as exc:
+            logger.warning("Could not read %s: %s", pnpm_workspace, exc)
+            data = {}
+        if isinstance(data, dict):
+            patterns.extend(_as_str_list(data.get("packages")))
+
+    package_json = project_dir / "package.json"
+    if package_json.is_file():
+        try:
+            pkg = json.loads(package_json.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            logger.warning("Could not read %s: %s", package_json, exc)
+            pkg = {}
+        workspaces = pkg.get("workspaces") if isinstance(pkg, dict) else None
+        if isinstance(workspaces, dict):
+            workspaces = workspaces.get("packages")
+        patterns.extend(_as_str_list(workspaces))
+
+    cleaned: list[str] = []
+    for raw in patterns:
+        pattern = raw.strip().replace("\\", "/")
+        if pattern.startswith("./"):
+            pattern = pattern[2:]
+        pattern = pattern.rstrip("/")
+        if not pattern or pattern == "." or pattern.startswith("!"):
+            continue
+        if pattern not in cleaned:
+            cleaned.append(pattern)
+    return cleaned
+
+
 def build_dev_mounts(
     project_dir: Path,
     project_name: str,
@@ -312,7 +420,10 @@ def build_dev_mounts(
     *project_dir*. Each glob match (that is a directory) gets its own named
     volume overlaid at ``{match}/node_modules`` inside the container, so each
     workspace in a monorepo isolates its Linux node_modules from the host
-    bind mount the same way the root overlay does.
+    bind mount the same way the root overlay does. Workspace globs declared in
+    ``pnpm-workspace.yaml`` or ``package.json`` ``workspaces`` are picked up
+    automatically (see :func:`workspace_node_modules_globs`); the explicit
+    list is for layouts those files don't describe.
 
     *isolate_home_paths* is a set of home-config basenames (e.g. ``.claude``)
     that should be backed by a shared named volume instead of a host bind mount,
@@ -344,7 +455,7 @@ def build_dev_mounts(
 
     # Ensure directories that tools need for persistent config exist on the
     # host so bind mounts aren't silently skipped.
-    for d in (".pi", ".augint", ".plannotator"):
+    for d in (".pi", ".augint", ".plannotator", ".expo"):
         (home / d).mkdir(parents=True, exist_ok=True)
 
     # Zapier CLI auth is a single JSON file; pre-create it so the bind mount
@@ -365,6 +476,9 @@ def build_dev_mounts(
         (home / ".pi", "/root/.pi", False),
         (home / ".augint", "/root/.augint", False),
         (home / ".plannotator", "/root/.plannotator", False),
+        # Expo/EAS share ~/.expo for the auth session (state.json) and the
+        # ngrok config, so binding it keeps `expo login` across recreations.
+        (home / ".expo", "/root/.expo", False),
         (home / ".zapierrc", "/root/.zapierrc", False),
         (home / ".ssh", "/root/.ssh", True),
         (home / ".gitconfig", "/root/.gitconfig.windows", True),
@@ -487,6 +601,27 @@ def build_dev_mounts(
         )
     )
 
+    # Per-project named volume: T3 Code data dir (~/.t3). Keeps the server
+    # database, paired devices and the T3 Connect credential across container
+    # recreations without ever touching the host's own ~/.t3.
+    mounts.append(
+        Mount(
+            target=T3_HOME_PATH,
+            source=t3_home_volume_name(project_dir, project_name),
+            type="volume",
+        )
+    )
+
+    # Shared named volume nested inside it: the managed cloudflared binary T3
+    # Connect downloads (~35 MB). Shared so only the first project pays.
+    mounts.append(
+        Mount(
+            target=T3_TOOLS_PATH,
+            source=T3_TOOLS_VOLUME,
+            type="volume",
+        )
+    )
+
     # Named volume: pre-commit cache (shared across all projects).
     # Isolates the container's hook environments from the Windows host's
     # ~/.cache/pre-commit so the two installs don't clobber each other.
@@ -526,11 +661,25 @@ def build_dev_mounts(
     # Monorepo workspaces: overlay an isolated named volume on each matched
     # workspace's node_modules so per-app installs (npm/pnpm/yarn workspaces)
     # land in container-only storage rather than the host bind mount.
+    #
+    # Declared workspaces are overlaid automatically. pnpm in particular links
+    # every workspace package's node_modules into the root virtual store, so a
+    # Linux-made layout left on the host bind mount makes the Windows pnpm
+    # reinstall from scratch, and vice versa: the two installs keep deleting
+    # each other. Only directories holding a package.json count as workspace
+    # packages (pnpm's own rule), which also keeps Docker from creating empty
+    # node_modules dirs on the host for other glob matches.
     project_root = project_dir.resolve()
     seen_targets: set[str] = {f"/root/projects/{project_name}/node_modules"}
-    for pattern in extra_node_modules_paths or []:
+    patterns: list[tuple[str, bool]] = [
+        (pattern, True) for pattern in workspace_node_modules_globs(project_root)
+    ]
+    patterns.extend((pattern, False) for pattern in extra_node_modules_paths or [])
+    for pattern, packages_only in patterns:
         for match in sorted(project_root.glob(pattern)):
             if not match.is_dir():
+                continue
+            if packages_only and not (match / "package.json").is_file():
                 continue
             try:
                 rel = match.relative_to(project_root)
@@ -550,6 +699,28 @@ def build_dev_mounts(
             )
 
     return mounts
+
+
+def podman_cli_host(environ: Mapping[str, str]) -> str | None:
+    """``CONTAINER_HOST`` to set so Podman's CLI talks to the service ``DOCKER_HOST`` names.
+
+    On a rootless Podman host the ``docker`` command is Podman's own CLI
+    (``podman-docker``), which ignores ``DOCKER_HOST`` and runs containers
+    itself. ai-shell creates the dev container through the API on the
+    socket, inside the user's Podman service, and then runs ``docker exec``
+    as a subprocess: the CLI performs that exec from the terminal's own
+    cgroup, and the kernel refuses to move a process into the service's
+    cgroup subtree ("writing cgroup.procs: Permission denied: OCI permission
+    denied"). ``CONTAINER_HOST`` turns on Podman's remote mode, so the exec
+    runs in the service too. Returns ``None`` when ``DOCKER_HOST`` is not a
+    Podman socket or the user already chose a connection.
+    """
+    if environ.get("CONTAINER_HOST") or environ.get("CONTAINER_CONNECTION"):
+        return None
+    host = (environ.get("DOCKER_HOST") or "").strip()
+    if not host.startswith("unix://") or "podman" not in host:
+        return None
+    return host
 
 
 def docker_tcp_fallback_host() -> str | None:
@@ -650,6 +821,115 @@ _SHARED_ENV_PASSTHROUGH = (
 )
 
 
+# Claude Code multi-account switching. Tokens (from ``claude setup-token``) are
+# stored in .env as ``CLAUDE_CODE_OAUTH_TOKEN_{ACCOUNT}``; the selected one is
+# injected as ``CLAUDE_CODE_OAUTH_TOKEN``. The reserved account name
+# ``default`` injects no token, so the ``~/.claude`` login is used.
+CLAUDE_OAUTH_TOKEN_VAR = "CLAUDE_CODE_OAUTH_TOKEN"
+CLAUDE_ACCOUNT_TOKEN_PREFIX = f"{CLAUDE_OAUTH_TOKEN_VAR}_"
+CLAUDE_DEFAULT_ACCOUNT = "default"
+# Claude Code prefers these over CLAUDE_CODE_OAUTH_TOKEN. They must be removed
+# from the claude process when an account is selected, or the selection is
+# silently ignored.
+CLAUDE_AUTH_OVERRIDE_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+
+# Login profiles. A setup-token / CLAUDE_CODE_OAUTH_TOKEN can only make model
+# requests, so ``claude remote-control`` refuses it; Remote Control needs a
+# full ``claude auth login``. Each such account gets its own CLAUDE_CONFIG_DIR
+# (Claude Code's documented multi-account mechanism) under ~/.augint, which is
+# already bind-mounted at /root/.augint, so the login, settings and session
+# history of that account live in ~/.augint/claude-accounts/<name>/ and
+# survive container recreation without touching ~/.claude.
+CLAUDE_CONFIG_DIR_VAR = "CLAUDE_CONFIG_DIR"
+CLAUDE_ACCOUNTS_DIR_NAME = "claude-accounts"
+CLAUDE_ACCOUNTS_CONTAINER_ROOT = f"/root/.augint/{CLAUDE_ACCOUNTS_DIR_NAME}"
+# Every credential Claude Code ranks above a `claude auth login`. All of them
+# must be absent from a Remote Control process or the server refuses to start.
+CLAUDE_REMOTE_CONTROL_UNSET_VARS = (*CLAUDE_AUTH_OVERRIDE_VARS, CLAUDE_OAUTH_TOKEN_VAR)
+
+
+def claude_account_slug(account: str) -> str:
+    """Directory-safe form of an account name (``My_Org`` -> ``my-org``)."""
+    return _sanitize_name(account.lower().replace("_", "-"))
+
+
+def claude_account_login_dir(account: str) -> Path:
+    """Host directory that holds the login profile for *account*."""
+    return Path.home() / ".augint" / CLAUDE_ACCOUNTS_DIR_NAME / claude_account_slug(account)
+
+
+def claude_account_config_dir(account: str) -> str:
+    """Container path of the login profile for *account* (``CLAUDE_CONFIG_DIR``)."""
+    return f"{CLAUDE_ACCOUNTS_CONTAINER_ROOT}/{claude_account_slug(account)}"
+
+
+# Written into a new login profile so the user's own ~/.claude/CLAUDE.md
+# applies there too. Claude Code expands ``@path`` imports in user-scope
+# memory files without an approval dialog, and ~/.claude is bind-mounted at
+# /root/.claude, so one file stays the source of truth instead of a copy.
+CLAUDE_LOGIN_PROFILE_MEMORY = (
+    "# Shared user instructions\n"
+    "\n"
+    "This login profile imports the host user's own Claude Code memory file\n"
+    "through the ~/.claude bind mount. Edit or delete this file to give the\n"
+    "account its own instructions instead.\n"
+    "\n"
+    "@/root/.claude/CLAUDE.md\n"
+)
+
+
+def seed_claude_login_profile(login_dir: Path) -> bool:
+    """Give a new login profile the user's ``~/.claude/CLAUDE.md`` via an import.
+
+    A login profile is a separate ``CLAUDE_CONFIG_DIR``, so Claude never reads
+    ``~/.claude/CLAUDE.md`` in it. Only written when the profile has no
+    ``CLAUDE.md`` yet and the host has one, so an account can diverge later by
+    editing its own file. Returns True when the file was written.
+    """
+    target = login_dir / "CLAUDE.md"
+    if target.exists() or not (Path.home() / ".claude" / "CLAUDE.md").is_file():
+        return False
+    target.write_text(CLAUDE_LOGIN_PROFILE_MEMORY, encoding="utf-8")
+    return True
+
+
+def list_claude_login_accounts() -> list[str]:
+    """Return the account names that have a login profile directory."""
+    root = Path.home() / ".augint" / CLAUDE_ACCOUNTS_DIR_NAME
+    if not root.is_dir():
+        return []
+    return sorted(p.name for p in root.iterdir() if p.is_dir())
+
+
+def claude_account_token_var(account: str) -> str:
+    """Return the .env key that holds the OAuth token for *account*."""
+    return CLAUDE_ACCOUNT_TOKEN_PREFIX + account.upper().replace("-", "_")
+
+
+def list_claude_accounts(
+    project_dir: Path | None = None,
+    env_file: Path | None = None,
+) -> list[str]:
+    """Return the Claude account names defined in the layered .env files."""
+    dotenv = _load_layered_dotenv(project_dir, env_file=env_file)
+    return sorted(
+        key[len(CLAUDE_ACCOUNT_TOKEN_PREFIX) :].lower()
+        for key, value in dotenv.items()
+        if key.startswith(CLAUDE_ACCOUNT_TOKEN_PREFIX) and value
+    )
+
+
+def list_all_claude_accounts(
+    project_dir: Path | None = None,
+    env_file: Path | None = None,
+) -> list[str]:
+    """Token accounts and login-profile accounts, deduplicated and sorted."""
+    names: dict[str, str] = {}
+    for name in [*list_claude_accounts(project_dir, env_file), *list_claude_login_accounts()]:
+        names.setdefault(claude_account_slug(name), name)
+    return sorted(names.values())
+
+
 def build_dev_environment(
     extra_env: dict[str, str] | None = None,
     project_dir: Path | None = None,
@@ -662,6 +942,8 @@ def build_dev_environment(
     bedrock_region: str = "",
     bedrock_model: str = "",
     openai_profile: str = "",
+    claude_account: str = "",
+    claude_login: bool = False,
     team_mode: bool = False,
     env_file: Path | None = None,
 ) -> dict[str, str]:
@@ -684,6 +966,17 @@ def build_dev_environment(
     When *openai_profile* is set, the suffixed env vars
     ``OPENAI_API_KEY_{NAME}`` and ``OPENAI_ORG_ID_{NAME}`` are resolved from
     ``.env`` and injected as ``OPENAI_API_KEY`` / ``OPENAI_ORG_ID``.
+
+    When *claude_account* is set (and is not ``default``), the token in
+    ``CLAUDE_CODE_OAUTH_TOKEN_{NAME}`` is injected as ``CLAUDE_CODE_OAUTH_TOKEN``
+    and ``ANTHROPIC_API_KEY`` / ``ANTHROPIC_AUTH_TOKEN`` are left out. The
+    suffixed per-account tokens are never passed through to the container.
+
+    When *claude_login* is True, or the account has no token but a login
+    profile directory exists, the account's login profile is used instead:
+    ``CLAUDE_CONFIG_DIR`` points at ``~/.augint/claude-accounts/{name}`` and
+    every credential that would outrank the login is left out. The host
+    directory is created so the account shows up in listings from then on.
 
     When *team_mode* is True, ``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` is
     injected to enable Claude Code's Agent Teams feature.
@@ -752,18 +1045,54 @@ def build_dev_environment(
         if org_id:
             env["OPENAI_ORG_ID"] = org_id
 
+    excluded: set[str] = set()
+    if claude_account and claude_account.lower() != CLAUDE_DEFAULT_ACCOUNT:
+        if bedrock:
+            raise ValueError(
+                f"Claude account '{claude_account}' cannot be combined with Bedrock "
+                "(--aws or claude.provider: aws)"
+            )
+        token_var = claude_account_token_var(claude_account)
+        token = dotenv.get(token_var)
+        login_dir = claude_account_login_dir(claude_account)
+        if claude_login or (not token and login_dir.is_dir()):
+            login_dir.mkdir(parents=True, exist_ok=True)
+            seed_claude_login_profile(login_dir)
+            env[CLAUDE_CONFIG_DIR_VAR] = claude_account_config_dir(claude_account)
+            excluded.update(CLAUDE_REMOTE_CONTROL_UNSET_VARS)
+        elif token:
+            env[CLAUDE_OAUTH_TOKEN_VAR] = token
+            excluded.update(CLAUDE_AUTH_OVERRIDE_VARS)
+        else:
+            available = ", ".join(
+                [CLAUDE_DEFAULT_ACCOUNT, *list_all_claude_accounts(project_dir, env_file)]
+            )
+            raise ValueError(
+                f"Claude account '{claude_account}' requires {token_var} in "
+                "~/.augint/.env (or pass --env to load it from ./.env), or a login "
+                f"profile created with 'ai-shell claude --account {claude_account} "
+                f"--login'. Available accounts: {available}"
+            )
+
     if team_mode:
         env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
 
     for var in _SHARED_ENV_PASSTHROUGH:
         val = _resolve(var)
-        if val:
+        if val and var not in excluded:
             env[var] = val
 
     # Pass through every var loaded from .env, except keys already populated
-    # above (which preserves CLI-flag wins for AWS_PROFILE etc.).
+    # above (which preserves CLI-flag wins for AWS_PROFILE etc.) and the
+    # per-account Claude tokens (only the selected one is injected).
     for key, value in dotenv.items():
-        if value is not None and value != "" and key not in env:
+        if (
+            value is not None
+            and value != ""
+            and key not in env
+            and key not in excluded
+            and not key.startswith(CLAUDE_ACCOUNT_TOKEN_PREFIX)
+        ):
             env[key] = value
 
     if extra_env:

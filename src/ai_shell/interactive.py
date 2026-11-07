@@ -204,6 +204,7 @@ def build_interactive_panes(
     extra_args: tuple[str, ...],
     mcp_config_path: str | None = None,
     setup_worktree_fn: Callable[[str, str, str], str],
+    unset_vars: tuple[str, ...] = (),
 ) -> list[PaneSpec]:
     """Convert :class:`InteractiveConfig` into pane specs for tmux.
 
@@ -212,6 +213,8 @@ def build_interactive_panes(
     setup_worktree_fn
         ``(container_name, project_dir, worktree_name) -> worktree_abs_path``.
         In production this is ``tools._setup_worktree``; in tests, a mock.
+    unset_vars
+        Variables unset in each Claude pane before Claude starts.
     """
     from ai_shell.tmux import PaneSpec, build_claude_pane_command
 
@@ -231,6 +234,7 @@ def build_interactive_panes(
                 worktree_name=wt_name,
                 mcp_config_path=mcp_config_path if config.shared_chrome else None,
                 team_env=use_team,
+                unset_vars=unset_vars,
             )
             if use_team:
                 team_assigned = True
@@ -262,6 +266,7 @@ def build_interactive_panes(
                 extra_args=extra_args,
                 mcp_config_path=mcp_config_path if config.shared_chrome else None,
                 team_env=use_team,
+                unset_vars=unset_vars,
             )
             if use_team:
                 team_assigned = True

@@ -2,6 +2,199 @@
 
 <!-- version list -->
 
+## v0.115.3 (2026-11-06)
+
+### Bug Fixes
+
+- **update-tools**: Install npm tools only when one is behind, and keep installs clear of a starting
+  session (#188) ([#188](https://github.com/svange/augint-shell/pull/188),
+  [`8a0dea3`](https://github.com/svange/augint-shell/commit/8a0dea35401509fed9b62cbc2329a10f52c5c7ab))
+
+
+## v0.115.2 (2026-11-06)
+
+### Bug Fixes
+
+- **chrome**: Skip Windows-reserved debug ports and recover a port-less profile window (#187)
+  ([#187](https://github.com/svange/augint-shell/pull/187),
+  [`6f22192`](https://github.com/svange/augint-shell/commit/6f22192da4dc73603c2518db5ff40f9963f91f96))
+
+
+## v0.115.1 (2026-11-01)
+
+### Bug Fixes
+
+- **image**: Install corepack from npm before enabling it (#184)
+  ([#184](https://github.com/svange/augint-shell/pull/184),
+  [`6743c39`](https://github.com/svange/augint-shell/commit/6743c3982c3c3ee15704f891807bd194fc04d244))
+
+
+## v0.115.0 (2026-11-01)
+
+### Features
+
+- **image**: Install chezmoi; align repo context with the org standards (#183)
+  ([#183](https://github.com/svange/augint-shell/pull/183),
+  [`084d728`](https://github.com/svange/augint-shell/commit/084d72832d98c69d69eadabce3487f1d664359a0))
+
+
+## v0.114.2 (2026-10-31)
+
+### Bug Fixes
+
+- **chrome**: Relay the DevTools port to the address containers reach on Linux hosts (#182)
+  ([#182](https://github.com/svange/augint-shell/pull/182),
+  [`02553c6`](https://github.com/svange/augint-shell/commit/02553c6009a08f5a6ca80e73ab6ced8189948714))
+
+
+## v0.114.1 (2026-10-31)
+
+### Bug Fixes
+
+- **chrome**: Fail loudly when the sign-in window cannot open (#181)
+  ([#181](https://github.com/svange/augint-shell/pull/181),
+  [`d87e24a`](https://github.com/svange/augint-shell/commit/d87e24a8df28e0331032c19808411cf0d9e4dfa4))
+
+
+## v0.114.0 (2026-10-31)
+
+### Features
+
+- **vpn**: Pin gluetun to the account's NordVPN dedicated-IP server (#180)
+  ([#180](https://github.com/svange/augint-shell/pull/180),
+  [`04e53ac`](https://github.com/svange/augint-shell/commit/04e53acd2080b92c2a2ad75596c4f521985cb0ce))
+
+
+## v0.113.2 (2026-10-31)
+
+### Bug Fixes
+
+- **cli**: Send Podman's docker CLI to the service that DOCKER_HOST names (#179)
+  ([#179](https://github.com/svange/augint-shell/pull/179),
+  [`2489c2a`](https://github.com/svange/augint-shell/commit/2489c2a3ab725dfa860b6e90bf3144a2c57ba890))
+
+
+## v0.113.1 (2026-10-31)
+
+### Bug Fixes
+
+- **local-chrome**: Bake in chrome-devtools-mcp and check it answers before Claude starts (#178)
+  ([#178](https://github.com/svange/augint-shell/pull/178),
+  [`52f49c1`](https://github.com/svange/augint-shell/commit/52f49c1a9d08354649eb3ced098ea01f68a48532))
+
+
+## v0.113.0 (2026-10-31)
+
+### Features
+
+- **claude**: Run the VPN container and the Google-safe sign-in by itself (#177)
+  ([#177](https://github.com/svange/augint-shell/pull/177),
+  [`e3fe229`](https://github.com/svange/augint-shell/commit/e3fe2296974d764c72c66936048a3b1b628618f8))
+
+
+## v0.112.0 (2026-10-31)
+
+### Features
+
+- **claude**: Route host Chrome through a proxy and open it without the DevTools port (#176)
+  ([#176](https://github.com/svange/augint-shell/pull/176),
+  [`a010549`](https://github.com/svange/augint-shell/commit/a010549b7a23ce02c12785b9efb197fc18e160b9))
+
+
+## v0.111.0 (2026-10-31)
+
+### Features
+
+- **claude**: Share ~/.claude/CLAUDE.md with login profiles; host Chrome on Linux/macOS (#175)
+  ([#175](https://github.com/svange/augint-shell/pull/175),
+  [`da57ea8`](https://github.com/svange/augint-shell/commit/da57ea8a4f38b1cadeefb62a6e685a0fd0b7f5a0))
+
+
+## v0.110.3 (2026-10-30)
+
+### Bug Fixes
+
+- **claude**: Percent-encode the login URL handed to Chrome's DevTools endpoint (#174)
+  ([#174](https://github.com/svange/augint-shell/pull/174),
+  [`9592b57`](https://github.com/svange/augint-shell/commit/9592b57009cee8189f7cd09787955719f05bd352))
+
+
+## v0.110.2 (2026-10-30)
+
+### Bug Fixes
+
+- **claude**: Drive claude auth login from the host so the code is accepted (#173)
+  ([#173](https://github.com/svange/augint-shell/pull/173),
+  [`502447a`](https://github.com/svange/augint-shell/commit/502447a830a7c6d5adfbc1ac2b7bf1723b8f50ff))
+
+
+## v0.110.1 (2026-10-30)
+
+### Bug Fixes
+
+- **claude**: List accounts configured in claude.accounts before first login (#172)
+  ([#172](https://github.com/svange/augint-shell/pull/172),
+  [`0cd97b3`](https://github.com/svange/augint-shell/commit/0cd97b3e7ae1403362c504c28aacad75cc9bb820))
+
+
+## v0.110.0 (2026-10-30)
+
+### Features
+
+- **claude**: Remote control per account with its own host Chrome (#171)
+  ([#171](https://github.com/svange/augint-shell/pull/171),
+  [`cd937df`](https://github.com/svange/augint-shell/commit/cd937dff8669ba032686dad623883ae46b867132))
+
+
+## v0.109.0 (2026-09-25)
+
+### Features
+
+- **claude**: Add --account for Claude Code multi-account switching
+  ([`ce1f48a`](https://github.com/svange/augint-shell/commit/ce1f48a27ed47bc26549dababc46d87b7a4f658c))
+
+- **claude**: Add --account for Claude Code multi-account switching (#164)
+  ([#164](https://github.com/svange/augint-shell/pull/164),
+  [`f2ed6a1`](https://github.com/svange/augint-shell/commit/f2ed6a16b0ba7c5017581b9aa96245a2dec095d5))
+
+
+## v0.108.0 (2026-09-03)
+
+### Features
+
+- **expo**: Start tunnelled Expo dev servers with QR pairing (#160)
+  ([#160](https://github.com/svange/augint-shell/pull/160),
+  [`0b67657`](https://github.com/svange/augint-shell/commit/0b67657d07f2a43594e1716f22e1194ce079229d))
+
+
+## v0.107.1 (2026-08-29)
+
+### Bug Fixes
+
+- **docker**: Drop inherited GitHub credential helpers before setting gh helper (#158)
+  ([#158](https://github.com/svange/augint-shell/pull/158),
+  [`a2259b2`](https://github.com/svange/augint-shell/commit/a2259b230dc25b953ab474ace116a887dc47a260))
+
+
+## v0.107.0 (2026-08-19)
+
+### Documentation
+
+- Add README documentation table and branch-to-publish model (#145)
+  ([#145](https://github.com/svange/augint-shell/pull/145),
+  [`5e9c471`](https://github.com/svange/augint-shell/commit/5e9c471c0ecf87ead710b8550396dc0b81f24081))
+
+- Name implementation stack and publish targets in README intro (#151)
+  ([#151](https://github.com/svange/augint-shell/pull/151),
+  [`9edfb25`](https://github.com/svange/augint-shell/commit/9edfb254e2fc6f2969a7b1cbe50a59da99025990))
+
+### Features
+
+- **t3**: Add --t3 switch to run a T3 Code server in the dev container (#155)
+  ([#155](https://github.com/svange/augint-shell/pull/155),
+  [`e16209e`](https://github.com/svange/augint-shell/commit/e16209e848511a9fd548b9e0c7016a8a7d49d519))
+
+
 ## v0.106.0 (2026-07-13)
 
 ### Features

@@ -111,8 +111,10 @@ RUN curl -fsSL https://bun.sh/install | bash && \
     ln -s /root/.bun/bin/bunx /usr/local/bin/bunx
 
 # Enable corepack so pnpm and yarn shims are on PATH for monorepos that
-# declare them via package.json "packageManager". Ships with Node.js LTS.
-RUN corepack enable
+# declare them via package.json "packageManager". Node.js 25+ no longer
+# bundles corepack (`corepack enable` exits 127 on the current LTS), so it
+# is installed from npm first; harmless on a Node that still ships it.
+RUN npm install -g corepack && corepack enable
 
 # Install PHP 8.4 CLI + extensions (deb.sury.org) for the Laravel dev loop
 # (artisan, Pest, Pint, tinker). 8.4 matches the FrankenPHP 1-php8.4 runtime
@@ -162,6 +164,17 @@ ENV PATH="/root/.opencode/bin:${PATH}"
 # Install pi (terminal coding agent, provider-agnostic)
 RUN npm install -g @mariozechner/pi-coding-agent
 
+# Install T3 Code CLI (server + GUI bridge for driving agents remotely).
+# `ai-shell <tool> --t3` runs `t3 serve` inside this container; the CLI is
+# installed on demand at runtime too, so older images keep working.
+RUN npm install -g t3
+
+# Install the ngrok binding the Expo CLI loads for `expo start --tunnel`.
+# Expo resolves it from the *global* install and will not prompt for it on a
+# non-TTY start, so it has to exist up front; ai-shell installs it on demand
+# at runtime too, so older images keep working.
+RUN npm install -g @expo/ngrok@^4.1.0
+
 # Install aider (alternative local coding assistant)
 RUN curl -LsSf https://aider.chat/install.sh | sh
 
@@ -187,6 +200,12 @@ RUN npm install -g agent-browser && \
 
 # Install Playwright CLI (advanced browser automation)
 RUN npm install -g @playwright/cli
+
+# Install the Chrome DevTools MCP server that `--local-chrome` attaches to
+# the host browser. Baked in because an `npx ...@latest` fetch on a cold
+# container outlasts Claude Code's MCP startup timeout; ai-shell installs it
+# on demand too, so older images keep working.
+RUN npm install -g chrome-devtools-mcp@latest
 
 # Install Zapier Platform CLI (register/validate/push Zapier integrations
 # that live inside project repos). Auth persists via the ~/.zapierrc bind.
@@ -294,6 +313,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
     -o /usr/local/bin/yq && \
     chmod +x /usr/local/bin/yq
+
+# Install chezmoi (dotfile manager). The host keeps its dotfiles in a chezmoi
+# source repo; with the binary in the image, `chezmoi init --apply <repo>`
+# brings the same shell, git and tool config into a dev container.
+RUN sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin && \
+    chezmoi --version
 
 # Configure git globally as root
 RUN git config --global --add safe.directory '*' && \

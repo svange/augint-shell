@@ -7,7 +7,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-proprietary-red.svg)](LICENSE)
 
-Launch AI coding tools (Claude Code, Codex, opencode) and local LLMs (Ollama, Open WebUI, Kokoro TTS, Speaches STT) in per-project Docker containers.
+`augint-shell` is a Python 3.12+ command-line tool (the `ai-shell` command) that launches AI coding tools (Claude Code, Codex, opencode) and local LLMs (Ollama, Open WebUI, Kokoro TTS, Speaches STT) in per-project Docker containers. It is built on [Click](https://click.palletsprojects.com/) for the CLI and the [Docker SDK for Python](https://docker-py.readthedocs.io/) to build and orchestrate those containers. As a library/CLI it runs no servers of its own: releases are published automatically to [PyPI](https://pypi.org/project/augint-shell/) (`augint-shell`) and [Docker Hub](https://hub.docker.com/r/svange/augint-shell) (`svange/augint-shell`).
 
 ---
 
@@ -55,7 +55,7 @@ The single deploy environment is the GitHub Actions `pypi` environment (trusted 
 
 `ai-shell` is a Python CLI that stands up:
 
-1. **Per-project dev containers** (`augint-shell-{project}-dev`) -- one per repo, runs Claude Code, Codex, opencode, or aider with your project mounted, SSH keys, AWS creds, and tool configs wired in.
+1. **Per-project dev containers** (`augint-shell-{project}-dev`) -- one per repo, runs Claude Code, Codex, opencode, or aider with your project mounted, SSH keys, AWS creds, and tool configs wired in. The image also carries `chezmoi`, so `chezmoi init --apply <your-dotfiles-repo>` inside a container gives it your shell and tool config.
 2. **Host-level LLM stack** (shared singletons) -- Ollama, Open WebUI, Kokoro TTS, Speaches STT, a Pipecat voice agent, and n8n on a common Docker network. GPU auto-detected.
 
 One command replaces the old Makefile + docker-compose.yml workflow.
@@ -69,7 +69,7 @@ One command replaces the old Makefile + docker-compose.yml workflow.
 
 ### Prerequisites
 
-- Docker
+- Docker, or Podman with the `docker` CLI shim (`podman-docker`) and `DOCKER_HOST` pointing at its socket
 - Python >= 3.12
 - (Optional) NVIDIA GPU + drivers for local LLM acceleration
 
@@ -114,7 +114,7 @@ ai-shell opencode
 4. **Review the PR** when the agent is done. CI runs automatically.
 5. **Merge** once CI is green.
 
-If you need to work manually, see the full [contributor guide](CONTRIBUTING.md) (if available).
+If you need to work manually, [AGENTS.md](AGENTS.md) has the build, test and commit conventions.
 
 ---
 
@@ -134,6 +134,14 @@ If you need to work manually, see the full [contributor guide](CONTRIBUTING.md) 
 | `ai-shell opencode serve` | Headless server + attach all git repos as terminals |
 | `ai-shell opencode status` | Show server URL, mDNS name, attached terminals |
 | `ai-shell shell [bash\|zsh\|fish]` | Interactive shell in dev container |
+| `ai-shell claude --rc [NAME]` | [Remote Control](#remote-control-rc) server: drive the project from claude.ai/code or the Claude app |
+| `ai-shell claude --account NAME --rc` | Remote Control signed in as another Claude account (login profile) |
+| `ai-shell claude --account NAME --login` | Create or refresh an account's login profile |
+| `ai-shell claude --local-chrome --chrome-proxy vpn` | Host Chrome through ai-shell's own VPN container, see [Chrome through a VPN](#chrome-through-a-vpn-or-proxy-chrome_proxy) |
+| `ai-shell vpn up\|down\|status` | The VPN container (gluetun, NordVPN) behind `chrome_proxy: vpn` |
+| `ai-shell chrome [--account NAME] [URL]` | The same Chrome window without the DevTools port, for a [Google sign-in](#google-sign-in) by hand |
+| `ai-shell <tool> --t3` | Also expose the project to [T3 Code](#remote-control-with-t3-code-t3) (phone/desktop app) |
+| `ai-shell <tool> --expo` | Also start a tunnelled [Expo dev server](#expo-apps-expo) and print its QR code |
 
 ### LLM Stack
 
@@ -178,6 +186,23 @@ container:
 openai:
   profile: work  # resolves OPENAI_API_KEY_WORK from .env
 
+claude:
+  account: work  # resolves CLAUDE_CODE_OAUTH_TOKEN_WORK from .env, or the login profile
+  chrome_proxy: ""  # host Chrome proxy: "vpn" (ai-shell's VPN container) or a --proxy-server value
+  accounts:      # optional per-account defaults (put in ~/.augint/.ai-shell.yaml)
+    mike:
+      local_chrome: true          # open Mike's own Chrome window on launch
+      chrome_profile: mike        # Chrome profile slug; defaults to the account name
+      chrome_proxy: vpn           # this account's Chrome goes through the VPN container
+
+vpn:
+  country: United States  # gluetun SERVER_COUNTRIES; empty = any NordVPN server
+  firewall: true          # gluetun's own firewall; ai-shell turns it off by itself where it cannot run
+  proxy_port: 8888        # loopback port of the proxy Chrome uses
+
+expo:
+  auto: true  # start a detected Expo app automatically (--expo/--no-expo override)
+
 llm:
   primary_chat_model: qwen3.5:27b
   secondary_chat_model: huihui_ai/qwen3.5-abliterated:27b
@@ -190,7 +215,11 @@ llm:
   extra_models: []
 ```
 
-Global config at `~/.ai-shell.yaml` or `~/.config/ai-shell/config.yaml` also supported.
+Global config at `~/.augint/.ai-shell.yaml` (canonical), `~/.ai-shell.yaml` or `~/.config/ai-shell/config.yaml` also supported.
+
+### Host and container package installs never collide
+
+The container overlays named volumes on the project's `node_modules`, `vendor/` and the uv venv, so a Linux install never lands in the bind-mounted Windows checkout. Workspace packages declared in `pnpm-workspace.yaml` or `package.json` `workspaces` (any directory with a `package.json` that matches) are overlaid the same way automatically; without that, pnpm on Windows and pnpm in the container keep reinstalling over each other's workspace links. Add `container.node_modules_paths: [glob, ...]` for layouts those files do not describe.
 
 ### Launch-time caches
 
@@ -232,7 +261,7 @@ Four role-specific model slots, each sized for an RTX 4090 (24 GiB VRAM). All fo
 | `--webui` | Open WebUI | 3000 | Implies `--voice` so Kokoro is wired as "read aloud" backend. Use `--no-voice` to skip. |
 | `--voice` | Kokoro TTS | 8880 | OpenAI-compatible `/v1/audio/speech` |
 | `--whisper` | Speaches STT | 8001 | OpenAI-compatible `/v1/audio/transcriptions`. GPU image auto-used when NVIDIA is detected |
-| `--voice-agent` | Pipecat voice agent | 8010 | Push-to-talk PWA (Speaches -> Ollama -> Kokoro). See `VOICE_AGENT_PLAN.md` |
+| `--voice-agent` | Pipecat voice agent | 8010 | Push-to-talk PWA (Speaches -> Ollama -> Kokoro). Image built locally from `docker/voice-agent/` on first use |
 | `--image-gen` | ComfyUI | 8188 | GPU image generation. Wires into WebUI when combined with `--webui` |
 | `--n8n` | n8n | 5678 | Workflow automation |
 
@@ -258,15 +287,219 @@ Set a default in config (`openai.profile: work`) or via `AI_SHELL_OPENAI_PROFILE
 
 ---
 
-## Attaching to Windows Chrome (`--local-chrome`)
+## Claude Code multi-account switching (`--account`)
 
-`ai-shell claude --local-chrome` bridges Claude inside the container to your real Chrome on Windows via the Chrome DevTools Protocol (using `chrome-devtools-mcp`). Unblocks OAuth popups, CAPTCHA pages, and "click around in a logged-in site" tasks.
+`ai-shell claude` can use a different Claude account for each launch. An account has one of two credentials:
 
-- Claude drives Chrome tabs on your Windows desktop in real time.
+| Credential | Where it lives | Good for | Not for |
+|---|---|---|---|
+| **Token** from `claude setup-token` | `CLAUDE_CODE_OAUTH_TOKEN_<NAME>` in `~/.augint/.env` | Normal terminal sessions. Shares your `~/.claude` settings and history. | Remote Control. Claude Code rejects these tokens for it. |
+| **Login profile** from `claude auth login` | `~/.augint/claude-accounts/<name>/` (that account's own `CLAUDE_CONFIG_DIR`) | Remote Control, and sessions that must keep that account's own settings and history. | Nothing. It is just slower to set up (one browser login). |
+
+```bash
+# ~/.augint/.env  (token accounts)
+CLAUDE_CODE_OAUTH_TOKEN_WORK=sk-ant-oat01-...
+CLAUDE_CODE_OAUTH_TOKEN_CLIENT=sk-ant-oat01-...
+```
+
+```bash
+ai-shell claude --account work          # token if defined, else the login profile
+ai-shell claude --account mike --login  # create (or refresh) mike's login profile, then launch
+ai-shell claude --account mike --rc     # Remote Control as mike (login profile; asks to log in on first use)
+ai-shell claude --account               # list the accounts (no secrets are shown)
+ai-shell claude --account default       # use the ~/.claude login
+ai-shell claude                         # use the configured account, else the ~/.claude login
+```
+
+The account name is the variable suffix, case-insensitive. A `-` in the name maps to `_`, and the login profile directory uses `-`.
+
+Set a default for a project in `.ai-shell.yaml` (`claude.account: work`) or with `AI_SHELL_CLAUDE_ACCOUNT=work`. Use `--account default` to override it for one launch.
+
+Rules:
+
+- The selected token is injected as `CLAUDE_CODE_OAUTH_TOKEN` for the Claude process only. The other `CLAUDE_CODE_OAUTH_TOKEN_*` values are never passed into containers.
+- `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are removed from the Claude process, because Claude Code prefers them over the OAuth token. A login profile also removes `CLAUDE_CODE_OAUTH_TOKEN`, for the same reason.
+- An unknown account name, or an account together with `--aws`, stops the launch with an error.
+- Token accounts share `~/.claude` (settings and history). `claude -c` can continue a conversation that started under a different token account. A login profile has its own settings, history and plugins.
+- `--multi` and `--interactive` set the credential on the tmux session. Reconnecting to an existing tmux session keeps the account that started it.
+- `--rc` and `--login` always use the login profile, even when a token exists. `~/.augint` is already bind-mounted, so no container recreation is needed, and the profile survives container recreation.
+
+Per-account defaults go under `claude.accounts` in `~/.augint/.ai-shell.yaml`, so every machine that has that file behaves the same:
+
+```yaml
+claude:
+  accounts:
+    mike:
+      local_chrome: true     # always open Mike's Chrome window
+      chrome_profile: mike   # optional; defaults to the account name
+    adam:
+      local_chrome: true
+```
+
+---
+
+## Attaching to host Chrome (`--local-chrome`)
+
+`ai-shell claude --local-chrome` bridges Claude inside the container to a real Chrome on your desktop via the Chrome DevTools Protocol (using `chrome-devtools-mcp`). Unblocks OAuth popups, CAPTCHA pages, and "click around in a logged-in site" tasks.
+
+- Claude drives Chrome tabs on your desktop in real time.
+- **Windows, macOS and Linux hosts.** Chrome is found at its usual install paths (Windows, macOS) or on `PATH` as `google-chrome` / `chromium` (Linux). Chrome binds its debug port to loopback and ignores any other address. On Docker Desktop that is enough; on a Linux host (Docker or podman) ai-shell starts a small relay (`python -m ai_shell.cdp_relay`, log in `~/.augint/chrome/`) that listens on the address the container resolves for `host.docker.internal`, forwards to Chrome on loopback, and answers only the host's own addresses, so nothing on the network can reach Chrome through it. podman needs the `docker` CLI shim (`podman-docker`) and 4.1+ for `host-gateway`. With `DOCKER_HOST` pointing at a Podman socket, ai-shell also sets `CONTAINER_HOST` to it, so the shim (which ignores `DOCKER_HOST`) runs `docker exec` through the same Podman service; run from the terminal's own cgroup, those execs fail with "OCI permission denied" when the service runs under systemd.
 - **Separate Chrome profile per project** -- your normal browsing untouched, each repo keeps its own logged-in state.
+- **Separate Chrome profile per account** -- with `--account NAME`, the window is keyed by the account instead of the project, so Mike's sessions share one logged-in Chrome across repos and never touch Adam's. Override the slug with `claude.accounts.<name>.chrome_profile`.
+- Profiles live under `%LOCALAPPDATA%\Google\Chrome\ai-shell\<slug>` on Windows and `~/.config/google-chrome/ai-shell/<slug>` elsewhere (`account-<name>` for accounts). Each has its own debug port, so several can run at once.
 - All traffic stays on `localhost`.
+- **The MCP server is checked before Claude starts.** `chrome-devtools-mcp` is installed in the image (and installed on demand in an older container). At every launch ai-shell starts it once, makes it list Chrome's pages through the bridge, and only then hands it to Claude. A broken bridge fails the launch with the server's own output instead of showing up inside Claude as an MCP server that "failed to start" (which is what an `npx` fetch on a cold container used to do when it outlasted Claude Code's startup timeout).
 
-Set `[claude] local_chrome = true` in `ai-shell.toml` (or `AI_SHELL_LOCAL_CHROME=1`) to persist.
+Set `claude.local_chrome: true` (or `AI_SHELL_LOCAL_CHROME=1`) to persist, or `claude.accounts.<name>.local_chrome: true` for one account only.
+
+### Google sign-in
+
+Google refuses to sign in inside a browser that exposes a DevTools port ("This browser or app may not be secure"), and that is the Chrome `--local-chrome` opens. It is Google's rule for automated browsers, not an address problem, so a VPN alone does not change it. ai-shell works around it by itself:
+
+- **The claude.ai sign-in** that `--rc` and `--login` run (once per account per machine) opens, with `--local-chrome`, in a window on the same profile directory but WITHOUT the DevTools port, through the configured proxy. You sign in there (Google SSO works), the browser shows a code, you type it at ai-shell's prompt, and ai-shell closes that window and opens the debug-port Chrome on the same profile, which keeps the session. A previous session's debug-port window on that profile is closed first; it is ai-shell's own.
+- **A Google session for later browser tasks** (Gmail, GHL behind Google SSO) comes with that same sign-in when the account is a Google one. For any other site that refuses an automated browser, `ai-shell chrome --account mike <url>` opens the plain window by hand: sign in, close it, and the next `--local-chrome` launch reuses the session.
+
+Without `--local-chrome`, the sign-in URL is printed and works in any browser on any device; only the code comes back.
+
+### Chrome through a VPN or proxy (`chrome_proxy`)
+
+On a host whose own address sites refuse (a cloud dev box, a datacenter), Chrome gets a proxy. `claude.chrome_proxy` (or `claude.accounts.<name>.chrome_proxy`, `AI_SHELL_CHROME_PROXY`, `--chrome-proxy` on `claude` and `chrome`) is either:
+
+- **`vpn`**: ai-shell's own VPN container. ai-shell runs [gluetun](https://github.com/qdm12/gluetun) (NordVPN over WireGuard) as a host-level singleton container, `augint-shell-vpn`, with an HTTP proxy on `127.0.0.1:8888`, starts it before the first window opens, waits until traffic flows through it, and points Chrome at it. Rootless Podman is enough: `NET_ADMIN` and `/dev/net/tun`, no root. An account that owns a NordVPN [dedicated IP](https://nordvpn.com/features/dedicated-ip/) gets it without being asked: the token also names the account's dedicated-IP server, and gluetun is pinned to that server. A shared NordVPN exit is a datacenter address that Google scores like the host's own; the dedicated IP is the one its owner already uses on a phone or laptop. Settings under `vpn:` (country, firewall, proxy port); a changed setting recreates the container, and the country filter is ignored while a server is pinned. When gluetun's firewall cannot run in the container runtime, ai-shell recreates the container once without it and remembers (`~/.augint/vpn/firewall-off`).
+- **a Chrome `--proxy-server` value** (`http://host:port`, `socks5://host:port`) for a proxy you run yourself.
+
+Only the browser is proxied. The dev container and Claude Code keep the machine's own route, which Anthropic accepts. A running Chrome keeps the proxy it was started with; ai-shell's sign-in flow closes and reopens its own windows, so this matters only for a window you keep open across a config change.
+
+The VPN credential is one line in `~/.augint/.env`:
+
+```bash
+NORDVPN_TOKEN=<access token>   # Nord Account -> NordVPN -> Manual setup -> Access token
+```
+
+ai-shell trades the token once for the account's WireGuard key through NordVPN's API and caches the key under `~/.augint/vpn/` (mode 0600); the token can expire, the key does not. `NORDVPN_WIREGUARD_PRIVATE_KEY=...` works too. Without either, `ai-shell vpn up` asks for the token on the terminal; a `--local-chrome` launch asks as well.
+
+The same token is used once to look up the account's dedicated-IP server; the answer (a hostname, or "none") is cached in `~/.augint/vpn/nordvpn-server`. `NORDVPN_SERVER=us2943` (or the full `us2943.nordvpn.com`) in `.env` pins another server, `NORDVPN_SERVER=any` forces a shared one, and `ai-shell vpn down` forgets the cached answer. `ai-shell vpn status` prints the pinned server and the exit address, which should be the dedicated IP.
+
+```bash
+ai-shell vpn up        # start it now and print the exit address
+ai-shell vpn status    # container state and exit address
+ai-shell vpn down      # stop and remove it (and forget the firewall fallback)
+```
+
+---
+
+## Remote Control (`--rc`)
+
+`ai-shell claude --rc` runs `claude remote-control` (server mode) inside the dev container, so the project can be driven from [claude.ai/code](https://claude.ai/code) or the Claude mobile app. The process stays in your terminal; `Ctrl+C` stops it.
+
+```bash
+ai-shell claude --rc                                # your own account, session named after the project
+ai-shell claude --rc "Billing fix"                  # custom session name
+ai-shell claude --account mike --rc                 # as mike (login profile)
+ai-shell claude --account mike --rc --local-chrome  # ...and give the session Mike's Chrome window
+```
+
+What happens on `--account mike --rc`:
+
+1. `~/.augint/claude-accounts/mike/` becomes the session's `CLAUDE_CONFIG_DIR`. Your own `~/.claude` is not touched. A new profile gets a `CLAUDE.md` that imports your `~/.claude/CLAUDE.md` (`@/root/.claude/CLAUDE.md`, through the bind mount), so your personal instructions apply in Mike's sessions too; edit or delete that file to give the account its own. Settings, plugins and `~/.claude/rules/` stay per profile.
+2. If that profile has no login yet, `claude auth login` runs first, driven from the host: ai-shell opens the sign-in page in the Chrome window it just opened for `mike` (or prints the URL unwrapped when no Chrome is attached), you sign in as Mike, the browser shows a code, and you paste it at ai-shell's own prompt. The URL and the code never pass through the container TTY, which is what used to mangle them. This happens once per account per machine.
+3. With `--local-chrome`, `chrome-devtools-mcp` is registered for this project in that profile (`claude mcp add-json --scope local`), because server mode does not accept `--mcp-config`.
+4. The server starts with `--permission-mode bypassPermissions` (omit with `--safe`) and the name `<project> (mike)`. Open claude.ai/code signed in as Mike to find it.
+
+Requirements and limits (from Claude Code, not ai-shell):
+
+- The account needs a Pro, Max, Team or Enterprise plan. Team/Enterprise owners must enable Remote Control in admin settings, and a "Trusted Devices" policy means your device must be verified under that account.
+- Remote Control refuses `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN` and Bedrock. ai-shell strips the first three and rejects `--aws`.
+- `--rc` is a single session: it cannot be combined with `--multi`, `--team` or `--interactive`.
+- Stopping the server and running the same command again brings the previous sessions back (Claude Code keeps them for about four hours).
+
+---
+
+## Remote control with T3 Code (`--t3`)
+
+[T3 Code](https://github.com/pingdotgg/t3code) is a desktop/web/mobile GUI for driving coding agents. Its server owns the workspace — it spawns the agent processes, reads git state and hosts terminals — so it has to run *where the project lives*, which for ai-shell is the per-project dev container. That is what `--t3` sets up:
+
+```bash
+ai-shell claude --t3        # Claude in this terminal + T3 Code server for the project
+ai-shell codex --t3
+ai-shell pi --t3
+ai-shell opencode --t3
+ai-shell shell --t3         # Just the server, no tool
+```
+
+Each run:
+
+1. installs the `t3` CLI in the container if the image predates T3 support;
+2. starts `t3 serve --host 0.0.0.0 --port 3773` detached, with the same environment your tools get;
+3. registers the project (`t3 serve` deliberately does not auto-add its cwd, which is why an unprepared server shows an empty environment);
+4. mints a pairing token and prints a pairing URL + QR pointing at **this machine's LAN address and the container's published host port**.
+
+Scan the QR from the T3 Code phone app, or paste the URL into the desktop app. The server keeps running after the local tool exits — that is the point.
+
+Port `3773` is part of the standard dev-port set, so every dev container publishes it on a stable per-project host port. Containers created before this feature don't have that mapping; `--t3` says so and the fix is `ai-shell manage clean`, then rerun.
+
+### T3 Connect (outside your LAN)
+
+LAN pairing needs the phone on the same network. For anywhere-access, link the container once — the credential lives in the project's `~/.t3` volume, so it survives container recreation:
+
+```bash
+ai-shell shell
+t3 connect link --headless      # prints a URL, paste back the code
+exit
+ai-shell claude --t3            # serve now also brings up the managed tunnel
+```
+
+`--t3` reports T3 Connect status on every run.
+
+### What `--t3` is and isn't
+
+T3 Code runs its *own* agent processes; it does not mirror the Claude session in your terminal. Both live in the same container against the same project and the same `~/.claude` config, so a conversation started in one can be resumed in the other — but they are separate processes.
+
+Each project gets its own T3 environment (its own `~/.t3` named volume: server database, paired devices, Connect credential). The host's own `~/.t3` is never bind-mounted, so a desktop T3 Code install and the container servers never share a database.
+
+---
+
+## Expo apps (`--expo`)
+
+Expo apps get their dev server started **inside the dev container**, with the tunnel URL printed as a QR code before the agent takes the terminal — so you scan once, up front, and the phone stays attached for the whole session.
+
+```bash
+ai-shell claude              # auto-detected: Expo app -> dev server starts too
+ai-shell claude --expo       # force it (and fail loudly if it can't start)
+ai-shell claude --no-expo    # skip it
+```
+
+```
+Expo
+  Project: my-app (/root/projects/my-app)
+  Scan:    exp://Xf3k2a-anonymous-8081.exp.direct
+  Metro:   http://localhost:14631 (this machine)
+  Log:     docker exec augint-shell-my-app-dev tail -f /var/log/ai-shell/expo-start.log
+
+  <QR code>
+```
+
+The server is detached and outlives the tool session. Re-running any command just re-prints the QR against the live server.
+
+### No Expo account needed
+
+`expo start --tunnel` does not require a login. The Expo CLI connects with **its own** ngrok token and names the tunnel `{randomness}-{username}-{port}.exp.direct`, falling back to `anonymous` when nobody is signed in. Logging in only matters for EAS (`build`, `update`, `submit`).
+
+If you do want to be signed in, the practical options in a container are `npx expo login` (persisted in `~/.expo`, which is bind-mounted) or an `EXPO_TOKEN` **personal** access token. Browser SSO does not work in the container: it binds a callback listener on an ephemeral container port and shells out to a browser that isn't there. A **robot** `EXPO_TOKEN` is worse than none here — the Expo CLI refuses to open a tunnel for robot users, and ai-shell reports that specifically if it happens.
+
+### Why tunnel, and not LAN
+
+ngrok dials *outbound* from the container, so the phone reaches `https://<subdomain>.exp.direct` with no published port involved. LAN mode cannot work as-is: ai-shell hash-assigns dev ports into 10000-39999 rather than mapping them identity, so Metro would advertise its own `:8081` and the phone would find nothing there. Port 8081 is published anyway, so a host browser can reach Metro and `expo start --web`.
+
+The QR is stable across restarts: Expo persists the tunnel's random segment in `.expo/settings.json` inside the project directory, which is bind-mounted.
+
+### Detection
+
+Auto-start requires *both* an `expo` dependency in `package.json` and an app config (`app.json` with an `expo` key, or `app.config.{ts,js,mjs,cjs,json}`). A dependency alone also describes Expo libraries and config plugins, which have nothing to serve. `--expo` needs only the dependency.
+
+`ai-shell shell` never auto-starts Expo — it is the maintenance path, often where you go to *fix* an install — but `ai-shell shell --expo` works. Set `expo.auto: false` in `.ai-shell.yaml` (or `AI_SHELL_EXPO_AUTO=0`) to turn auto-detection off for a project.
+
+Dependencies are checked *inside* the container, because `node_modules` is a container-local named volume: a host-side `npm install` is invisible there. If Expo isn't installed in the container, auto-detection says so and steps aside rather than triggering an install.
 
 ---
 
@@ -311,6 +544,6 @@ OPENCODE_SERVER_USERNAME=admin
 
 ## Requirements
 
-- Docker
+- Docker, or Podman with the `docker` CLI shim
 - Python >= 3.12
 - (Optional) NVIDIA GPU for local LLM acceleration

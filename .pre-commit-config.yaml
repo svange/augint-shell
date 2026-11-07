@@ -37,7 +37,7 @@ repos:
 
       - id: mypy
         name: MyPy type checking
-        entry: uv run --no-sync mypy src/
+        entry: uv run --no-sync mypy --platform linux src/
         language: system
         files: '\.py$'
         pass_filenames: false

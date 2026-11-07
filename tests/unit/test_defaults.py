@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from ai_shell.defaults import (
+    CLAUDE_OAUTH_TOKEN_VAR,
     COMPOSER_CACHE_VOLUME,
     CONTAINER_PREFIX,
     DEFAULT_DEV_PORTS,
@@ -28,7 +29,9 @@ from ai_shell.defaults import (
     dev_container_name,
     docker_tcp_fallback_host,
     home_config_volume_name,
+    list_claude_accounts,
     node_modules_volume_name,
+    podman_cli_host,
     project_dev_port,
     project_dev_port_map,
     sanitize_project_name,
@@ -129,6 +132,7 @@ class TestProjectDevPortMap:
     STABLE_SLUG = "stable-project-12345678"
     STABLE_EXPECTED = {
         3000: 26404,
+        3773: 30497,
         4096: 39998,
         4200: 11951,
         5000: 28258,
@@ -136,6 +140,7 @@ class TestProjectDevPortMap:
         5678: 17117,
         8000: 22770,
         8080: 29604,
+        8081: 14631,
         8888: 21814,
         19432: 11892,
         31415: 11272,
@@ -271,11 +276,18 @@ class TestBuildDevMounts:
 
     def test_node_modules_volume_name_with_subpath(self):
         v = node_modules_volume_name("repo", subpath="apps/web")
-        assert v == f"{NODE_MODULES_VOLUME_PREFIX}repo-apps-web"
+        assert v.startswith(f"{NODE_MODULES_VOLUME_PREFIX}repo-apps-web-")
+        assert len(v) == len(f"{NODE_MODULES_VOLUME_PREFIX}repo-apps-web-") + 8
+        assert v == node_modules_volume_name("repo", subpath="apps/web/")
 
     def test_node_modules_volume_name_with_worktree_and_subpath(self):
         v = node_modules_volume_name("repo", worktree_name="feature", subpath="apps/web")
-        assert v == f"{NODE_MODULES_VOLUME_PREFIX}repo-wt-feature-apps-web"
+        assert v.startswith(f"{NODE_MODULES_VOLUME_PREFIX}repo-wt-feature-apps-web-")
+
+    def test_node_modules_volume_name_subpaths_with_same_slug_differ(self):
+        nested = node_modules_volume_name("repo", subpath="packages/foo/bar")
+        flat = node_modules_volume_name("repo", subpath="packages/foo-bar")
+        assert nested != flat
 
     def test_build_dev_mounts_expands_node_modules_globs(self, tmp_path):
         project_dir = tmp_path / "test-project"
@@ -825,6 +837,88 @@ class TestBuildDevEnvironmentOpenAIProfile:
         assert "OPENAI_ORG_ID" not in env
 
 
+class TestBuildDevEnvironmentClaudeAccount:
+    @pytest.fixture
+    def global_env(self, isolate_home):
+        env_path = isolate_home / ".augint" / ".env"
+        env_path.parent.mkdir()
+        env_path.write_text(
+            "CLAUDE_CODE_OAUTH_TOKEN_WOXOM=tok-woxom\n"
+            "CLAUDE_CODE_OAUTH_TOKEN_AI=tok-ai\n"
+            "CLAUDE_CODE_OAUTH_TOKEN_MY_ORG=tok-my-org\n"
+            "ANTHROPIC_API_KEY=sk-ant-global\n"
+        )
+        return env_path
+
+    def test_account_injects_token(self, global_env):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(claude_account="woxom")
+        assert env[CLAUDE_OAUTH_TOKEN_VAR] == "tok-woxom"
+
+    def test_account_name_is_case_insensitive(self, global_env):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(claude_account="AI")
+        assert env[CLAUDE_OAUTH_TOKEN_VAR] == "tok-ai"
+
+    def test_account_name_hyphen_maps_to_underscore(self, global_env):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(claude_account="my-org")
+        assert env[CLAUDE_OAUTH_TOKEN_VAR] == "tok-my-org"
+
+    def test_account_drops_overriding_api_keys(self, global_env):
+        host = {"ANTHROPIC_API_KEY": "sk-host", "ANTHROPIC_AUTH_TOKEN": "auth-host"}
+        with patch.dict("os.environ", host, clear=True):
+            env = build_dev_environment(claude_account="woxom")
+        assert "ANTHROPIC_API_KEY" not in env
+        assert "ANTHROPIC_AUTH_TOKEN" not in env
+
+    def test_per_account_tokens_never_passed_through(self, global_env):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(claude_account="woxom")
+            no_account = build_dev_environment()
+        assert not any(k.startswith("CLAUDE_CODE_OAUTH_TOKEN_") for k in env)
+        assert not any(k.startswith("CLAUDE_CODE_OAUTH_TOKEN_") for k in no_account)
+        assert CLAUDE_OAUTH_TOKEN_VAR not in no_account
+        # Without an account, the API key still passes through as before.
+        assert no_account["ANTHROPIC_API_KEY"] == "sk-ant-global"
+
+    def test_default_account_injects_nothing(self, global_env):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(claude_account="default")
+        assert CLAUDE_OAUTH_TOKEN_VAR not in env
+        assert env["ANTHROPIC_API_KEY"] == "sk-ant-global"
+
+    def test_unknown_account_raises_with_available_list(self, global_env):
+        with pytest.raises(ValueError) as exc:
+            build_dev_environment(claude_account="nope")
+        msg = str(exc.value)
+        assert "CLAUDE_CODE_OAUTH_TOKEN_NOPE" in msg
+        assert "default, ai, my_org, woxom" in msg
+        assert "tok-" not in msg
+
+    def test_account_with_bedrock_raises(self, global_env):
+        with pytest.raises(ValueError, match="Bedrock"):
+            build_dev_environment(claude_account="woxom", bedrock=True)
+
+    def test_env_file_account(self, tmp_path):
+        dotenv_path = tmp_path / ".env"
+        dotenv_path.write_text("CLAUDE_CODE_OAUTH_TOKEN_LOCAL=tok-local\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(
+                project_dir=tmp_path, env_file=dotenv_path, claude_account="local"
+            )
+        assert env[CLAUDE_OAUTH_TOKEN_VAR] == "tok-local"
+
+    def test_list_claude_accounts(self, global_env):
+        assert list_claude_accounts() == ["ai", "my_org", "woxom"]
+
+    def test_list_claude_accounts_skips_empty(self, isolate_home):
+        env_path = isolate_home / ".augint" / ".env"
+        env_path.parent.mkdir()
+        env_path.write_text("CLAUDE_CODE_OAUTH_TOKEN_EMPTY=\n")
+        assert list_claude_accounts() == []
+
+
 class TestUvVenvPath:
     def test_basic_repo_name(self):
         assert uv_venv_path("my-project") == "/root/.cache/uv/venvs/my-project"
@@ -1162,3 +1256,172 @@ class TestBuildN8nMounts:
             mounts = build_n8n_mounts(workflow_dir=missing)
         targets = [m["Target"] for m in mounts]
         assert "/workflows" not in targets
+
+
+class TestBuildDevEnvironmentClaudeLogin:
+    """Login profiles (CLAUDE_CONFIG_DIR) for accounts that need a real login."""
+
+    @pytest.fixture
+    def global_env(self, isolate_home):
+        env_path = isolate_home / ".augint" / ".env"
+        env_path.parent.mkdir()
+        env_path.write_text(
+            "CLAUDE_CODE_OAUTH_TOKEN_WOXOM=tok-woxom\nANTHROPIC_API_KEY=sk-global\n"
+        )
+        return isolate_home
+
+    def test_forced_login_uses_config_dir_not_token(self, global_env):
+        env = build_dev_environment(claude_account="woxom", claude_login=True)
+        assert env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/woxom"
+        assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
+        assert "ANTHROPIC_API_KEY" not in env
+        assert (global_env / ".augint" / "claude-accounts" / "woxom").is_dir()
+
+    def test_login_dir_is_used_when_account_has_no_token(self, global_env):
+        (global_env / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
+        env = build_dev_environment(claude_account="mike")
+        assert env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/mike"
+        assert "ANTHROPIC_API_KEY" not in env
+
+    def test_token_wins_over_login_dir_without_force(self, global_env):
+        (global_env / ".augint" / "claude-accounts" / "woxom").mkdir(parents=True)
+        env = build_dev_environment(claude_account="woxom")
+        assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok-woxom"
+        assert "CLAUDE_CONFIG_DIR" not in env
+
+    def test_unknown_account_mentions_both_ways_to_add_it(self, global_env):
+        (global_env / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
+        with pytest.raises(ValueError) as exc_info:
+            build_dev_environment(claude_account="nope")
+        msg = str(exc_info.value)
+        assert "CLAUDE_CODE_OAUTH_TOKEN_NOPE" in msg
+        assert "--login" in msg
+        assert "default, mike, woxom" in msg
+
+    def test_login_profile_imports_host_claude_md(self, global_env):
+        (global_env / ".claude").mkdir()
+        (global_env / ".claude" / "CLAUDE.md").write_text("# Sam's rules\n")
+
+        build_dev_environment(claude_account="mike", claude_login=True)
+
+        memory = global_env / ".augint" / "claude-accounts" / "mike" / "CLAUDE.md"
+        assert memory.is_file()
+        assert "@/root/.claude/CLAUDE.md" in memory.read_text()
+
+    def test_login_profile_memory_not_written_without_host_claude_md(self, global_env):
+        build_dev_environment(claude_account="mike", claude_login=True)
+        assert not (global_env / ".augint" / "claude-accounts" / "mike" / "CLAUDE.md").exists()
+
+    def test_login_profile_memory_never_overwritten(self, global_env):
+        (global_env / ".claude").mkdir()
+        (global_env / ".claude" / "CLAUDE.md").write_text("# Sam's rules\n")
+        profile = global_env / ".augint" / "claude-accounts" / "mike"
+        profile.mkdir(parents=True)
+        (profile / "CLAUDE.md").write_text("# Mike's own\n")
+
+        build_dev_environment(claude_account="mike", claude_login=True)
+
+        assert (profile / "CLAUDE.md").read_text() == "# Mike's own\n"
+
+    def test_slug_and_dirs(self, global_env):
+        from ai_shell.defaults import (
+            claude_account_config_dir,
+            claude_account_login_dir,
+            claude_account_slug,
+        )
+
+        assert claude_account_slug("My_Org") == "my-org"
+        assert claude_account_config_dir("My_Org") == "/root/.augint/claude-accounts/my-org"
+        assert claude_account_login_dir("My_Org") == (
+            global_env / ".augint" / "claude-accounts" / "my-org"
+        )
+
+    def test_list_all_claude_accounts_merges_tokens_and_logins(self, global_env):
+        from ai_shell.defaults import list_all_claude_accounts, list_claude_login_accounts
+
+        (global_env / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
+        (global_env / ".augint" / "claude-accounts" / "woxom").mkdir(parents=True)
+        (global_env / ".augint" / "claude-accounts" / "stray.txt").write_text("")
+        assert list_claude_login_accounts() == ["mike", "woxom"]
+        assert list_all_claude_accounts() == ["mike", "woxom"]
+
+
+class TestWorkspaceNodeModulesGlobs:
+    def test_reads_pnpm_workspace_and_drops_negations(self, tmp_path):
+        from ai_shell.defaults import workspace_node_modules_globs
+
+        (tmp_path / "pnpm-workspace.yaml").write_text(
+            "packages:\n  - 'apps/*'\n  - packages/**\n  - '!**/test/**'\n  - ./tools/\n"
+        )
+        assert workspace_node_modules_globs(tmp_path) == ["apps/*", "packages/**", "tools"]
+
+    def test_reads_package_json_workspaces_list_and_dict(self, tmp_path):
+        from ai_shell.defaults import workspace_node_modules_globs
+
+        (tmp_path / "package.json").write_text('{"workspaces": ["packages/*"]}')
+        assert workspace_node_modules_globs(tmp_path) == ["packages/*"]
+        (tmp_path / "package.json").write_text('{"workspaces": {"packages": ["apps/*", "."]}}')
+        assert workspace_node_modules_globs(tmp_path) == ["apps/*"]
+
+    def test_no_manifests_means_no_globs(self, tmp_path):
+        from ai_shell.defaults import workspace_node_modules_globs
+
+        assert workspace_node_modules_globs(tmp_path) == []
+
+    def test_malformed_manifests_are_ignored(self, tmp_path):
+        from ai_shell.defaults import workspace_node_modules_globs
+
+        (tmp_path / "pnpm-workspace.yaml").write_text("packages: [\n")
+        (tmp_path / "package.json").write_text("{not json")
+        assert workspace_node_modules_globs(tmp_path) == []
+
+    def test_build_dev_mounts_overlays_declared_workspace_packages(self, tmp_path):
+        project_dir = tmp_path / "mono"
+        (project_dir / "packages" / "web").mkdir(parents=True)
+        (project_dir / "packages" / "web" / "package.json").write_text("{}")
+        (project_dir / "packages" / "api").mkdir(parents=True)
+        (project_dir / "packages" / "api" / "package.json").write_text("{}")
+        (project_dir / "packages" / "docs").mkdir(parents=True)  # no package.json
+        (project_dir / "pnpm-workspace.yaml").write_text("packages:\n  - packages/*\n")
+
+        mounts = build_dev_mounts(project_dir, "mono")
+
+        targets = {m.get("Target"): m for m in mounts}
+        assert "/root/projects/mono/packages/web/node_modules" in targets
+        assert "/root/projects/mono/packages/api/node_modules" in targets
+        assert "/root/projects/mono/packages/docs/node_modules" not in targets
+        assert targets["/root/projects/mono/packages/web/node_modules"].get(
+            "Source"
+        ) == node_modules_volume_name("mono", subpath="packages/web")
+
+    def test_explicit_paths_still_overlay_without_package_json(self, tmp_path):
+        project_dir = tmp_path / "mono"
+        (project_dir / "packages" / "docs").mkdir(parents=True)
+        (project_dir / "pnpm-workspace.yaml").write_text("packages:\n  - packages/*\n")
+
+        mounts = build_dev_mounts(project_dir, "mono", extra_node_modules_paths=["packages/docs"])
+
+        targets = {m.get("Target") for m in mounts}
+        assert "/root/projects/mono/packages/docs/node_modules" in targets
+
+
+class TestPodmanCliHost:
+    """The podman CLI behind `docker` must use the service DOCKER_HOST names."""
+
+    def test_podman_socket_becomes_container_host(self):
+        env = {"DOCKER_HOST": "unix:///run/user/2004/podman/podman.sock"}
+        assert podman_cli_host(env) == "unix:///run/user/2004/podman/podman.sock"
+
+    def test_docker_socket_and_tcp_are_left_alone(self):
+        assert podman_cli_host({"DOCKER_HOST": "unix:///var/run/docker.sock"}) is None
+        assert podman_cli_host({"DOCKER_HOST": "tcp://host.docker.internal:2375"}) is None
+        assert podman_cli_host({}) is None
+
+    def test_an_explicit_connection_wins(self):
+        env = {
+            "DOCKER_HOST": "unix:///run/user/2004/podman/podman.sock",
+            "CONTAINER_HOST": "ssh://box/run/podman/podman.sock",
+        }
+        assert podman_cli_host(env) is None
+        env = {"DOCKER_HOST": "unix:///run/podman/podman.sock", "CONTAINER_CONNECTION": "box"}
+        assert podman_cli_host(env) is None

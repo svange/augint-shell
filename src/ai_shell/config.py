@@ -155,6 +155,32 @@ class VoiceAgentConfig:
 
 
 @dataclass
+class ClaudeAccountConfig:
+    """Per-account defaults under ``claude.accounts.<name>``.
+
+    The credential itself is never configured here: it is either the token
+    ``CLAUDE_CODE_OAUTH_TOKEN_{NAME}`` in ``~/.augint/.env`` or the login
+    profile in ``~/.augint/claude-accounts/<name>/``.
+    """
+
+    # Host Chrome profile (separate user-data-dir) slug for --local-chrome.
+    # Empty = the account name.
+    chrome_profile: str = ""
+    # Attach host Chrome by default when this account is selected.
+    # None = fall back to the global ``claude.local_chrome``.
+    local_chrome: bool | None = None
+    # Proxy for this account's host Chrome (``--proxy-server`` value, e.g.
+    # ``http://127.0.0.1:8888`` for a VPN container). Empty = the global
+    # ``claude.chrome_proxy``.
+    chrome_proxy: str = ""
+
+
+def _claude_account_key(account: str) -> str:
+    """Case- and separator-insensitive key for ``claude.accounts`` lookups."""
+    return account.strip().lower().replace("_", "-")
+
+
+@dataclass
 class AiShellConfig:
     """Configuration for ai-shell."""
 
@@ -210,8 +236,23 @@ class AiShellConfig:
     openai_profile: str = ""  # Suffixed .env key name for multi-account switching
 
     # Claude options
+    claude_account: str = ""  # Suffixed .env token name for multi-account switching
+    claude_accounts: dict[str, ClaudeAccountConfig] = field(default_factory=dict)
     local_chrome: bool = False  # Attach Chrome DevTools MCP to project-scoped host Chrome
-    skip_updates: bool = False  # When True, skip pre-launch tool freshness checks
+    chrome_proxy: str = (
+        ""  # --proxy-server for every host Chrome ai-shell launches ("vpn" = own VPN)
+    )
+    skip_updates: bool = False
+
+    # VPN container (chrome_proxy: vpn). NordVPN over WireGuard through gluetun;
+    # the credential is NORDVPN_TOKEN in ~/.augint/.env, never config.
+    vpn_country: str = ""  # gluetun SERVER_COUNTRIES; empty = any server
+    vpn_firewall: bool = True  # gluetun's own firewall; turned off by itself where it cannot run
+    vpn_proxy_port: int = 8888  # loopback port of the HTTP proxy Chrome uses  # When True, skip pre-launch tool freshness checks
+
+    # Expo. When False, a detected Expo app is not started automatically;
+    # an explicit --expo still works. --expo/--no-expo override this.
+    expo_auto: bool = True
 
     # Pre-launch cache TTLs (seconds). Set to 0 to disable.
     image_pull_cache_ttl: int = 900  # 15 min: skip docker pull if checked recently
@@ -219,6 +260,10 @@ class AiShellConfig:
 
     # Per-tool provider
     claude_provider: str = ""  # "anthropic" (default) or "aws"
+
+    def claude_account_config(self, account: str) -> ClaudeAccountConfig:
+        """Return the ``claude.accounts`` entry for *account* (defaults if absent)."""
+        return self.claude_accounts.get(_claude_account_key(account), ClaudeAccountConfig())
 
     @property
     def full_image(self) -> str:
@@ -450,6 +495,11 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
     if "isolate_home_paths" in container:
         config.isolate_home_paths.extend(str(p) for p in container["isolate_home_paths"])
 
+    # [expo] section
+    expo = data.get("expo", {})
+    if "auto" in expo:
+        config.expo_auto = bool(expo["auto"])
+
     # [llm] section
     llm = data.get("llm", {})
     _reject_legacy_llm_keys(llm, path)
@@ -508,8 +558,34 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
     claude_sec = data.get("claude", {})
     if "provider" in claude_sec:
         config.claude_provider = claude_sec["provider"]
+    if "account" in claude_sec:
+        config.claude_account = str(claude_sec["account"])
+    if isinstance(claude_sec.get("accounts"), dict):
+        for name, entry in claude_sec["accounts"].items():
+            key = _claude_account_key(str(name))
+            account_cfg = config.claude_accounts.get(key, ClaudeAccountConfig())
+            if isinstance(entry, dict):
+                if "chrome_profile" in entry:
+                    account_cfg.chrome_profile = str(entry["chrome_profile"] or "")
+                if "local_chrome" in entry:
+                    account_cfg.local_chrome = bool(entry["local_chrome"])
+                if "chrome_proxy" in entry:
+                    account_cfg.chrome_proxy = str(entry["chrome_proxy"] or "")
+            config.claude_accounts[key] = account_cfg
     if "local_chrome" in claude_sec:
         config.local_chrome = bool(claude_sec["local_chrome"])
+    if "chrome_proxy" in claude_sec:
+        config.chrome_proxy = str(claude_sec["chrome_proxy"] or "")
+
+    # [vpn] section
+    vpn = data.get("vpn", {})
+    if isinstance(vpn, dict):
+        if "country" in vpn:
+            config.vpn_country = str(vpn["country"] or "")
+        if "firewall" in vpn:
+            config.vpn_firewall = bool(vpn["firewall"])
+        if "proxy_port" in vpn:
+            config.vpn_proxy_port = int(vpn["proxy_port"])
     if "skip_updates" in container:
         config.skip_updates = bool(container["skip_updates"])
     if "image_pull_cache_ttl" in container:
@@ -557,7 +633,13 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_BEDROCK_MODEL": ("bedrock_model", str),
         "AI_SHELL_OPENAI_PROFILE": ("openai_profile", str),
         "AI_SHELL_CLAUDE_PROVIDER": ("claude_provider", str),
+        "AI_SHELL_CLAUDE_ACCOUNT": ("claude_account", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
+        "AI_SHELL_CHROME_PROXY": ("chrome_proxy", str),
+        "AI_SHELL_VPN_COUNTRY": ("vpn_country", str),
+        "AI_SHELL_VPN_FIREWALL": ("vpn_firewall", bool),
+        "AI_SHELL_VPN_PROXY_PORT": ("vpn_proxy_port", int),
+        "AI_SHELL_EXPO_AUTO": ("expo_auto", bool),
         "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),
         "AI_SHELL_IMAGE_PULL_CACHE_TTL": ("image_pull_cache_ttl", int),
         "AI_SHELL_BEDROCK_CHECK_CACHE_TTL": ("bedrock_check_cache_ttl", int),
