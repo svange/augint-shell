@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.116.0 (2026-11-09)
+
+### Features
+
+- **acp**: Run agents in the dev container for ACP clients (JetBrains Air, Zed) (#190)
+  ([#190](https://github.com/svange/augint-shell/pull/190),
+  [`d3c9f7a`](https://github.com/svange/augint-shell/commit/d3c9f7a1d57afc4f9dbe43aceecb67ed6655fd68))
+
+
 ## v0.115.4 (2026-11-07)
 
 ### Bug Fixes
