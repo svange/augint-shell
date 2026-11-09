@@ -27,6 +27,8 @@ NPM_TOOLS = [
     "agent-browser",
     "zapier-platform-cli",
     "chrome-devtools-mcp",
+    "@agentclientprotocol/claude-agent-acp",
+    "@agentclientprotocol/codex-acp",
 ]
 OTHER_TOOLS = ["claude", "codex", "opencode", "pi", "t3"]
 

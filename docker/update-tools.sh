@@ -140,8 +140,9 @@ _update_t3() {
 }
 
 _update_npm_tools() {
-    _log "Updating npm tools (aws-cdk, playwright-cli, agent-browser, zapier, chrome-devtools-mcp)..."
-    _npm_update aws-cdk @playwright/cli agent-browser zapier-platform-cli chrome-devtools-mcp
+    _log "Updating npm tools (aws-cdk, playwright-cli, agent-browser, zapier, chrome-devtools-mcp, ACP adapters)..."
+    _npm_update aws-cdk @playwright/cli agent-browser zapier-platform-cli chrome-devtools-mcp \
+        @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp
 }
 
 _update_tool() {

@@ -142,6 +142,7 @@ If you need to work manually, [AGENTS.md](AGENTS.md) has the build, test and com
 | `ai-shell chrome [--account NAME] [URL]` | The same Chrome window without the DevTools port, for a [Google sign-in](#google-sign-in) by hand |
 | `ai-shell <tool> --t3` | Also expose the project to [T3 Code](#remote-control-with-t3-code-t3) (phone/desktop app) |
 | `ai-shell <tool> --expo` | Also start a tunnelled [Expo dev server](#expo-apps-expo) and print its QR code |
+| `ai-shell acp claude\|codex\|opencode` | Agent command for an [ACP client](#acp-clients-jetbrains-air-zed) (JetBrains Air, Zed); the agent runs in the dev container |
 
 ### LLM Stack
 
@@ -456,6 +457,57 @@ ai-shell claude --t3            # serve now also brings up the managed tunnel
 T3 Code runs its *own* agent processes; it does not mirror the Claude session in your terminal. Both live in the same container against the same project and the same `~/.claude` config, so a conversation started in one can be resumed in the other — but they are separate processes.
 
 Each project gets its own T3 environment (its own `~/.t3` named volume: server database, paired devices, Connect credential). The host's own `~/.t3` is never bind-mounted, so a desktop T3 Code install and the container servers never share a database.
+
+---
+
+## ACP clients (JetBrains Air, Zed)
+
+ACP (Agent Client Protocol) is how an editor drives an outside coding agent: JSON-RPC over the agent's stdin and stdout. `ai-shell acp <tool>` is an agent command for such a client. The editor runs on the host; the agent runs in the project's dev container, with the same tools, mounts and Claude login as `ai-shell claude`. Your Claude subscription works, because the container has your `~/.claude`.
+
+Register it in the client. For the Air plugin in IntelliJ IDEA, edit `~/.jetbrains/acp.json` (on Windows `C:\Users\<you>\.jetbrains\acp.json`):
+
+```json
+{
+  "agent_servers": {
+    "Claude (ai-shell)": {
+      "command": "ai-shell",
+      "args": ["acp", "claude", "--local-chrome"],
+      "use_idea_mcp": false,
+      "use_custom_mcp": false
+    },
+    "Claude mike (ai-shell)": {
+      "command": "ai-shell",
+      "args": ["acp", "claude", "--account", "mike", "--local-chrome"],
+      "use_idea_mcp": false,
+      "use_custom_mcp": false
+    },
+    "Codex (ai-shell)": {
+      "command": "ai-shell",
+      "args": ["acp", "codex"],
+      "use_idea_mcp": false,
+      "use_custom_mcp": false
+    }
+  }
+}
+```
+
+Use the full path to `ai-shell` if the editor does not find it on `PATH` (`where ai-shell` on Windows, `command -v ai-shell` elsewhere). Then pick the agent in the Air chat.
+
+| Option (`acp claude`) | Same as |
+|---|---|
+| `--account NAME` | `ai-shell claude --account NAME`. The account needs its token or login profile first; create the login profile with `ai-shell claude --account NAME --login` in a terminal. |
+| `--local-chrome` / `--no-local-chrome` | `ai-shell claude --local-chrome`. Without either flag, the account's `local_chrome` setting applies. A `chrome_proxy: vpn` that needs a token prompt fails; save the token in `~/.augint/.env` first. |
+
+How it works:
+
+- One entry serves every project. The editor names the project folder in each session (`session/new`), and the proxy starts or reuses that folder's dev container.
+- ACP paths are absolute, and the container sees the project at `/root/projects/<name>`. The proxy swaps the project root in both directions, for plain paths and `file://` URIs.
+- The agent stays in the container. The proxy turns off the client's file, terminal and terminal sign-in capabilities, so the agent never asks the editor to act on the host. It also drops the MCP servers the editor offers (for Air, `idea64.exe stdioMcpServer`): they are host programs. So the agent does not get the IDE's own tools; ai-shell's Chrome DevTools MCP is added instead when local Chrome is on.
+- The editor sends `initialize` before it names a project, so a short `docker run` of the adapter in the image answers it.
+- Adapters: `claude-agent-acp` and `codex-acp` (npm, in the image; installed on demand on older images), and `opencode acp`. The Claude adapter runs the image's Claude Code (`CLAUDE_CODE_EXECUTABLE`).
+- stdout is the protocol. ai-shell's own messages go to stderr, which the editor writes to its log (IntelliJ: `idea.log`).
+
+Not supported yet: the `--aws` and `--env` flags (`claude.provider: aws` in config does apply), and folders outside the project (Air's extra roots are dropped).
 
 ---
 

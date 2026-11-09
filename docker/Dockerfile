@@ -169,6 +169,11 @@ RUN npm install -g @mariozechner/pi-coding-agent
 # installed on demand at runtime too, so older images keep working.
 RUN npm install -g t3
 
+# Install the ACP adapters that `ai-shell acp` runs for ACP clients (JetBrains
+# Air, Zed). OpenCode has `opencode acp` built in. ai-shell installs them on
+# demand too, so older images keep working.
+RUN npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp
+
 # Install the ngrok binding the Expo CLI loads for `expo start --tunnel`.
 # Expo resolves it from the *global* install and will not prompt for it on a
 # non-TTY start, so it has to exist up front; ai-shell installs it on demand
