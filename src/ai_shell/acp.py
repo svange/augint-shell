@@ -48,6 +48,8 @@ JsonObj = dict[str, Any]
 # JSON-RPC error codes the proxy answers with.
 INVALID_PARAMS = -32602
 INTERNAL_ERROR = -32603
+# ACP's ``authRequired``: the client offers the agent's auth methods and retries.
+AUTH_REQUIRED = -32000
 
 BACKEND_START_TIMEOUT = 180.0
 
@@ -177,6 +179,34 @@ def sandbox_client_capabilities(params: JsonObj) -> JsonObj:
     return out
 
 
+def client_runs_terminal_auth(params: JsonObj) -> bool:
+    """True when the client runs an auth method's command in a terminal on the host."""
+    caps = params.get("clientCapabilities")
+    if not isinstance(caps, dict):
+        return False
+    auth = caps.get("auth")
+    meta = caps.get("_meta")
+    return (isinstance(auth, dict) and auth.get("terminal") is True) or (
+        isinstance(meta, dict) and meta.get("terminal-auth") is True
+    )
+
+
+def terminal_login_method(method_id: str, name: str, command: str, args: list[str]) -> JsonObj:
+    """An ACP ``terminal`` auth method, in both the spec form and JetBrains' ``_meta`` form.
+
+    In the spec form the client runs the agent's own command with *args*; that
+    command is ``ai-shell`` here, so both forms run the same thing.
+    """
+    return {
+        "id": method_id,
+        "name": name,
+        "description": "Sign in to Claude in the dev container (opens only when the login expired)",
+        "type": "terminal",
+        "args": list(args),
+        "_meta": {"terminal-auth": {"command": command, "args": list(args), "label": name}},
+    }
+
+
 SESSION_SETUP_METHODS = frozenset({"session/new", "session/load", "session/resume", "session/fork"})
 
 
@@ -237,6 +267,12 @@ class Backend:
         self.pathmap = pathmap
         self.extra_mcp_servers = extra_mcp_servers
         self.alive = True
+        # Returns True when the agent's login is missing or expired. None: never checked.
+        self.needs_login: Callable[[], bool] | None = None
+        # Runs before the first session setup that passed the login check, and
+        # again after a sign-in (it may set extra_mcp_servers).
+        self.prepare_session: Callable[[], None] | None = None
+        self.session_prepared = False
 
     def send(self, msg: JsonObj) -> None:  # pragma: no cover - interface
         raise NotImplementedError
@@ -358,6 +394,9 @@ class AcpProxy:
     backend_factory: Callable[[str], Backend]
     probe: Callable[[JsonObj], JsonObj]
     folder_key: Callable[[str], str] = field(default=lambda p: p)
+    # An ACP auth method that the client runs on the host (a terminal command).
+    # It is offered only to clients that run terminal sign-ins.
+    login_method: JsonObj | None = None
 
     def __post_init__(self) -> None:
         self._lock = threading.RLock()
@@ -372,6 +411,7 @@ class AcpProxy:
         self._init_waiters: dict[int, threading.Event] = {}
         self._init_results: dict[int, JsonObj] = {}
         self._last_backend: Backend | None = None
+        self._login_backend: Backend | None = None
 
     # -- client side ----------------------------------------------------------
 
@@ -387,7 +427,33 @@ class AcpProxy:
             if method == "initialize" and has_id:
                 self._initialize(msg)
                 return
+            if method == "authenticate" and has_id and self._is_own_login(msg):
+                self._authenticate(msg)
+                return
             backend = self._route(method, msg.get("params") or {})
+            if (
+                backend is not None
+                and has_id
+                and method in SESSION_SETUP_METHODS
+                and backend.needs_login is not None
+                and backend.needs_login()
+            ):
+                with self._lock:
+                    self._login_backend = backend
+                self._error(
+                    msg["id"],
+                    AUTH_REQUIRED,
+                    f"ai-shell: {backend.label} needs a sign-in. {self._login_hint()}",
+                )
+                return
+            if (
+                backend is not None
+                and method in SESSION_SETUP_METHODS
+                and backend.prepare_session is not None
+                and not backend.session_prepared
+            ):
+                backend.prepare_session()
+                backend.session_prepared = True
         except Exception as exc:  # noqa: BLE001 - every failure goes back to the client
             logger.warning("acp: %s failed: %s", method, exc)
             if has_id:
@@ -418,11 +484,47 @@ class AcpProxy:
         backend.send(out)
 
     def _initialize(self, msg: JsonObj) -> None:
-        params = sandbox_client_capabilities(msg.get("params") or {})
+        raw = msg.get("params") or {}
+        params = sandbox_client_capabilities(raw)
         with self._lock:
             self._init_params = params
-        result = self.probe(params)
+        result = dict(self.probe(params))
+        if self.login_method is not None and client_runs_terminal_auth(raw):
+            # The adapter's own sign-ins would run its container command on
+            # the host; the client was told it cannot, so only ai-shell's is offered.
+            result["authMethods"] = [copy.deepcopy(self.login_method)]
         self.write_client({"jsonrpc": "2.0", "id": msg["id"], "result": result})
+
+    def _is_own_login(self, msg: JsonObj) -> bool:
+        params = msg.get("params")
+        return (
+            self.login_method is not None
+            and isinstance(params, dict)
+            and params.get("methodId") == self.login_method.get("id")
+        )
+
+    def _login_hint(self) -> str:
+        if self.login_method is None:
+            return "Sign in from a terminal."
+        meta = (self.login_method.get("_meta") or {}).get("terminal-auth") or {}
+        command = " ".join([str(meta.get("command", "ai-shell")), *map(str, meta.get("args", []))])
+        return f"Sign in, or run in a terminal: {command}"
+
+    def _authenticate(self, msg: JsonObj) -> None:
+        """The client ran ai-shell's sign-in; answer whether the login is good now."""
+        with self._lock:
+            backend = self._login_backend or self._last_backend
+        if backend is not None and backend.needs_login is not None and backend.needs_login():
+            self._error(
+                msg["id"], AUTH_REQUIRED, f"ai-shell: {backend.label} is still not signed in"
+            )
+            return
+        with self._lock:
+            self._login_backend = None
+            # The sign-in may have closed the debug-port Chrome; attach it again.
+            for each in self._backends.values():
+                each.session_prepared = False
+        self.write_client({"jsonrpc": "2.0", "id": msg["id"], "result": {}})
 
     def _route(self, method: str, params: JsonObj) -> Backend | None:
         cwd = params.get("cwd") if isinstance(params, dict) else None

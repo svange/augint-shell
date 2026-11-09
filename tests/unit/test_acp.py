@@ -12,7 +12,9 @@ import json
 import sys
 import threading
 import time
+from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -584,3 +586,215 @@ class TestCliModule:
 
         with pytest.raises(ValueError, match="not a folder"):
             start_backend(str(tmp_path / "missing"), AcpOptions(tool="codex"))
+
+
+# =============================================================================
+# Sign-in only when the login needs it
+# =============================================================================
+
+LOGIN = acp.terminal_login_method(
+    "ai-shell-login", "Sign in (sam)", r"C:\bin\ai-shell.exe", ["acp", "login", "--account", "sam"]
+)
+
+
+@pytest.fixture
+def login_harness(harness):
+    proxy, out, started, _ = harness
+    proxy.login_method = LOGIN
+    state = {"needs": False, "checks": 0, "prepared": 0}
+    real_factory = proxy.backend_factory
+
+    def factory(cwd):
+        backend = real_factory(cwd)
+
+        def needs_login():
+            state["checks"] += 1
+            return state["needs"]
+
+        def prepare():
+            state["prepared"] += 1
+
+        backend.needs_login = needs_login
+        backend.prepare_session = prepare
+        return backend
+
+    proxy.backend_factory = factory
+    return proxy, out, started, state
+
+
+def _new(proxy, ident):
+    proxy.handle_client(
+        {"jsonrpc": "2.0", "id": ident, "method": "session/new", "params": air_session_new()}
+    )
+
+
+def _authenticate(proxy, ident, method_id="ai-shell-login"):
+    proxy.handle_client(
+        {"jsonrpc": "2.0", "id": ident, "method": "authenticate", "params": {"methodId": method_id}}
+    )
+
+
+class TestLogin:
+    def test_terminal_login_method_has_both_forms(self):
+        assert LOGIN["type"] == "terminal"
+        assert LOGIN["args"] == ["acp", "login", "--account", "sam"]
+        assert LOGIN["_meta"]["terminal-auth"]["command"] == r"C:\bin\ai-shell.exe"
+        assert LOGIN["_meta"]["terminal-auth"]["args"] == LOGIN["args"]
+
+    def test_login_method_is_offered_to_a_client_that_runs_terminal_sign_ins(self, login_harness):
+        proxy, out, _, _ = login_harness
+        _init(proxy)
+        assert out[0]["result"]["authMethods"] == [LOGIN]
+
+    def test_login_method_is_not_offered_otherwise(self, login_harness):
+        proxy, out, _, _ = login_harness
+        params = {"protocolVersion": 1, "clientCapabilities": {"fs": {}}}
+        proxy.handle_client({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": params})
+        assert "authMethods" not in out[0]["result"]
+
+    def test_good_login_starts_the_session_without_a_prompt(self, login_harness):
+        proxy, out, started, state = login_harness
+        _init(proxy)
+        _new(proxy, 2)
+        assert state["checks"] == 1
+        assert started[0].sent[-1]["method"] == "session/new"
+        assert len(out) == 1  # no error went to the client
+
+    def test_expired_login_answers_auth_required(self, login_harness):
+        proxy, out, started, state = login_harness
+        state["needs"] = True
+        _init(proxy)
+        _new(proxy, 2)
+        assert out[-1]["error"]["code"] == acp.AUTH_REQUIRED
+        assert "acp login --account sam" in out[-1]["error"]["message"]
+        # The session was not sent on, and Chrome was not attached.
+        assert started[0].sent[-1]["method"] == "initialize"
+        assert state["prepared"] == 0
+
+    def test_authenticate_after_the_sign_in_lets_the_retry_through(self, login_harness):
+        proxy, out, started, state = login_harness
+        state["needs"] = True
+        _init(proxy)
+        _new(proxy, 2)
+        state["needs"] = False  # the user signed in in the terminal
+        _authenticate(proxy, 3)
+        assert out[-1] == {"jsonrpc": "2.0", "id": 3, "result": {}}
+        _new(proxy, 4)
+        assert started[0].sent[-1]["id"] == 4
+        assert state["prepared"] == 1
+
+    def test_authenticate_while_still_signed_out_fails(self, login_harness):
+        proxy, out, _, state = login_harness
+        state["needs"] = True
+        _init(proxy)
+        _new(proxy, 2)
+        _authenticate(proxy, 3)
+        assert out[-1]["error"]["code"] == acp.AUTH_REQUIRED
+
+    def test_chrome_is_attached_once_and_again_after_a_sign_in(self, login_harness):
+        proxy, out, started, state = login_harness
+        _init(proxy)
+        _new(proxy, 2)
+        _new(proxy, 3)
+        assert state["prepared"] == 1
+        _authenticate(proxy, 4)
+        _new(proxy, 5)
+        assert state["prepared"] == 2
+
+    def test_other_auth_methods_go_to_the_agent(self, login_harness):
+        proxy, out, started, _ = login_harness
+        _init(proxy)
+        _new(proxy, 2)
+        _authenticate(proxy, 3, "gateway")
+        assert started[0].sent[-1]["method"] == "authenticate"
+
+
+class TestLoginStatus:
+    NOW = datetime(2026, 11, 9, 12, 0, tzinfo=UTC)
+
+    @staticmethod
+    def _status(**fields):
+        return json.dumps({"loggedIn": True, "authMethod": "claude.ai", **fields})
+
+    def test_valid_login(self):
+        from ai_shell.cli.commands.acp import status_needs_login
+
+        status = self._status(loginExpiresAt="2026-12-07T11:21:07.561Z")
+        assert not status_needs_login(0, status, self.NOW)
+
+    def test_expired_or_about_to_expire(self):
+        from ai_shell.cli.commands.acp import status_needs_login
+
+        assert status_needs_login(0, self._status(loginExpiresAt="2026-11-09T11:00:00Z"), self.NOW)
+        assert status_needs_login(0, self._status(loginExpiresAt="2026-11-09T12:05:00Z"), self.NOW)
+
+    def test_logged_out_or_unreadable(self):
+        from ai_shell.cli.commands.acp import status_needs_login
+
+        assert status_needs_login(1, "", self.NOW)
+        assert status_needs_login(0, json.dumps({"loggedIn": False}), self.NOW)
+        assert status_needs_login(0, "not json", self.NOW)
+
+    def test_no_expiry_field_is_fine(self):
+        from ai_shell.cli.commands.acp import status_needs_login
+
+        assert not status_needs_login(0, self._status(), self.NOW)
+
+    def test_uses_login(self):
+        from ai_shell.cli.commands.acp import uses_login
+
+        config = MagicMock(claude_provider="anthropic")
+        assert uses_login({}, config)
+        assert uses_login({"CLAUDE_CONFIG_DIR": "/x", "ANTHROPIC_API_KEY": "k"}, config)
+        assert not uses_login({"CLAUDE_CODE_OAUTH_TOKEN": "t"}, config)
+        assert not uses_login({"ANTHROPIC_API_KEY": "k"}, config)
+        assert not uses_login({}, MagicMock(claude_provider="aws"))
+
+    def test_login_args(self):
+        from ai_shell.cli.commands.acp import AcpOptions, login_args
+
+        assert login_args(AcpOptions(tool="claude")) == ["acp", "login"]
+        opts = AcpOptions(tool="claude", account="mike", local_chrome=True)
+        assert login_args(opts) == ["acp", "login", "--account", "mike", "--local-chrome"]
+
+    def test_login_folder_is_remembered_per_account(self, tmp_path):
+        from ai_shell.cli.commands.acp import remember_login_folder, remembered_login_folder
+
+        remember_login_folder("mike", tmp_path)
+        assert remembered_login_folder("mike") == tmp_path
+        assert remembered_login_folder("adam") is None
+
+
+class TestLoginCommand:
+    @staticmethod
+    def _invoke(tmp_path, needed, args):
+        from ai_shell.cli.__main__ import cli
+        from ai_shell.cli.commands import acp as acp_cli
+
+        config = MagicMock(project_name="demo", project_dir=tmp_path, claude_account="")
+        manager = MagicMock()
+        manager.ensure_dev_container.return_value = "box"
+        with (
+            patch.object(acp_cli, "load_config", return_value=config),
+            patch("ai_shell.container.ContainerManager", return_value=manager),
+            patch("ai_shell.cli.commands.tools._claude_exec_env", return_value={}),
+            patch.object(acp_cli, "login_needed", return_value=needed),
+            patch("ai_shell.cli.commands.tools._ensure_claude_login") as login,
+            patch("ai_shell.cli.commands.tools._plain_chrome_login") as chrome_login,
+        ):
+            result = CliRunner().invoke(
+                cli, ["acp", "login", *args, "--project-dir", str(tmp_path)]
+            )
+        assert result.exit_code == 0, result.output
+        return login, chrome_login
+
+    def test_skips_a_good_login(self, tmp_path):
+        login, chrome_login = self._invoke(tmp_path, False, [])
+        login.assert_not_called()
+        chrome_login.assert_not_called()
+
+    def test_signs_in_when_needed(self, tmp_path):
+        login, chrome_login = self._invoke(tmp_path, True, ["--no-local-chrome"])
+        assert login.call_args.kwargs["force"] is True
+        assert login.call_args.kwargs["workdir"] == "/root/projects/demo"
+        chrome_login.assert_not_called()

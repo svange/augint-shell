@@ -495,7 +495,7 @@ Use the full path to `ai-shell` if the editor does not find it on `PATH` (`where
 
 | Option (`acp claude`) | Same as |
 |---|---|
-| `--account NAME` | `ai-shell claude --account NAME`. The account needs its token or login profile first; create the login profile with `ai-shell claude --account NAME --login` in a terminal. |
+| `--account NAME` | `ai-shell claude --account NAME`. An account in `claude.accounts` with no token signs in through the editor (see [Sign-in](#sign-in)). |
 | `--local-chrome` / `--no-local-chrome` | `ai-shell claude --local-chrome`. Without either flag, the account's `local_chrome` setting applies. A `chrome_proxy: vpn` that needs a token prompt fails; save the token in `~/.augint/.env` first. |
 
 How it works:
@@ -506,6 +506,19 @@ How it works:
 - The editor sends `initialize` before it names a project, so a short `docker run` of the adapter in the image answers it.
 - Adapters: `claude-agent-acp` and `codex-acp` (npm, in the image; installed on demand on older images), and `opencode acp`. The Claude adapter runs the image's Claude Code (`CLAUDE_CODE_EXECUTABLE`).
 - stdout is the protocol. ai-shell's own messages go to stderr, which the editor writes to its log (IntelliJ: `idea.log`).
+
+### Sign-in
+
+A session asks for a sign-in only when the login is missing or expired. Otherwise it starts with no prompt.
+
+- At each new session, the proxy runs `claude auth status` in the container. It answers ACP's "auth required" only when there is no login, or when the login ends in less than 10 minutes. A token account, an API key or Bedrock is never checked.
+- The editor then shows **Sign in (NAME)**. It runs `ai-shell acp login --account NAME` in a terminal on the host. That is the same sign-in as `ai-shell claude --account NAME --login`: the account's Chrome window (with `--local-chrome`), and the code typed in the terminal. The editor then retries the session.
+- `ai-shell acp login` does nothing when the login is still good; `--force` signs in anyway. It uses the dev container of the project that asked (saved in `~/.config/ai-shell/acp-login.json`), or `--project-dir`.
+- The login is stored where `ai-shell claude` keeps it (`~/.claude`, or `~/.augint/claude-accounts/NAME`), so terminal and editor sessions share it.
+- A login that expires during a session gets the same sign-in when the agent reports it.
+- The editor shows this only if it runs terminal sign-ins (Air does). Other editors get the error text, with the command to run.
+
+Air's `acp.json` has no icon setting for custom agents, so put the account in the agent's name.
 
 Not supported yet: the `--aws` and `--env` flags (`claude.provider: aws` in config does apply), and folders outside the project (Air's extra roots are dropped).
 
