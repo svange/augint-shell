@@ -134,6 +134,16 @@ Pi (`@mariozechner/pi-coding-agent`) is a provider-agnostic terminal coding agen
 - Tri-state flag: `--expo` (explicit, failures are fatal), `--no-expo`, or unset (auto-detect, failures degrade to a warning so a broken dev server never costs a Claude session). `expo.auto: false` / `AI_SHELL_EXPO_AUTO=0` disables auto-detection. `shell` never auto-detects.
 - The detached server outlives the tool session; re-running just re-prints the QR.
 
+### ACP proxy (`ai-shell acp`)
+
+`ai-shell acp {claude,codex,opencode}` is an agent command for ACP clients (JetBrains Air, Zed). The protocol logic is in `acp.py` and knows nothing about Click or Docker. `cli/commands/acp.py` builds one project's backend from the helpers `ai-shell claude` uses (`_claude_exec_env`, `_configure_local_chrome`, `exec_args`). The feature changes no other module. To remove it: the two files, their test, one `add_command` line, the adapter packages in `docker/Dockerfile` and `update-tools.sh`, and the README section.
+
+- **stdout is the protocol.** `serve()` duplicates fd 1 for the client and then points fd 1 at stderr. Nothing that ai-shell or a child process prints can reach the client stream.
+- **Paths:** ACP paths are absolute, so `PathMap` swaps the host project root and `/root/projects/<name>` in every string value. Windows roots compare without case and take either separator.
+- **Project:** Air starts the agent in its own data folder (`...\air\acp-process\...`), and `initialize` names no project. This was seen in a capture of Air 2026.3 on 2026-11-09. So `probe_initialize` answers `initialize` with a `docker run --rm` of the adapter in the image. Each `session/new` `cwd` then starts or reuses one backend per folder, with the client's `initialize` replayed first. Agent-to-client request ids are renumbered so that two backends never collide.
+- **Sandbox:** `sandbox_client_capabilities` turns off `fs`, `terminal` and terminal sign-in. `prepare_session_params` drops the client's MCP servers (host programs, for example `idea64.exe stdioMcpServer`) and drops extra roots outside the project.
+- The image runs the adapters with `--entrypoint ""`, so `docker-entrypoint.sh` does not run for the probe. `docker exec` skips the entrypoint anyway.
+
 ### Scaffold system
 
 `ai-shell init` (`scaffold.py`) writes three files and nothing else: `~/.augint/.env.example` and `~/.augint/.ai-shell.example.yaml` (always refreshed from `templates/augint-env.example` and `templates/augint-ai-shell.example.yaml`) and `.ai-shell.yaml` in the current directory (from `templates/ai-shell.yaml`, never overwritten). Edit the templates in `src/ai_shell/templates/`, not the generated files. ai-shell scaffolds no agent skills or tool settings; `templates/claude/settings.json` and `templates/pi/models.json` are consumed by the image and the `pi` command, not written into projects.
