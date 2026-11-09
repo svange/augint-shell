@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.117.0 (2026-11-09)
+
+### Features
+
+- **acp**: Sign in from the editor, only when the login needs it (#191)
+  ([#191](https://github.com/svange/augint-shell/pull/191),
+  [`b7aa459`](https://github.com/svange/augint-shell/commit/b7aa4599a9c554751ce71ca09653d35ee2ac5995))
+
+
 ## v0.116.0 (2026-11-09)
 
 ### Features
