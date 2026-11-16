@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.121.0 (2026-11-16)
+
+### Features
+
+- **opencode**: Add Bedrock Mantle, custom endpoints, and subagent routing (#195)
+  ([#195](https://github.com/svange/augint-shell/pull/195),
+  [`e68cffe`](https://github.com/svange/augint-shell/commit/e68cffe9faeab56edf63e8c06a0e6014ab96398c))
+
+
 ## v0.120.0 (2026-11-16)
 
 ### Features
