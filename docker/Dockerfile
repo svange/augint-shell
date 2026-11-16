@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     ca-certificates \
-    # Development tools
+    # Development & CLI tools
     vim \
     nano \
     less \
@@ -32,6 +32,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     dos2unix \
     bind9-utils \
+    dnsutils \
+    ripgrep \
+    fd-find \
+    bat \
+    tree \
+    httpie \
+    jo \
+    sqlite3 \
+    tmux \
+    fzf \
+    glances \
+    # Shells
+    zsh \
+    bash-completion \
     # AUTO-UPDATE: cron daemon for background tool updates
     cron \
     # Python development
@@ -42,86 +56,78 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bubblewrap \
     # Docker CLI only (no daemon)
     docker.io \
-    && rm -rf /var/lib/apt/lists/*
+    # Markdown/LaTeX rendering (pi-studio PDF export)
+    pandoc \
+    texlive-xetex \
+    texlive-fonts-recommended \
+    && rm -rf /var/lib/apt/lists/* && \
+    ln -s /usr/bin/fdfind /usr/local/bin/fd && \
+    ln -s /usr/bin/batcat /usr/local/bin/bat
 
-# Install Docker Compose plugin (V2) for managing sibling containers
-RUN mkdir -p /usr/local/lib/docker/cli-plugins && \
-    curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+# Install Docker Compose plugin (V2) for managing sibling containers (multi-arch)
+RUN ARCH=$(uname -m) && \
+    mkdir -p /usr/local/lib/docker/cli-plugins && \
+    curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-${ARCH}" \
     -o /usr/local/lib/docker/cli-plugins/docker-compose && \
     chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
-# Install GitHub CLI
+# Install GitHub CLI and Stripe CLI in a single apt pass
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
     chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && \
+    curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public | gpg --dearmor | tee /usr/share/keyrings/stripe.gpg > /dev/null && \
+    echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" > /etc/apt/sources.list.d/stripe.list && \
     apt-get update && \
-    apt-get install -y gh && \
+    apt-get install -y --no-install-recommends gh stripe && \
     rm -rf /var/lib/apt/lists/*
 
-# Install AWS CLI v2
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
-    unzip awscliv2.zip && \
+# Install AWS CLI v2 and Session Manager Plugin (multi-arch)
+RUN ARCH=$(uname -m) && \
+    DEB_ARCH=$(dpkg --print-architecture) && \
+    SSM_ARCH=$([ "$DEB_ARCH" = "arm64" ] && echo "ubuntu_arm64" || echo "ubuntu_64bit") && \
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o "awscliv2.zip" && \
+    unzip -q awscliv2.zip && \
     ./aws/install && \
-    rm -rf awscliv2.zip aws/
-
-# Install Stripe CLI
-RUN curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public | gpg --dearmor | tee /usr/share/keyrings/stripe.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" | tee -a /etc/apt/sources.list.d/stripe.list && \
-    apt-get update && \
-    apt-get install -y stripe && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install GitLab CLI (glab)
-RUN GLAB_VERSION=$(curl -fsSL "https://gitlab.com/api/v4/projects/34675721/releases/permalink/latest" | jq -r '.tag_name' | sed 's/^v//') && \
-    curl -fsSL "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_amd64.deb" -o /tmp/glab.deb && \
-    dpkg -i /tmp/glab.deb && \
-    rm /tmp/glab.deb
-
-# Install Jira CLI (jira-cli)
-RUN JIRA_VERSION=$(curl -fsSL "https://api.github.com/repos/ankitpokhrel/jira-cli/releases/latest" | jq -r '.tag_name' | sed 's/^v//') && \
-    curl -fsSL "https://github.com/ankitpokhrel/jira-cli/releases/download/v${JIRA_VERSION}/jira_${JIRA_VERSION}_linux_x86_64.tar.gz" -o /tmp/jira.tar.gz && \
-    tar -xzf /tmp/jira.tar.gz -C /tmp/ && \
-    mv /tmp/jira_${JIRA_VERSION}_linux_x86_64/bin/jira /usr/local/bin/jira && \
-    rm -rf /tmp/jira*
-
-# Install AWS SAM CLI and pre-commit
-RUN pip install aws-sam-cli pre-commit
-
-# Install AWS Session Manager Plugin for SSO
-RUN curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb" && \
+    rm -rf awscliv2.zip aws/ && \
+    curl -fsSL "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/${SSM_ARCH}/session-manager-plugin.deb" -o "session-manager-plugin.deb" && \
     dpkg -i session-manager-plugin.deb && \
     rm session-manager-plugin.deb
 
-# Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+# Install GitLab CLI (glab), Jira CLI, yq, and chezmoi (multi-arch)
+RUN DEB_ARCH=$(dpkg --print-architecture) && \
+    JIRA_ARCH=$([ "$DEB_ARCH" = "arm64" ] && echo "arm64" || echo "x86_64") && \
+    GLAB_VERSION=$(curl -fsSL "https://gitlab.com/api/v4/projects/34675721/releases/permalink/latest" | jq -r '.tag_name' | sed 's/^v//') && \
+    curl -fsSL "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_${DEB_ARCH}.deb" -o /tmp/glab.deb && \
+    dpkg -i /tmp/glab.deb && \
+    rm /tmp/glab.deb && \
+    JIRA_VERSION=$(curl -fsSL "https://api.github.com/repos/ankitpokhrel/jira-cli/releases/latest" | jq -r '.tag_name' | sed 's/^v//') && \
+    curl -fsSL "https://github.com/ankitpokhrel/jira-cli/releases/download/v${JIRA_VERSION}/jira_${JIRA_VERSION}_linux_${JIRA_ARCH}.tar.gz" -o /tmp/jira.tar.gz && \
+    tar -xzf /tmp/jira.tar.gz -C /tmp/ && \
+    mv "/tmp/jira_${JIRA_VERSION}_linux_${JIRA_ARCH}/bin/jira" /usr/local/bin/jira && \
+    rm -rf /tmp/jira* && \
+    curl -fsSL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${DEB_ARCH}" -o /usr/local/bin/yq && \
+    chmod +x /usr/local/bin/yq && \
+    sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin && \
+    chezmoi --version
+
+# Install AWS SAM CLI, pre-commit, and uv
+RUN pip install aws-sam-cli pre-commit && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh && \
     ln -s /root/.local/bin/uv /usr/local/bin/uv && \
     ln -s /root/.local/bin/uvx /usr/local/bin/uvx
 
 # Configure uv to use centralized venv location (not in-project)
 ENV UV_PROJECT_ENVIRONMENT=/root/.cache/uv/venvs/project
 
-# Install Node.js (required for Claude Code)
+# Install Node.js (required for Claude Code) and Bun (required by Plannotator OpenCode plugin)
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install Bun (required by Plannotator OpenCode plugin)
-RUN curl -fsSL https://bun.sh/install | bash && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl -fsSL https://bun.sh/install | bash && \
     ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
     ln -s /root/.bun/bin/bunx /usr/local/bin/bunx
 
-# Enable corepack so pnpm and yarn shims are on PATH for monorepos that
-# declare them via package.json "packageManager". Node.js 25+ no longer
-# bundles corepack (`corepack enable` exits 127 on the current LTS), so it
-# is installed from npm first; harmless on a Node that still ships it.
-RUN npm install -g corepack && corepack enable
-
-# Install PHP 8.4 CLI + extensions (deb.sury.org) for the Laravel dev loop
-# (artisan, Pest, Pint, tinker). 8.4 matches the FrankenPHP 1-php8.4 runtime
-# images Laravel projects deploy on. Extension set mirrors those runtime
-# images (pdo_pgsql pcntl opcache intl bcmath) plus the basics FrankenPHP
-# bundles that Debian packages separately. postgresql-client gives psql
-# parity with the already-shipped sqlite3 for docker-compose Postgres setups.
+# Install PHP 8.4 CLI + extensions (deb.sury.org) and Composer 2
 RUN curl -fsSL https://packages.sury.org/debsuryorg-archive-keyring.deb -o /tmp/sury-keyring.deb && \
     dpkg -i /tmp/sury-keyring.deb && \
     rm /tmp/sury-keyring.deb && \
@@ -139,91 +145,47 @@ RUN curl -fsSL https://packages.sury.org/debsuryorg-archive-keyring.deb -o /tmp/
     php8.4-bcmath \
     php8.4-readline \
     postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Composer 2 (PHP dependency manager; covers Pint/Pest/artisan deps,
-# no global Laravel installer needed)
-RUN curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php && \
+    && rm -rf /var/lib/apt/lists/* && \
+    curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php && \
     php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer && \
     rm /tmp/composer-setup.php
 
-# Install AWS CDK CLI
-RUN npm install -g aws-cdk
+# Install Claude Code and OpenCode native binaries
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+    curl -fsSL https://opencode.ai/install | bash
+ENV PATH="/root/.local/bin:/root/.opencode/bin:${PATH}"
 
-# Install Claude Code via native installer (installs to ~/.local/bin)
-RUN curl -fsSL https://claude.ai/install.sh | bash
-ENV PATH="/root/.local/bin:${PATH}"
-
-# Install codex
-RUN npm install -g @openai/codex
-
-# Install opencode (local coding assistant for Ollama)
-RUN curl -fsSL https://opencode.ai/install | bash
-ENV PATH="/root/.opencode/bin:${PATH}"
-
-# Install pi (terminal coding agent, provider-agnostic)
-RUN npm install -g @mariozechner/pi-coding-agent
-
-# Install T3 Code CLI (server + GUI bridge for driving agents remotely).
-# `ai-shell <tool> --t3` runs `t3 serve` inside this container; the CLI is
-# installed on demand at runtime too, so older images keep working.
-RUN npm install -g t3
-
-# Install the ACP adapters that `ai-shell acp` runs for ACP clients (JetBrains
-# Air, Zed). OpenCode has `opencode acp` built in. ai-shell installs them on
-# demand too, so older images keep working.
-RUN npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp
-
-# Install the ngrok binding the Expo CLI loads for `expo start --tunnel`.
-# Expo resolves it from the *global* install and will not prompt for it on a
-# non-TTY start, so it has to exist up front; ai-shell installs it on demand
-# at runtime too, so older images keep working.
-RUN npm install -g @expo/ngrok@^4.1.0
-
-# Install aider (alternative local coding assistant)
-RUN curl -LsSf https://aider.chat/install.sh | sh
-
-# Install pandoc + xelatex (required by pi-studio for Markdown/LaTeX
-# rendering and PDF export via /studio-pdf).
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    pandoc \
-    texlive-xetex \
-    texlive-fonts-recommended \
-    && rm -rf /var/lib/apt/lists/*
+# Consolidate all global npm packages into a single layer
+RUN npm install -g \
+    corepack \
+    aws-cdk \
+    @openai/codex \
+    @mariozechner/pi-coding-agent \
+    t3 \
+    @agentclientprotocol/claude-agent-acp \
+    @agentclientprotocol/codex-acp \
+    @expo/ngrok@^4.1.0 \
+    agent-browser \
+    @playwright/cli \
+    chrome-devtools-mcp@latest \
+    zapier-platform-cli && \
+    corepack enable && \
+    agent-browser install
 
 # Install Playwright with Chrome and ALL dependencies
-# The --with-deps flag is CRUCIAL - it installs ~100+ system libraries Chrome needs
 RUN npx playwright install chrome --with-deps
 
 # IMPORTANT: Set environment to tell Chrome it's OK to run as root in a container
 ENV CHROME_NO_SANDBOX=1
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
 
-# Install agent-browser (lightweight browser automation CLI)
-RUN npm install -g agent-browser && \
-    agent-browser install
-
-# Install Playwright CLI (advanced browser automation)
-RUN npm install -g @playwright/cli
-
-# Install the Chrome DevTools MCP server that `--local-chrome` attaches to
-# the host browser. Baked in because an `npx ...@latest` fetch on a cold
-# container outlasts Claude Code's MCP startup timeout; ai-shell installs it
-# on demand too, so older images keep working.
-RUN npm install -g chrome-devtools-mcp@latest
-
-# Install Zapier Platform CLI (register/validate/push Zapier integrations
-# that live inside project repos). Auth persists via the ~/.zapierrc bind.
-RUN npm install -g zapier-platform-cli
-
 # Build argument for flexible project directory
 ARG PROJECT_DIR=current-project
 
-# Create root's directory structure
-RUN mkdir -p /root/projects/${PROJECT_DIR} && \
-    mkdir -p /root/.cache/uv && \
-    mkdir -p /root/.ssh && \
-    chmod 700 /root/.ssh
+# Create root's directory structure and login-shell PATH profile
+RUN mkdir -p /root/projects/${PROJECT_DIR} /root/.cache/uv /root/.ssh && \
+    chmod 700 /root/.ssh && \
+    echo 'export PATH="/root/.local/bin:/root/.opencode/bin:$PATH"' > /etc/profile.d/ai-shell-path.sh
 
 # Set working directory
 WORKDIR /root/projects/${PROJECT_DIR}
@@ -232,18 +194,9 @@ WORKDIR /root/projects/${PROJECT_DIR}
 # nosemgrep: dockerfile.security.last-user-is-root.last-user-is-root
 USER root
 
-# Install zsh, fish, and bash-completion for multi-shell support
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    zsh \
-    fish \
-    bash-completion \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Starship (cross-shell prompt, used by bash/zsh/fish)
-RUN curl -sS https://starship.rs/install.sh | sh -s -- --yes --bin-dir /usr/local/bin
-
-# Install Oh My Zsh (unattended) + popular plugins
-RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended && \
+# Install Starship, Oh My Zsh + plugins, Oh My Tmux, and vim-plug
+RUN curl -sS https://starship.rs/install.sh | sh -s -- --yes --bin-dir /usr/local/bin && \
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended && \
     git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions \
         /root/.oh-my-zsh/custom/plugins/zsh-autosuggestions && \
     git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting \
@@ -251,115 +204,49 @@ RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master
     git clone --depth=1 https://github.com/zsh-users/zsh-completions \
         /root/.oh-my-zsh/custom/plugins/zsh-completions && \
     git clone --depth=1 https://github.com/zsh-users/zsh-history-substring-search \
-        /root/.oh-my-zsh/custom/plugins/zsh-history-substring-search
-
-# Install Fisher (fish plugin manager) + plugins
-# Bootstrap fisher by downloading it, then install plugins individually.
-# Do NOT run "fisher install jorgebucaran/fisher" -- it conflicts with the
-# manually downloaded fisher.fish file.
-RUN mkdir -p /root/.config/fish/functions /root/.config/fish/completions /root/.config/fish/conf.d && \
-    curl -sSL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish \
-        -o /root/.config/fish/functions/fisher.fish
-RUN fish -c "fisher install jorgebucaran/autopair.fish"
-RUN fish -c "fisher install PatrickF1/fzf.fish"
-RUN fish -c "fisher install meaningful-ooo/sponge"
-RUN fish -c "fisher install jorgebucaran/replay.fish"
-RUN fish -c "fisher install jethrokuan/z"
-
-# Install Oh My Tmux (gpakosz/.tmux)
-RUN git clone --depth=1 https://github.com/gpakosz/.tmux.git /root/.tmux && \
-    ln -sf /root/.tmux/.tmux.conf /root/.tmux.conf
-
-# Install vim-plug
-RUN curl -fLo /root/.vim/autoload/plug.vim --create-dirs \
-    https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+        /root/.oh-my-zsh/custom/plugins/zsh-history-substring-search && \
+    git clone --depth=1 https://github.com/gpakosz/.tmux.git /root/.tmux && \
+    ln -sf /root/.tmux/.tmux.conf /root/.tmux.conf && \
+    curl -fLo /root/.vim/autoload/plug.vim --create-dirs \
+        https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim && \
+    mkdir -p /root/.config
 
 # Copy shell configs into place
 COPY shell-configs/bash_profile /root/.bash_profile
 COPY shell-configs/bashrc /root/.bashrc
 COPY shell-configs/zshrc /root/.zshrc
-COPY shell-configs/fish-config.fish /root/.config/fish/config.fish
 COPY shell-configs/starship.toml /root/.config/starship.toml
 COPY shell-configs/vimrc /root/.vimrc
 COPY shell-configs/tmux.conf.local /root/.tmux.conf.local
 
-# Pre-install vim plugins headlessly so first launch is instant
-RUN vim -es -u /root/.vimrc -i NONE -c "PlugInstall --sync" -c "qa" || true
+# Pre-install vim plugins and zsh completions headlessly so first launch is instant
+RUN (vim -es -u /root/.vimrc -i NONE -c "PlugInstall --sync" -c "qa" || true) && \
+    (zsh -c "autoload -Uz compinit && compinit" || true)
 
-# Pre-generate zsh completion dump so first launch is fast
-RUN zsh -c "autoload -Uz compinit && compinit" || true
-
-# Install additional useful development tools
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Search and file tools
-    ripgrep \
-    fd-find \
-    bat \
-    tree \
-    # Network tools
-    httpie \
-    # JSON/YAML tools
-    jo \
-    # Database tools
-    sqlite3 \
-    # Terminal multiplexer and fuzzy finder
-    tmux \
-    fzf \
-    # Process monitoring
-    glances \
-    # DNS tools
-    dnsutils \
-    && rm -rf /var/lib/apt/lists/* && \
-    # Create symlinks for fd and bat (Debian names them differently)
-    ln -s /usr/bin/fdfind /usr/local/bin/fd && \
-    ln -s /usr/bin/batcat /usr/local/bin/bat
-
-# Install yq (YAML processor) - not available in Debian repos
-RUN curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
-    -o /usr/local/bin/yq && \
-    chmod +x /usr/local/bin/yq
-
-# Install chezmoi (dotfile manager). The host keeps its dotfiles in a chezmoi
-# source repo; with the binary in the image, `chezmoi init --apply <repo>`
-# brings the same shell, git and tool config into a dev container.
-RUN sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin && \
-    chezmoi --version
-
-# Configure git globally as root
+# Configure git globally as root and install git wrapper
 RUN git config --global --add safe.directory '*' && \
     git config --global color.ui auto && \
     git config --global core.editor vim && \
     git config --global init.defaultBranch main && \
-    # Ignore file permission changes on drvfs/9p-mounted Windows filesystems
     git config --global core.filemode false && \
-    git config --global --unset-all http.sslbackend || true
-
-# Note: Running as root to avoid Windows/Docker permission issues
-# The docker-compose.yml should NOT specify user: "1000:1000"
-
-# Create git wrapper that forces gnutls SSL backend and prevents local config pollution
-RUN echo '#!/bin/bash' > /usr/local/bin/git && \
-    echo '# Prevent writing SSL backend to local repo config which would break Windows Git' >> /usr/local/bin/git && \
-    echo 'if [[ "$*" == *"config"* ]] && [[ "$*" == *"sslbackend"* ]] && [[ "$*" != *"--global"* ]]; then' >> /usr/local/bin/git && \
-    echo '    echo "Warning: Preventing local sslbackend config. Use --global if needed." >&2' >> /usr/local/bin/git && \
-    echo '    exit 0' >> /usr/local/bin/git && \
-    echo 'fi' >> /usr/local/bin/git && \
-    echo 'exec /usr/bin/git -c http.sslBackend=gnutls "$@"' >> /usr/local/bin/git && \
+    (git config --global --unset-all http.sslbackend || true) && \
+    printf '%s\n' \
+        '#!/bin/bash' \
+        '# Prevent writing SSL backend to local repo config which would break Windows Git' \
+        'if [[ "$*" == *"config"* ]] && [[ "$*" == *"sslbackend"* ]] && [[ "$*" != *"--global"* ]]; then' \
+        '    echo "Warning: Preventing local sslbackend config. Use --global if needed." >&2' \
+        '    exit 0' \
+        'fi' \
+        'exec /usr/bin/git -c http.sslBackend=gnutls "$@"' \
+        > /usr/local/bin/git && \
     chmod +x /usr/local/bin/git
 
-# Note: Project dependencies are installed on container startup via entrypoint
-# This is because the project files aren't available during build time
+# Copy entrypoint, update-tools, and MOTD scripts
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-
-# AUTO-UPDATE: Tool update script and runtime directories
 COPY update-tools.sh /usr/local/bin/update-tools.sh
-RUN chmod +x /usr/local/bin/update-tools.sh && \
-    mkdir -p /var/run/ai-shell/update-markers /var/log/ai-shell
-
-# MOTD: Environment status dashboard shown at container launch
 COPY motd.sh /usr/local/bin/motd.sh
-RUN chmod +x /usr/local/bin/motd.sh
+RUN chmod +x /docker-entrypoint.sh /usr/local/bin/update-tools.sh /usr/local/bin/motd.sh && \
+    mkdir -p /var/run/ai-shell/update-markers /var/log/ai-shell
 
 # Standalone host CLI binary (built in CI via `python -m ai_shell.standalone --output docker/ai-shell`).
 # Bundling it in the image lets systems that block PyPI and GitHub Releases extract
@@ -368,7 +255,6 @@ COPY docker-entrypoint.sh ai-shell* /tmp/ai-shell-bootstrap/
 RUN if [ -f /tmp/ai-shell-bootstrap/ai-shell ]; then \
         install -m 0755 /tmp/ai-shell-bootstrap/ai-shell /usr/local/bin/ai-shell; \
     fi && rm -rf /tmp/ai-shell-bootstrap
-
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 

@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`src/ai_shell/` contains the packaged CLI and runtime modules. Core behavior lives in files such as `config.py`, `container.py`, `local_chrome.py`, and `tmux.py`; CLI entrypoints are under `src/ai_shell/cli/`. Project templates ship in `src/ai_shell/templates/`. Tests live in `tests/unit/` and follow the source module layout with `test_*.py` files. CI support assets are in `ci-resources/`, Docker packaging is in `docker/`, and the pipeline is `.github/workflows/publish.yaml`.
+`src/ai_shell/` contains the packaged CLI and runtime modules. Core behavior lives in files such as `config.py`, `container.py`, and `local_chrome.py`; CLI entrypoints are under `src/ai_shell/cli/`. Project templates ship in `src/ai_shell/templates/`. Tests live in `tests/unit/` and follow the source module layout with `test_*.py` files. CI support assets are in `ci-resources/`, Docker packaging is in `docker/`, and the pipeline is `.github/workflows/publish.yaml`.
 
 ## Build, Test, and Development Commands
 Use `uv` for local development.
@@ -30,4 +30,3 @@ Do not commit `.env` files; pre-commit blocks them. Project settings live in `.a
 - [CLAUDE.md](CLAUDE.md) — the vision pointer, what to read before you implement, and the architecture: dependency flow, container categories, config/env layering, mount assembly, Claude accounts and Remote Control, host Chrome, and the scaffold system.
 - [Org standards in ai-agency](https://github.com/Augmenting-Integrations/ai-agency/tree/main/docs/standards) — Claude setup, dependency bots, CI mechanics, GitHub Pages and test reports.
 - [README.md](README.md) — project overview, command reference, and the release/branch model (branch-to-publish mapping).
-- [TMUX.md](TMUX.md) — runbook for the multi-pane `ai-shell claude --multi` workflow.

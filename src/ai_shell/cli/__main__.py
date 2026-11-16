@@ -10,7 +10,7 @@ from ai_shell import __version__
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.cli.commands.acp import acp_group
 from ai_shell.cli.commands.llm import llm_group
-from ai_shell.cli.commands.manage import manage_group
+from ai_shell.cli.commands.manage import doctor, manage_group
 from ai_shell.cli.commands.tools import chrome, claude, codex, init, opencode, pi, shell
 from ai_shell.cli.commands.vpn import vpn_group
 from ai_shell.defaults import podman_cli_host
@@ -49,6 +49,7 @@ cli.add_command(opencode)
 cli.add_command(pi)
 cli.add_command(shell)
 cli.add_command(init)
+cli.add_command(doctor)
 
 # Command groups
 cli.add_command(llm_group, "llm")

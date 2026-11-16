@@ -23,12 +23,14 @@ from ai_shell.defaults import (
     COMFYUI_CONTAINER,
     COMFYUI_DATA_VOLUME,
     COMFYUI_IMAGE,
+    CONTAINER_PREFIX,
     KOKORO_CONTAINER,
     KOKORO_IMAGE_CPU,
     KOKORO_IMAGE_GPU,
     LLM_NETWORK,
     N8N_CONTAINER,
     N8N_IMAGE,
+    NODE_MODULES_VOLUME_PREFIX,
     OLLAMA_CONTAINER,
     OLLAMA_CPU_SHARES,
     OLLAMA_DATA_VOLUME,
@@ -52,7 +54,10 @@ from ai_shell.defaults import (
     build_n8n_mounts,
     dev_container_name,
     docker_tcp_fallback_host,
+    node_modules_volume_name,
     project_dev_port_map,
+    t3_home_volume_name,
+    vendor_volume_name,
 )
 from ai_shell.exceptions import (
     ContainerNotFoundError,
@@ -69,6 +74,10 @@ if TYPE_CHECKING:
     from ai_shell.config import AiShellConfig
 
 logger = logging.getLogger(__name__)
+
+#: Docker label recording a digest of the project's mount/port config so
+#: edits to ``.ai-shell.yaml`` automatically recreate the dev container.
+DEV_CONFIG_LABEL = "ai-shell.dev.config"
 
 # Substrings identifying a container start failure caused by host port
 # bindings (Docker's own allocator vs. OS-level refusal, e.g. another
@@ -227,6 +236,18 @@ def _run_docker_with_typeahead(args: list[str], typeahead: bytes) -> tuple[int, 
     return proc.returncode, elapsed
 
 
+def published_host_port(manager: ContainerManager, name: str, container_port: int) -> int | None:
+    """Return the host port bound to *container_port* on *name*, or None if not published."""
+    ports = manager.container_ports(name) or {}
+    binding = ports.get(f"{container_port}/tcp", "")
+    if ":" not in binding:
+        return None
+    try:
+        return int(binding.rsplit(":", 1)[1])
+    except ValueError:
+        return None
+
+
 class ContainerManager:
     """Manages Docker containers for ai-shell.
 
@@ -269,20 +290,55 @@ class ContainerManager:
 
         return name, None
 
+    def _dev_config_digest(self) -> str:
+        """Return a stable SHA-256 hex digest of the dev container's mount/port config."""
+        from hashlib import sha256
+
+        payload = json.dumps(
+            {
+                "dev_ports": list(self.config.dev_ports),
+                "extra_volumes": sorted(self.config.extra_volumes),
+                "node_modules_paths": sorted(self.config.node_modules_paths),
+                "isolate_home_paths": sorted(self.config.isolate_home_paths),
+            },
+            sort_keys=True,
+        )
+        return sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+    def _recreate_if_config_changed(self, container: Container, name: str) -> bool:
+        """Remove *container* when its recorded config digest differs from current config."""
+        labels = getattr(container, "labels", None)
+        if not isinstance(labels, dict):
+            return False
+        recorded = labels.get(DEV_CONFIG_LABEL)
+        if not recorded:
+            return False
+        if recorded == self._dev_config_digest():
+            return False
+        logger.warning(
+            "Dev container %s config changed (.ai-shell.yaml ports/mounts) — recreating",
+            name,
+        )
+        container.remove(force=True)
+        return True
+
     def ensure_dev_container(self) -> str:
         """Get or create the dev container for the current project.
 
         If the container exists but is stopped, it is started.
         If it doesn't exist, it is created with the full configuration.
-        If using the ``latest`` tag and a newer image is available, the
-        existing container is replaced automatically.
+        If using the ``latest`` tag and a newer image is available, or if
+        the project's mount/port configuration changed, the existing container
+        is replaced automatically.
 
         Returns the container name.
         """
         name, container = self.resolve_dev_container()
 
         if container is not None:
-            if self._recreate_if_image_stale(container, name):
+            if self._recreate_if_config_changed(container, name) or self._recreate_if_image_stale(
+                container, name
+            ):
                 # Container was removed; fall through to create a new one.
                 container = None
             else:
@@ -389,6 +445,7 @@ class ContainerManager:
             name=name,
             mounts=mounts,
             environment=environment,
+            labels={DEV_CONFIG_LABEL: self._dev_config_digest()},
             working_dir=f"/root/projects/{self.config.project_name}",
             command="tail -f /dev/null",
             stdin_open=True,
@@ -407,20 +464,6 @@ class ContainerManager:
             detach=True,
         )
         logger.info("Container created: %s", name)
-
-        subprocess.run(
-            [
-                "docker",
-                "exec",
-                name,
-                "sh",
-                "-c",
-                "echo 'export PATH=\"/root/.local/bin:/root/.opencode/bin:$PATH\"'"
-                " > /etc/profile.d/ai-shell-path.sh",
-            ],
-            check=False,
-            capture_output=True,
-        )
 
         try:
             self._write_container_context(container, name, port_map, mounts, docker_host)
@@ -1366,6 +1409,33 @@ class ContainerManager:
         logger.info("Removed volume: %s", name)
         return True
 
+    def remove_project_volumes(self) -> list[str]:
+        """Remove per-project named volumes (node_modules, vendor, T3 data).
+
+        Returns the list of volume names that existed and were removed.
+        """
+        candidates: list[str] = [
+            node_modules_volume_name(self.config.project_name),
+            vendor_volume_name(self.config.project_name),
+            t3_home_volume_name(self.config.project_dir, self.config.project_name),
+        ]
+        # Also include any monorepo workspace node_modules volumes for this project.
+        mounts = build_dev_mounts(
+            self.config.project_dir,
+            self.config.project_name,
+            extra_node_modules_paths=self.config.node_modules_paths,
+        )
+        for m in mounts:
+            source = str(m.get("Source", ""))
+            if source.startswith(NODE_MODULES_VOLUME_PREFIX) and source not in candidates:
+                candidates.append(source)
+
+        removed: list[str] = []
+        for vol_name in candidates:
+            if self.remove_volume(vol_name):
+                removed.append(vol_name)
+        return removed
+
     def container_ports(self, name: str) -> dict[str, str] | None:
         """Get the port mappings for a container.
 
@@ -1383,6 +1453,41 @@ class ContainerManager:
                 binding = bindings[0]
                 result[container_port] = f"{binding['HostIp']}:{binding['HostPort']}"
         return result
+
+    def published_host_port(self, name: str, container_port: int) -> int | None:
+        """Return the host port bound to *container_port*, or None if not published."""
+        ports = self.container_ports(name) or {}
+        binding = ports.get(f"{container_port}/tcp", "")
+        if ":" not in binding:
+            return None
+        try:
+            return int(binding.rsplit(":", 1)[1])
+        except ValueError:
+            return None
+
+    def list_dev_containers(self) -> list[dict[str, str]]:
+        """Return metadata for all existing ai-shell dev containers on this host."""
+        containers = self.client.containers.list(all=True)
+        items: list[dict[str, str]] = []
+        prefix = f"{CONTAINER_PREFIX}-"
+        for c in containers:
+            c_name = getattr(c, "name", "") or ""
+            if not (c_name.startswith(prefix) and c_name.endswith("-dev")):
+                continue
+            project_source = ""
+            for mount in (getattr(c, "attrs", None) or {}).get("Mounts", []):
+                target = mount.get("Destination") or mount.get("Target") or ""
+                if target.startswith("/root/projects/") and target.count("/") == 3:
+                    project_source = str(mount.get("Source", ""))
+                    break
+            items.append(
+                {
+                    "name": c_name,
+                    "status": str(getattr(c, "status", "unknown")),
+                    "project_dir": project_source,
+                }
+            )
+        return sorted(items, key=lambda item: item["name"])
 
     def container_status(self, name: str) -> str | None:
         """Get the status of a container, or None if it doesn't exist."""

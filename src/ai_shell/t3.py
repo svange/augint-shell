@@ -266,27 +266,19 @@ def host_lan_ip() -> str | None:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.settimeout(0.5)
             sock.connect(("8.8.8.8", 80))
-            address: str = sock.getsockname()[0]
+            address: str = str(sock.getsockname()[0])
     except OSError:
         return None
-    return address or None
+    if not address or address.startswith("127."):
+        return None
+    return address
 
 
 def _published_host_port(manager: ContainerManager, container_name: str, port: int) -> int | None:
     """Host port bound to *port*, read from the live container."""
-    from docker.errors import DockerException
+    from ai_shell.container import published_host_port
 
-    try:
-        ports = manager.container_ports(container_name)
-    except DockerException:
-        return None
-    binding = (ports or {}).get(f"{port}/tcp")
-    if not binding:
-        return None
-    try:
-        return int(binding.rsplit(":", 1)[1])
-    except (IndexError, ValueError):
-        return None
+    return published_host_port(manager, container_name, port)
 
 
 def _print_connect_status(status: dict[str, object] | None) -> None:

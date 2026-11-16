@@ -39,12 +39,12 @@ CLI commands (cli/commands/: tools.py, llm.py, manage.py, vpn.py)
   -> host-side helpers the claude command uses:
      local_chrome.py (host Chrome + DevTools bridge), cdp_relay.py (Linux relay),
      claude_login.py (piped `claude auth login`), vpn.py (gluetun container),
-     t3.py, expo.py, tmux.py / interactive.py (multi-pane)
+     t3.py, expo.py
 ```
 
 ### Three container categories
 
-1. **Per-project dev containers** (`augint-shell-{project}-dev`) — one per project directory. Created on-demand, reused if running. Uses `tail -f /dev/null` to stay alive; commands exec into it.
+1. **Per-project dev containers** (`augint-shell-{project}-dev`) — one per project directory. Created on-demand, reused if running, and automatically recreated when their mount/port config digest (`ai-shell.dev.config` label) changes. Uses `tail -f /dev/null` to stay alive; commands exec into it.
 2. **Host-level LLM stack** (singletons) — Ollama, Open WebUI, Kokoro TTS, Speaches STT, voice-agent, and n8n containers shared across projects via the `augint-shell-llm` Docker network. Persistent named volumes. GPU auto-detected for Ollama, Kokoro, and Whisper; those containers auto-recreate when GPU availability changes. Voice-agent image is built locally on first use.
 3. **The VPN container** (singleton `augint-shell-vpn`, `vpn.py`) — gluetun with NordVPN, started only when a host Chrome is configured with `chrome_proxy: vpn`. Only the browser is proxied, never a dev container.
 
@@ -78,11 +78,11 @@ Priority: `extra_env` > `./.env` > `~/.augint/.env` > `os.environ` > defaults. L
 
 The "prefer SSO over PAT" logic in `docker/docker-entrypoint.sh` runs only in PID 1, so it applies to the entrypoint's background tasks (uv sync, auto-update cron, pi installs) — not to interactive tools. Those run via `docker exec`, which bypasses the entrypoint and receives its env from `build_dev_environment` plus explicit `-e` overrides. Consequence: for an interactive session, a `GH_TOKEN` loaded from `--env` (or `~/.augint/.env`) is used as-is and **overrides** the mounted SSO token for that session — by design; supply a PAT only when you intend it to win.
 
-**Claude accounts**: `ai-shell claude --account NAME` (or `claude.account` config / `AI_SHELL_CLAUDE_ACCOUNT`) injects `.env` key `CLAUDE_CODE_OAUTH_TOKEN_{NAME}` as `CLAUDE_CODE_OAUTH_TOKEN` at exec time. `default` injects nothing. Suffixed tokens are never passed through to containers. Because `docker exec -e` cannot remove container-level vars, the claude command is prefixed with `env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN` (tmux panes: `unset ...;`, token via `tmux new-session -e`). `--account` with no value lists accounts. See `build_dev_environment` and `_claude_exec_env` in `cli/commands/tools.py`.
+**Claude accounts**: `ai-shell claude --account NAME` (or `claude.account` config / `AI_SHELL_CLAUDE_ACCOUNT`) injects `.env` key `CLAUDE_CODE_OAUTH_TOKEN_{NAME}` as `CLAUDE_CODE_OAUTH_TOKEN` at exec time. `default` injects nothing. Suffixed tokens are never passed through to containers. Because `docker exec -e` cannot remove container-level vars, the claude command is prefixed with `env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN`. `--account` with no value lists accounts. See `build_dev_environment` and `_claude_exec_env` in `cli/commands/tools.py`.
 
 **Login profiles**: a second credential kind for an account. `CLAUDE_CONFIG_DIR=/root/.augint/claude-accounts/{slug}` (host: `~/.augint/claude-accounts/{slug}`, inside the existing `~/.augint` bind, so no mount change) gives the account its own `claude auth login`, settings and history. Chosen when `--rc` or `--login` is given (`claude_login=True` in `build_dev_environment`), or when the account has no token but the directory exists. In that mode `CLAUDE_CODE_OAUTH_TOKEN` is also unset (`CLAUDE_REMOTE_CONTROL_UNSET_VARS`). Before launch, `claude auth status` (exit 0 = logged in; for `--rc` its `authMethod` must be `claude.ai`) decides whether `claude auth login` runs first (`_ensure_claude_login`). That login is driven from the host over pipes (`claude_login.py`): the authorize URL is read from the process output and opened in the account's Chrome through the DevTools port (`PUT /json/new`), the code is read from a `click.prompt` on the host and written to the process stdin. Passing both through the `docker exec -it` TTY on Windows mangles them (wrapped URL -> broken `state` -> "That code wasn't accepted"). If no URL appears, it falls back to the interactive TTY login. Per-account defaults live in `claude.accounts.<name>` (`ClaudeAccountConfig`: `chrome_profile`, `local_chrome`). A new profile is seeded with a `CLAUDE.md` that imports the host's `~/.claude/CLAUDE.md` (`seed_claude_login_profile`, written only when the profile has none); settings, plugins and rules are not shared.
 
-**Remote Control**: `ai-shell claude --rc [NAME]` runs `claude remote-control --name NAME [--permission-mode bypassPermissions]` via `exec_interactive` (no `-c` retry). Claude Code rejects API keys, setup-token tokens and Bedrock for it, so the exec env is stripped of `CLAUDE_REMOTE_CONTROL_UNSET_VARS` and `--aws` errors. Server mode also refuses global flags such as `--mcp-config`, so with `--local-chrome` the chrome-devtools server is registered with `claude mcp add-json --scope local` in the active config dir and project workdir (`_register_chrome_mcp`). Incompatible with `--multi`/`--team`/`--interactive`.
+**Remote Control**: `ai-shell claude --rc [NAME]` runs `claude remote-control --name NAME [--permission-mode bypassPermissions]` via `exec_interactive` (no `-c` retry). Claude Code rejects API keys, setup-token tokens and Bedrock for it, so the exec env is stripped of `CLAUDE_REMOTE_CONTROL_UNSET_VARS` and `--aws` errors. Server mode also refuses global flags such as `--mcp-config`, so with `--local-chrome` the chrome-devtools server is registered with `claude mcp add-json --scope local` in the active config dir and project workdir (`_register_chrome_mcp`).
 
 **Chrome MCP preflight**: `chrome_mcp_server_spec` runs the `chrome-devtools-mcp` binary baked into the image (`npm install -g`, refreshed by `update-tools.sh` with the other npm tools), never `npx ...@latest`: a cold fetch outlasted Claude Code's MCP startup timeout and the server showed as "failed to start" with no reason. `_configure_local_chrome` calls `prepare_chrome_mcp` after the TCP proxy is up: `ensure_chrome_mcp` installs the package when an older image lacks it, and `probe_chrome_mcp` starts the server once over `docker exec -i`, sends `initialize`, `notifications/initialized` and a `tools/call list_pages` (the server connects to Chrome lazily, so a handshake alone proves nothing), and raises `LocalChromeUnavailable` with the server's stderr on silence, an RPC error or `isError`. Only after that is the config written and, for `--rc`, registered.
 
@@ -110,7 +110,7 @@ Default: runs with `-c` (continue previous conversation). If it fails fast (< 5 
 
 ### Pi integration
 
-Pi (`@mariozechner/pi-coding-agent`) is a provider-agnostic terminal coding agent installed via npm. It connects to Ollama via `models.json` (template in `src/ai_shell/templates/pi/`). The `ai-shell pi` command checks Ollama is running before launch. Config persists via `~/.pi` bind mount. Supports `--aws` (Bedrock), `--openai-profile`, and `--login` (OAuth).
+Pi (`@mariozechner/pi-coding-agent`) is a provider-agnostic terminal coding agent installed via npm. It connects to Ollama via `~/.pi/agent/models.json`. The `ai-shell pi` command checks Ollama is running before launch. Config persists via `~/.pi` bind mount. Supports `--aws` (Bedrock), `--openai-profile`, and `--login` (OAuth).
 
 ### T3 Code integration
 
@@ -148,7 +148,7 @@ Pi (`@mariozechner/pi-coding-agent`) is a provider-agnostic terminal coding agen
 
 ### Scaffold system
 
-`ai-shell init` (`scaffold.py`) writes three files and nothing else: `~/.augint/.env.example` and `~/.augint/.ai-shell.example.yaml` (always refreshed from `templates/augint-env.example` and `templates/augint-ai-shell.example.yaml`) and `.ai-shell.yaml` in the current directory (from `templates/ai-shell.yaml`, never overwritten). Edit the templates in `src/ai_shell/templates/`, not the generated files. ai-shell scaffolds no agent skills or tool settings; `templates/claude/settings.json` and `templates/pi/models.json` are consumed by the image and the `pi` command, not written into projects.
+`ai-shell init` (`scaffold.py`) writes three files and nothing else: `~/.augint/.env.example` and `~/.augint/.ai-shell.example.yaml` (always refreshed from `templates/augint-env.example` and `templates/augint-ai-shell.example.yaml`) and `.ai-shell.yaml` in the current directory (from `templates/ai-shell.yaml`, never overwritten). Edit the templates in `src/ai_shell/templates/`, not the generated files. ai-shell scaffolds no agent skills or tool settings.
 
 ### Standalone executable (`standalone.py`)
 

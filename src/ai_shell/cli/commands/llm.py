@@ -15,7 +15,6 @@ Stack flags (applied to up/down/clean/setup):
 """
 
 import re
-import socket
 import time
 from http.client import HTTPException, HTTPSConnection
 from pathlib import Path
@@ -169,23 +168,10 @@ def _pull_models(manager: ContainerManager, models: tuple[str, ...] | list[str])
 
 
 def _lan_ip() -> str | None:
-    """Return the host's primary LAN IPv4 address, or None if undetectable.
+    """Return the host's primary LAN IPv4 address, or None if undetectable."""
+    from ai_shell.t3 import host_lan_ip
 
-    Uses a UDP socket's routing-table selection without actually sending
-    traffic. Works on Linux, Mac, and WSL2. On WSL2 this returns the
-    WSL VM's eth0 address (typically 172.x.x.x), which is reachable from
-    the Windows host but not the broader LAN unless WSL mirrored mode or
-    a Windows portproxy is configured.
-    """
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(("8.8.8.8", 80))
-            ip = str(s.getsockname()[0])
-    except OSError:
-        return None
-    if ip.startswith("127."):
-        return None
-    return ip
+    return host_lan_ip()
 
 
 def _warn_if_low_memory() -> None:

@@ -10,14 +10,13 @@ import uuid
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 import click
 from rich.console import Console
 
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import AiShellConfig, load_config
-from ai_shell.container import ContainerManager
+from ai_shell.container import ContainerManager, published_host_port
 from ai_shell.defaults import (
     CLAUDE_AUTH_OVERRIDE_VARS,
     CLAUDE_CONFIG_DIR_VAR,
@@ -32,7 +31,6 @@ from ai_shell.defaults import (
     list_claude_login_accounts,
     project_dev_port,
     sanitize_project_name,
-    uv_venv_path,
 )
 from ai_shell.typeahead import capture_typeahead
 
@@ -51,25 +49,8 @@ WORKTREE_BASE_DIR = ".claude/worktrees"
 def _live_host_port(
     manager: ContainerManager, container_name: str, container_port: int
 ) -> int | None:
-    """Host port actually bound for *container_port* on a running container.
-
-    Reads the live binding from Docker, which is authoritative: creation-time
-    availability probing can shift a port away from its derived value, so
-    recomputing via project_dev_port may not match what was actually bound.
-    """
-    from docker.errors import DockerException
-
-    try:
-        ports = manager.container_ports(container_name)
-    except DockerException:
-        return None
-    binding = (ports or {}).get(f"{container_port}/tcp")
-    if not binding:
-        return None
-    try:
-        return int(binding.rsplit(":", 1)[1])
-    except (IndexError, ValueError):
-        return None
+    """Host port actually bound for *container_port* on a running container."""
+    return published_host_port(manager, container_name, container_port)
 
 
 def _print_dev_ports(manager: ContainerManager, container_name: str) -> None:
@@ -90,12 +71,6 @@ def _print_dev_ports(manager: ContainerManager, container_name: str) -> None:
 def _generate_worktree_name() -> str:
     """Return a short random hex string for an auto-named worktree."""
     return uuid.uuid4().hex[:8]
-
-
-def _print_tmux_quick_start() -> None:
-    """Print a short tmux quick-start before attaching."""
-    console.print("[dim]tmux: mouse click=focus drag=resize wheel=scroll[/dim]")
-    console.print("[dim]      Ctrl-a o=pane c=tab Space=layout z=zoom d=detach &=kill-tab[/dim]")
 
 
 def _setup_worktree(container_name: str, container_project_dir: str, name: str) -> str:
@@ -366,54 +341,6 @@ def _attach_expo(
         console.print(f"[yellow]Expo dev server not started:[/yellow] {exc}")
 
 
-def _attach_expo_for_config(
-    config: AiShellConfig,
-    env_file: Path | None = None,
-    *,
-    use_expo: bool | None,
-) -> None:
-    """Attach Expo before a launch path that manages its own container calls."""
-    from ai_shell.expo import detect
-
-    if use_expo is False or (use_expo is None and not config.expo_auto):
-        return
-    # Detect before touching Docker: auto-detection must not create a
-    # container or build an environment for a project that has no Expo app.
-    if not use_expo and not detect(config.project_dir).is_app:
-        return
-    manager = ContainerManager(config)
-    container_name = manager.ensure_dev_container()
-    exec_env = build_dev_environment(
-        config.extra_env,
-        config.project_dir,
-        project_name=config.project_name,
-        aws_profile=config.ai_profile,
-        aws_region=config.aws_region,
-        env_file=env_file,
-    )
-    _attach_expo(manager, container_name, config, exec_env, use_expo=use_expo)
-
-
-def _attach_t3_for_config(config: AiShellConfig, env_file: Path | None = None) -> None:
-    """Attach T3 Code before a launch path that manages its own container calls.
-
-    The tmux-based Claude launchers (``--multi``, ``--team``, ``--interactive``)
-    all drive the same per-project container, so T3 can be brought up ahead of
-    whichever one runs.
-    """
-    manager = ContainerManager(config)
-    container_name = manager.ensure_dev_container()
-    exec_env = build_dev_environment(
-        config.extra_env,
-        config.project_dir,
-        project_name=config.project_name,
-        aws_profile=config.ai_profile,
-        aws_region=config.aws_region,
-        env_file=env_file,
-    )
-    _attach_t3(manager, container_name, config, exec_env)
-
-
 def _bedrock_label(exec_env: dict[str, str]) -> str:
     """Return the user-facing Bedrock suffix for launch messages."""
     profile_label = exec_env.get("AWS_PROFILE", "default")
@@ -559,7 +486,6 @@ def _claude_exec_env(
     cli_profile: str | None,
     claude_account: str,
     env_file: Path | None,
-    team_mode: bool = False,
     claude_login: bool = False,
 ) -> dict[str, str]:
     """Build the exec env for a Claude launch; config errors fail loudly."""
@@ -576,7 +502,6 @@ def _claude_exec_env(
             bedrock_model=config.bedrock_model,
             claude_account=claude_account,
             claude_login=claude_login,
-            team_mode=team_mode,
             env_file=env_file,
         )
     except ValueError as exc:
@@ -616,16 +541,6 @@ def _claude_account_label(claude_account: str, exec_env: dict[str, str]) -> str:
     if CLAUDE_CONFIG_DIR_VAR in exec_env:
         return f" (account={claude_account}, login profile)"
     return ""
-
-
-def _claude_session_env(exec_env: dict[str, str]) -> dict[str, str] | None:
-    """Return the tmux session env that carries the selected account credential."""
-    session_env = {
-        key: exec_env[key]
-        for key in (CLAUDE_OAUTH_TOKEN_VAR, CLAUDE_CONFIG_DIR_VAR)
-        if key in exec_env
-    }
-    return session_env or None
 
 
 def _print_claude_accounts(config: AiShellConfig, env_file: Path | None) -> None:
@@ -1044,7 +959,6 @@ def _launch_loaded_config_claude(
     cli_profile: str | None,
     extra_args: tuple[str, ...],
     local_chrome: bool = False,
-    team_mode: bool = False,
     worktree_name: str | None = None,
     env_file: Path | None = None,
     use_t3: bool = False,
@@ -1094,10 +1008,6 @@ def _launch_loaded_config_claude(
         account_prefix = _claude_account_cmd_prefix(exec_env)
         account_label = _claude_account_label(claude_account, exec_env)
         chrome_profile = _account_chrome_profile(config, claude_account)
-
-        if team_mode:
-            exec_env = dict(exec_env)
-            exec_env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
 
         bedrock_label = ""
         if use_bedrock:
@@ -1276,642 +1186,6 @@ def _launch_loaded_config_claude(
     sys.exit(exit_code)
 
 
-def _load_workspace_repos(workspace_yaml: Path) -> tuple[str, list[dict[str, Any]]]:
-    """Parse workspace.yaml and return (workspace_name, repos_list).
-
-    Each repo dict has at least ``name`` and ``path`` keys.
-    Raises :class:`click.ClickException` on parse errors.
-    """
-    import yaml
-
-    try:
-        data = yaml.safe_load(workspace_yaml.read_text())
-    except Exception as exc:
-        raise click.ClickException(f"Failed to parse {workspace_yaml}: {exc}") from exc
-
-    workspace_name: str = data.get("workspace", {}).get("name", workspace_yaml.parent.name)
-    repos: list[dict[str, Any]] = data.get("repos", [])
-    return workspace_name, repos
-
-
-def _launch_interactive(
-    ctx: click.Context,
-    *,
-    safe: bool,
-    use_aws: bool,
-    cli_profile: str | None,
-    extra_args: tuple[str, ...],
-    worktree_name: str | None = None,
-    env_file: Path | None = None,
-    cli_account: str | None = None,
-) -> None:
-    """Interactive Claude launcher.
-
-    Walks the user through a guided wizard to configure panes, then launches
-    either a normal single session or a customised tmux session.
-    """
-    from ai_shell.interactive import PaneType, build_interactive_panes, run_interactive_wizard
-    from ai_shell.tmux import (
-        TMUX_SESSION_PREFIX,
-        build_attach_command,
-        build_check_session_command,
-        build_tmux_commands,
-    )
-
-    # Load config early -- needed for prompt defaults and any single-pane launch.
-    project = ctx.obj.get("project") if ctx.obj else None
-    config = load_config(project_override=project, project_dir=Path.cwd())
-
-    # Gather workspace repos if available.
-    workspace_yaml = Path.cwd() / "workspace.yaml"
-    workspace_repos = None
-    if workspace_yaml.exists():
-        _, workspace_repos = _load_workspace_repos(workspace_yaml)
-
-    # Run the wizard.
-    interactive_config = run_interactive_wizard(
-        project_name=config.project_name,
-        workspace_repos=workspace_repos,
-        default_windows=2,
-        default_shared_chrome=config.local_chrome is True,
-    )
-    if interactive_config is None:
-        console.print("[dim]Cancelled.[/dim]")
-        return
-
-    if interactive_config.pane_count == 1:
-        choice = interactive_config.pane_choices[0]
-
-        if choice.pane_type == PaneType.BASH:
-            with capture_typeahead() as typeahead:
-                manager = ContainerManager(config)
-                container_name = manager.ensure_dev_container()
-                _print_dev_ports(manager, container_name)
-                exec_env = build_dev_environment(
-                    config.extra_env,
-                    config.project_dir,
-                    project_name=config.project_name,
-                    aws_profile=config.ai_profile,
-                    aws_region=config.aws_region,
-                    bedrock_profile=cli_profile or config.bedrock_profile,
-                    bedrock_region=config.bedrock_region,
-                    env_file=env_file,
-                )
-                console.print(f"[bold]Launching Bash in {container_name}...[/bold]")
-            manager.exec_interactive(
-                container_name,
-                ["/bin/bash"],
-                extra_env=exec_env,
-                workdir=f"/root/projects/{config.project_name}",
-                typeahead=typeahead.bytes(),
-            )
-            return
-
-        selected_dir = config.project_dir
-        target_label = config.project_name
-        if choice.pane_type == PaneType.WORKSPACE_REPO:
-            selected_dir = Path.cwd() / choice.repo_path
-            if not selected_dir.exists():
-                raise click.ClickException(
-                    f"Repo directory not found: {selected_dir}\n"
-                    "  Run /ai-workspace-sync to clone workspace repos first."
-                )
-            target_label = choice.repo_name
-
-        console.print(
-            f"[dim]Single Claude pane selected -- launching standard session in "
-            f"{target_label}[/dim]"
-        )
-        selected_config = load_config(project_override=project, project_dir=selected_dir)
-        _launch_loaded_config_claude(
-            selected_config,
-            safe=safe,
-            use_aws=use_aws,
-            cli_profile=cli_profile,
-            extra_args=extra_args,
-            local_chrome=interactive_config.shared_chrome,
-            team_mode=interactive_config.team_mode,
-            worktree_name=worktree_name,
-            env_file=env_file,
-            cli_account=cli_account,
-        )
-        return
-
-    session_name = f"{TMUX_SESSION_PREFIX}-{config.project_name}"
-    container_name = dev_container_name(config.project_name, config.project_dir)
-
-    # Check for existing tmux session after the user has actually chosen a
-    # multi-pane launch.
-    check_cmd = build_check_session_command(container_name, session_name)
-    has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0
-
-    if has_session:
-        console.print(f"[bold]Found existing tmux session '[cyan]{session_name}[/cyan]'.[/bold]")
-        choice = click.prompt(
-            "  Reconnect, start fresh, or cancel?",
-            type=click.Choice(["reconnect", "fresh", "cancel"], case_sensitive=False),
-            default="reconnect",
-        )
-        if choice == "reconnect":
-            # TODO(typeahead): tmux attach in _launch_interactive doesn't
-            # replay typeahead bytes; needs a PTY pump around the tmux
-            # session. Deferred for now.
-            attach_cmd = build_attach_command(container_name, session_name)
-            logger.debug("tmux reattach: %s", " ".join(attach_cmd))
-            _print_tmux_quick_start()
-            sys.stdout.flush()
-            sys.stderr.flush()
-            attach = subprocess.run(attach_cmd)
-            sys.exit(attach.returncode)
-        if choice == "cancel":
-            return
-
-    # Ensure container is running.
-    use_bedrock = use_aws or config.claude_provider == "aws"
-    manager = ContainerManager(config)
-    container_name = manager.ensure_dev_container()
-    _print_dev_ports(manager, container_name)
-    exec_env = _claude_exec_env(
-        config,
-        use_bedrock=use_bedrock,
-        cli_profile=cli_profile,
-        claude_account=cli_account or config.claude_account,
-        env_file=env_file,
-    )
-
-    if use_bedrock:
-        _check_bedrock_access(
-            container_name,
-            exec_env,
-            model_id=config.bedrock_model,
-            cache_ttl=config.bedrock_check_cache_ttl,
-        )
-
-    # Handle shared Chrome if requested.
-    mcp_config_path: str | None = None
-    if interactive_config.shared_chrome:
-        _, mcp_config_path, _ = _configure_local_chrome(
-            container_name,
-            project_name=config.project_name,
-            project_dir=config.project_dir,
-            chrome_profile=_account_chrome_profile(config, cli_account or config.claude_account),
-            chrome_proxy=_resolve_chrome_proxy(
-                manager, config, cli_account or config.claude_account, env_file=env_file
-            ),
-        )
-
-    # Build pane specs.
-    container_project_root = f"/root/projects/{config.project_name}"
-    panes = build_interactive_panes(
-        config=interactive_config,
-        project_name=config.project_name,
-        container_name=container_name,
-        container_project_root=container_project_root,
-        safe=safe,
-        extra_args=extra_args,
-        mcp_config_path=mcp_config_path,
-        setup_worktree_fn=_setup_worktree,
-        unset_vars=_claude_account_unset_vars(exec_env),
-    )
-
-    # Build and run tmux commands.
-    cmds = build_tmux_commands(
-        container_name, session_name, panes, session_env=_claude_session_env(exec_env)
-    )
-
-    console.print(f"[bold]Launching {len(panes)} panes in tmux session '{session_name}'...[/bold]")
-
-    for cmd_args in cmds[:-1]:
-        result = subprocess.run(cmd_args, capture_output=True, text=True)
-        if result.returncode != 0 and "kill-session" not in " ".join(cmd_args):
-            logger.debug("tmux setup command failed: %s\n%s", cmd_args, result.stderr)
-
-    # TODO(typeahead): multi-pane tmux attach in _launch_interactive doesn't
-    # replay typeahead bytes; needs a PTY pump or per-pane send-keys. Deferred.
-    final_cmd = cmds[-1]
-    logger.debug("tmux attach: %s", " ".join(final_cmd))
-    _print_tmux_quick_start()
-    sys.stdout.flush()
-    sys.stderr.flush()
-    attach = subprocess.run(final_cmd)
-    sys.exit(attach.returncode)
-
-
-def _launch_team(
-    ctx: click.Context,
-    *,
-    safe: bool,
-    use_aws: bool,
-    cli_profile: str | None,
-    extra_args: tuple[str, ...],
-    env_file: Path | None = None,
-    cli_account: str | None = None,
-) -> None:
-    """Launch Claude Code in Agent Teams mode.
-
-    Creates a single Claude Code instance with Agent Teams enabled.  The lead
-    agent receives workspace context (repo list from ``workspace.yaml``) and
-    manages its own tmux pane splitting for teammates.
-    """
-    # Gather workspace context if available
-    workspace_yaml = Path.cwd() / "workspace.yaml"
-    workspace_context = ""
-    if workspace_yaml.exists():
-        workspace_name, repos = _load_workspace_repos(workspace_yaml)
-        repo_lines = "\n".join(
-            f"  - {r['name']} ({r.get('repo_type', 'unknown')}): "
-            f"/root/projects/{workspace_name}/{r.get('path', './' + r['name']).lstrip('./')}"
-            for r in repos
-        )
-        # Per-repo UV_PROJECT_ENVIRONMENT lines (same scheme as tmux.py)
-        env_lines = "\n".join(
-            f"  {r['name']}: export UV_PROJECT_ENVIRONMENT={uv_venv_path(r['name'])}" for r in repos
-        )
-        workspace_context = (
-            f"Workspace: {workspace_name}\n"
-            f"Repos:\n{repo_lines}\n\n"
-            "Spawn teammates for each repo.  Tell each teammate to work in "
-            "the directory listed above for their assigned repo.\n\n"
-            "IMPORTANT: Each teammate MUST run the following as their first "
-            "command before running any uv or python commands:\n"
-            f"{env_lines}\n"
-            "This isolates each repo's Python virtual environment."
-        )
-
-    with capture_typeahead() as typeahead:
-        # Load config and create container
-        project = ctx.obj.get("project") if ctx.obj else None
-        config = load_config(project_override=project, project_dir=Path.cwd())
-        use_bedrock = use_aws or config.claude_provider == "aws"
-
-        manager = ContainerManager(config)
-        container_name = manager.ensure_dev_container()
-        _print_dev_ports(manager, container_name)
-        exec_env = _claude_exec_env(
-            config,
-            use_bedrock=use_bedrock,
-            cli_profile=cli_profile,
-            claude_account=cli_account or config.claude_account,
-            env_file=env_file,
-            team_mode=True,
-        )
-
-        if use_bedrock:
-            _check_bedrock_access(
-                container_name,
-                exec_env,
-                model_id=config.bedrock_model,
-                cache_ttl=config.bedrock_check_cache_ttl,
-            )
-
-        workdir = f"/root/projects/{config.project_name}"
-
-        # Build the claude command -- Agent Teams manages its own tmux panes
-        cmd: list[str] = [*_claude_account_cmd_prefix(exec_env), "claude"]
-        if not safe:
-            cmd.append("--dangerously-skip-permissions")
-        cmd.extend(extra_args)
-
-        # Pass workspace context as the positional prompt argument (NOT -p,
-        # which enables non-interactive print mode and would hang).
-        if workspace_context:
-            cmd.append(workspace_context)
-
-        console.print("[bold]Launching Claude Code in Agent Teams mode (experimental)...[/bold]")
-        if workspace_context:
-            console.print("[dim]Workspace context provided to team lead[/dim]")
-
-    manager.exec_interactive(
-        container_name, cmd, extra_env=exec_env, workdir=workdir, typeahead=typeahead.bytes()
-    )
-
-
-def _launch_single_repo_multi(
-    *,
-    config: AiShellConfig,
-    session_name: str,
-    safe: bool,
-    use_aws: bool,
-    cli_profile: str | None,
-    extra_args: tuple[str, ...],
-    worktree_name: str | None = None,
-    env_file: Path | None = None,
-    cli_account: str | None = None,
-) -> None:
-    """Single-repo multi-pane launcher.
-
-    Called when ``--multi`` is used outside a workspace repo (no
-    ``workspace.yaml`` in the current directory).  Prompts the user for the
-    number of windows (2–4) and creates a separate git worktree for each pane
-    so that agents can work on independent branches simultaneously.
-    """
-    from ai_shell.tmux import (
-        PaneSpec,
-        build_claude_pane_command,
-        build_tmux_commands,
-    )
-
-    num_windows = click.prompt(
-        "How many windows do you want?",
-        type=click.IntRange(2, 4),
-        default=2,
-    )
-
-    # Resolve the base worktree name (auto-generate when omitted or empty)
-    if worktree_name:
-        base_name = worktree_name
-    else:
-        base_name = _generate_worktree_name()
-
-    use_bedrock = use_aws or config.claude_provider == "aws"
-    manager = ContainerManager(config)
-    container_name = manager.ensure_dev_container()
-    _print_dev_ports(manager, container_name)
-    exec_env = _claude_exec_env(
-        config,
-        use_bedrock=use_bedrock,
-        cli_profile=cli_profile,
-        claude_account=cli_account or config.claude_account,
-        env_file=env_file,
-    )
-
-    if use_bedrock:
-        _check_bedrock_access(
-            container_name,
-            exec_env,
-            model_id=config.bedrock_model,
-            cache_ttl=config.bedrock_check_cache_ttl,
-        )
-
-    container_project_root = f"/root/projects/{config.project_name}"
-    panes: list[PaneSpec] = []
-    for i in range(1, num_windows + 1):
-        wt_name = f"{base_name}-{i}"
-        worktree_dir = _setup_worktree(container_name, container_project_root, wt_name)
-        pane_cmd = build_claude_pane_command(
-            repo_name=config.project_name,
-            safe=safe,
-            extra_args=extra_args,
-            worktree_name=wt_name,
-            unset_vars=_claude_account_unset_vars(exec_env),
-        )
-        panes.append(
-            PaneSpec(
-                name=f"{config.project_name}-{i}",
-                command=pane_cmd,
-                working_dir=worktree_dir,
-            )
-        )
-
-    cmds = build_tmux_commands(
-        container_name, session_name, panes, session_env=_claude_session_env(exec_env)
-    )
-
-    console.print(
-        f"[bold]Launching {num_windows} Claude Code instances for "
-        f"'{config.project_name}' in tmux session '{session_name}'...[/bold]"
-    )
-
-    for cmd_args in cmds[:-1]:
-        result = subprocess.run(cmd_args, capture_output=True, text=True)
-        if result.returncode != 0 and "kill-session" not in " ".join(cmd_args):
-            logger.debug("tmux setup command failed: %s\n%s", cmd_args, result.stderr)
-
-    # TODO(typeahead): tmux attach in _launch_single_repo_multi doesn't replay
-    # typeahead bytes; needs a PTY pump or per-pane send-keys. Deferred.
-    final_cmd = cmds[-1]
-    logger.debug("tmux attach: %s", " ".join(final_cmd))
-    _print_tmux_quick_start()
-    sys.stdout.flush()
-    sys.stderr.flush()
-    attach = subprocess.run(final_cmd)
-    sys.exit(attach.returncode)
-
-
-def _launch_multi(
-    ctx: click.Context,
-    *,
-    safe: bool,
-    use_aws: bool,
-    cli_profile: str | None,
-    extra_args: tuple[str, ...],
-    worktree_name: str | None = None,
-    env_file: Path | None = None,
-    cli_account: str | None = None,
-) -> None:
-    """Multi-pane Claude launcher.
-
-    In a workspace repo (``workspace.yaml`` present): presents an interactive
-    selector and launches one pane per selected repo.
-
-    In a single repo (no ``workspace.yaml``): prompts for the number of
-    windows (2–4) and launches that many git worktree instances of the current
-    repo so agents can work on independent branches simultaneously.
-    """
-    from ai_shell.selector import SelectionItem, interactive_multi_select
-    from ai_shell.tmux import (
-        TMUX_SESSION_PREFIX,
-        PaneSpec,
-        build_attach_command,
-        build_check_session_command,
-        build_claude_pane_command,
-        build_tmux_commands,
-    )
-
-    # Load config early -- needed for both the session check and both flows.
-    project = ctx.obj.get("project") if ctx.obj else None
-    config = load_config(project_override=project, project_dir=Path.cwd())
-    session_name = f"{TMUX_SESSION_PREFIX}-{config.project_name}"
-    container_name = dev_container_name(config.project_name, config.project_dir)
-
-    # Check for existing tmux session before presenting the selector.
-    # The container and session might still be running from a previous
-    # invocation (e.g. after the user detached with C-a d or closed
-    # the terminal).
-    check_cmd = build_check_session_command(container_name, session_name)
-    has_session = subprocess.run(check_cmd, capture_output=True).returncode == 0
-
-    if has_session:
-        console.print(f"[bold]Found existing tmux session '[cyan]{session_name}[/cyan]'.[/bold]")
-        choice = click.prompt(
-            "  Reconnect, start fresh, or cancel?",
-            type=click.Choice(["reconnect", "fresh", "cancel"], case_sensitive=False),
-            default="reconnect",
-        )
-        if choice == "reconnect":
-            # TODO(typeahead): tmux attach in _launch_multi doesn't replay
-            # typeahead bytes; needs a PTY pump or per-pane send-keys. Deferred.
-            attach_cmd = build_attach_command(container_name, session_name)
-            logger.debug("tmux reattach: %s", " ".join(attach_cmd))
-            _print_tmux_quick_start()
-            sys.stdout.flush()
-            sys.stderr.flush()
-            attach = subprocess.run(attach_cmd)
-            sys.exit(attach.returncode)
-        elif choice == "cancel":
-            return
-        # choice == "fresh": fall through to selector and recreate
-
-    # Single-repo path: no workspace.yaml in the current directory.
-    workspace_yaml = Path.cwd() / "workspace.yaml"
-    if not workspace_yaml.exists():
-        _launch_single_repo_multi(
-            config=config,
-            session_name=session_name,
-            safe=safe,
-            use_aws=use_aws,
-            cli_profile=cli_profile,
-            extra_args=extra_args,
-            worktree_name=worktree_name,
-            env_file=env_file,
-            cli_account=cli_account,
-        )
-        return
-
-    workspace_name, repos = _load_workspace_repos(workspace_yaml)
-
-    # Build selection items: workspace root first, then each child repo
-    items: list[SelectionItem] = [
-        SelectionItem(
-            label=workspace_name,
-            value=".",
-            description="workspace root",
-        ),
-    ]
-    for repo in repos:
-        items.append(
-            SelectionItem(
-                label=repo["name"],
-                value=repo.get("path", f"./{repo['name']}"),
-                description=repo.get("repo_type", ""),
-            )
-        )
-
-    # Run interactive selector on the host
-    selected = interactive_multi_select(items, title="Select repos (up to 4)")
-
-    if not selected:
-        console.print("[dim]No repos selected.[/dim]")
-        return
-
-    # For a single selection, fall through to normal claude flow
-    if len(selected) == 1:
-        sel = selected[0]
-        sel_path = Path.cwd() / sel.value
-        if not sel_path.exists():
-            raise click.ClickException(
-                f"Repo directory not found: {sel_path}\n"
-                "  Run /ai-workspace-sync to clone workspace repos first."
-            )
-        console.print(f"[dim]Single selection -- launching Claude in {sel.label}[/dim]")
-        project = ctx.obj.get("project") if ctx.obj else None
-        config = load_config(project_override=project, project_dir=sel_path)
-        _launch_loaded_config_claude(
-            config,
-            safe=safe,
-            use_aws=use_aws,
-            cli_profile=cli_profile,
-            extra_args=extra_args,
-            worktree_name=worktree_name,
-            env_file=env_file,
-            cli_account=cli_account,
-        )
-        return
-
-    # Multi selection (2-4 repos): validate dirs, build tmux session
-    missing: list[str] = []
-    for sel in selected:
-        sel_path = Path.cwd() / sel.value
-        if not sel_path.exists():
-            missing.append(str(sel_path))
-    if missing:
-        raise click.ClickException(
-            "Repo directories not found:\n"
-            + "\n".join(f"  - {p}" for p in missing)
-            + "\n\nRun /ai-workspace-sync to clone workspace repos first."
-        )
-
-    # config was loaded earlier for the session check; reuse it here
-    use_bedrock = use_aws or config.claude_provider == "aws"
-    manager = ContainerManager(config)
-    container_name = manager.ensure_dev_container()
-    _print_dev_ports(manager, container_name)
-    exec_env = _claude_exec_env(
-        config,
-        use_bedrock=use_bedrock,
-        cli_profile=cli_profile,
-        claude_account=cli_account or config.claude_account,
-        env_file=env_file,
-    )
-
-    if use_bedrock:
-        _check_bedrock_access(
-            container_name,
-            exec_env,
-            model_id=config.bedrock_model,
-            cache_ttl=config.bedrock_check_cache_ttl,
-        )
-
-    # Resolve worktree name (auto-generate if flag given without value)
-    wt_name = worktree_name
-    if wt_name is not None and wt_name == "":
-        wt_name = _generate_worktree_name()
-
-    # Build PaneSpecs
-    container_project_root = f"/root/projects/{config.project_name}"
-    panes: list[PaneSpec] = []
-    for sel in selected:
-        if sel.value == ".":
-            repo_name = config.project_name
-            working_dir = container_project_root
-        else:
-            repo_name = sel.label
-            # Normalize path: strip leading "./"
-            rel = sel.value.lstrip("./")
-            working_dir = f"{container_project_root}/{rel}"
-
-        # Create a worktree for this repo if --worktree was given
-        if wt_name is not None:
-            worktree_dir = _setup_worktree(container_name, working_dir, wt_name)
-            working_dir = worktree_dir
-
-        pane_cmd = build_claude_pane_command(
-            repo_name=repo_name,
-            safe=safe,
-            extra_args=extra_args,
-            worktree_name=wt_name,
-            unset_vars=_claude_account_unset_vars(exec_env),
-        )
-        panes.append(PaneSpec(name=repo_name, command=pane_cmd, working_dir=working_dir))
-
-    cmds = build_tmux_commands(
-        container_name, session_name, panes, session_env=_claude_session_env(exec_env)
-    )
-
-    # Execute all setup commands (non-interactive), then attach
-    console.print(
-        f"[bold]Launching {len(panes)} Claude Code instances in tmux session "
-        f"'{session_name}'...[/bold]"
-    )
-
-    for cmd_args in cmds[:-1]:
-        result = subprocess.run(cmd_args, capture_output=True, text=True)
-        # kill-session may fail (no existing session) -- that's fine
-        if result.returncode != 0 and "kill-session" not in " ".join(cmd_args):
-            logger.debug("tmux setup command failed: %s\n%s", cmd_args, result.stderr)
-
-    # Final command: interactive attach (replaces process)
-    # TODO(typeahead): multi-pane tmux attach in _launch_multi doesn't replay
-    # typeahead bytes; needs a PTY pump or per-pane send-keys. Deferred.
-    final_cmd = cmds[-1]
-    logger.debug("tmux attach: %s", " ".join(final_cmd))
-    _print_tmux_quick_start()
-    sys.stdout.flush()
-    sys.stderr.flush()
-    attach = subprocess.run(final_cmd)
-    sys.exit(attach.returncode)
-
-
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
 @click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
@@ -1942,25 +1216,6 @@ def _launch_multi(
         "flag is given without a value.  "
         "Worktrees are placed at ``.claude/worktrees/<name>/`` inside the "
         "bind mount so they remain visible on the host."
-    ),
-)
-@click.option(
-    "--multi",
-    "do_multi",
-    is_flag=True,
-    default=False,
-    help="Launch Claude Code in multiple workspace repos via tmux.",
-)
-@click.option(
-    "--team",
-    "do_team",
-    is_flag=True,
-    default=False,
-    help=(
-        "Launch Claude Code in Agent Teams mode (experimental).  "
-        "A single Claude instance acts as team lead and spawns teammates, "
-        "each working in a different workspace repo.  Requires tmux inside "
-        "the container.  Reads workspace.yaml for repo context."
     ),
 )
 @click.option(
@@ -2026,18 +1281,6 @@ def _launch_multi(
     help=EXPO_OPTION_HELP,
 )
 @click.option(
-    "--interactive",
-    "-i",
-    "do_interactive",
-    is_flag=True,
-    default=False,
-    help=(
-        "Interactive multi-pane setup: walk through a guided menu to "
-        "configure windows, teams mode, and shared Chrome before launch. "
-        "A single Claude pane falls back to a normal session."
-    ),
-)
-@click.option(
     "--env",
     "env_file",
     is_flag=False,
@@ -2054,15 +1297,12 @@ def claude(
     cli_profile,
     cli_account,
     worktree_name,
-    do_multi,
-    do_team,
     local_chrome,
     chrome_proxy,
     remote_control,
     force_login,
     use_t3,
     use_expo,
-    do_interactive,
     env_file,
     extra_args,
 ):
@@ -2073,74 +1313,6 @@ def claude(
         project = ctx.obj.get("project") if ctx.obj else None
         _print_claude_accounts(
             load_config(project_override=project, project_dir=Path.cwd()), resolved_env
-        )
-        return
-
-    # Incompatibility checks
-    if do_team and do_multi:
-        raise click.ClickException("--team and --multi are incompatible (both manage tmux).")
-    if do_interactive and do_team:
-        raise click.ClickException(
-            "--interactive and --team are incompatible (interactive handles teams mode itself)."
-        )
-    if do_interactive and local_chrome:
-        raise click.ClickException(
-            "--interactive and --local-chrome are incompatible "
-            "(interactive handles Chrome setup itself)."
-        )
-    if (remote_control is not None or force_login) and (do_multi or do_team or do_interactive):
-        raise click.ClickException(
-            "--rc and --login run a single session; they are incompatible with "
-            "--multi, --team and --interactive."
-        )
-
-    if do_interactive or do_multi or do_team:
-        project = ctx.obj.get("project") if ctx.obj else None
-        tmux_config = load_config(project_override=project, project_dir=Path.cwd())
-        if use_t3:
-            _attach_t3_for_config(tmux_config, env_file=resolved_env)
-        # --multi and --team always stay in the cwd project, so the dev server
-        # belongs to this config.  --interactive can retarget another repo, and
-        # its single-pane fallback attaches against the config it actually
-        # picked, so pre-attaching here would start the wrong project's server.
-        if do_multi or do_team:
-            _attach_expo_for_config(tmux_config, env_file=resolved_env, use_expo=use_expo)
-
-    if do_interactive:
-        _launch_interactive(
-            ctx,
-            safe=safe,
-            use_aws=use_aws,
-            cli_profile=cli_profile,
-            extra_args=extra_args,
-            worktree_name=worktree_name,
-            env_file=resolved_env,
-            cli_account=cli_account,
-        )
-        return
-
-    if do_multi:
-        _launch_multi(
-            ctx,
-            safe=safe,
-            use_aws=use_aws,
-            cli_profile=cli_profile,
-            extra_args=extra_args,
-            worktree_name=worktree_name,
-            env_file=resolved_env,
-            cli_account=cli_account,
-        )
-        return
-
-    if do_team:
-        _launch_team(
-            ctx,
-            safe=safe,
-            use_aws=use_aws,
-            cli_profile=cli_profile,
-            extra_args=extra_args,
-            env_file=resolved_env,
-            cli_account=cli_account,
         )
         return
 
@@ -2732,7 +1904,6 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
     help=EXPO_OPTION_HELP,
 )
 @click.option("--login", "do_login", is_flag=True, default=False, help="Run pi login for OAuth.")
-@click.option("--doom", is_flag=True, default=False, help="Launch pi-doom (play DOOM via AI).")
 @click.option(
     "--env",
     "env_file",
@@ -2742,7 +1913,7 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
     help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
 @click.pass_context
-def pi(ctx, use_aws, cli_profile, openai_profile, use_t3, use_expo, do_login, doom, env_file):
+def pi(ctx, use_aws, cli_profile, openai_profile, use_t3, use_expo, do_login, env_file):
     """Launch pi coding agent in the dev container."""
     resolved_env = Path(env_file) if env_file else None
     with capture_typeahead() as typeahead:
@@ -2796,28 +1967,15 @@ def pi(ctx, use_aws, cli_profile, openai_profile, use_t3, use_expo, do_login, do
         _ensure_pi_ollama_provider(config)
 
         cmd = ["pi"]
-        if doom:
-            cmd.extend(["-e", "npm:pi-doom"])
         if use_bedrock:
             cmd.extend(["--provider", "amazon-bedrock", "--model", bedrock_model])
-        elif not resolved_openai_profile:
-            pi_config = Path(config.project_dir) / ".pi" / "settings.json"
-            if not pi_config.is_file():
-                console.print(
-                    "[yellow]Warning: No Pi project config found (.pi/settings.json). "
-                    "Run 'ai-opencodex update' to generate project config.[/yellow]"
-                )
-        doom_label = " (DOOM)" if doom else ""
-        console.print(
-            f"[bold]Launching pi{doom_label}{bedrock_label}{openai_label} in {name}...[/bold]"
-        )
+        console.print(f"[bold]Launching pi{bedrock_label}{openai_label} in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
 SUPPORTED_SHELLS: dict[str, str] = {
     "bash": "/bin/bash",
     "zsh": "/usr/bin/zsh",
-    "fish": "/usr/bin/fish",
 }
 
 
@@ -2852,10 +2010,9 @@ SUPPORTED_SHELLS: dict[str, str] = {
 def shell(ctx, env_file, use_t3, use_expo, shell_name):
     """Open an interactive shell in the dev container.
 
-    SHELL_NAME is one of bash, zsh, fish.  Defaults to bash if omitted.
-    All three shells come pre-configured with modern defaults (Starship
-    prompt, useful aliases, history tuning) plus Oh My Zsh for zsh and
-    Fisher for fish.
+    SHELL_NAME is one of bash or zsh.  Defaults to bash if omitted.
+    Both shells come pre-configured with modern defaults (Starship
+    prompt, useful aliases, history tuning) plus Oh My Zsh for zsh.
     """
     resolved_env = Path(env_file) if env_file else None
     with capture_typeahead() as typeahead:

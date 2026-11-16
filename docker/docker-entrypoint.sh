@@ -164,25 +164,14 @@ if [ -f ".pi/settings.json" ] && command -v pi >/dev/null 2>&1; then
         echo "===================================="
         echo "Pi packages installed!"
         echo "===================================="
-
-        # Apply pi-studio container patch: bind to 0.0.0.0 on a fixed port
-        # (31415) so Docker can map it to a deterministic host port and the
-        # web UI is reachable from the host. Pi-studio hard-codes
-        # `server.listen(0, "127.0.0.1")` and reads no env vars for this.
-        _STUDIO_INDEX=$(find /root/.pi -path '*/pi-studio/index.ts' 2>/dev/null | head -1)
-        if [ -n "$_STUDIO_INDEX" ]; then
-            if grep -q 'server\.listen(0, "127\.0\.0\.1")' "$_STUDIO_INDEX" 2>/dev/null; then
-                sed -i 's|server\.listen(0, "127\.0\.0\.1")|server.listen(31415, "0.0.0.0")|g' "$_STUDIO_INDEX"
-                echo "Patched pi-studio to listen on 0.0.0.0:31415"
-            fi
-        fi
     fi
-    unset _PI_PACKAGES _STUDIO_INDEX
+    unset _PI_PACKAGES
 fi
 # =========================================================================
 
-# Display MOTD (environment status dashboard)
-if [ -x /usr/local/bin/motd.sh ]; then
+# Display MOTD only when not booting the background tail daemon (where output
+# goes to container logs and is never seen by interactive docker exec sessions).
+if [ "${1:-}" != "tail" ] && [ -x /usr/local/bin/motd.sh ]; then
     /usr/local/bin/motd.sh || true
 fi
 

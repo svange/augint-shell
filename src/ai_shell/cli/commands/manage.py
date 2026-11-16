@@ -1,4 +1,4 @@
-"""Container management commands: status, stop, clean, logs, pull, env."""
+"""Container management commands: status, list, stop, clean, logs, pull, env, and doctor."""
 
 from pathlib import Path
 
@@ -8,8 +8,10 @@ from rich.console import Console
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.config import load_config
 from ai_shell.container import ContainerManager
-from ai_shell.defaults import build_dev_environment
-from ai_shell.exceptions import ContainerNotFoundError
+from ai_shell.defaults import _find_gh_config_dir, build_dev_environment
+from ai_shell.exceptions import ContainerNotFoundError, DockerNotAvailableError
+from ai_shell.gpu import detect_gpu
+from ai_shell.local_chrome import find_chrome
 
 console = Console(stderr=True)
 
@@ -54,6 +56,26 @@ def manage_status(ctx):
         console.print(f"[yellow]{name}: {status}[/yellow]")
 
 
+@manage_group.command("list")
+@click.pass_context
+def manage_list(ctx):
+    """List all ai-shell dev containers on this host."""
+    manager = _get_manager(ctx)
+    items = manager.list_dev_containers()
+    if not items:
+        console.print("[dim]No dev containers found.[/dim]")
+        return
+
+    console.print("[bold]Dev containers:[/bold]")
+    for item in items:
+        name = item["name"]
+        status = item["status"]
+        project_dir = item.get("project_dir") or ""
+        color = "green" if status == "running" else "yellow"
+        suffix = f" [dim]({project_dir})[/dim]" if project_dir else ""
+        console.print(f"  [{color}]{name}: {status}[/{color}]{suffix}")
+
+
 @manage_group.command("stop")
 @click.pass_context
 def manage_stop(ctx):
@@ -71,7 +93,7 @@ def manage_stop(ctx):
 @manage_group.command("clean")
 @click.pass_context
 def manage_clean(ctx):
-    """Remove the dev container for current project."""
+    """Remove the dev container and per-project volumes for current project."""
     manager = _get_manager(ctx)
     name, _ = manager.resolve_dev_container()
 
@@ -80,6 +102,11 @@ def manage_clean(ctx):
         console.print(f"[green]Removed: {name}[/green]")
     except ContainerNotFoundError:
         console.print(f"[yellow]No container found: {name}[/yellow]")
+
+    removed_vols = manager.remove_project_volumes()
+    if isinstance(removed_vols, list):
+        for vol in removed_vols:
+            console.print(f"[green]Removed volume: {vol}[/green]")
 
 
 @manage_group.command("logs")
@@ -141,3 +168,61 @@ def manage_env(ctx, use_aws, env_file):
         if key in ("GH_TOKEN", "GITHUB_TOKEN") and value:
             value = value[:4] + "..." + value[-4:] if len(value) > 8 else "***"
         console.print(f"  {key}={value}")
+
+
+@click.command("doctor", context_settings=CONTEXT_SETTINGS)
+@click.pass_context
+def doctor(ctx):
+    """Run host preflight diagnostics for ai-shell."""
+    project = ctx.obj.get("project") if ctx.obj else None
+    config = load_config(project_override=project, project_dir=Path.cwd())
+    console.print("[bold]ai-shell doctor[/bold]")
+
+    # 1. Docker daemon
+    try:
+        manager = ContainerManager(config)
+        console.print("  [green]✓[/green] Docker daemon reachable")
+    except DockerNotAvailableError as exc:
+        console.print(f"  [red]✗[/red] Docker daemon unreachable: {exc}")
+        manager = None
+
+    # 2. Dev image cached locally
+    if manager is not None:
+        try:
+            manager.client.images.get(config.full_image)
+            console.print(f"  [green]✓[/green] Dev image cached: {config.full_image}")
+        except Exception:
+            console.print(
+                f"  [yellow]![/yellow] Dev image not yet pulled: {config.full_image} "
+                "[dim](will pull on first launch or via 'ai-shell manage pull')[/dim]"
+            )
+
+    # 3. Host Chrome
+    chrome_path = find_chrome()
+    if chrome_path:
+        console.print(f"  [green]✓[/green] Host Chrome: {chrome_path}")
+    else:
+        console.print(
+            "  [yellow]![/yellow] Host Chrome not found [dim](optional; needed for --local-chrome)[/dim]"
+        )
+
+    # 4. Credentials & config
+    augint_env = Path.home() / ".augint" / ".env"
+    if augint_env.is_file():
+        console.print(f"  [green]✓[/green] Global credentials: {augint_env}")
+    else:
+        console.print(f"  [dim]-[/dim] Global credentials not found at {augint_env}")
+
+    gh_dir = _find_gh_config_dir()
+    if gh_dir is not None:
+        console.print(f"  [green]✓[/green] GitHub CLI config: {gh_dir}")
+    else:
+        console.print("  [dim]-[/dim] GitHub CLI config (~/.config/gh) not found on host")
+
+    # 5. GPU
+    if detect_gpu():
+        console.print("  [green]✓[/green] NVIDIA GPU detected")
+    else:
+        console.print(
+            "  [dim]-[/dim] No NVIDIA GPU detected [dim](optional; used by local LLM stack)[/dim]"
+        )

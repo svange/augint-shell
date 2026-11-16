@@ -137,12 +137,8 @@ class TestEnsureDevContainer:
         }
         assert call_kwargs["ports"] == expected_ports
 
-        # Verify profile.d PATH script is injected after creation
-        mock_subprocess.assert_called_once()
-        profile_cmd = mock_subprocess.call_args[0][0]
-        assert "docker" in profile_cmd
-        assert name in profile_cmd
-        assert "/etc/profile.d/ai-shell-path.sh" in " ".join(profile_cmd)
+        # /etc/profile.d/ai-shell-path.sh is baked into the image (no docker exec needed)
+        mock_subprocess.assert_not_called()
 
     @patch("ai_shell.container.subprocess.run")
     def test_recreates_when_start_fails_on_port_conflict(
@@ -1396,3 +1392,47 @@ class TestExceptions:
         assert "ComfyUI" in str(err)
         assert "NVIDIA" in str(err)
         assert err.service == "ComfyUI"
+
+
+class TestDevConfigDigestAndRecreation:
+    def test_recreates_when_dev_config_label_differs(self, mock_container_manager):
+        from ai_shell.container import DEV_CONFIG_LABEL
+
+        container = MagicMock()
+        container.labels = {DEV_CONFIG_LABEL: "stale-digest"}
+        assert mock_container_manager._recreate_if_config_changed(container, "test") is True
+        container.remove.assert_called_once_with(force=True)
+
+    def test_keeps_when_dev_config_label_matches(self, mock_container_manager):
+        from ai_shell.container import DEV_CONFIG_LABEL
+
+        container = MagicMock()
+        container.labels = {DEV_CONFIG_LABEL: mock_container_manager._dev_config_digest()}
+        assert mock_container_manager._recreate_if_config_changed(container, "test") is False
+        container.remove.assert_not_called()
+
+    def test_remove_project_volumes_and_list_dev_containers(
+        self, mock_container_manager, mock_docker_client
+    ):
+        mock_docker_client.volumes.get.return_value = MagicMock()
+        removed = mock_container_manager.remove_project_volumes()
+        assert len(removed) >= 3
+
+        dev_c = MagicMock()
+        dev_c.name = "augint-shell-myproj-12345678-dev"
+        dev_c.status = "running"
+        dev_c.attrs = {
+            "Mounts": [{"Destination": "/root/projects/myproj", "Source": "/home/u/myproj"}]
+        }
+        other_c = MagicMock()
+        other_c.name = "augint-shell-ollama"
+        mock_docker_client.containers.list.return_value = [dev_c, other_c]
+
+        items = mock_container_manager.list_dev_containers()
+        assert items == [
+            {
+                "name": "augint-shell-myproj-12345678-dev",
+                "status": "running",
+                "project_dir": "/home/u/myproj",
+            }
+        ]
