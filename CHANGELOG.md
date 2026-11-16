@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.118.0 (2026-11-16)
+
+### Features
+
+- **standalone**: Build and publish single-file executables for pip-restricted hosts (#192)
+  ([#192](https://github.com/svange/augint-shell/pull/192),
+  [`3e6a3d2`](https://github.com/svange/augint-shell/commit/3e6a3d2a02b60734c750dd7d679b28538597c14d))
+
+
 ## v0.117.0 (2026-11-09)
 
 ### Features
