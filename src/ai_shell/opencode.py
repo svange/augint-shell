@@ -312,8 +312,8 @@ def generate_bedrock_bearer_token(
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             if res.returncode == 0 and res.stdout.strip():
                 return res.stdout.strip().splitlines()[-1].strip()
-        except (OSError, subprocess.SubprocessError) as exc:
-            logger.debug("In-container Bedrock token generation failed: %s", exc)
+        except (OSError, subprocess.SubprocessError):
+            logger.debug("In-container Bedrock helper unavailable")
 
     # Host AWS CLI export-credentials fallback
     aws_cmd = ["aws", "configure", "export-credentials", "--format", "process"]
@@ -333,8 +333,8 @@ def generate_bedrock_bearer_token(
                     session_token=session_token,
                     region=region,
                 )
-    except (OSError, subprocess.SubprocessError, ValueError) as exc:
-        logger.debug("Host AWS CLI export-credentials failed: %s", exc)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        logger.debug("Host AWS CLI fallback unavailable")
 
     return None
 
