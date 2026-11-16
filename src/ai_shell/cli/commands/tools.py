@@ -413,29 +413,20 @@ def _is_named_account(claude_account: str) -> bool:
     return bool(claude_account) and str(claude_account).lower() != CLAUDE_DEFAULT_ACCOUNT
 
 
-def _account_chrome_profile(config: AiShellConfig, claude_account: str) -> str | None:
+def _account_chrome_profile(claude_account: str) -> str | None:
     """Host Chrome profile slug for *claude_account*; ``None`` keeps the per-project Chrome."""
     if not _is_named_account(claude_account):
         return None
-    configured = config.claude_account_config(claude_account).chrome_profile
-    return configured if isinstance(configured, str) and configured else str(claude_account)
+    return str(claude_account)
 
 
-def _resolve_local_chrome(config: AiShellConfig, claude_account: str, cli_flag: bool) -> bool:
-    """``--local-chrome`` > ``claude.accounts.<name>.local_chrome`` > ``claude.local_chrome``."""
-    if cli_flag:
-        return True
-    if _is_named_account(claude_account):
-        per_account = config.claude_account_config(claude_account).local_chrome
-        if isinstance(per_account, bool):
-            return per_account
-    return config.local_chrome is True
+def _resolve_local_chrome(config: AiShellConfig, cli_flag: bool) -> bool:
+    """``--local-chrome`` > ``claude.local_chrome``."""
+    return bool(cli_flag or config.local_chrome is True)
 
 
-def _account_chrome_proxy(
-    config: AiShellConfig, claude_account: str, cli_value: str | None = None
-) -> str | None:
-    """``--chrome-proxy`` > ``claude.accounts.<name>.chrome_proxy`` > ``claude.chrome_proxy``.
+def _account_chrome_proxy(config: AiShellConfig, cli_value: str | None = None) -> str | None:
+    """``--chrome-proxy`` > ``claude.chrome_proxy``.
 
     Returns ``None`` when no proxy is configured. The value is Chrome's
     ``--proxy-server`` argument, typically the HTTP proxy of a VPN container
@@ -443,10 +434,6 @@ def _account_chrome_proxy(
     """
     if cli_value is not None and cli_value.strip():
         return cli_value.strip()
-    if _is_named_account(claude_account):
-        per_account = config.claude_account_config(claude_account).chrome_proxy
-        if isinstance(per_account, str) and per_account.strip():
-            return per_account.strip()
     if isinstance(config.chrome_proxy, str) and config.chrome_proxy.strip():
         return config.chrome_proxy.strip()
     return None
@@ -455,7 +442,6 @@ def _account_chrome_proxy(
 def _resolve_chrome_proxy(
     manager: ContainerManager,
     config: AiShellConfig,
-    claude_account: str,
     cli_value: str | None = None,
     *,
     env_file: Path | None = None,
@@ -463,7 +449,7 @@ def _resolve_chrome_proxy(
     """The proxy URL for the host Chrome, starting ai-shell's VPN when the value is ``vpn``."""
     from ai_shell.vpn import VPN_PROXY_SENTINEL, VpnUnavailable, ensure_vpn_for_config
 
-    value = _account_chrome_proxy(config, claude_account, cli_value)
+    value = _account_chrome_proxy(config, cli_value)
     if value is None or value.lower() != VPN_PROXY_SENTINEL:
         return value
     from ai_shell.cli.commands.vpn import prompt_token
@@ -550,14 +536,7 @@ def _print_claude_accounts(config: AiShellConfig, env_file: Path | None) -> None
         for name in list_claude_accounts(config.project_dir, env_file)
     }
     login_accounts = {claude_account_slug(name): name for name in list_claude_login_accounts()}
-    # Accounts that only exist in claude.accounts config are listed too, so a
-    # freshly configured account is visible before its first login.
-    configured_accounts = {
-        claude_account_slug(name): name
-        for name in config.claude_accounts
-        if isinstance(name, str) and name
-    }
-    names = {**configured_accounts, **login_accounts, **token_accounts}
+    names = {**login_accounts, **token_accounts}
     accounts = [CLAUDE_DEFAULT_ACCOUNT, *(names[slug] for slug in sorted(names))]
     configured = claude_account_slug(config.claude_account or CLAUDE_DEFAULT_ACCOUNT)
     console.print("[bold]Claude accounts:[/bold]")
@@ -573,15 +552,6 @@ def _print_claude_accounts(config: AiShellConfig, env_file: Path | None) -> None
                 sources.append(
                     f"login profile: ~/.augint/claude-accounts/{claude_account_slug(name)}"
                 )
-            if slug not in token_accounts and slug not in login_accounts:
-                sources.append("configured only; first --rc or --login creates its login profile")
-            account_cfg = config.claude_account_config(name)
-            if account_cfg.chrome_profile:
-                sources.append(f"chrome profile: {account_cfg.chrome_profile}")
-            if account_cfg.local_chrome is not None:
-                sources.append(f"local_chrome: {str(account_cfg.local_chrome).lower()}")
-            if account_cfg.chrome_proxy:
-                sources.append(f"chrome proxy: {account_cfg.chrome_proxy}")
         note = f" [dim]({'; '.join(sources)})[/dim]"
         marker = (
             " [green]<- selected when --account is omitted[/green]" if slug == configured else ""
@@ -589,12 +559,13 @@ def _print_claude_accounts(config: AiShellConfig, env_file: Path | None) -> None
         console.print(f"  {name}{note}{marker}")
     if len(accounts) == 1:
         console.print(
-            "[dim]Add accounts to ~/.augint/.env as "
-            f"{claude_account_token_var('<name>')}=<token from 'claude setup-token'>, "
-            "or create a login profile with: ai-shell claude --account <name> --login[/dim]"
+            "[dim]Pass any name to --account <name> to create a login profile on first use, "
+            f"or add {claude_account_token_var('<name>')}=<token from 'claude setup-token'> "
+            "to ~/.augint/.env.[/dim]"
         )
     console.print(
-        "[dim]Use: ai-shell claude --account <name>          # token or login profile[/dim]"
+        "[dim]Use: ai-shell claude --account <name>          "
+        "# token or login profile (created on first use)[/dim]"
     )
     console.print(
         "[dim]     ai-shell claude --account <name> --rc     "
@@ -1007,7 +978,7 @@ def _launch_loaded_config_claude(
             _check_remote_control_base_url(exec_env)
         account_prefix = _claude_account_cmd_prefix(exec_env)
         account_label = _claude_account_label(claude_account, exec_env)
-        chrome_profile = _account_chrome_profile(config, claude_account)
+        chrome_profile = _account_chrome_profile(claude_account)
 
         bedrock_label = ""
         if use_bedrock:
@@ -1068,9 +1039,7 @@ def _launch_loaded_config_claude(
     # The proxy comes first: "vpn" starts the VPN container and may prompt for
     # the NordVPN token, and it must be known before any window opens.
     if local_chrome:
-        chrome_proxy_url = _resolve_chrome_proxy(
-            manager, config, claude_account, chrome_proxy, env_file=env_file
-        )
+        chrome_proxy_url = _resolve_chrome_proxy(manager, config, chrome_proxy, env_file=env_file)
 
     # With --local-chrome the sign-in runs first, in a window WITHOUT the
     # DevTools port (Google refuses automated browsers); the debug-port
@@ -1198,7 +1167,8 @@ def _launch_loaded_config_claude(
     flag_value="",
     help=(
         "Claude account to use. Injects CLAUDE_CODE_OAUTH_TOKEN_<NAME> from .env "
-        "as CLAUDE_CODE_OAUTH_TOKEN. 'default' uses the ~/.claude login. "
+        "as CLAUDE_CODE_OAUTH_TOKEN, or uses ~/.augint/claude-accounts/<name>/ "
+        "(created on first use). 'default' uses the ~/.claude login. "
         "Give the flag without a value to list the accounts."
     ),
 )
@@ -1238,8 +1208,7 @@ def _launch_loaded_config_claude(
         "Proxy for the host Chrome that --local-chrome launches, as Chrome's "
         "--proxy-server value (http://127.0.0.1:8888, socks5://host:port). Use it when "
         "sites refuse the machine's own address (a datacenter box) and a VPN container "
-        "exposes a proxy. Default: claude.accounts.<name>.chrome_proxy, then "
-        "claude.chrome_proxy / AI_SHELL_CHROME_PROXY."
+        "exposes a proxy. Default: claude.chrome_proxy / AI_SHELL_CHROME_PROXY."
     ),
 )
 @click.option(
@@ -1319,7 +1288,7 @@ def claude(
     # Load config for the current project and launch a normal Claude session.
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
-    local_chrome = _resolve_local_chrome(config, cli_account or config.claude_account, local_chrome)
+    local_chrome = _resolve_local_chrome(config, local_chrome)
     _launch_loaded_config_claude(
         config,
         safe=safe,
@@ -1372,10 +1341,10 @@ def chrome(ctx, cli_account, chrome_proxy, url):
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
     account = cli_account or config.claude_account
-    profile = _account_chrome_profile(config, account)
-    proxy = _account_chrome_proxy(config, account, chrome_proxy)
+    profile = _account_chrome_profile(account)
+    proxy = _account_chrome_proxy(config, chrome_proxy)
     if proxy is not None and proxy.lower() == VPN_PROXY_SENTINEL:
-        proxy = _resolve_chrome_proxy(ContainerManager(config), config, account, chrome_proxy)
+        proxy = _resolve_chrome_proxy(ContainerManager(config), config, chrome_proxy)
     try:
         window = launch_plain_chrome(
             project_name=config.project_name,

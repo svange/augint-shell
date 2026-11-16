@@ -73,32 +73,6 @@ class VoiceAgentConfig:
 
 
 @dataclass
-class ClaudeAccountConfig:
-    """Per-account defaults under ``claude.accounts.<name>``.
-
-    The credential itself is never configured here: it is either the token
-    ``CLAUDE_CODE_OAUTH_TOKEN_{NAME}`` in ``~/.augint/.env`` or the login
-    profile in ``~/.augint/claude-accounts/<name>/``.
-    """
-
-    # Host Chrome profile (separate user-data-dir) slug for --local-chrome.
-    # Empty = the account name.
-    chrome_profile: str = ""
-    # Attach host Chrome by default when this account is selected.
-    # None = fall back to the global ``claude.local_chrome``.
-    local_chrome: bool | None = None
-    # Proxy for this account's host Chrome (``--proxy-server`` value, e.g.
-    # ``http://127.0.0.1:8888`` for a VPN container). Empty = the global
-    # ``claude.chrome_proxy``.
-    chrome_proxy: str = ""
-
-
-def _claude_account_key(account: str) -> str:
-    """Case- and separator-insensitive key for ``claude.accounts`` lookups."""
-    return account.strip().lower().replace("_", "-")
-
-
-@dataclass
 class AiShellConfig:
     """Configuration for ai-shell."""
 
@@ -154,8 +128,9 @@ class AiShellConfig:
     openai_profile: str = ""  # Suffixed .env key name for multi-account switching
 
     # Claude options
-    claude_account: str = ""  # Suffixed .env token name for multi-account switching
-    claude_accounts: dict[str, ClaudeAccountConfig] = field(default_factory=dict)
+    claude_account: str = (
+        ""  # Suffixed .env token name or login profile for multi-account switching
+    )
     local_chrome: bool = False  # Attach Chrome DevTools MCP to project-scoped host Chrome
     chrome_proxy: str = (
         ""  # --proxy-server for every host Chrome ai-shell launches ("vpn" = own VPN)
@@ -178,10 +153,6 @@ class AiShellConfig:
 
     # Per-tool provider
     claude_provider: str = ""  # "anthropic" (default) or "aws"
-
-    def claude_account_config(self, account: str) -> ClaudeAccountConfig:
-        """Return the ``claude.accounts`` entry for *account* (defaults if absent)."""
-        return self.claude_accounts.get(_claude_account_key(account), ClaudeAccountConfig())
 
     @property
     def full_image(self) -> str:
@@ -426,18 +397,6 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.claude_provider = claude_sec["provider"]
     if "account" in claude_sec:
         config.claude_account = str(claude_sec["account"])
-    if isinstance(claude_sec.get("accounts"), dict):
-        for name, entry in claude_sec["accounts"].items():
-            key = _claude_account_key(str(name))
-            account_cfg = config.claude_accounts.get(key, ClaudeAccountConfig())
-            if isinstance(entry, dict):
-                if "chrome_profile" in entry:
-                    account_cfg.chrome_profile = str(entry["chrome_profile"] or "")
-                if "local_chrome" in entry:
-                    account_cfg.local_chrome = bool(entry["local_chrome"])
-                if "chrome_proxy" in entry:
-                    account_cfg.chrome_proxy = str(entry["chrome_proxy"] or "")
-            config.claude_accounts[key] = account_cfg
     if "local_chrome" in claude_sec:
         config.local_chrome = bool(claude_sec["local_chrome"])
     if "chrome_proxy" in claude_sec:

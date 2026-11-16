@@ -123,11 +123,7 @@ llm:
 # -----------------------------------------------------------------------------
 # claude:
 #   provider: aws
-#   account: work          # default --account; token in .env or login profile
-#   accounts:              # per-account defaults, usually in ~/.augint/.ai-shell.yaml
-#     mike:
-#       local_chrome: true
-#       chrome_profile: mike
+#   account: work          # default --account; token in .env or login profile (created on first use)
 
 # -----------------------------------------------------------------------------
 # container - Docker image, env, mounts, ports. Uncomment to override.

@@ -1585,15 +1585,18 @@ class TestClaudeAccount:
         assert "tok-" not in result.output
         manager.ensure_dev_container.assert_not_called()
 
-    def test_unknown_account_fails_loudly(self, mock_config, mock_manager_cls, mock_expo):
+    def test_new_account_without_token_creates_login_profile(
+        self, mock_config, mock_manager_cls, mock_expo
+    ):
         manager = self._setup(mock_config, mock_manager_cls)
+        manager.exec_capture.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         result = self.runner.invoke(cli, ["claude", "--account", "nope"])
 
-        assert result.exit_code == 1
-        assert "CLAUDE_CODE_OAUTH_TOKEN_NOPE" in result.output
-        assert "default, ai, woxom" in result.output
-        manager.run_interactive.assert_not_called()
+        assert result.exit_code == 0, result.output
+        env = manager.run_interactive.call_args[1]["extra_env"]
+        assert env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/nope"
+        assert "account=nope, login profile" in result.output
 
     def test_account_with_aws_fails_loudly(self, mock_config, mock_manager_cls, mock_expo):
         manager = self._setup(mock_config, mock_manager_cls)
@@ -1860,7 +1863,7 @@ class TestClaudeRemoteControl:
     @patch("ai_shell.local_chrome.prepare_chrome_mcp", return_value="1 page")
     @patch("ai_shell.local_chrome.start_chrome_proxy")
     @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=45678)
-    def test_rc_local_chrome_uses_account_proxy(
+    def test_rc_local_chrome_uses_configured_proxy(
         self,
         mock_ensure,
         mock_proxy,
@@ -1871,11 +1874,10 @@ class TestClaudeRemoteControl:
         mock_manager_cls,
         mock_expo,
     ):
-        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
+        from ai_shell.config import AiShellConfig
 
         config = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
-        config.chrome_proxy = "http://127.0.0.1:3128"
-        config.claude_accounts["woxom"] = ClaudeAccountConfig(chrome_proxy="http://127.0.0.1:8888")
+        config.chrome_proxy = "http://127.0.0.1:8888"
         self._setup(mock_config, mock_manager_cls, config=config)
 
         result = self.runner.invoke(cli, ["claude", "--rc", "--account", "woxom", "--local-chrome"])
@@ -1992,10 +1994,10 @@ class TestClaudeRemoteControl:
         mock_expo,
     ):
         """Not logged in + --local-chrome: plain window, code, close, then the debug-port Chrome."""
-        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
+        from ai_shell.config import AiShellConfig
 
         config = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
-        config.claude_accounts["woxom"] = ClaudeAccountConfig(chrome_proxy="http://127.0.0.1:8888")
+        config.chrome_proxy = "http://127.0.0.1:8888"
         manager = self._setup(mock_config, mock_manager_cls, config=config)
 
         def exec_capture(container, cmd, **_kwargs):
@@ -2105,7 +2107,6 @@ class TestClaudeRemoteControl:
     def test_account_with_only_login_profile_is_used_without_flags(
         self, mock_config, mock_manager_cls, mock_expo
     ):
-        (self.home / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
         manager = self._setup(mock_config, mock_manager_cls)
         manager.exec_interactive.side_effect = None
 
@@ -2127,10 +2128,10 @@ class TestClaudeRemoteControl:
 
         manager.exec_capture.assert_not_called()
 
-    def test_account_listing_shows_login_profiles_and_chrome(
+    def test_account_listing_shows_login_profiles_and_tokens(
         self, mock_config, mock_manager_cls, mock_expo
     ):
-        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
+        from ai_shell.config import AiShellConfig
 
         (self.home / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
         (self.home / ".augint" / "claude-accounts" / "woxom").mkdir(parents=True)
@@ -2138,7 +2139,6 @@ class TestClaudeRemoteControl:
             project_name="demo",
             project_dir=Path("/tmp/demo"),
             claude_account="mike",
-            claude_accounts={"mike": ClaudeAccountConfig(chrome_profile="mike-browser")},
         )
         manager = self._setup(mock_config, mock_manager_cls, config=config)
 
@@ -2149,89 +2149,9 @@ class TestClaudeRemoteControl:
         assert "~/.augint/claude-accounts/mike" in result.output
         assert "CLAUDE_CODE_OAUTH_TOKEN_WOXOM" in result.output
         assert "~/.augint/claude-accounts/woxom" in result.output
-        assert "mike-browser" in result.output
         assert "--rc" in result.output
         assert "tok-" not in result.output
         manager.ensure_dev_container.assert_not_called()
-
-    def test_account_listing_includes_configured_accounts_without_login(
-        self, mock_config, mock_manager_cls, mock_expo
-    ):
-        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
-
-        config = AiShellConfig(
-            project_name="demo",
-            project_dir=Path("/tmp/demo"),
-            claude_accounts={"adam": ClaudeAccountConfig(local_chrome=True)},
-        )
-        self._setup(mock_config, mock_manager_cls, config=config)
-
-        result = self.runner.invoke(cli, ["claude", "--account"])
-
-        assert result.exit_code == 0, result.output
-        assert "adam" in result.output
-        assert "configured only" in result.output
-        assert "local_chrome: true" in result.output
-
-    @patch("ai_shell.cli.commands.tools._inject_mcp_config")
-    @patch("ai_shell.local_chrome.write_mcp_config", return_value=Path("/tmp/chrome-mcp.json"))
-    @patch("ai_shell.local_chrome.prepare_chrome_mcp", return_value="1 page")
-    @patch("ai_shell.local_chrome.start_chrome_proxy")
-    @patch("ai_shell.local_chrome.ensure_host_chrome", return_value=40001)
-    def test_per_account_local_chrome_config_and_profile(
-        self,
-        mock_ensure,
-        mock_proxy,
-        mock_prepare,
-        mock_write,
-        mock_inject,
-        mock_config,
-        mock_manager_cls,
-        mock_expo,
-    ):
-        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
-
-        config = AiShellConfig(
-            project_name="demo",
-            project_dir=Path("/tmp/demo"),
-            claude_accounts={
-                "woxom": ClaudeAccountConfig(chrome_profile="woxom-browser", local_chrome=True)
-            },
-        )
-        manager = self._setup(mock_config, mock_manager_cls, config=config)
-        manager.exec_interactive.side_effect = None
-
-        result = self.runner.invoke(cli, ["claude", "--account", "woxom"])
-
-        assert result.exit_code == 0, result.output
-        mock_ensure.assert_called_once_with(
-            "augint-shell-demo-dev",
-            project_name="demo",
-            project_dir=Path("/tmp/demo"),
-            profile="woxom-browser",
-        )
-        cmd = manager.run_interactive.call_args[0][1]
-        assert "--mcp-config" in cmd
-
-    @patch("ai_shell.local_chrome.ensure_host_chrome")
-    def test_per_account_local_chrome_false_overrides_global(
-        self, mock_ensure, mock_config, mock_manager_cls, mock_expo
-    ):
-        from ai_shell.config import AiShellConfig, ClaudeAccountConfig
-
-        config = AiShellConfig(
-            project_name="demo",
-            project_dir=Path("/tmp/demo"),
-            local_chrome=True,
-            claude_accounts={"woxom": ClaudeAccountConfig(local_chrome=False)},
-        )
-        manager = self._setup(mock_config, mock_manager_cls, config=config)
-        manager.exec_interactive.side_effect = None
-
-        result = self.runner.invoke(cli, ["claude", "--account", "woxom"])
-
-        assert result.exit_code == 0, result.output
-        mock_ensure.assert_not_called()
 
 
 @patch("ai_shell.cli.commands.tools.load_config")
@@ -2255,10 +2175,8 @@ class TestChromeCommand:
         return_value=MagicMock(profile_dir="/home/u/account-mike"),
     )
     def test_opens_account_window_with_configured_proxy(self, mock_launch, mock_config):
-        from ai_shell.config import ClaudeAccountConfig
-
         config = self._config(mock_config)
-        config.claude_accounts["mike"] = ClaudeAccountConfig(chrome_proxy="http://127.0.0.1:8888")
+        config.chrome_proxy = "http://127.0.0.1:8888"
 
         result = self.runner.invoke(
             cli, ["chrome", "--account", "mike", "https://accounts.google.com/"]

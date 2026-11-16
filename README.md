@@ -203,11 +203,6 @@ openai:
 claude:
   account: work  # resolves CLAUDE_CODE_OAUTH_TOKEN_WORK from .env, or the login profile
   chrome_proxy: ""  # host Chrome proxy: "vpn" (ai-shell's VPN container) or a --proxy-server value
-  accounts:      # optional per-account defaults (put in ~/.augint/.ai-shell.yaml)
-    mike:
-      local_chrome: true          # open Mike's own Chrome window on launch
-      chrome_profile: mike        # Chrome profile slug; defaults to the account name
-      chrome_proxy: vpn           # this account's Chrome goes through the VPN container
 
 vpn:
   country: United States  # gluetun SERVER_COUNTRIES; empty = any NordVPN server
@@ -308,7 +303,7 @@ Set a default in config (`openai.profile: work`) or via `AI_SHELL_OPENAI_PROFILE
 | Credential | Where it lives | Good for | Not for |
 |---|---|---|---|
 | **Token** from `claude setup-token` | `CLAUDE_CODE_OAUTH_TOKEN_<NAME>` in `~/.augint/.env` | Normal terminal sessions. Shares your `~/.claude` settings and history. | Remote Control. Claude Code rejects these tokens for it. |
-| **Login profile** from `claude auth login` | `~/.augint/claude-accounts/<name>/` (that account's own `CLAUDE_CONFIG_DIR`) | Remote Control, and sessions that must keep that account's own settings and history. | Nothing. It is just slower to set up (one browser login). |
+| **Login profile** from `claude auth login` | `~/.augint/claude-accounts/<name>/` (that account's own `CLAUDE_CONFIG_DIR`) | Remote Control, and sessions that must keep that account's own settings and history. Created automatically on first use. | Nothing. It is just slower to set up (one browser login). |
 
 ```bash
 # ~/.augint/.env  (token accounts)
@@ -317,7 +312,7 @@ CLAUDE_CODE_OAUTH_TOKEN_CLIENT=sk-ant-oat01-...
 ```
 
 ```bash
-ai-shell claude --account work          # token if defined, else the login profile
+ai-shell claude --account work          # token if defined, else the login profile (created on first use)
 ai-shell claude --account mike --login  # create (or refresh) mike's login profile, then launch
 ai-shell claude --account mike --rc     # Remote Control as mike (login profile; asks to log in on first use)
 ai-shell claude --account               # list the accounts (no secrets are shown)
@@ -333,21 +328,9 @@ Rules:
 
 - The selected token is injected as `CLAUDE_CODE_OAUTH_TOKEN` for the Claude process only. The other `CLAUDE_CODE_OAUTH_TOKEN_*` values are never passed into containers.
 - `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are removed from the Claude process, because Claude Code prefers them over the OAuth token. A login profile also removes `CLAUDE_CODE_OAUTH_TOKEN`, for the same reason.
-- An unknown account name, or an account together with `--aws`, stops the launch with an error.
+- Any `--account <name>` without a token in `.env` automatically uses (and creates) the login profile `~/.augint/claude-accounts/<name>/`, prompting for login on first use. Combining `--account` with `--aws` stops the launch with an error.
 - Token accounts share `~/.claude` (settings and history). `claude -c` can continue a conversation that started under a different token account. A login profile has its own settings, history and plugins.
 - `--rc` and `--login` always use the login profile, even when a token exists. `~/.augint` is already bind-mounted, so no container recreation is needed, and the profile survives container recreation.
-
-Per-account defaults go under `claude.accounts` in `~/.augint/.ai-shell.yaml`, so every machine that has that file behaves the same:
-
-```yaml
-claude:
-  accounts:
-    mike:
-      local_chrome: true     # always open Mike's Chrome window
-      chrome_profile: mike   # optional; defaults to the account name
-    adam:
-      local_chrome: true
-```
 
 ---
 
@@ -358,12 +341,12 @@ claude:
 - Claude drives Chrome tabs on your desktop in real time.
 - **Windows, macOS and Linux hosts.** Chrome is found at its usual install paths (Windows, macOS) or on `PATH` as `google-chrome` / `chromium` (Linux). Chrome binds its debug port to loopback and ignores any other address. On Docker Desktop that is enough; on a Linux host (Docker or podman) ai-shell starts a small relay (`python -m ai_shell.cdp_relay`, log in `~/.augint/chrome/`) that listens on the address the container resolves for `host.docker.internal`, forwards to Chrome on loopback, and answers only the host's own addresses, so nothing on the network can reach Chrome through it. podman needs the `docker` CLI shim (`podman-docker`) and 4.1+ for `host-gateway`. With `DOCKER_HOST` pointing at a Podman socket, ai-shell also sets `CONTAINER_HOST` to it, so the shim (which ignores `DOCKER_HOST`) runs `docker exec` through the same Podman service; run from the terminal's own cgroup, those execs fail with "OCI permission denied" when the service runs under systemd.
 - **Separate Chrome profile per project** -- your normal browsing untouched, each repo keeps its own logged-in state.
-- **Separate Chrome profile per account** -- with `--account NAME`, the window is keyed by the account instead of the project, so Mike's sessions share one logged-in Chrome across repos and never touch Adam's. Override the slug with `claude.accounts.<name>.chrome_profile`.
+- **Separate Chrome profile per account** -- with `--account NAME`, the window is keyed by the account instead of the project, so Mike's sessions share one logged-in Chrome across repos and never touch Adam's.
 - Profiles live under `%LOCALAPPDATA%\Google\Chrome\ai-shell\<slug>` on Windows and `~/.config/google-chrome/ai-shell/<slug>` elsewhere (`account-<name>` for accounts). Each has its own debug port, so several can run at once.
 - All traffic stays on `localhost`.
 - **The MCP server is checked before Claude starts.** `chrome-devtools-mcp` is installed in the image (and installed on demand in an older container). At every launch ai-shell starts it once, makes it list Chrome's pages through the bridge, and only then hands it to Claude. A broken bridge fails the launch with the server's own output instead of showing up inside Claude as an MCP server that "failed to start" (which is what an `npx` fetch on a cold container used to do when it outlasted Claude Code's startup timeout).
 
-Set `claude.local_chrome: true` (or `AI_SHELL_LOCAL_CHROME=1`) to persist, or `claude.accounts.<name>.local_chrome: true` for one account only.
+Set `claude.local_chrome: true` (or `AI_SHELL_LOCAL_CHROME=1`) to persist.
 
 ### Google sign-in
 
@@ -376,7 +359,7 @@ Without `--local-chrome`, the sign-in URL is printed and works in any browser on
 
 ### Chrome through a VPN or proxy (`chrome_proxy`)
 
-On a host whose own address sites refuse (a cloud dev box, a datacenter), Chrome gets a proxy. `claude.chrome_proxy` (or `claude.accounts.<name>.chrome_proxy`, `AI_SHELL_CHROME_PROXY`, `--chrome-proxy` on `claude` and `chrome`) is either:
+On a host whose own address sites refuse (a cloud dev box, a datacenter), Chrome gets a proxy. `claude.chrome_proxy` (or `AI_SHELL_CHROME_PROXY`, `--chrome-proxy` on `claude` and `chrome`) is either:
 
 - **`vpn`**: ai-shell's own VPN container. ai-shell runs [gluetun](https://github.com/qdm12/gluetun) (NordVPN over WireGuard) as a host-level singleton container, `augint-shell-vpn`, with an HTTP proxy on `127.0.0.1:8888`, starts it before the first window opens, waits until traffic flows through it, and points Chrome at it. Rootless Podman is enough: `NET_ADMIN` and `/dev/net/tun`, no root. An account that owns a NordVPN [dedicated IP](https://nordvpn.com/features/dedicated-ip/) gets it without being asked: the token also names the account's dedicated-IP server, and gluetun is pinned to that server. A shared NordVPN exit is a datacenter address that Google scores like the host's own; the dedicated IP is the one its owner already uses on a phone or laptop. Settings under `vpn:` (country, firewall, proxy port); a changed setting recreates the container, and the country filter is ignored while a server is pinned. When gluetun's firewall cannot run in the container runtime, ai-shell recreates the container once without it and remembers (`~/.augint/vpn/firewall-off`).
 - **a Chrome `--proxy-server` value** (`http://host:port`, `socks5://host:port`) for a proxy you run yourself.
@@ -506,8 +489,8 @@ Use the full path to `ai-shell` if the editor does not find it on `PATH` (`where
 
 | Option (`acp claude`) | Same as |
 |---|---|
-| `--account NAME` | `ai-shell claude --account NAME`. An account in `claude.accounts` with no token signs in through the editor (see [Sign-in](#sign-in)). |
-| `--local-chrome` / `--no-local-chrome` | `ai-shell claude --local-chrome`. Without either flag, the account's `local_chrome` setting applies. A `chrome_proxy: vpn` that needs a token prompt fails; save the token in `~/.augint/.env` first. |
+| `--account NAME` | `ai-shell claude --account NAME`. An account with no token creates its login profile on demand and signs in through the editor (see [Sign-in](#sign-in)). |
+| `--local-chrome` / `--no-local-chrome` | `ai-shell claude --local-chrome`. Without either flag, `claude.local_chrome` applies. A `chrome_proxy: vpn` that needs a token prompt fails; save the token in `~/.augint/.env` first. |
 
 How it works:
 

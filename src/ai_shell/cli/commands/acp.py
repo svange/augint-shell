@@ -77,7 +77,7 @@ def folder_key(path: str) -> str:
 class AcpOptions:
     tool: str
     account: str | None = None
-    local_chrome: bool | None = None  # None: as configured for the account
+    local_chrome: bool | None = None  # None: as configured in claude.local_chrome
     skip_updates: bool = False
 
 
@@ -101,28 +101,15 @@ def _tool_env(config: AiShellConfig, opts: AcpOptions) -> tuple[dict[str, str], 
 
     account = opts.account or config.claude_account
     use_bedrock = config.claude_provider == "aws"
-    try:
-        env = _claude_exec_env(
+    env = dict(
+        _claude_exec_env(
             config,
             use_bedrock=use_bedrock,
             cli_profile=None,
             claude_account=account,
             env_file=None,
         )
-    except click.ClickException:
-        # A configured account with no token and no login profile yet: use a
-        # login profile, so the session asks for a sign-in instead of failing.
-        if use_bedrock or not account or account not in config.claude_accounts:
-            raise
-        env = _claude_exec_env(
-            config,
-            use_bedrock=False,
-            cli_profile=None,
-            claude_account=account,
-            env_file=None,
-            claude_login=True,
-        )
-    env = dict(env)
+    )
     # The adapter runs the image's Claude Code, the one `ai-shell claude` keeps current.
     env["CLAUDE_CODE_EXECUTABLE"] = CLAUDE_EXECUTABLE
     if CLAUDE_CONFIG_DIR_VAR in env:
@@ -250,14 +237,14 @@ def _chrome_mcp_servers(
 
     if opts.tool != "claude" or opts.local_chrome is False:
         return []
-    if not _resolve_local_chrome(config, account, bool(opts.local_chrome)):
+    if not _resolve_local_chrome(config, bool(opts.local_chrome)):
         return []
 
     from ai_shell.acp import stdio_mcp_server
     from ai_shell.local_chrome import CHROME_MCP_SERVER_NAME, chrome_mcp_server_spec
     from ai_shell.vpn import VPN_PROXY_SENTINEL, ensure_vpn_for_config
 
-    proxy = _account_chrome_proxy(config, account)
+    proxy = _account_chrome_proxy(config)
     if proxy and proxy.lower() == VPN_PROXY_SENTINEL:
         # No prompt: stdin is the protocol. A missing token fails with its reason.
         proxy = ensure_vpn_for_config(
@@ -267,7 +254,7 @@ def _chrome_mcp_servers(
         container_name,
         project_name=config.project_name,
         project_dir=config.project_dir,
-        chrome_profile=_account_chrome_profile(config, account),
+        chrome_profile=_account_chrome_profile(account),
         chrome_proxy=proxy,
     )
     return [stdio_mcp_server(CHROME_MCP_SERVER_NAME, chrome_mcp_server_spec(port))]
@@ -412,7 +399,7 @@ def _setup_logging(ctx: click.Context) -> None:
     "--local-chrome/--no-local-chrome",
     "local_chrome",
     default=None,
-    help="Attach the host Chrome (DevTools MCP). Default: as configured for the account.",
+    help="Attach the host Chrome (DevTools MCP). Default: as configured.",
 )
 @click.pass_context
 def acp_claude(ctx, cli_account, local_chrome):
@@ -487,11 +474,9 @@ def acp_login(ctx, cli_account, local_chrome, project_dir, force):
         console.print(f"[green]Already signed in{label}. Nothing to do.[/green]")
         return
 
-    use_chrome = local_chrome is not False and _resolve_local_chrome(
-        config, account, bool(local_chrome)
-    )
+    use_chrome = local_chrome is not False and _resolve_local_chrome(config, bool(local_chrome))
     if use_chrome:
-        proxy = _resolve_chrome_proxy(manager, config, account)
+        proxy = _resolve_chrome_proxy(manager, config)
         _plain_chrome_login(
             manager,
             container_name,
@@ -502,7 +487,7 @@ def acp_login(ctx, cli_account, local_chrome, project_dir, force):
             require_claude_ai=False,
             project_name=config.project_name,
             project_dir=config.project_dir,
-            chrome_profile=_account_chrome_profile(config, account),
+            chrome_profile=_account_chrome_profile(account),
             chrome_proxy=proxy,
         )
     else:
