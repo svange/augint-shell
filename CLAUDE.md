@@ -150,6 +150,13 @@ Pi (`@mariozechner/pi-coding-agent`) is a provider-agnostic terminal coding agen
 
 `ai-shell init` (`scaffold.py`) writes three files and nothing else: `~/.augint/.env.example` and `~/.augint/.ai-shell.example.yaml` (always refreshed from `templates/augint-env.example` and `templates/augint-ai-shell.example.yaml`) and `.ai-shell.yaml` in the current directory (from `templates/ai-shell.yaml`, never overwritten). Edit the templates in `src/ai_shell/templates/`, not the generated files. ai-shell scaffolds no agent skills or tool settings; `templates/claude/settings.json` and `templates/pi/models.json` are consumed by the image and the `pi` command, not written into projects.
 
+### Standalone executable (`standalone.py`)
+
+`uv run --with pyinstaller python -m ai_shell.standalone [--output PATH]` compiles `ai-shell` into a single-file executable (PyInstaller `--onefile`) for hosts that disallow `pip` or block PyPI. PyInstaller is invoked via `--with pyinstaller` rather than pinned in `pyproject.toml` so `pip-licenses --fail-on 'GPL;AGPL;LGPL'` in CI compliance checks stays clean.
+
+- **Frozen runtime hooks:** `cli/__main__.py:main` intercepts `-m ai_shell.cdp_relay` when `sys.executable` is the frozen binary (`local_chrome.start_cdp_relay`). `detached_subprocess_env()` sets `PYINSTALLER_RESET_ENVIRONMENT=1` for detached child processes (`local_chrome._spawn_detached`) so they do not inherit the parent's expiring `_MEI*` temp directory. `persistent_asset_path()` stages bundled files that Docker bind-mounts (`comfyui/provision.sh`, `n8n/workflows`) under `~/.cache/ai-shell/runtime-assets/<version>/` when `sys.frozen` is set.
+- **Distribution:** `publish.yaml` builds `ai-shell-linux-x86_64`, `ai-shell-macos-arm64`, and `ai-shell-windows-x86_64.exe` on release and uploads them (plus `SHA256SUMS.txt`) to the GitHub Release, and also builds `docker/ai-shell` before `docker/build-push-action` so the Linux standalone binary is baked into `svange/augint-shell` at `/usr/local/bin/ai-shell`.
+
 ## Testing
 
 All tests are unit tests in `tests/unit/`. Docker SDK is mocked via fixtures in `tests/conftest.py` (`mock_docker_client`, `mock_container_manager`). CLI tests use Click's `CliRunner` with patched `ContainerManager` and `load_config`. Tests verify command argument building and container creation kwargs, not actual Docker operations.

@@ -165,3 +165,5 @@ ai-shell.toml
 .ai-shell.yaml
 **/.worktrees
 .playwright-mcp
+dist-bin/
+docker/ai-shell

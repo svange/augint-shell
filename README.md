@@ -45,7 +45,7 @@
 | Git ref | Pipeline runs | Publishes to |
 |---|---|---|
 | Feature branch -> PR to `main` | Code quality, security scans, license compliance, unit tests, build validation | Nothing (validation only) |
-| Push / merge to `main` | All of the above, then [Python Semantic Release](https://python-semantic-release.readthedocs.io/) cuts a version when Conventional Commits warrant one | [PyPI](https://pypi.org/project/augint-shell/), [Docker Hub](https://hub.docker.com/r/svange/augint-shell), and the [Pipeline Artifacts](#pipeline-artifacts) reports on GitHub Pages |
+| Push / merge to `main` | All of the above, then [Python Semantic Release](https://python-semantic-release.readthedocs.io/) cuts a version when Conventional Commits warrant one | [PyPI](https://pypi.org/project/augint-shell/), [GitHub Releases](https://github.com/svange/augint-shell/releases) (standalone binaries), [Docker Hub](https://hub.docker.com/r/svange/augint-shell), and the [Pipeline Artifacts](#pipeline-artifacts) reports on GitHub Pages |
 
 The single deploy environment is the GitHub Actions `pypi` environment (trusted publishing via OIDC -- no stored PyPI token). The Docker image also rebuilds when files under `docker/` change, independent of a version bump. Full pipeline: [`.github/workflows/publish.yaml`](.github/workflows/publish.yaml).
 
@@ -70,7 +70,7 @@ One command replaces the old Makefile + docker-compose.yml workflow.
 ### Prerequisites
 
 - Docker, or Podman with the `docker` CLI shim (`podman-docker`) and `DOCKER_HOST` pointing at its socket
-- Python >= 3.12
+- Python >= 3.12 (only when installing from PyPI; **not required** when using the standalone binary)
 - (Optional) NVIDIA GPU + drivers for local LLM acceleration
 
 ### First-time setup
@@ -79,6 +79,19 @@ One command replaces the old Makefile + docker-compose.yml workflow.
 pip install augint-shell
 # or:  uv add --dev augint-shell
 ```
+
+#### Without Python or PyPI (standalone binary)
+
+On systems that block Python package registries or do not allow `pip` / host Python installations, `ai-shell` is also distributed as a single self-contained executable that requires no root/admin privileges and no host Python:
+
+1. **From [GitHub Releases](https://github.com/svange/augint-shell/releases):** download the binary for your platform (`ai-shell-linux-x86_64`, `ai-shell-macos-arm64`, or `ai-shell-windows-x86_64.exe`) and place it in a user directory on your `PATH` (such as `~/.local/bin/ai-shell` with `chmod +x`, or `%USERPROFILE%\.local\bin\ai-shell.exe` on Windows).
+2. **Directly from the Docker image (Linux x86_64):** if your environment only allows pulling Docker images, extract the standalone Linux binary straight from `svange/augint-shell`:
+   ```bash
+   mkdir -p ~/.local/bin
+   docker run --rm --entrypoint "" svange/augint-shell:latest cat /usr/local/bin/ai-shell > ~/.local/bin/ai-shell
+   chmod +x ~/.local/bin/ai-shell
+   ```
+   To update later, pull the latest image (`docker pull svange/augint-shell:latest`) and re-run the command above.
 
 ### Running locally
 

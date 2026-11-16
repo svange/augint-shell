@@ -361,6 +361,14 @@ RUN chmod +x /usr/local/bin/update-tools.sh && \
 COPY motd.sh /usr/local/bin/motd.sh
 RUN chmod +x /usr/local/bin/motd.sh
 
+# Standalone host CLI binary (built in CI via `python -m ai_shell.standalone --output docker/ai-shell`).
+# Bundling it in the image lets systems that block PyPI and GitHub Releases extract
+# the host executable directly with `docker run --rm --entrypoint "" svange/augint-shell:latest cat /usr/local/bin/ai-shell`.
+COPY docker-entrypoint.sh ai-shell* /tmp/ai-shell-bootstrap/
+RUN if [ -f /tmp/ai-shell-bootstrap/ai-shell ]; then \
+        install -m 0755 /tmp/ai-shell-bootstrap/ai-shell /usr/local/bin/ai-shell; \
+    fi && rm -rf /tmp/ai-shell-bootstrap
+
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 

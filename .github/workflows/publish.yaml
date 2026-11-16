@@ -181,6 +181,12 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - name: uv build
         run: uv build
+      - name: Build and verify standalone binary
+        run: |
+          uv sync --frozen --no-dev
+          uv run --with pyinstaller python -m ai_shell.standalone --output dist-bin/ai-shell
+          ./dist-bin/ai-shell --version
+          ./dist-bin/ai-shell -m ai_shell.cdp_relay --help
       - name: Upload dist artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
@@ -310,6 +316,89 @@ jobs:
           packages-dir: dist/
           skip-existing: true
 
+  build-binaries:
+    name: Build standalone binary (${{ matrix.artifact }})
+    needs: release
+    if: |
+      github.event.pull_request.draft != true &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.release.outputs.released == 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            artifact: ai-shell-linux-x86_64
+          - runner: macos-latest
+            artifact: ai-shell-macos-arm64
+          - runner: windows-latest
+            artifact: ai-shell-windows-x86_64.exe
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: v${{ needs.release.outputs.version }}
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Build standalone binary
+        shell: bash
+        run: |
+          uv sync --frozen --no-dev
+          uv run --with pyinstaller python -m ai_shell.standalone --output "dist-bin/${{ matrix.artifact }}"
+          "./dist-bin/${{ matrix.artifact }}" --version
+
+      - name: Upload standalone binary artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: binary-${{ matrix.artifact }}
+          path: dist-bin/${{ matrix.artifact }}
+
+  publish-binaries:
+    name: Publish standalone binaries to GitHub Release
+    needs: [release, build-binaries]
+    if: |
+      github.event.pull_request.draft != true &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download standalone binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          pattern: binary-*
+          path: dist-bin/
+          merge-multiple: true
+
+      - name: Upload binaries and SHA256SUMS to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          TAG: v${{ needs.release.outputs.version }}
+        run: |
+          cd dist-bin
+          sha256sum ai-shell-* > SHA256SUMS.txt
+          gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo "${{ github.repository }}" --title "$TAG" --generate-notes
+          gh release upload "$TAG" --repo "${{ github.repository }}" --clobber ai-shell-* SHA256SUMS.txt
+
   publish-docker:
     name: Publish Docker image
     needs: release
@@ -350,6 +439,25 @@ jobs:
             echo "$TAGS"
             echo "EOF"
           } >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        if: needs.release.outputs.released == 'true' || steps.changes.outputs.docker_changed == 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install UV
+        if: needs.release.outputs.released == 'true' || steps.changes.outputs.docker_changed == 'true'
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Build standalone ai-shell binary for Docker image
+        if: needs.release.outputs.released == 'true' || steps.changes.outputs.docker_changed == 'true'
+        run: |
+          uv sync --frozen --no-dev
+          uv run --with pyinstaller python -m ai_shell.standalone --output docker/ai-shell
 
       - name: Set up Docker Buildx
         if: needs.release.outputs.released == 'true' || steps.changes.outputs.docker_changed == 'true'
