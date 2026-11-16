@@ -1,0 +1,322 @@
+"""Unit tests for ai_shell.opencode module."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from ai_shell.opencode import (
+    BEDROCK_MANTLE_DEFAULT_PRIMARY_MODEL,
+    BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL,
+    BEDROCK_MANTLE_PROVIDER_ID,
+    CustomEndpoint,
+    _generate_token_from_credentials,
+    bedrock_mantle_base_url,
+    bridge_opencode_skills,
+    build_opencode_config_patch,
+    deep_merge_dict,
+    generate_bedrock_bearer_token,
+    parse_endpoint_spec,
+    qualify_model_id,
+    resolve_aws_partition,
+    resolve_bedrock_bearer_token,
+    resolve_bedrock_mantle_region,
+    sanitize_provider_id,
+    sync_opencode_config,
+)
+
+
+class TestSanitizeAndParseEndpoints:
+    def test_sanitize_provider_id(self):
+        assert sanitize_provider_id("My_VLLM Server!") == "my-vllm-server"
+        assert sanitize_provider_id("---") == "custom"
+
+    def test_parse_endpoint_spec_with_name_models_and_key(self):
+        ep = parse_endpoint_spec(
+            "vllm=http://gpu-box:8000/v1,model=Qwen/Qwen3-Coder-30B,model=fast-coder,api_key_env=VLLM_API_KEY"
+        )
+        assert ep.name == "vllm"
+        assert ep.base_url == "http://gpu-box:8000/v1"
+        assert ep.api_key_env == "VLLM_API_KEY"
+        assert ep.models == ["Qwen/Qwen3-Coder-30B", "fast-coder"]
+
+    def test_parse_endpoint_spec_bare_url(self):
+        ep = parse_endpoint_spec(
+            "https://llm.internal.gov/v1,key_env=GOV_LLM_KEY,display_name=GovLLM"
+        )
+        assert ep.name == "custom"
+        assert ep.base_url == "https://llm.internal.gov/v1"
+        assert ep.api_key_env == "GOV_LLM_KEY"
+        assert ep.display_name == "GovLLM"
+
+    def test_parse_endpoint_spec_models_pipe_delimited(self):
+        ep = parse_endpoint_spec("sglang=http://localhost:30000/v1,models=model-a|model-b")
+        assert ep.name == "sglang"
+        assert ep.models == ["model-a", "model-b"]
+
+    def test_parse_endpoint_spec_rejects_empty_or_invalid(self):
+        with pytest.raises(ValueError, match="cannot be empty"):
+            parse_endpoint_spec("   ")
+        with pytest.raises(ValueError, match="Invalid endpoint specification"):
+            parse_endpoint_spec("not-a-url")
+        with pytest.raises(ValueError, match="requires a non-empty base URL"):
+            parse_endpoint_spec("vllm=")
+        with pytest.raises(ValueError, match="Unsupported option"):
+            parse_endpoint_spec("vllm=http://localhost:8000/v1,unknown=1")
+
+
+class TestBedrockMantleUrlsAndRegions:
+    def test_resolve_aws_partition(self):
+        assert resolve_aws_partition(partition="govcloud") == "govcloud"
+        assert resolve_aws_partition(partition="aws-us-gov") == "govcloud"
+        assert resolve_aws_partition(partition="commercial") == "commercial"
+        assert resolve_aws_partition(partition="aws") == "commercial"
+        assert resolve_aws_partition(region="us-gov-west-1") == "govcloud"
+        assert resolve_aws_partition(region="us-east-1") == "commercial"
+
+    def test_resolve_aws_partition_invalid(self):
+        with pytest.raises(ValueError, match="Unsupported AWS partition"):
+            resolve_aws_partition(partition="aws-cn")
+
+    def test_resolve_bedrock_mantle_region_defaults(self):
+        assert resolve_bedrock_mantle_region(partition="commercial") == "us-east-1"
+        assert resolve_bedrock_mantle_region(partition="govcloud") == "us-gov-west-1"
+        assert resolve_bedrock_mantle_region() == "us-east-1"
+
+    def test_resolve_bedrock_mantle_region_explicit(self):
+        assert (
+            resolve_bedrock_mantle_region(region="us-gov-east-1", partition="govcloud")
+            == "us-gov-east-1"
+        )
+        assert (
+            resolve_bedrock_mantle_region(region="us-west-2", partition="commercial") == "us-west-2"
+        )
+
+    def test_resolve_bedrock_mantle_region_rejects_mismatch(self):
+        with pytest.raises(ValueError, match="not a GovCloud region"):
+            resolve_bedrock_mantle_region(region="us-east-1", partition="govcloud")
+        with pytest.raises(ValueError, match="GovCloud region"):
+            resolve_bedrock_mantle_region(region="us-gov-west-1", partition="commercial")
+
+    def test_bedrock_mantle_base_url_commercial_and_govcloud(self):
+        assert (
+            bedrock_mantle_base_url(partition="commercial")
+            == "https://bedrock-mantle.us-east-1.api.aws/openai/v1"
+        )
+        assert (
+            bedrock_mantle_base_url(partition="govcloud")
+            == "https://bedrock-mantle.us-gov-west-1.api.aws/openai/v1"
+        )
+        assert (
+            bedrock_mantle_base_url(region="us-gov-east-1")
+            == "https://bedrock-mantle.us-gov-east-1.api.aws/openai/v1"
+        )
+
+
+class TestBearerTokenGeneration:
+    def test_generate_token_from_credentials_format(self):
+        token = _generate_token_from_credentials(
+            access_key="AKIAIOSFODNN7EXAMPLE",
+            secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            session_token="AQoDYXdzEJr...",
+            region="us-gov-west-1",
+        )
+        assert token.startswith("bedrock-api-key-")
+
+    def test_resolve_bedrock_bearer_token_from_existing_env(self):
+        env = {"AWS_BEARER_TOKEN_BEDROCK": "existing-token"}
+        token = resolve_bedrock_bearer_token(env, generate_if_missing=False)
+        assert token == "existing-token"
+        assert env["AWS_BEARER_TOKEN_BEDROCK"] == "existing-token"
+        assert env["BEDROCK_API_KEY"] == "existing-token"
+
+    def test_resolve_bedrock_bearer_token_mirrors_bedrock_api_key(self):
+        env = {"BEDROCK_API_KEY": "from-bedrock-api-key"}
+        token = resolve_bedrock_bearer_token(env, generate_if_missing=False)
+        assert token == "from-bedrock-api-key"
+        assert env["AWS_BEARER_TOKEN_BEDROCK"] == "from-bedrock-api-key"
+
+    def test_resolve_bedrock_bearer_token_generates_when_missing(self):
+        env: dict[str, str] = {}
+        with patch(
+            "ai_shell.opencode.generate_bedrock_bearer_token",
+            return_value="generated-short-term-token",
+        ) as mock_gen:
+            token = resolve_bedrock_bearer_token(
+                env,
+                profile="gov-sso",
+                region="us-gov-west-1",
+                container_name="augint-shell-demo-dev",
+                generate_if_missing=True,
+            )
+        assert token == "generated-short-term-token"
+        assert env["AWS_BEARER_TOKEN_BEDROCK"] == "generated-short-term-token"
+        assert env["BEDROCK_API_KEY"] == "generated-short-term-token"
+        mock_gen.assert_called_once_with(
+            profile="gov-sso",
+            region="us-gov-west-1",
+            container_name="augint-shell-demo-dev",
+        )
+
+    @patch("ai_shell.opencode._presign_bedrock_bearer_token_via_botocore", return_value=None)
+    @patch("ai_shell.opencode.subprocess.run")
+    def test_generate_bedrock_bearer_token_falls_back_to_aws_cli(self, mock_run, _mock_botocore):
+        creds_json = json.dumps(
+            {
+                "AccessKeyId": "ASIATESTKEY",
+                "SecretAccessKey": "testsecret",
+                "SessionToken": "testsession",
+            }
+        )
+        mock_run.return_value = MagicMock(returncode=0, stdout=creds_json, stderr="")
+        token = generate_bedrock_bearer_token(profile="gov-sso", region="us-gov-west-1")
+        assert token is not None
+        assert token.startswith("bedrock-api-key-")
+
+
+class TestQualifyModelAndConfigMerging:
+    def test_qualify_model_id_handles_known_and_hf_slash_models(self):
+        known = {"bedrock-mantle", "vllm"}
+        # Unqualified model gets default provider prefix
+        assert (
+            qualify_model_id("openai.gpt-5.4", "bedrock-mantle", known)
+            == "bedrock-mantle/openai.gpt-5.4"
+        )
+        # Already qualified with known provider stays untouched
+        assert (
+            qualify_model_id("vllm/Qwen/Qwen3-Coder-30B", "bedrock-mantle", known)
+            == "vllm/Qwen/Qwen3-Coder-30B"
+        )
+        # HuggingFace ID with slash (Org/Model) where Org is not a provider gets prefixed
+        assert (
+            qualify_model_id("Qwen/Qwen3-Coder-30B", "vllm", known) == "vllm/Qwen/Qwen3-Coder-30B"
+        )
+
+    def test_build_opencode_config_patch_bedrock_and_custom_split(self):
+        vllm_ep = CustomEndpoint(
+            name="vllm",
+            base_url="http://gpu-box:8000/v1",
+            api_key_env="VLLM_API_KEY",
+            models=["Qwen/Qwen3-Coder-30B-A3B-Instruct"],
+        )
+        patch_dict = build_opencode_config_patch(
+            bedrock_region="us-gov-west-1",
+            custom_endpoints=[vllm_ep],
+            primary_model="openai.gpt-5.4",
+            subagent_model="vllm/Qwen/Qwen3-Coder-30B-A3B-Instruct",
+        )
+        assert (
+            patch_dict["provider"][BEDROCK_MANTLE_PROVIDER_ID]["options"]["baseURL"]
+            == "https://bedrock-mantle.us-gov-west-1.api.aws/openai/v1"
+        )
+        assert (
+            patch_dict["provider"][BEDROCK_MANTLE_PROVIDER_ID]["options"]["apiKey"]
+            == "{env:AWS_BEARER_TOKEN_BEDROCK}"
+        )
+        assert patch_dict["provider"]["vllm"]["options"]["baseURL"] == "http://gpu-box:8000/v1"
+        assert patch_dict["provider"]["vllm"]["options"]["apiKey"] == "{env:VLLM_API_KEY}"
+        assert "Qwen/Qwen3-Coder-30B-A3B-Instruct" in patch_dict["provider"]["vllm"]["models"]
+        # Primary vs subagent routing
+        assert patch_dict["model"] == f"{BEDROCK_MANTLE_PROVIDER_ID}/openai.gpt-5.4"
+        assert patch_dict["small_model"] == "vllm/Qwen/Qwen3-Coder-30B-A3B-Instruct"
+        assert (
+            patch_dict["agent"]["plan"]["model"] == f"{BEDROCK_MANTLE_PROVIDER_ID}/openai.gpt-5.4"
+        )
+        assert (
+            patch_dict["agent"]["build"]["model"] == f"{BEDROCK_MANTLE_PROVIDER_ID}/openai.gpt-5.4"
+        )
+        assert patch_dict["agent"]["explore"]["model"] == "vllm/Qwen/Qwen3-Coder-30B-A3B-Instruct"
+        assert patch_dict["agent"]["general"]["model"] == "vllm/Qwen/Qwen3-Coder-30B-A3B-Instruct"
+
+    def test_sync_opencode_config_preserves_unrelated_user_settings(self, tmp_path: Path):
+        config_path = tmp_path / "opencode.json"
+        existing = {
+            "$schema": "https://opencode.ai/config.json",
+            "theme": "catppuccin",
+            "keybinds": {"leader": "ctrl+x"},
+            "mcp": {"my-server": {"type": "local", "command": ["npx", "my-mcp"]}},
+            "provider": {
+                "existing-provider": {
+                    "npm": "@ai-sdk/openai-compatible",
+                    "options": {"baseURL": "http://localhost:1234/v1"},
+                }
+            },
+            "agent": {
+                "plan": {"prompt": "Always think step by step."},
+                "custom-agent": {"model": "existing-provider/foo"},
+            },
+        }
+        config_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+
+        merged = sync_opencode_config(
+            config_path=config_path,
+            bedrock_region="us-east-1",
+        )
+
+        # User settings are untouched
+        assert merged["theme"] == "catppuccin"
+        assert merged["keybinds"] == {"leader": "ctrl+x"}
+        assert "my-server" in merged["mcp"]
+        assert "existing-provider" in merged["provider"]
+        assert merged["agent"]["plan"]["prompt"] == "Always think step by step."
+        assert merged["agent"]["custom-agent"]["model"] == "existing-provider/foo"
+
+        # Default Bedrock Mantle models applied
+        assert (
+            merged["agent"]["plan"]["model"]
+            == f"{BEDROCK_MANTLE_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_PRIMARY_MODEL}"
+        )
+        assert (
+            merged["agent"]["build"]["model"]
+            == f"{BEDROCK_MANTLE_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_PRIMARY_MODEL}"
+        )
+        assert (
+            merged["agent"]["explore"]["model"]
+            == f"{BEDROCK_MANTLE_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL}"
+        )
+        assert (
+            merged["agent"]["general"]["model"]
+            == f"{BEDROCK_MANTLE_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL}"
+        )
+
+        # File on disk matches merged dict
+        on_disk = json.loads(config_path.read_text(encoding="utf-8"))
+        assert on_disk == merged
+
+    def test_deep_merge_dict_does_not_mutate_base(self):
+        base = {"a": {"x": 1}, "b": 2}
+        patch_d = {"a": {"y": 3}}
+        merged = deep_merge_dict(base, patch_d)
+        assert merged == {"a": {"x": 1, "y": 3}, "b": 2}
+        assert base == {"a": {"x": 1}, "b": 2}
+
+
+class TestBridgeOpencodeSkills:
+    def test_bridges_global_agents_skills_to_opencode(self, tmp_path: Path):
+        home = tmp_path / "home"
+        skill_dir = home / ".agents" / "skills" / "code-review"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Code Review\n", encoding="utf-8")
+
+        bridged = bridge_opencode_skills(home_dir=home)
+        target = home / ".config" / "opencode" / "skills"
+        assert target in bridged
+        assert (target / "code-review" / "SKILL.md").is_file()
+
+    def test_bridges_project_agents_skills_when_dot_opencode_exists(self, tmp_path: Path):
+        home = tmp_path / "home"
+        home.mkdir()
+        project = tmp_path / "repo"
+        (project / ".agents" / "skills" / "gov-compliance").mkdir(parents=True)
+        (project / ".agents" / "skills" / "gov-compliance" / "SKILL.md").write_text(
+            "# Gov Compliance\n", encoding="utf-8"
+        )
+        (project / ".opencode").mkdir(parents=True)
+
+        bridged = bridge_opencode_skills(project_dir=project, home_dir=home)
+        target = project / ".opencode" / "skills"
+        assert target in bridged
+        assert (target / "gov-compliance" / "SKILL.md").is_file()

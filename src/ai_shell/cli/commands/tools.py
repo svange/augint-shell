@@ -1468,61 +1468,280 @@ def codex(
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
+def _cfg_str(config: object, attr: str, default: str = "") -> str:
+    """Read a string attribute from *config*, returning *default* for mocks or None."""
+    val = getattr(config, attr, default)
+    return val if isinstance(val, str) else default
+
+
 def _opencode_setup(
     ctx: click.Context,
     use_aws: bool = False,
     cli_profile: str | None = None,
     openai_profile: str | None = None,
     env_file: Path | None = None,
+    *,
+    aws_partition: str | None = None,
+    aws_region: str | None = None,
+    generate_token: bool = True,
+    cli_model: str | None = None,
+    cli_subagent_model: str | None = None,
+    cli_endpoints: tuple[str, ...] = (),
+    custom_url: str | None = None,
+    custom_name: str = "custom",
+    custom_key_env: str | None = None,
+    custom_models: tuple[str, ...] = (),
 ) -> tuple[ContainerManager, str, dict[str, str], AiShellConfig, list[str], str, str, str]:
     """Common setup for opencode commands.
 
     Returns (manager, name, exec_env, config, cmd_base, bedrock_label,
     openai_label, project_slug).
     """
+    import os
+
+    from ai_shell.config import _upsert_custom_endpoint
+    from ai_shell.opencode import (
+        CustomEndpoint,
+        bridge_opencode_skills,
+        parse_endpoint_spec,
+        resolve_bedrock_bearer_token,
+        resolve_bedrock_mantle_region,
+        sanitize_provider_id,
+        sync_opencode_config,
+    )
+
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
-    use_bedrock = use_aws or bool(cli_profile) or bool(config.bedrock_profile)
+
+    cfg_provider = _cfg_str(config, "opencode_provider").strip().lower()
+    cfg_partition = _cfg_str(config, "aws_partition").strip()
+    cfg_bedrock_profile = _cfg_str(config, "bedrock_profile").strip()
+    cfg_bedrock_region = _cfg_str(config, "bedrock_region").strip()
+    cfg_aws_region = _cfg_str(config, "aws_region").strip()
+    provider_is_aws = cfg_provider in ("aws", "bedrock", "bedrock-mantle")
+
+    resolved_partition = (aws_partition or cfg_partition).strip()
+    resolved_profile = (cli_profile or cfg_bedrock_profile).strip()
+    explicit_region = (aws_region or cfg_bedrock_region).strip()
+
+    use_bedrock = bool(
+        use_aws
+        or cli_profile
+        or aws_partition
+        or aws_region
+        or cfg_bedrock_profile
+        or cfg_partition
+        or provider_is_aws
+    )
+
+    mantle_region = ""
+    if use_bedrock:
+        try:
+            mantle_region = resolve_bedrock_mantle_region(
+                region=explicit_region or (cfg_aws_region if not resolved_partition else ""),
+                partition=resolved_partition,
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+        config.bedrock_region = mantle_region
 
     manager, name, exec_env, config = _get_manager(
         ctx,
         bedrock=use_bedrock,
-        bedrock_profile=cli_profile or config.bedrock_profile,
-        openai_profile=openai_profile or config.openai_profile,
+        bedrock_profile=resolved_profile,
+        openai_profile=openai_profile or _cfg_str(config, "openai_profile"),
         env_file=env_file,
     )
 
+    # Also activate Bedrock Mantle if a bearer token was supplied via .env / host env
+    if not use_bedrock and (
+        exec_env.get("AWS_BEARER_TOKEN_BEDROCK") or exec_env.get("BEDROCK_API_KEY")
+    ):
+        use_bedrock = True
+        try:
+            mantle_region = resolve_bedrock_mantle_region(
+                region=explicit_region or exec_env.get("AWS_REGION", ""),
+                partition=resolved_partition,
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+
     if use_bedrock:
-        profile_label = exec_env.get("AWS_PROFILE", "default")
-        region_label = exec_env.get("AWS_REGION", "us-east-1")
-        bedrock_label = f" via Bedrock (profile={profile_label}, region={region_label})"
-        _check_bedrock_access(
-            name,
+        if not mantle_region:
+            mantle_region = exec_env.get("AWS_REGION", "us-east-1")
+        exec_env["AWS_REGION"] = mantle_region
+        exec_env["AWS_DEFAULT_REGION"] = mantle_region
+        profile_label = exec_env.get("AWS_PROFILE", "") or "default"
+        bedrock_label = f" via Bedrock (profile={profile_label}, region={mantle_region})"
+
+        token = resolve_bedrock_bearer_token(
             exec_env,
-            model_id=config.bedrock_model,
-            cache_ttl=config.bedrock_check_cache_ttl,
+            profile=exec_env.get("AWS_PROFILE", ""),
+            region=mantle_region,
+            container_name=name,
+            generate_if_missing=generate_token,
         )
+        if not token:
+            ttl = getattr(config, "bedrock_check_cache_ttl", 0)
+            _check_bedrock_access(
+                name,
+                exec_env,
+                model_id=_cfg_str(config, "bedrock_model"),
+                cache_ttl=ttl if isinstance(ttl, int) else 0,
+            )
     else:
         bedrock_label = ""
 
-    resolved_openai_profile = openai_profile or config.openai_profile
+    # Assemble custom OpenAI-compatible endpoints (config + CLI flags)
+    raw_cfg_endpoints = getattr(config, "opencode_endpoints", None)
+    endpoints: list[CustomEndpoint] = (
+        list(raw_cfg_endpoints) if isinstance(raw_cfg_endpoints, list) else []
+    )
+    for spec in cli_endpoints:
+        try:
+            _upsert_custom_endpoint(endpoints, parse_endpoint_spec(spec))
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+    if custom_url and custom_url.strip():
+        _upsert_custom_endpoint(
+            endpoints,
+            CustomEndpoint(
+                name=sanitize_provider_id(custom_name or "custom"),
+                base_url=custom_url.strip(),
+                api_key_env=(custom_key_env or "").strip(),
+                models=[m.strip() for m in custom_models if m.strip()],
+            ),
+        )
+
+    # Forward any custom endpoint API key env var from host environment into exec_env
+    for ep in endpoints:
+        if ep.api_key_env and ep.api_key_env not in exec_env:
+            host_val = os.environ.get(ep.api_key_env, "").strip()
+            if host_val:
+                exec_env[ep.api_key_env] = host_val
+
+    resolved_openai_profile = openai_profile or _cfg_str(config, "openai_profile")
     openai_label = f" (OpenAI profile={resolved_openai_profile})" if resolved_openai_profile else ""
 
     manager.ensure_tool_fresh(name, "opencode")
 
+    raw_project_dir = getattr(config, "project_dir", None)
+    project_dir = (
+        raw_project_dir
+        if isinstance(raw_project_dir, Path)
+        else Path(str(raw_project_dir))
+        if isinstance(raw_project_dir, str) and raw_project_dir
+        else Path.cwd()
+    )
+    bridge_opencode_skills(project_dir=project_dir)
+
+    primary_model = (cli_model or _cfg_str(config, "opencode_model")).strip()
+    subagent_model = (cli_subagent_model or _cfg_str(config, "opencode_subagent_model")).strip()
+    default_provider = (
+        sanitize_provider_id(cfg_provider)
+        if cfg_provider and not provider_is_aws and cfg_provider != "ollama"
+        else ""
+    )
+
     cmd_base = ["opencode"]
-    if not use_bedrock:
+    if use_bedrock or endpoints or primary_model or subagent_model or default_provider:
+        merged_cfg = sync_opencode_config(
+            bedrock_region=mantle_region if use_bedrock else "",
+            custom_endpoints=endpoints,
+            primary_model=primary_model,
+            subagent_model=subagent_model,
+            default_provider=default_provider,
+        )
+        selected_model = str(merged_cfg.get("model") or "").strip()
+        if selected_model:
+            cmd_base.extend(["--model", selected_model])
+    else:
         cmd_base.extend(["--model", f"ollama/{config.primary_coding_model}"])
 
-    project_slug = sanitize_project_name(config.project_dir or Path.cwd())
+    project_slug = sanitize_project_name(project_dir)
 
     return manager, name, exec_env, config, cmd_base, bedrock_label, openai_label, project_slug
 
 
 @click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)
 @click.option("--safe", is_flag=True, default=False, help="Run without permissive flags.")
-@click.option("--aws", "use_aws", is_flag=True, default=False, help="Use Amazon Bedrock.")
+@click.option(
+    "--aws",
+    "use_aws",
+    is_flag=True,
+    default=False,
+    help="Use AWS Bedrock Mantle OpenAI-compatible endpoint.",
+)
 @click.option("--profile", "cli_profile", default=None, help="AWS profile for Bedrock auth.")
+@click.option(
+    "--aws-profile",
+    "cli_aws_profile",
+    default=None,
+    help="AWS profile for Bedrock auth (alias for --profile).",
+)
+@click.option(
+    "--aws-partition",
+    type=click.Choice(["commercial", "govcloud"], case_sensitive=False),
+    default=None,
+    help="AWS partition for Bedrock Mantle (defaults region to us-east-1 or us-gov-west-1).",
+)
+@click.option(
+    "--aws-region",
+    default=None,
+    help="AWS region for Bedrock Mantle endpoint (e.g. us-east-1, us-gov-west-1).",
+)
+@click.option(
+    "--generate-token/--no-generate-token",
+    "generate_token",
+    default=True,
+    show_default=True,
+    help="Generate a short-term Bedrock bearer token from the active AWS profile when AWS_BEARER_TOKEN_BEDROCK is unset.",
+)
+@click.option(
+    "--model",
+    "cli_model",
+    default=None,
+    help="Primary model for plan and build agents (e.g. openai.gpt-5.4 or vllm/Qwen/Qwen3-Coder-30B).",
+)
+@click.option(
+    "--subagent-model",
+    "cli_subagent_model",
+    default=None,
+    help="Model for explore and general subagents (e.g. openai.gpt-oss-120b or vllm/fast-model).",
+)
+@click.option(
+    "--endpoint",
+    "cli_endpoints",
+    multiple=True,
+    metavar="SPEC",
+    help=(
+        "Add a custom OpenAI-compatible endpoint: "
+        "NAME=URL[,model=ID][,api_key_env=ENV]. Repeatable."
+    ),
+)
+@click.option(
+    "--custom-url",
+    default=None,
+    help="Base URL for a custom OpenAI-compatible endpoint (e.g. http://gpu-box:8000/v1).",
+)
+@click.option(
+    "--custom-name",
+    default="custom",
+    show_default=True,
+    help="Provider name for --custom-url.",
+)
+@click.option(
+    "--custom-key-env",
+    default=None,
+    help="Environment variable holding the API key for --custom-url.",
+)
+@click.option(
+    "--custom-model",
+    "custom_models",
+    multiple=True,
+    help="Model ID served by --custom-url (repeatable).",
+)
 @click.option(
     "--openai-profile",
     "openai_profile",
@@ -1572,6 +1791,17 @@ def opencode(
     safe,
     use_aws,
     cli_profile,
+    cli_aws_profile,
+    aws_partition,
+    aws_region,
+    generate_token,
+    cli_model,
+    cli_subagent_model,
+    cli_endpoints,
+    custom_url,
+    custom_name,
+    custom_key_env,
+    custom_models,
     openai_profile,
     use_t3,
     use_expo,
@@ -1581,9 +1811,20 @@ def opencode(
 ):
     """Launch opencode in the dev container."""
     resolved_env = Path(env_file) if env_file else None
+    effective_profile = cli_aws_profile or cli_profile
     ctx.ensure_object(dict)
     ctx.obj["use_aws"] = use_aws
-    ctx.obj["cli_profile"] = cli_profile
+    ctx.obj["cli_profile"] = effective_profile
+    ctx.obj["aws_partition"] = aws_partition
+    ctx.obj["aws_region"] = aws_region
+    ctx.obj["generate_token"] = generate_token
+    ctx.obj["cli_model"] = cli_model
+    ctx.obj["cli_subagent_model"] = cli_subagent_model
+    ctx.obj["cli_endpoints"] = cli_endpoints
+    ctx.obj["custom_url"] = custom_url
+    ctx.obj["custom_name"] = custom_name
+    ctx.obj["custom_key_env"] = custom_key_env
+    ctx.obj["custom_models"] = custom_models
     ctx.obj["openai_profile"] = openai_profile
     ctx.obj["safe"] = safe
     ctx.obj["env_file"] = resolved_env
@@ -1595,7 +1836,23 @@ def opencode(
 
     with capture_typeahead() as typeahead:
         manager, name, exec_env, config, cmd, bedrock_label, openai_label, project_slug = (
-            _opencode_setup(ctx, use_aws, cli_profile, openai_profile, env_file=resolved_env)
+            _opencode_setup(
+                ctx,
+                use_aws,
+                effective_profile,
+                openai_profile,
+                env_file=resolved_env,
+                aws_partition=aws_partition,
+                aws_region=aws_region,
+                generate_token=generate_token,
+                cli_model=cli_model,
+                cli_subagent_model=cli_subagent_model,
+                cli_endpoints=cli_endpoints,
+                custom_url=custom_url,
+                custom_name=custom_name,
+                custom_key_env=custom_key_env,
+                custom_models=custom_models,
+            )
         )
 
         if use_t3:
@@ -1659,6 +1916,16 @@ def serve(ctx, port: int, open_browser: bool) -> None:
             ctx.obj.get("cli_profile"),
             ctx.obj.get("openai_profile"),
             env_file=ctx.obj.get("env_file"),
+            aws_partition=ctx.obj.get("aws_partition"),
+            aws_region=ctx.obj.get("aws_region"),
+            generate_token=ctx.obj.get("generate_token", True),
+            cli_model=ctx.obj.get("cli_model"),
+            cli_subagent_model=ctx.obj.get("cli_subagent_model"),
+            cli_endpoints=ctx.obj.get("cli_endpoints", ()),
+            custom_url=ctx.obj.get("custom_url"),
+            custom_name=ctx.obj.get("custom_name", "custom"),
+            custom_key_env=ctx.obj.get("custom_key_env"),
+            custom_models=ctx.obj.get("custom_models", ()),
         )
     )
 

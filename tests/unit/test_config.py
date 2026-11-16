@@ -478,7 +478,7 @@ class TestAwsConfig:
         assert config.aws_region == ""
         assert config.bedrock_profile == ""
         assert config.claude_provider == ""
-        assert not hasattr(config, "opencode_provider")
+        assert config.opencode_provider == ""
         assert not hasattr(config, "codex_provider")
         assert not hasattr(config, "codex_openai_api_key")
         assert not hasattr(config, "codex_profile")
@@ -609,33 +609,73 @@ provider = "anthropic"
 
     def test_tool_specific_sections_are_ignored(self, tmp_path):
         (tmp_path / ".ai-shell.toml").write_bytes(b"""
-[opencode]
-provider = "aws"
-
 [codex]
 provider = "aws"
 openai_api_key = "sk-test-123"
 profile = "bedrock-acct"
 """)
         config = load_config(project_dir=tmp_path)
-        assert not hasattr(config, "opencode_provider")
         assert not hasattr(config, "codex_provider")
         assert not hasattr(config, "codex_openai_api_key")
         assert not hasattr(config, "codex_profile")
 
     def test_tool_specific_env_vars_are_ignored(self, tmp_path):
         env = {
-            "AI_SHELL_OPENCODE_PROVIDER": "aws",
             "AI_SHELL_CODEX_PROVIDER": "aws",
             "AI_SHELL_CODEX_OPENAI_API_KEY": "sk-env-456",
             "AI_SHELL_CODEX_PROFILE": "env-profile",
         }
         with patch.dict("os.environ", env):
             config = load_config(project_dir=tmp_path)
-        assert not hasattr(config, "opencode_provider")
         assert not hasattr(config, "codex_provider")
         assert not hasattr(config, "codex_openai_api_key")
         assert not hasattr(config, "codex_profile")
+
+    def test_opencode_section_from_yaml(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "opencode:\n"
+            "  provider: bedrock-mantle\n"
+            "  aws_partition: govcloud\n"
+            "  aws_region: us-gov-west-1\n"
+            "  aws_profile: gov-sso\n"
+            "  model: openai.gpt-5.4\n"
+            "  subagent_model: vllm/Qwen/Qwen3-Coder-30B\n"
+            "  endpoints:\n"
+            "    vllm:\n"
+            "      base_url: http://gpu-box:8000/v1\n"
+            "      api_key_env: VLLM_API_KEY\n"
+            "      models:\n"
+            "        - Qwen/Qwen3-Coder-30B\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.opencode_provider == "bedrock-mantle"
+        assert config.aws_partition == "govcloud"
+        assert config.bedrock_region == "us-gov-west-1"
+        assert config.bedrock_profile == "gov-sso"
+        assert config.opencode_model == "openai.gpt-5.4"
+        assert config.opencode_subagent_model == "vllm/Qwen/Qwen3-Coder-30B"
+        assert len(config.opencode_endpoints) == 1
+        assert config.opencode_endpoints[0].name == "vllm"
+        assert config.opencode_endpoints[0].base_url == "http://gpu-box:8000/v1"
+        assert config.opencode_endpoints[0].api_key_env == "VLLM_API_KEY"
+        assert config.opencode_endpoints[0].models == ["Qwen/Qwen3-Coder-30B"]
+
+    def test_opencode_env_var_overrides(self, tmp_path):
+        env = {
+            "AI_SHELL_OPENCODE_PROVIDER": "bedrock-mantle",
+            "AI_SHELL_OPENCODE_AWS_PARTITION": "govcloud",
+            "AI_SHELL_OPENCODE_MODEL": "openai.gpt-5.4",
+            "AI_SHELL_OPENCODE_SUBAGENT_MODEL": "openai.gpt-oss-120b",
+            "AI_SHELL_OPENCODE_ENDPOINT": "vllm=http://localhost:8000/v1,model=Qwen/Qwen3-Coder-30B,api_key_env=VLLM_KEY",
+        }
+        with patch.dict("os.environ", env):
+            config = load_config(project_dir=tmp_path)
+        assert config.opencode_provider == "bedrock-mantle"
+        assert config.aws_partition == "govcloud"
+        assert config.opencode_model == "openai.gpt-5.4"
+        assert config.opencode_subagent_model == "openai.gpt-oss-120b"
+        assert len(config.opencode_endpoints) == 1
+        assert config.opencode_endpoints[0].name == "vllm"
 
 
 class TestChromeProxyAndVpnConfig:

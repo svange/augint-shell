@@ -22,6 +22,7 @@
 # AWS_BEDROCK_PROFILE=my-ai-account
 # AWS_PROFILE=my-infra-account
 # AWS_REGION=us-east-1
+# AWS_BEARER_TOKEN_BEDROCK=bedrock-api-key-...
 
 # --- OpenCode Web Server Auth ------------------------------------------------
 # Set once here, omit from project configs. augint-shell injects these into

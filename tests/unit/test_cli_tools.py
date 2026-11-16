@@ -2280,3 +2280,140 @@ class TestVpnCommands:
         assert "running" in result.output
         assert "203.0.113.9" in result.output
         assert "Server: us2943.nordvpn.com" in result.output
+
+
+@patch("ai_shell.cli.commands.tools._check_bedrock_access")
+@patch("ai_shell.cli.commands.tools.build_dev_environment")
+@patch("ai_shell.cli.commands.tools.ContainerManager")
+@patch("ai_shell.cli.commands.tools.load_config")
+class TestOpencodeProvidersAndHarness:
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    @patch("ai_shell.opencode.sync_opencode_config")
+    @patch("ai_shell.opencode.resolve_bedrock_bearer_token", return_value="bedrock-api-key-tok")
+    def test_opencode_govcloud_mantle_and_subagent_split(
+        self,
+        mock_resolve_token,
+        mock_sync_cfg,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        from ai_shell.config import AiShellConfig
+
+        mock_config.return_value = AiShellConfig(
+            project_name="gov-app", project_dir=Path("/tmp/gov-app")
+        )
+        mock_build_env.return_value = dict(TEST_EXEC_ENV, AWS_PROFILE="gov-sso")
+        mock_sync_cfg.return_value = {"model": "bedrock-mantle/openai.gpt-5.4"}
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-gov-app-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        result = self.runner.invoke(
+            cli,
+            [
+                "opencode",
+                "--aws",
+                "--aws-partition",
+                "govcloud",
+                "--aws-profile",
+                "gov-sso",
+                "--endpoint",
+                "vllm=http://gpu-box:8000/v1,model=Qwen/Qwen3-Coder-30B,api_key_env=VLLM_API_KEY",
+                "--model",
+                "openai.gpt-5.4",
+                "--subagent-model",
+                "vllm/Qwen/Qwen3-Coder-30B",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        mock_resolve_token.assert_called_once()
+        assert mock_resolve_token.call_args.kwargs["region"] == "us-gov-west-1"
+        mock_sync_cfg.assert_called_once()
+        sync_kwargs = mock_sync_cfg.call_args.kwargs
+        assert sync_kwargs["bedrock_region"] == "us-gov-west-1"
+        assert sync_kwargs["primary_model"] == "openai.gpt-5.4"
+        assert sync_kwargs["subagent_model"] == "vllm/Qwen/Qwen3-Coder-30B"
+        assert len(sync_kwargs["custom_endpoints"]) == 1
+        assert sync_kwargs["custom_endpoints"][0].name == "vllm"
+        # Bearer token resolved -> preflight converse check is skipped
+        mock_check_bedrock.assert_not_called()
+        cmd = mock_manager.exec_interactive.call_args[0][1]
+        assert cmd == ["opencode", "--model", "bedrock-mantle/openai.gpt-5.4"]
+
+    @patch("ai_shell.opencode.sync_opencode_config")
+    def test_opencode_custom_url_flags(
+        self,
+        mock_sync_cfg,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        from ai_shell.config import AiShellConfig
+
+        mock_config.return_value = AiShellConfig(
+            project_name="vllm-app", project_dir=Path("/tmp/vllm-app")
+        )
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_sync_cfg.return_value = {"model": "vllm/Qwen/Qwen3-Coder-30B"}
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-vllm-app-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        with patch.dict("os.environ", {"VLLM_API_KEY": "secret-vllm"}):
+            result = self.runner.invoke(
+                cli,
+                [
+                    "opencode",
+                    "--custom-name",
+                    "vllm",
+                    "--custom-url",
+                    "http://gpu-box:8000/v1",
+                    "--custom-key-env",
+                    "VLLM_API_KEY",
+                    "--custom-model",
+                    "Qwen/Qwen3-Coder-30B",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        mock_sync_cfg.assert_called_once()
+        eps = mock_sync_cfg.call_args.kwargs["custom_endpoints"]
+        assert len(eps) == 1
+        assert eps[0].name == "vllm"
+        assert eps[0].base_url == "http://gpu-box:8000/v1"
+        assert eps[0].api_key_env == "VLLM_API_KEY"
+        assert eps[0].models == ["Qwen/Qwen3-Coder-30B"]
+        exec_env = mock_manager.exec_interactive.call_args[1]["extra_env"]
+        assert exec_env["VLLM_API_KEY"] == "secret-vllm"
+
+    def test_top_level_agent_and_harness_flags_launch_opencode(
+        self,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        from ai_shell.config import AiShellConfig
+
+        mock_config.return_value = AiShellConfig(project_name="demo", project_dir=Path("/tmp/demo"))
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-demo-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        for flag in ("--agent", "--harness"):
+            mock_manager.exec_interactive.reset_mock()
+            result = self.runner.invoke(cli, [flag, "opencode"])
+            assert result.exit_code == 0, result.output
+            mock_manager.exec_interactive.assert_called_once()
+            cmd = mock_manager.exec_interactive.call_args[0][1]
+            assert cmd[0] == "opencode"

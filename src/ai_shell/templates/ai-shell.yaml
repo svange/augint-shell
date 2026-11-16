@@ -126,6 +126,27 @@ llm:
 #   account: work          # default --account; token in .env or login profile (created on first use)
 
 # -----------------------------------------------------------------------------
+# opencode - OpenCode provider, Bedrock Mantle, custom endpoints & agent routing.
+# -----------------------------------------------------------------------------
+# Supports AWS Bedrock Mantle OpenAI-compatible endpoints (Commercial & GovCloud),
+# custom OpenAI-compatible servers (vLLM / SGLang), and splitting primary agents
+# (plan, build) vs subagents (explore, general).
+#
+# opencode:
+#   provider: bedrock-mantle                  # "ollama" (default), "bedrock-mantle" ("aws"), or custom endpoint name
+#   aws_partition: govcloud                   # "commercial" (us-east-1 default) or "govcloud" (us-gov-west-1 default)
+#   aws_region: us-gov-west-1                 # constructs https://bedrock-mantle.<region>.api.aws/openai/v1
+#   aws_profile: gov-bedrock                  # generates short-term AWS_BEARER_TOKEN_BEDROCK when token env unset
+#   model: openai.gpt-5.4                     # primary model for plan & build agents
+#   subagent_model: openai.gpt-oss-120b       # fast model for explore & general subagents
+#   endpoints:
+#     vllm:
+#       base_url: http://host.docker.internal:8000/v1
+#       api_key_env: VLLM_API_KEY
+#       models:
+#         - Qwen/Qwen3-Coder-30B-A3B-Instruct
+
+# -----------------------------------------------------------------------------
 # container - Docker image, env, mounts, ports. Uncomment to override.
 # -----------------------------------------------------------------------------
 # image / image_tag:  Override the default svange/augint-shell:latest image.
