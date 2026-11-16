@@ -562,36 +562,107 @@ Dependencies are checked *inside* the container, because `node_modules` is a con
 
 ---
 
-## OpenCode web mode
+## OpenCode (Bedrock Mantle, Custom Endpoints & Subagent Routing)
 
-### Browser UI
+`ai-shell opencode` (or `ai-shell --agent opencode` / `ai-shell --harness opencode`) launches OpenCode in the dev container with persistent configuration (`~/.config/opencode`) and state (`~/.local/share/opencode`), automatic `.agents/skills` discovery, and non-destructive `opencode.json` merging.
+
+### 1. AWS Bedrock Mantle (Commercial & GovCloud)
+
+OpenCode connects to AWS Bedrock's OpenAI-compatible Project Mantle endpoints (`https://bedrock-mantle.<region>.api.aws/openai/v1`) using `@ai-sdk/openai-compatible`:
+
+- **Commercial AWS** (`--aws-partition commercial`, default region `us-east-1`): supports `us-east-1`, `us-east-2`, `us-west-2`, `ap-northeast-1`, `ap-south-1`, `ap-southeast-1`, `ap-southeast-2`, `eu-central-1`, `eu-north-1`, `eu-west-1`, `eu-west-2`, `sa-east-1`.
+- **AWS GovCloud** (`--aws-partition govcloud`, default region `us-gov-west-1`): supports `us-gov-west-1`, `us-gov-east-1`.
+- **Authentication**:
+  - If `AWS_BEARER_TOKEN_BEDROCK` (or `BEDROCK_API_KEY`) is set on the host or in `~/.augint/.env`, it is forwarded into the container and referenced via `{env:AWS_BEARER_TOKEN_BEDROCK}` in `opencode.json`.
+  - Otherwise, `ai-shell` automatically generates a short-term Bedrock bearer token from your active AWS CLI/SSO profile (`--aws-profile` / `--profile`) before launching OpenCode so no interactive credential prompts are needed inside the container (disable with `--no-generate-token`).
+- **Default Mantle agent models**:
+  - Primary agents (`plan`, `build`): `bedrock-mantle/openai.gpt-5.4`
+  - Subagents (`explore`, `general`): `bedrock-mantle/openai.gpt-oss-120b`
+
+```bash
+# Commercial AWS (defaults to us-east-1) using an AWS SSO profile
+ai-shell opencode --aws --aws-profile my-bedrock-sso
+
+# AWS GovCloud (defaults to us-gov-west-1) using a pre-set bearer token
+export AWS_BEARER_TOKEN_BEDROCK="bedrock-token-..."
+ai-shell opencode --aws --aws-partition govcloud
+
+# AWS GovCloud East with profile token generation
+ai-shell opencode --aws --aws-partition govcloud --aws-region us-gov-east-1 --aws-profile gov-sso
+```
+
+### 2. Custom OpenAI-Compatible Endpoints (vLLM / SGLang)
+
+Point OpenCode at one or more self-hosted OpenAI-compatible servers via CLI flags, environment variables, or `.ai-shell.yaml` without hand-editing `opencode.json`:
+
+```bash
+# Single custom vLLM server via dedicated flags
+export VLLM_API_KEY="token-abc"
+ai-shell opencode \
+  --custom-name vllm \
+  --custom-url http://host.docker.internal:8000/v1 \
+  --custom-key-env VLLM_API_KEY \
+  --custom-model Qwen/Qwen3-Coder-30B-A3B-Instruct
+
+# One or more custom endpoints via repeatable --endpoint specs
+ai-shell opencode \
+  --endpoint "vllm=http://gpu-box:8000/v1,model=Qwen/Qwen3-Coder-30B-A3B-Instruct,api_key_env=VLLM_API_KEY" \
+  --endpoint "sglang=http://fast-box:30000/v1,model=openai/gpt-oss-120b"
+```
+
+### 3. Splitting Primary (`plan`, `build`) vs. Subagent (`explore`, `general`) Models
+
+Route primary reasoning/coding agents (`plan`, `build`) to a frontier model on Bedrock Mantle while offloading fast read-only/worker subagents (`explore`, `general`) to a secondary model or custom vLLM endpoint:
+
+```bash
+# Bedrock Mantle primary + Bedrock Mantle fast subagent
+ai-shell opencode --aws \
+  --aws-partition govcloud \
+  --aws-profile gov-sso \
+  --model bedrock-mantle/openai.gpt-5.4 \
+  --subagent-model bedrock-mantle/openai.gpt-oss-120b
+
+# Bedrock Mantle primary (plan, build) + self-hosted vLLM subagent (explore, general)
+ai-shell opencode --aws \
+  --aws-partition govcloud \
+  --aws-profile gov-sso \
+  --endpoint "vllm=http://gpu-box:8000/v1,model=Qwen/Qwen3-Coder-30B-A3B-Instruct,api_key_env=VLLM_API_KEY" \
+  --model bedrock-mantle/openai.gpt-5.4 \
+  --subagent-model vllm/Qwen/Qwen3-Coder-30B-A3B-Instruct
+```
+
+Or persist the setup in `.ai-shell.yaml` or `~/.augint/.ai-shell.yaml`:
+
+```yaml
+opencode:
+  provider: bedrock-mantle
+  aws_partition: govcloud
+  aws_region: us-gov-west-1
+  aws_profile: gov-sso
+  model: bedrock-mantle/openai.gpt-5.4
+  subagent_model: vllm/Qwen/Qwen3-Coder-30B-A3B-Instruct
+  endpoints:
+    vllm:
+      base_url: http://gpu-box:8000/v1
+      api_key_env: VLLM_API_KEY
+      models:
+        - Qwen/Qwen3-Coder-30B-A3B-Instruct
+```
+
+### 4. Browser UI, Headless Server & Status
 
 ```bash
 ai-shell opencode --web                # Launches web UI, opens browser
 ai-shell opencode --web --port 8080    # Custom port
-```
-
-mDNS is enabled by default -- the server is discoverable on your LAN as `<project>.local`. CORS is set to `*` for cross-device access (phone, tablet).
-
-### Headless server with multi-repo terminals
-
-```bash
-ai-shell opencode serve                # Start server + attach all git repos under CWD
-ai-shell opencode serve --skip-root    # Don't attach CWD itself
+ai-shell opencode serve                # Start headless server in container
 ai-shell opencode serve --open         # Auto-open browser after starting
-```
-
-`serve` finds all immediate child directories that are git repositories and attaches each as a terminal to the running server via `opencode attach`. The current directory is also attached by default (if it's a git repo).
-
-### Status dashboard
-
-```bash
+ai-shell opencode attach               # Attach a TUI to a running opencode server
 ai-shell opencode status               # Show server URL, mDNS name, terminal count
 ```
 
-### Authentication
+mDNS is enabled by default — the server is discoverable on your LAN as `<project>.local`. CORS is set to `*` for cross-device access (phone, tablet).
 
-Set `OPENCODE_SERVER_PASSWORD` (and optionally `OPENCODE_SERVER_USERNAME`) in your project `.env` file. These are automatically passed through to the container.
+Set `OPENCODE_SERVER_PASSWORD` (and optionally `OPENCODE_SERVER_USERNAME`) in `~/.augint/.env` or project `.env` to password-protect the server:
 
 ```bash
 # .env

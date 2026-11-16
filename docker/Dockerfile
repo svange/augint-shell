@@ -110,8 +110,8 @@ RUN DEB_ARCH=$(dpkg --print-architecture) && \
     sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin && \
     chezmoi --version
 
-# Install AWS SAM CLI, pre-commit, and uv
-RUN pip install aws-sam-cli pre-commit && \
+# Install AWS SAM CLI, pre-commit, Bedrock token generator, and uv
+RUN pip install aws-sam-cli pre-commit aws-bedrock-token-generator && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     ln -s /root/.local/bin/uv /usr/local/bin/uv && \
     ln -s /root/.local/bin/uvx /usr/local/bin/uvx
@@ -152,7 +152,9 @@ RUN curl -fsSL https://packages.sury.org/debsuryorg-archive-keyring.deb -o /tmp/
 
 # Install Claude Code and OpenCode native binaries
 RUN curl -fsSL https://claude.ai/install.sh | bash && \
-    curl -fsSL https://opencode.ai/install | bash
+    curl -fsSL https://opencode.ai/install | bash && \
+    ln -sf /root/.opencode/bin/opencode /usr/local/bin/opencode && \
+    mkdir -p /root/.config/opencode /root/.local/share/opencode /root/.agents/skills
 ENV PATH="/root/.local/bin:/root/.opencode/bin:${PATH}"
 
 # Consolidate all global npm packages into a single layer

@@ -1383,3 +1383,44 @@ class TestPodmanCliHost:
         assert podman_cli_host(env) is None
         env = {"DOCKER_HOST": "unix:///run/podman/podman.sock", "CONTAINER_CONNECTION": "box"}
         assert podman_cli_host(env) is None
+
+
+class TestOpenCodeMountsAndEnv:
+    def test_opencode_config_and_data_dirs_precreated_and_mounted(self, tmp_path, isolate_home):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+
+        mounts = build_dev_mounts(project_dir, "test-project")
+        by_target = {m.get("Target"): m for m in mounts}
+
+        assert (isolate_home / ".config" / "opencode").is_dir()
+        assert (isolate_home / ".local" / "share" / "opencode").is_dir()
+        assert (isolate_home / ".agents").is_dir()
+        assert by_target["/root/.config/opencode"].get("Type") == "bind"
+        assert by_target["/root/.local/share/opencode"].get("Type") == "bind"
+        assert by_target["/root/.agents"].get("Type") == "bind"
+
+    def test_opencode_isolated_uses_distinct_named_volumes(self, tmp_path, isolate_home):
+        project_dir = tmp_path / "test-project"
+        project_dir.mkdir()
+
+        mounts = build_dev_mounts(project_dir, "test-project", isolate_home_paths={".opencode"})
+        by_target = {m.get("Target"): m for m in mounts}
+
+        cfg_mount = by_target["/root/.config/opencode"]
+        data_mount = by_target["/root/.local/share/opencode"]
+        assert cfg_mount.get("Type") == "volume"
+        assert data_mount.get("Type") == "volume"
+        assert cfg_mount.get("Source") != data_mount.get("Source")
+
+    def test_aws_bearer_token_bedrock_passthrough_and_mirrored(self):
+        with patch.dict("os.environ", {"AWS_BEARER_TOKEN_BEDROCK": "bedrock-tok-123"}, clear=True):
+            env = build_dev_environment()
+        assert env["AWS_BEARER_TOKEN_BEDROCK"] == "bedrock-tok-123"
+        assert env["BEDROCK_API_KEY"] == "bedrock-tok-123"
+
+    def test_bedrock_api_key_mirrored_to_aws_bearer_token(self):
+        with patch.dict("os.environ", {"BEDROCK_API_KEY": "bedrock-key-456"}, clear=True):
+            env = build_dev_environment()
+        assert env["BEDROCK_API_KEY"] == "bedrock-key-456"
+        assert env["AWS_BEARER_TOKEN_BEDROCK"] == "bedrock-key-456"

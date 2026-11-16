@@ -16,7 +16,7 @@ from ai_shell.cli.commands.vpn import vpn_group
 from ai_shell.defaults import podman_cli_host
 
 
-@click.group(context_settings=CONTEXT_SETTINGS)
+@click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)
 @click.version_option(version=__version__, prog_name="ai-shell")
 @click.option("--project", default=None, help="Override project name for container naming.")
 @click.option("--verbose", "-v", is_flag=True, default=False, help="Enable debug logging.")
@@ -26,8 +26,16 @@ from ai_shell.defaults import podman_cli_host
     default=False,
     help="Skip the pre-launch tool freshness check.",
 )
+@click.option(
+    "--agent",
+    "--harness",
+    "agent",
+    type=click.Choice(["claude", "codex", "opencode", "pi"], case_sensitive=False),
+    default=None,
+    help="Launch the specified AI coding harness directly (claude, codex, opencode, pi).",
+)
 @click.pass_context
-def cli(ctx, project, verbose, skip_updates):
+def cli(ctx, project, verbose, skip_updates, agent):
     """AI Shell - Launch AI coding tools and local LLMs in Docker containers."""
     ctx.ensure_object(dict)
     ctx.obj["project"] = project
@@ -39,6 +47,18 @@ def cli(ctx, project, verbose, skip_updates):
         os.environ["CONTAINER_HOST"] = container_host
     if verbose:
         logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(message)s")
+
+    if ctx.invoked_subcommand is None:
+        if agent:
+            harnesses = {
+                "claude": claude,
+                "codex": codex,
+                "opencode": opencode,
+                "pi": pi,
+            }
+            ctx.invoke(harnesses[agent.lower()])
+        else:
+            click.echo(ctx.get_help())
 
 
 # Tool subcommands

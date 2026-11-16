@@ -39,6 +39,7 @@ from ai_shell.defaults import (
     DEFAULT_WHISPER_MODEL,
     DEFAULT_WHISPER_PORT,
 )
+from ai_shell.opencode import CustomEndpoint, parse_endpoint_spec, sanitize_provider_id
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,7 @@ class AiShellConfig:
     # AWS
     ai_profile: str = ""  # AWS profile for infra (sets AWS_PROFILE in container)
     aws_region: str = ""  # Override AWS_REGION
+    aws_partition: str = ""  # "commercial" or "govcloud"
     bedrock_profile: str = ""  # AWS profile for Bedrock LLM API calls
     bedrock_region: str = ""  # AWS region for Bedrock (falls back to aws_region)
     bedrock_model: str = "us.meta.llama3-3-70b-instruct-v1:0"
@@ -151,8 +153,14 @@ class AiShellConfig:
     image_pull_cache_ttl: int = 900  # 15 min: skip docker pull if checked recently
     bedrock_check_cache_ttl: int = 86400  # 24 h: skip Bedrock preflight if checked recently
 
-    # Per-tool provider
+    # Per-tool provider and OpenCode routing
     claude_provider: str = ""  # "anthropic" (default) or "aws"
+    opencode_provider: str = (
+        ""  # "ollama" (default), "aws" / "bedrock-mantle", or custom provider name
+    )
+    opencode_model: str = ""  # Primary model override for plan + build agents
+    opencode_subagent_model: str = ""  # Subagent model override for explore + general agents
+    opencode_endpoints: list[CustomEndpoint] = field(default_factory=list)
 
     @property
     def full_image(self) -> str:
@@ -379,6 +387,10 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.ai_profile = aws["ai_profile"]
     if "region" in aws:
         config.aws_region = aws["region"]
+    if "partition" in aws:
+        config.aws_partition = str(aws["partition"] or "")
+    if "aws_partition" in aws:
+        config.aws_partition = str(aws["aws_partition"] or "")
     if "bedrock_profile" in aws:
         config.bedrock_profile = aws["bedrock_profile"]
     if "bedrock_region" in aws:
@@ -402,6 +414,11 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
     if "chrome_proxy" in claude_sec:
         config.chrome_proxy = str(claude_sec["chrome_proxy"] or "")
 
+    # [opencode] section
+    opencode_sec = data.get("opencode", {})
+    if isinstance(opencode_sec, dict):
+        _apply_opencode_config(config, opencode_sec)
+
     # [vpn] section
     vpn = data.get("vpn", {})
     if isinstance(vpn, dict):
@@ -417,6 +434,104 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.image_pull_cache_ttl = int(container["image_pull_cache_ttl"])
     if "bedrock_check_cache_ttl" in aws:
         config.bedrock_check_cache_ttl = int(aws["bedrock_check_cache_ttl"])
+
+
+def _upsert_custom_endpoint(
+    endpoints: list[CustomEndpoint],
+    new_ep: CustomEndpoint,
+) -> None:
+    """Insert or replace a CustomEndpoint by provider name."""
+    for idx, existing in enumerate(endpoints):
+        if existing.name == new_ep.name:
+            endpoints[idx] = new_ep
+            return
+    endpoints.append(new_ep)
+
+
+def _coerce_models_list(raw: object) -> list[str]:
+    """Normalize a string or list of model IDs into a list of non-empty strings."""
+    if isinstance(raw, str):
+        return [m.strip() for m in raw.split(",") if m.strip()]
+    if isinstance(raw, list):
+        return [str(m).strip() for m in raw if str(m).strip()]
+    return []
+
+
+def _parse_opencode_endpoints(raw: object) -> list[CustomEndpoint]:
+    """Parse ``opencode.endpoints`` from YAML/TOML (supports dict or list formats)."""
+    parsed: list[CustomEndpoint] = []
+    if isinstance(raw, dict):
+        for name, entry in raw.items():
+            provider_id = sanitize_provider_id(str(name))
+            if isinstance(entry, str) and entry.strip():
+                parsed.append(CustomEndpoint(name=provider_id, base_url=entry.strip()))
+            elif isinstance(entry, dict):
+                base_url = str(entry.get("base_url") or entry.get("url") or "").strip()
+                if not base_url:
+                    continue
+                api_key_env = str(entry.get("api_key_env") or entry.get("key_env") or "").strip()
+                models_raw = entry.get("models") if "models" in entry else entry.get("model", [])
+                models = _coerce_models_list(models_raw)
+                display_name = str(entry.get("display_name") or "").strip()
+                parsed.append(
+                    CustomEndpoint(
+                        name=provider_id,
+                        base_url=base_url,
+                        api_key_env=api_key_env,
+                        models=models,
+                        display_name=display_name,
+                    )
+                )
+    elif isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str) and item.strip():
+                parsed.append(parse_endpoint_spec(item))
+            elif isinstance(item, dict):
+                name = sanitize_provider_id(str(item.get("name") or "custom"))
+                base_url = str(item.get("base_url") or item.get("url") or "").strip()
+                if not base_url:
+                    continue
+                api_key_env = str(item.get("api_key_env") or item.get("key_env") or "").strip()
+                models_raw = item.get("models") if "models" in item else item.get("model", [])
+                models = _coerce_models_list(models_raw)
+                display_name = str(item.get("display_name") or "").strip()
+                parsed.append(
+                    CustomEndpoint(
+                        name=name,
+                        base_url=base_url,
+                        api_key_env=api_key_env,
+                        models=models,
+                        display_name=display_name,
+                    )
+                )
+    return parsed
+
+
+def _apply_opencode_config(config: AiShellConfig, data: dict) -> None:
+    """Apply settings from the ``opencode:`` config section."""
+    if "provider" in data:
+        config.opencode_provider = str(data["provider"] or "")
+    if "aws_partition" in data:
+        config.aws_partition = str(data["aws_partition"] or "")
+    elif "partition" in data:
+        config.aws_partition = str(data["partition"] or "")
+    if "aws_region" in data:
+        config.bedrock_region = str(data["aws_region"] or "")
+    elif "region" in data:
+        config.bedrock_region = str(data["region"] or "")
+    if "aws_profile" in data:
+        config.bedrock_profile = str(data["aws_profile"] or "")
+    elif "profile" in data:
+        config.bedrock_profile = str(data["profile"] or "")
+    if "model" in data:
+        config.opencode_model = str(data["model"] or "")
+    elif "primary_model" in data:
+        config.opencode_model = str(data["primary_model"] or "")
+    if "subagent_model" in data:
+        config.opencode_subagent_model = str(data["subagent_model"] or "")
+    if "endpoints" in data:
+        for ep in _parse_opencode_endpoints(data["endpoints"]):
+            _upsert_custom_endpoint(config.opencode_endpoints, ep)
 
 
 _LEGACY_ENV_VARS = {
@@ -453,12 +568,17 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_COMFYUI_PORT": ("comfyui_port", int),
         "AI_SHELL_AI_PROFILE": ("ai_profile", str),
         "AI_SHELL_AWS_REGION": ("aws_region", str),
+        "AI_SHELL_AWS_PARTITION": ("aws_partition", str),
         "AI_SHELL_BEDROCK_PROFILE": ("bedrock_profile", str),
         "AI_SHELL_BEDROCK_REGION": ("bedrock_region", str),
         "AI_SHELL_BEDROCK_MODEL": ("bedrock_model", str),
         "AI_SHELL_OPENAI_PROFILE": ("openai_profile", str),
         "AI_SHELL_CLAUDE_PROVIDER": ("claude_provider", str),
         "AI_SHELL_CLAUDE_ACCOUNT": ("claude_account", str),
+        "AI_SHELL_OPENCODE_PROVIDER": ("opencode_provider", str),
+        "AI_SHELL_OPENCODE_MODEL": ("opencode_model", str),
+        "AI_SHELL_OPENCODE_SUBAGENT_MODEL": ("opencode_subagent_model", str),
+        "AI_SHELL_OPENCODE_AWS_PARTITION": ("aws_partition", str),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
         "AI_SHELL_CHROME_PROXY": ("chrome_proxy", str),
         "AI_SHELL_VPN_COUNTRY": ("vpn_country", str),
@@ -489,6 +609,37 @@ def _apply_env_vars(config: AiShellConfig) -> None:
     isolate_value = os.environ.get("AI_SHELL_ISOLATE_HOME_PATHS")
     if isolate_value:
         config.isolate_home_paths.extend(p.strip() for p in isolate_value.split(",") if p.strip())
+
+    # OpenCode custom endpoint env vars:
+    # - AI_SHELL_OPENCODE_ENDPOINT / AI_SHELL_OPENCODE_ENDPOINTS (semicolon-separated specs)
+    # - AI_SHELL_OPENCODE_CUSTOM_URL (+ optional _NAME, _KEY_ENV, _MODEL)
+    for env_key in ("AI_SHELL_OPENCODE_ENDPOINT", "AI_SHELL_OPENCODE_ENDPOINTS"):
+        raw_specs = os.environ.get(env_key, "").strip()
+        if raw_specs:
+            for spec in raw_specs.split(";"):
+                if spec.strip():
+                    _upsert_custom_endpoint(
+                        config.opencode_endpoints,
+                        parse_endpoint_spec(spec.strip()),
+                    )
+
+    custom_url = os.environ.get("AI_SHELL_OPENCODE_CUSTOM_URL", "").strip()
+    if custom_url:
+        custom_name = sanitize_provider_id(
+            os.environ.get("AI_SHELL_OPENCODE_CUSTOM_NAME", "custom")
+        )
+        custom_key_env = os.environ.get("AI_SHELL_OPENCODE_CUSTOM_KEY_ENV", "").strip()
+        custom_model_raw = os.environ.get("AI_SHELL_OPENCODE_CUSTOM_MODEL", "").strip()
+        custom_models = [m.strip() for m in custom_model_raw.split(",") if m.strip()]
+        _upsert_custom_endpoint(
+            config.opencode_endpoints,
+            CustomEndpoint(
+                name=custom_name,
+                base_url=custom_url,
+                api_key_env=custom_key_env,
+                models=custom_models,
+            ),
+        )
 
     # Nested voice_agent overrides (flat env vars map to nested fields)
     voice_agent_port = os.environ.get("AI_SHELL_VOICE_AGENT_PORT")

@@ -441,7 +441,15 @@ def build_dev_mounts(
 
     # Ensure directories that tools need for persistent config exist on the
     # host so bind mounts aren't silently skipped.
-    for d in (".pi", ".augint", ".plannotator", ".expo"):
+    for d in (
+        ".pi",
+        ".augint",
+        ".plannotator",
+        ".expo",
+        ".agents",
+        ".config/opencode",
+        ".local/share/opencode",
+    ):
         (home / d).mkdir(parents=True, exist_ok=True)
 
     # Zapier CLI auth is a single JSON file; pre-create it so the bind mount
@@ -454,7 +462,8 @@ def build_dev_mounts(
     # Optional bind mounts — skip if source doesn't exist
     # Note: ~/.config is deliberately NOT mounted as a whole because it
     # shadows /root/.config/starship.toml in the image and exposes unrelated
-    # host desktop credentials; ~/.config/gh is mounted explicitly below.
+    # host desktop credentials; ~/.config/gh and ~/.config/opencode are mounted
+    # explicitly.
     optional_binds: list[tuple[Path, str, bool]] = [
         # .codex is always isolated to a named volume (see the isolate set
         # below); this host path is never bind-mounted.
@@ -464,6 +473,10 @@ def build_dev_mounts(
         (home / ".pi", "/root/.pi", False),
         (home / ".augint", "/root/.augint", False),
         (home / ".plannotator", "/root/.plannotator", False),
+        (home / ".agents", "/root/.agents", False),
+        # OpenCode persistent config and state directories
+        (home / ".config" / "opencode", "/root/.config/opencode", False),
+        (home / ".local" / "share" / "opencode", "/root/.local/share/opencode", False),
         # Expo/EAS share ~/.expo for the auth session (state.json) and the
         # ngrok config, so binding it keeps `expo login` across recreations.
         (home / ".expo", "/root/.expo", False),
@@ -484,16 +497,17 @@ def build_dev_mounts(
 
         # Isolation: back the config with a shared named volume instead of a
         # host bind, so nothing is written into the host home directory.
-        if name in isolate:
+        if name in isolate or f".{name}" in isolate:
             if name in _SINGLE_FILE_HOME_CONFIGS:
                 # A named volume can't back a single file — drop the bind so
                 # the host file is never touched (config stays container-local).
                 logger.debug("Isolating single-file home config (not persisted): %s", name)
                 continue
+            vol_name = "opencode-data" if target == "/root/.local/share/opencode" else name
             mounts.append(
                 Mount(
                     target=target,
-                    source=home_config_volume_name(name),
+                    source=home_config_volume_name(vol_name),
                     type="volume",
                 )
             )
@@ -792,6 +806,8 @@ def _load_layered_dotenv(
 _SHARED_ENV_PASSTHROUGH = (
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
+    "AWS_BEARER_TOKEN_BEDROCK",
+    "BEDROCK_API_KEY",
     "PRIMARY_CHAT_MODEL",
     "SECONDARY_CHAT_MODEL",
     "PRIMARY_CODING_MODEL",
@@ -1068,6 +1084,13 @@ def build_dev_environment(
 
     if extra_env:
         env.update(extra_env)
+
+    # Mirror AWS_BEARER_TOKEN_BEDROCK <-> BEDROCK_API_KEY so OpenCode and SDKs
+    # expecting either variable name work out of the box.
+    if env.get("AWS_BEARER_TOKEN_BEDROCK") and not env.get("BEDROCK_API_KEY"):
+        env["BEDROCK_API_KEY"] = env["AWS_BEARER_TOKEN_BEDROCK"]
+    elif env.get("BEDROCK_API_KEY") and not env.get("AWS_BEARER_TOKEN_BEDROCK"):
+        env["AWS_BEARER_TOKEN_BEDROCK"] = env["BEDROCK_API_KEY"]
 
     return env
 
