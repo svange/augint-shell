@@ -177,4 +177,3 @@ fi
 
 # Note: No cd command - Docker Compose working_dir handles the directory
 exec "$@"
-
