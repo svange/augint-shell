@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-11-09T21:15:48Z",
+  "generated_at": "2026-11-16T15:25:46Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 90,
@@ -11,7 +11,7 @@
       "SEVERITY.LOW": 92,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 10609,
+      "loc": 10833,
       "nosec": 0,
       "skipped_tests": 14
     },
@@ -128,7 +128,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 54,
+      "loc": 57,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -154,7 +154,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 425,
+      "loc": 428,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -232,7 +232,7 @@
       "SEVERITY.LOW": 15,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1253,
+      "loc": 1261,
       "nosec": 0,
       "skipped_tests": 9
     },
@@ -310,7 +310,7 @@
       "SEVERITY.LOW": 19,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 835,
+      "loc": 840,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -363,6 +363,19 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 167,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/standalone.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 205,
       "nosec": 0,
       "skipped_tests": 0
     },
