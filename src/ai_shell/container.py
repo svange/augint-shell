@@ -1167,7 +1167,12 @@ class ContainerManager:
             environment["HF_TOKEN"] = hf_token
             environment["HUGGING_FACE_HUB_TOKEN"] = hf_token
 
-        provision_path = Path(__file__).parent / "assets" / "comfyui" / "provision.sh"
+        from ai_shell.standalone import persistent_asset_path
+
+        provision_path = persistent_asset_path(
+            Path(__file__).parent / "assets" / "comfyui" / "provision.sh",
+            "comfyui/provision.sh",
+        )
         mounts: list[Mount] = [
             Mount(
                 target="/opt/ComfyUI/models",
@@ -1228,7 +1233,12 @@ class ContainerManager:
             aws_region=self.config.aws_region,
         )
 
-        workflow_dir = Path(__file__).parent / "templates" / "n8n" / "workflows"
+        from ai_shell.standalone import persistent_asset_path
+
+        workflow_dir = persistent_asset_path(
+            Path(__file__).parent / "templates" / "n8n" / "workflows",
+            "n8n/workflows",
+        )
         mounts = build_n8n_mounts(
             workflow_dir=workflow_dir if workflow_dir.is_dir() else None,
         )

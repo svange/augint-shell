@@ -215,6 +215,10 @@ def remembered_login_folder(account: str) -> Path | None:
 
 def self_command() -> str:
     """The absolute path of this ``ai-shell`` executable, for a client to run."""
+    from ai_shell.standalone import is_frozen
+
+    if is_frozen():
+        return str(Path(sys.executable).resolve())
     exe = Path(sys.argv[0])
     for candidate in (exe, exe.with_suffix(".exe")):
         if candidate.is_file():

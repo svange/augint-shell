@@ -1270,7 +1270,8 @@ class TestEnsureToolFresh:
 
 
 class TestExtraVolumes:
-    def test_extra_volumes_from_config(self, mock_docker_client):
+    @patch("ai_shell.container.subprocess.run")
+    def test_extra_volumes_from_config(self, _mock_subprocess, mock_docker_client):
         with patch("ai_shell.container.docker") as mock_docker:
             mock_docker.from_env.return_value = mock_docker_client
             mock_docker.errors = MagicMock()

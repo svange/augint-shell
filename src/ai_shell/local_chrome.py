@@ -335,6 +335,10 @@ def _proxy_args(proxy: str | None) -> list[str]:
 
 def _spawn_detached(args: list[str], stderr: Any = subprocess.DEVNULL) -> subprocess.Popen[bytes]:
     """Start *args* so the process outlives the CLI, on every platform."""
+    from ai_shell.standalone import detached_subprocess_env
+
+    env = detached_subprocess_env()
+    env_kwargs: dict[str, Any] = {"env": env} if env is not None else {}
     if platform.system() == "Windows":
         creation_flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(
             subprocess, "DETACHED_PROCESS", 0
@@ -345,6 +349,7 @@ def _spawn_detached(args: list[str], stderr: Any = subprocess.DEVNULL) -> subpro
             stderr=stderr,
             stdin=subprocess.DEVNULL,
             creationflags=creation_flags,
+            **env_kwargs,
         )
     return subprocess.Popen(  # noqa: S603
         args,
@@ -352,6 +357,7 @@ def _spawn_detached(args: list[str], stderr: Any = subprocess.DEVNULL) -> subpro
         stderr=stderr,
         stdin=subprocess.DEVNULL,
         start_new_session=True,
+        **env_kwargs,
     )
 
 

@@ -59,6 +59,10 @@ cli.add_command(acp_group, "acp")
 
 def main():
     """Main entry point."""
+    if len(sys.argv) >= 3 and sys.argv[1] == "-m" and sys.argv[2] == "ai_shell.cdp_relay":
+        from ai_shell.cdp_relay import main as cdp_relay_main
+
+        sys.exit(cdp_relay_main(sys.argv[3:]))
     try:
         cli()
     except Exception as e:
