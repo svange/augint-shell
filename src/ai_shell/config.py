@@ -52,83 +52,8 @@ class VoiceAgentModelProfile:
 
 
 @dataclass
-class VoiceAgentVadConfig:
-    """Silero VAD / barge-in behavior."""
-
-    silence_timeout_ms: int = 2500
-    barge_in: bool = True
-
-
-@dataclass
-class VoiceAgentFilesystemConfig:
-    """Filesystem tool scoping. Consumed by Phase 4."""
-
-    root: str = "~/gigachad"
-    read: list[str] = field(default_factory=lambda: ["~/gigachad"])
-    write: list[str] = field(default_factory=lambda: ["~/gigachad"])
-    deny_glob: list[str] = field(default_factory=lambda: ["**/.env*", "**/.git/**"])
-
-
-@dataclass
-class VoiceAgentMemoryConfig:
-    """Sqlite memory behavior. Consumed by Phase 5."""
-
-    enabled: bool = True
-    summarize_after_turns: int = 20
-
-
-@dataclass
-class VoiceAgentAuthConfig:
-    """App-level session auth. Consumed by Phase 3."""
-
-    username: str = ""
-    password_bcrypt: str = ""
-    session_secret: str = ""
-
-
-@dataclass
-class VoiceAgentProvidersConfig:
-    """LLM provider selection. Consumed by Phase 6."""
-
-    default: str = "ollama"
-    available: list[str] = field(default_factory=lambda: ["ollama"])
-
-
-@dataclass
-class VoiceAgentToolConfig:
-    """A single tool entry under `voice_agent.tools`."""
-
-    enabled: bool = False
-    provider: str = ""
-
-
-@dataclass
-class VoiceAgentToolsConfig:
-    """Tool registry. Consumed by Phase 4."""
-
-    filesystem: VoiceAgentToolConfig = field(default_factory=VoiceAgentToolConfig)
-    web_search: VoiceAgentToolConfig = field(
-        default_factory=lambda: VoiceAgentToolConfig(provider="brave")
-    )
-    github: VoiceAgentToolConfig = field(default_factory=VoiceAgentToolConfig)
-
-
-@dataclass
-class VoiceAgentWakeWordConfig:
-    """Wake-word gating. Consumed by Phase 3."""
-
-    enabled: bool = False
-    name: str = "hey_jarvis"
-
-
-@dataclass
 class VoiceAgentConfig:
-    """Full voice-agent config tree.
-
-    Phase 2 wires only ``port`` at the container layer. The remaining fields
-    are schema placeholders for Phases 3-6 with reasonable defaults so early
-    adopters can see the shape without the CLI refusing unknown keys.
-    """
+    """Voice-agent configuration."""
 
     port: int = DEFAULT_VOICE_AGENT_PORT
     domain: str = ""
@@ -145,13 +70,6 @@ class VoiceAgentConfig:
             ),
         }
     )
-    vad: VoiceAgentVadConfig = field(default_factory=VoiceAgentVadConfig)
-    filesystem: VoiceAgentFilesystemConfig = field(default_factory=VoiceAgentFilesystemConfig)
-    memory: VoiceAgentMemoryConfig = field(default_factory=VoiceAgentMemoryConfig)
-    auth: VoiceAgentAuthConfig = field(default_factory=VoiceAgentAuthConfig)
-    providers: VoiceAgentProvidersConfig = field(default_factory=VoiceAgentProvidersConfig)
-    tools: VoiceAgentToolsConfig = field(default_factory=VoiceAgentToolsConfig)
-    wake_word: VoiceAgentWakeWordConfig = field(default_factory=VoiceAgentWakeWordConfig)
 
 
 @dataclass
@@ -414,58 +332,6 @@ def _apply_voice_agent_config(va: VoiceAgentConfig, data: dict) -> None:
                 if "secondary" in entry:
                     profile.secondary = str(entry["secondary"])
             va.profiles[name] = profile
-    if "vad" in data and isinstance(data["vad"], dict):
-        vad = data["vad"]
-        if "silence_timeout_ms" in vad:
-            va.vad.silence_timeout_ms = int(vad["silence_timeout_ms"])
-        if "barge_in" in vad:
-            va.vad.barge_in = bool(vad["barge_in"])
-    if "filesystem" in data and isinstance(data["filesystem"], dict):
-        fs = data["filesystem"]
-        if "root" in fs:
-            va.filesystem.root = str(fs["root"])
-        if "read" in fs:
-            va.filesystem.read = [str(p) for p in fs["read"]]
-        if "write" in fs:
-            va.filesystem.write = [str(p) for p in fs["write"]]
-        if "deny_glob" in fs:
-            va.filesystem.deny_glob = [str(p) for p in fs["deny_glob"]]
-    if "memory" in data and isinstance(data["memory"], dict):
-        mem = data["memory"]
-        if "enabled" in mem:
-            va.memory.enabled = bool(mem["enabled"])
-        if "summarize_after_turns" in mem:
-            va.memory.summarize_after_turns = int(mem["summarize_after_turns"])
-    if "auth" in data and isinstance(data["auth"], dict):
-        auth = data["auth"]
-        if "username" in auth:
-            va.auth.username = str(auth["username"])
-        if "password_bcrypt" in auth:
-            va.auth.password_bcrypt = str(auth["password_bcrypt"])
-        if "session_secret" in auth:
-            va.auth.session_secret = str(auth["session_secret"])
-    if "providers" in data and isinstance(data["providers"], dict):
-        providers = data["providers"]
-        if "default" in providers:
-            va.providers.default = str(providers["default"])
-        if "available" in providers:
-            va.providers.available = [str(p) for p in providers["available"]]
-    if "tools" in data and isinstance(data["tools"], dict):
-        tools = data["tools"]
-        for tool_name in ("filesystem", "web_search", "github"):
-            entry = tools.get(tool_name)
-            if isinstance(entry, dict):
-                tool = getattr(va.tools, tool_name)
-                if "enabled" in entry:
-                    tool.enabled = bool(entry["enabled"])
-                if "provider" in entry:
-                    tool.provider = str(entry["provider"])
-    if "wake_word" in data and isinstance(data["wake_word"], dict):
-        wake = data["wake_word"]
-        if "enabled" in wake:
-            va.wake_word.enabled = bool(wake["enabled"])
-        if "name" in wake:
-            va.wake_word.name = str(wake["name"])
 
 
 def _apply_config(config: AiShellConfig, path: Path) -> None:

@@ -139,3 +139,56 @@ class TestManageEnv:
 
         assert "GH_TOKEN" not in result.output
         assert "GITHUB_TOKEN" not in result.output
+
+
+@patch("ai_shell.cli.commands.manage.ContainerManager")
+@patch("ai_shell.cli.commands.manage.load_config")
+class TestManageListAndDoctor:
+    def setup_method(self):
+        self.runner = CliRunner()
+
+    def test_manage_list_prints_containers(self, _mock_config, mock_cm_class):
+        manager = MagicMock()
+        manager.list_dev_containers.return_value = [
+            {
+                "name": "augint-shell-myproj-dev",
+                "status": "running",
+                "project_dir": "/home/u/myproj",
+            }
+        ]
+        mock_cm_class.return_value = manager
+        result = self.runner.invoke(cli, ["manage", "list"])
+        assert result.exit_code == 0
+        assert "augint-shell-myproj-dev: running" in result.output
+        assert "/home/u/myproj" in result.output
+
+    def test_manage_list_empty(self, _mock_config, mock_cm_class):
+        manager = MagicMock()
+        manager.list_dev_containers.return_value = []
+        mock_cm_class.return_value = manager
+        result = self.runner.invoke(cli, ["manage", "list"])
+        assert result.exit_code == 0
+        assert "No dev containers found" in result.output
+
+    def test_manage_clean_reports_removed_volumes(self, _mock_config, mock_cm_class):
+        manager = MagicMock()
+        manager.resolve_dev_container.return_value = (LEGACY_NAME, MagicMock())
+        manager.remove_project_volumes.return_value = ["augint-shell-node-modules-myproj"]
+        mock_cm_class.return_value = manager
+        result = self.runner.invoke(cli, ["manage", "clean"])
+        assert result.exit_code == 0
+        assert "Removed volume: augint-shell-node-modules-myproj" in result.output
+
+    @patch("ai_shell.cli.commands.manage.detect_gpu", return_value=False)
+    @patch("ai_shell.cli.commands.manage.find_chrome", return_value="/usr/bin/google-chrome")
+    def test_doctor_runs_checks(self, _mock_chrome, _mock_gpu, mock_config, mock_cm_class):
+        config = MagicMock()
+        config.full_image = "ghcr.io/augmenting-integrations/augint-shell:latest"
+        mock_config.return_value = config
+        manager = MagicMock()
+        mock_cm_class.return_value = manager
+
+        result = self.runner.invoke(cli, ["doctor"])
+        assert result.exit_code == 0
+        assert "Docker daemon reachable" in result.output
+        assert "Host Chrome: /usr/bin/google-chrome" in result.output

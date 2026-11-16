@@ -411,16 +411,6 @@ def attach(
 
 def _published_host_port(manager: ContainerManager, container_name: str, port: int) -> int | None:
     """Host port bound to *port*, read from the live container."""
-    from docker.errors import DockerException
+    from ai_shell.container import published_host_port
 
-    try:
-        ports = manager.container_ports(container_name)
-    except DockerException:
-        return None
-    binding = (ports or {}).get(f"{port}/tcp")
-    if not binding:
-        return None
-    try:
-        return int(binding.rsplit(":", 1)[1])
-    except (IndexError, ValueError):
-        return None
+    return published_host_port(manager, container_name, port)

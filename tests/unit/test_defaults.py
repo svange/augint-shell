@@ -267,22 +267,15 @@ class TestBuildDevMounts:
         assert nm_mount.get("Source") == node_modules_volume_name("test-project")
         assert nm_mount.get("Source", "").startswith(NODE_MODULES_VOLUME_PREFIX)
 
-    def test_node_modules_volume_name_includes_worktree_suffix(self):
+    def test_node_modules_volume_name_plain(self):
         plain = node_modules_volume_name("repo")
-        wt = node_modules_volume_name("repo", worktree_name="feature")
         assert plain == f"{NODE_MODULES_VOLUME_PREFIX}repo"
-        assert wt == f"{NODE_MODULES_VOLUME_PREFIX}repo-wt-feature"
-        assert plain != wt
 
     def test_node_modules_volume_name_with_subpath(self):
         v = node_modules_volume_name("repo", subpath="apps/web")
         assert v.startswith(f"{NODE_MODULES_VOLUME_PREFIX}repo-apps-web-")
         assert len(v) == len(f"{NODE_MODULES_VOLUME_PREFIX}repo-apps-web-") + 8
         assert v == node_modules_volume_name("repo", subpath="apps/web/")
-
-    def test_node_modules_volume_name_with_worktree_and_subpath(self):
-        v = node_modules_volume_name("repo", worktree_name="feature", subpath="apps/web")
-        assert v.startswith(f"{NODE_MODULES_VOLUME_PREFIX}repo-wt-feature-apps-web-")
 
     def test_node_modules_volume_name_subpaths_with_same_slug_differ(self):
         nested = node_modules_volume_name("repo", subpath="packages/foo/bar")
@@ -414,12 +407,9 @@ class TestBuildDevMounts:
         targets = [m.get("Target") for m in mounts]
         assert "/root/projects/test-project/vendor" not in targets
 
-    def test_vendor_volume_name_includes_worktree_suffix(self):
+    def test_vendor_volume_name_plain(self):
         plain = vendor_volume_name("repo")
-        wt = vendor_volume_name("repo", worktree_name="feature")
         assert plain == f"{VENDOR_VOLUME_PREFIX}repo"
-        assert wt == f"{VENDOR_VOLUME_PREFIX}repo-wt-feature"
-        assert plain != wt
 
     def test_zapierrc_precreated_and_bind_mounted(self, tmp_path, isolate_home):
         project_dir = tmp_path / "test-project"
@@ -923,32 +913,9 @@ class TestUvVenvPath:
     def test_basic_repo_name(self):
         assert uv_venv_path("my-project") == "/root/.cache/uv/venvs/my-project"
 
-    def test_with_worktree(self):
-        assert (
-            uv_venv_path("my-project", worktree_name="feat-1")
-            == "/root/.cache/uv/venvs/my-project-wt-feat-1"
-        )
-
-    def test_worktree_none(self):
-        assert uv_venv_path("repo", worktree_name=None) == "/root/.cache/uv/venvs/repo"
-
     def test_used_by_build_dev_environment(self):
         env = build_dev_environment(project_name="test-proj")
         assert env["UV_PROJECT_ENVIRONMENT"] == uv_venv_path("test-proj")
-
-
-class TestBuildDevEnvironmentTeamMode:
-    def test_team_mode_sets_agent_teams_env(self):
-        env = build_dev_environment(team_mode=True)
-        assert env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] == "1"
-
-    def test_no_team_mode_no_agent_teams_env(self):
-        env = build_dev_environment()
-        assert "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" not in env
-
-    def test_team_mode_false_no_agent_teams_env(self):
-        env = build_dev_environment(team_mode=False)
-        assert "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" not in env
 
 
 class TestBuildDevEnvironmentGhToken:

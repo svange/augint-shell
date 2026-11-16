@@ -30,16 +30,10 @@ class TestAiShellConfig:
         assert config.whisper_port == 8001
         assert config.comfyui_port == 8188
         assert config.whisper_model == "Systran/faster-distil-whisper-large-v3"
-        # Voice-agent defaults (Phase 2 wires only `port`; tree is present
-        # for future phases).
+        # Voice-agent defaults
         assert config.voice_agent.port == 8010
         assert config.voice_agent.profile == "resident"
         assert config.voice_agent.profiles["resident"].primary == "qwen3.5:9b"
-        assert config.voice_agent.vad.silence_timeout_ms == 2500
-        assert config.voice_agent.vad.barge_in is True
-        assert config.voice_agent.wake_word.enabled is False
-        assert config.voice_agent.providers.default == "ollama"
-        assert config.voice_agent.tools.web_search.provider == "brave"
 
     def test_models_to_pull_dedupes_slots(self):
         # Same tag in primary and extras should dedupe to one entry.
@@ -438,24 +432,10 @@ whisper_model = "Systran/faster-whisper-tiny"
 
 class TestVoiceAgentConfig:
     def test_voice_agent_yaml_overrides(self, tmp_path):
-        (tmp_path / ".ai-shell.yaml").write_text(
-            "voice_agent:\n"
-            "  port: 9010\n"
-            "  profile: swap\n"
-            "  vad:\n"
-            "    silence_timeout_ms: 1500\n"
-            "    barge_in: false\n"
-            "  wake_word:\n"
-            "    enabled: true\n"
-            "    name: hey_gigachad\n"
-        )
+        (tmp_path / ".ai-shell.yaml").write_text("voice_agent:\n  port: 9010\n  profile: swap\n")
         config = load_config(project_dir=tmp_path)
         assert config.voice_agent.port == 9010
         assert config.voice_agent.profile == "swap"
-        assert config.voice_agent.vad.silence_timeout_ms == 1500
-        assert config.voice_agent.vad.barge_in is False
-        assert config.voice_agent.wake_word.enabled is True
-        assert config.voice_agent.wake_word.name == "hey_gigachad"
 
     def test_voice_agent_nested_profiles_merge(self, tmp_path):
         """Partial profile overrides must leave other profiles intact."""
@@ -470,17 +450,6 @@ class TestVoiceAgentConfig:
             config.voice_agent.profiles["resident"].secondary == "huihui_ai/qwen3.5-abliterated:9b"
         )
         assert config.voice_agent.profiles["swap"].primary == "qwen3.5:27b"
-
-    def test_voice_agent_tools_partial_override(self, tmp_path):
-        (tmp_path / ".ai-shell.yaml").write_text(
-            "voice_agent:\n  tools:\n    filesystem:\n      enabled: true\n"
-        )
-        config = load_config(project_dir=tmp_path)
-        assert config.voice_agent.tools.filesystem.enabled is True
-        # Other tools keep defaults.
-        assert config.voice_agent.tools.web_search.enabled is False
-        assert config.voice_agent.tools.web_search.provider == "brave"
-        assert config.voice_agent.tools.github.enabled is False
 
     def test_voice_agent_env_var_overrides(self, tmp_path):
         env = {

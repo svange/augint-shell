@@ -441,17 +441,11 @@ class TestToolCommands:
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert cmd == ["/usr/bin/zsh", "-l"]
 
-    def test_shell_fish(self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock):
-        mock_build_env.return_value = dict(TEST_EXEC_ENV)
-        mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
-        mock_manager.exec_interactive.side_effect = SystemExit(0)
-        mock_manager_cls.return_value = mock_manager
-
-        self.runner.invoke(cli, ["shell", "fish"])
-
-        cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert cmd == ["/usr/bin/fish", "-l"]
+    def test_shell_rejects_fish(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        result = self.runner.invoke(cli, ["shell", "fish"])
+        assert result.exit_code != 0
 
     def test_shell_defaults_to_bash_when_no_arg(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
@@ -823,40 +817,6 @@ class TestToolCommands:
             "--model",
             "us.meta.llama3-3-70b-instruct-v1:0",
         ]
-
-    @patch("ai_shell.cli.commands.tools._ensure_pi_ollama_provider")
-    @patch("ai_shell.cli.commands.tools._check_ollama_running")
-    def test_pi_doom_flag(
-        self,
-        mock_check_ollama,
-        mock_ensure_ollama,
-        mock_config,
-        mock_manager_cls,
-        mock_build_env,
-        mock_check_bedrock,
-    ):
-        mock_check_ollama.return_value = None
-        mock_build_env.return_value = dict(TEST_EXEC_ENV)
-        config = MagicMock()
-        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
-        config.bedrock_profile = ""
-        config.openai_profile = ""
-        config.ai_profile = ""
-        config.aws_region = ""
-        config.extra_env = {}
-        config.project_dir = "/tmp/test"
-        mock_config.return_value = config
-
-        mock_manager = MagicMock()
-        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
-        mock_manager.exec_interactive.side_effect = SystemExit(0)
-        mock_manager_cls.return_value = mock_manager
-
-        result = self.runner.invoke(cli, ["pi", "--doom"])
-
-        cmd = mock_manager.exec_interactive.call_args[0][1]
-        assert cmd == ["pi", "-e", "npm:pi-doom"]
-        assert "DOOM" in result.output
 
     @patch("ai_shell.cli.commands.tools._inject_mcp_config")
     @patch("ai_shell.local_chrome.prepare_chrome_mcp", return_value="1 page")
@@ -1644,43 +1604,6 @@ class TestClaudeAccount:
         assert "Bedrock" in result.output
         manager.run_interactive.assert_not_called()
 
-    def test_team_mode_uses_account(self, mock_config, mock_manager_cls, mock_expo):
-        manager = self._setup(mock_config, mock_manager_cls)
-
-        self.runner.invoke(cli, ["claude", "--team", "--account", "woxom"])
-
-        cmd = manager.exec_interactive.call_args[0][1]
-        assert cmd[: len(ACCOUNT_PREFIX) + 1] == [*ACCOUNT_PREFIX, "claude"]
-        env = manager.exec_interactive.call_args[1]["extra_env"]
-        assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok-woxom"
-
-    @patch("ai_shell.cli.commands.tools.subprocess.run")
-    @patch("ai_shell.cli.commands.tools._setup_worktree", return_value="/wt")
-    def test_multi_passes_token_via_tmux_session_env(
-        self,
-        mock_worktree,
-        mock_run,
-        mock_config,
-        mock_manager_cls,
-        mock_expo,
-        tmp_path,
-        monkeypatch,
-    ):
-        monkeypatch.chdir(tmp_path)  # no workspace.yaml -> single-repo multi
-        self._setup(mock_config, mock_manager_cls)
-        mock_run.return_value = MagicMock(returncode=1, stderr="")
-
-        self.runner.invoke(cli, ["claude", "--multi", "--account", "woxom"], input="2\n")
-
-        calls = [c[0][0] for c in mock_run.call_args_list]
-        new_session = next(c for c in calls if "new-session" in c)
-        assert "CLAUDE_CODE_OAUTH_TOKEN=tok-woxom" in new_session
-        send_keys = [c for c in calls if "send-keys" in c]
-        assert send_keys
-        for c in send_keys:
-            assert "unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN;" in " ".join(c)
-            assert "tok-woxom" not in " ".join(c)
-
 
 RC_PREFIX = [
     "env",
@@ -2150,16 +2073,6 @@ class TestClaudeRemoteControl:
         printed = [str(c.args[0]) for c in console.print.call_args_list]
         assert any(url == line for line in printed)
         assert any("other browser" in line for line in printed)
-
-    def test_rc_incompatible_with_multi_team_interactive(
-        self, mock_config, mock_manager_cls, mock_expo
-    ):
-        manager = self._setup(mock_config, mock_manager_cls)
-        for flag in ("--multi", "--team", "--interactive"):
-            result = self.runner.invoke(cli, ["claude", "--rc", flag])
-            assert result.exit_code == 1, flag
-            assert "incompatible" in result.output
-        manager.ensure_dev_container.assert_not_called()
 
     def test_rc_rejects_bedrock(self, mock_config, mock_manager_cls, mock_expo):
         manager = self._setup(mock_config, mock_manager_cls)

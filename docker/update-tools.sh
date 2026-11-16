@@ -85,14 +85,23 @@ _log() {
 # Exit 0 when every named package is installed globally at its latest
 # version; 1 when one is missing or behind, or when npm cannot say.
 _npm_current() {
-    local installed pkg latest have
+    local installed pkg have pids=() rc=0
     installed=$(npm ls -g --depth=0 --json 2>/dev/null) || return 1
     for pkg in "$@"; do
-        latest=$(npm view "$pkg" version 2>/dev/null) || return 1
         have=$(printf '%s' "$installed" | jq -r --arg p "$pkg" '.dependencies[$p].version // empty' 2>/dev/null)
-        [[ -n "$have" && "$have" == "$latest" ]] || return 1
+        [[ -n "$have" ]] || return 1
+        (
+            local latest
+            latest=$(npm view "$pkg" version 2>/dev/null) || exit 1
+            [[ "$have" == "$latest" ]]
+        ) &
+        pids+=($!)
     done
-    return 0
+    local pid
+    for pid in "${pids[@]}"; do
+        wait "$pid" || rc=1
+    done
+    return "$rc"
 }
 
 # Install the named packages at @latest, unless every one is already there.

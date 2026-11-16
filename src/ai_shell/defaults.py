@@ -58,17 +58,9 @@ def home_config_volume_name(config_name: str) -> str:
     return f"{HOME_CONFIG_VOLUME_PREFIX}{_sanitize_name(config_name.lstrip('.').lower())}"
 
 
-def uv_venv_path(repo_name: str, worktree_name: str | None = None) -> str:
-    """Return the ``UV_PROJECT_ENVIRONMENT`` path for a repo.
-
-    Matches the venv isolation scheme used by both ``--multi`` and ``--team``
-    modes.  When *worktree_name* is set, appends ``-wt-{worktree_name}`` to
-    isolate worktree venvs.
-    """
-    suffix = repo_name
-    if worktree_name:
-        suffix = f"{repo_name}-wt-{worktree_name}"
-    return f"/root/.cache/uv/venvs/{suffix}"
+def uv_venv_path(repo_name: str) -> str:
+    """Return the ``UV_PROJECT_ENVIRONMENT`` path for a repo."""
+    return f"/root/.cache/uv/venvs/{repo_name}"
 
 
 NPM_CACHE_VOLUME = "augint-shell-npm-cache"
@@ -77,7 +69,6 @@ NODE_MODULES_VOLUME_PREFIX = "augint-shell-node-modules-"
 
 def node_modules_volume_name(
     repo_name: str,
-    worktree_name: str | None = None,
     subpath: str | None = None,
 ) -> str:
     """Per-project named volume that overlays a node_modules directory.
@@ -93,8 +84,6 @@ def node_modules_volume_name(
     different volumes.
     """
     suffix = repo_name
-    if worktree_name:
-        suffix = f"{repo_name}-wt-{worktree_name}"
     if subpath:
         normalized = subpath.strip("/").lower()
         # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
@@ -115,17 +104,14 @@ T3_TOOLS_PATH = "/root/.t3/tools"
 VENDOR_VOLUME_PREFIX = "augint-shell-vendor-"
 
 
-def vendor_volume_name(repo_name: str, worktree_name: str | None = None) -> str:
+def vendor_volume_name(repo_name: str) -> str:
     """Per-project named volume that overlays composer's ``vendor/`` directory.
 
     Same rationale as :func:`node_modules_volume_name`: ``vendor/`` on a
     drvfs/9p bind mount is slow, and overlaying keeps the container's
     Linux-built vendor tree separate from whatever the host has.
     """
-    suffix = repo_name
-    if worktree_name:
-        suffix = f"{repo_name}-wt-{worktree_name}"
-    return f"{VENDOR_VOLUME_PREFIX}{suffix}"
+    return f"{VENDOR_VOLUME_PREFIX}{repo_name}"
 
 
 def t3_home_volume_name(project_dir: Path, project_name: str | None = None) -> str:
@@ -466,8 +452,10 @@ def build_dev_mounts(
         zapierrc.write_text("{}\n")
 
     # Optional bind mounts — skip if source doesn't exist
+    # Note: ~/.config is deliberately NOT mounted as a whole because it
+    # shadows /root/.config/starship.toml in the image and exposes unrelated
+    # host desktop credentials; ~/.config/gh is mounted explicitly below.
     optional_binds: list[tuple[Path, str, bool]] = [
-        (home / ".config", "/root/.config", False),
         # .codex is always isolated to a named volume (see the isolate set
         # below); this host path is never bind-mounted.
         (home / ".codex", "/root/.codex", False),
@@ -944,7 +932,6 @@ def build_dev_environment(
     openai_profile: str = "",
     claude_account: str = "",
     claude_login: bool = False,
-    team_mode: bool = False,
     env_file: Path | None = None,
 ) -> dict[str, str]:
     """Build environment variables matching docker-compose.yml dev service.
@@ -977,9 +964,6 @@ def build_dev_environment(
     ``CLAUDE_CONFIG_DIR`` points at ``~/.augint/claude-accounts/{name}`` and
     every credential that would outrank the login is left out. The host
     directory is created so the account shows up in listings from then on.
-
-    When *team_mode* is True, ``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` is
-    injected to enable Claude Code's Agent Teams feature.
     """
     dotenv = _load_layered_dotenv(project_dir, env_file=env_file)
 
@@ -1073,9 +1057,6 @@ def build_dev_environment(
                 f"profile created with 'ai-shell claude --account {claude_account} "
                 f"--login'. Available accounts: {available}"
             )
-
-    if team_mode:
-        env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
 
     for var in _SHARED_ENV_PASSTHROUGH:
         val = _resolve(var)
