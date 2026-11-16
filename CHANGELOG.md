@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.120.0 (2026-11-16)
+
+### Features
+
+- **claude**: Remove claude.accounts config and create login profiles on demand (#194)
+  ([#194](https://github.com/svange/augint-shell/pull/194),
+  [`946e63b`](https://github.com/svange/augint-shell/commit/946e63b4a18fe5d745f9df21744e8b7fea31ed5e))
+
+
 ## v0.119.0 (2026-11-16)
 
 ### Features
