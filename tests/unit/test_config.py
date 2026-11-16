@@ -638,29 +638,15 @@ profile = "bedrock-acct"
         assert not hasattr(config, "codex_profile")
 
 
-class TestClaudeAccountsConfig:
+class TestChromeProxyAndVpnConfig:
     def test_defaults_when_unconfigured(self):
         config = AiShellConfig()
-        account = config.claude_account_config("mike")
-        assert account.chrome_profile == ""
-        assert account.local_chrome is None
-        assert account.chrome_proxy == ""
         assert config.chrome_proxy == ""
 
     def test_chrome_proxy_from_yaml_and_env(self, tmp_path):
-        (tmp_path / ".ai-shell.yaml").write_text(
-            "claude:\n"
-            "  chrome_proxy: http://127.0.0.1:8888\n"
-            "  accounts:\n"
-            "    mike:\n"
-            "      chrome_proxy: socks5://127.0.0.1:1080\n"
-            "    adam:\n"
-            "      chrome_proxy: null\n"
-        )
+        (tmp_path / ".ai-shell.yaml").write_text("claude:\n  chrome_proxy: http://127.0.0.1:8888\n")
         config = load_config(project_dir=tmp_path)
         assert config.chrome_proxy == "http://127.0.0.1:8888"
-        assert config.claude_account_config("mike").chrome_proxy == "socks5://127.0.0.1:1080"
-        assert config.claude_account_config("adam").chrome_proxy == ""
         with patch.dict("os.environ", {"AI_SHELL_CHROME_PROXY": "http://10.0.0.5:3128"}):
             assert load_config(project_dir=tmp_path).chrome_proxy == "http://10.0.0.5:3128"
 
@@ -690,41 +676,3 @@ class TestClaudeAccountsConfig:
             True,
             8890,
         )
-
-    def test_accounts_from_yaml(self, tmp_path):
-        (tmp_path / ".ai-shell.yaml").write_text(
-            "claude:\n"
-            "  accounts:\n"
-            "    Mike:\n"
-            "      chrome_profile: mike-browser\n"
-            "      local_chrome: true\n"
-            "    adam: {}\n"
-        )
-        config = load_config(project_dir=tmp_path)
-        mike = config.claude_account_config("mike")
-        assert mike.chrome_profile == "mike-browser"
-        assert mike.local_chrome is True
-        assert config.claude_account_config("MIKE") is mike
-        adam = config.claude_account_config("adam")
-        assert adam.chrome_profile == ""
-        assert adam.local_chrome is None
-
-    def test_account_keys_ignore_separator_and_case(self, tmp_path):
-        (tmp_path / ".ai-shell.yaml").write_text(
-            "claude:\n  accounts:\n    my_org:\n      local_chrome: false\n"
-        )
-        config = load_config(project_dir=tmp_path)
-        assert config.claude_account_config("My-Org").local_chrome is False
-
-    def test_project_config_merges_over_global(self, tmp_path, isolate_home):
-        global_dir = isolate_home / ".augint"
-        global_dir.mkdir()
-        (global_dir / ".ai-shell.yaml").write_text(
-            "claude:\n  accounts:\n    mike:\n      chrome_profile: mike\n      local_chrome: true\n"
-        )
-        (tmp_path / ".ai-shell.yaml").write_text(
-            "claude:\n  accounts:\n    mike:\n      local_chrome: false\n"
-        )
-        mike = load_config(project_dir=tmp_path).claude_account_config("mike")
-        assert mike.chrome_profile == "mike"
-        assert mike.local_chrome is False

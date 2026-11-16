@@ -878,13 +878,13 @@ class TestBuildDevEnvironmentClaudeAccount:
         assert CLAUDE_OAUTH_TOKEN_VAR not in env
         assert env["ANTHROPIC_API_KEY"] == "sk-ant-global"
 
-    def test_unknown_account_raises_with_available_list(self, global_env):
-        with pytest.raises(ValueError) as exc:
-            build_dev_environment(claude_account="nope")
-        msg = str(exc.value)
-        assert "CLAUDE_CODE_OAUTH_TOKEN_NOPE" in msg
-        assert "default, ai, my_org, woxom" in msg
-        assert "tok-" not in msg
+    def test_account_without_token_creates_login_profile(self, global_env, isolate_home):
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(claude_account="nope")
+        assert env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/nope"
+        assert CLAUDE_OAUTH_TOKEN_VAR not in env
+        assert "ANTHROPIC_API_KEY" not in env
+        assert (isolate_home / ".augint" / "claude-accounts" / "nope").is_dir()
 
     def test_account_with_bedrock_raises(self, global_env):
         with pytest.raises(ValueError, match="Bedrock"):
@@ -1244,26 +1244,17 @@ class TestBuildDevEnvironmentClaudeLogin:
         assert "ANTHROPIC_API_KEY" not in env
         assert (global_env / ".augint" / "claude-accounts" / "woxom").is_dir()
 
-    def test_login_dir_is_used_when_account_has_no_token(self, global_env):
-        (global_env / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
+    def test_login_dir_is_created_and_used_when_account_has_no_token(self, global_env):
         env = build_dev_environment(claude_account="mike")
         assert env["CLAUDE_CONFIG_DIR"] == "/root/.augint/claude-accounts/mike"
         assert "ANTHROPIC_API_KEY" not in env
+        assert (global_env / ".augint" / "claude-accounts" / "mike").is_dir()
 
     def test_token_wins_over_login_dir_without_force(self, global_env):
         (global_env / ".augint" / "claude-accounts" / "woxom").mkdir(parents=True)
         env = build_dev_environment(claude_account="woxom")
         assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok-woxom"
         assert "CLAUDE_CONFIG_DIR" not in env
-
-    def test_unknown_account_mentions_both_ways_to_add_it(self, global_env):
-        (global_env / ".augint" / "claude-accounts" / "mike").mkdir(parents=True)
-        with pytest.raises(ValueError) as exc_info:
-            build_dev_environment(claude_account="nope")
-        msg = str(exc_info.value)
-        assert "CLAUDE_CODE_OAUTH_TOKEN_NOPE" in msg
-        assert "--login" in msg
-        assert "default, mike, woxom" in msg
 
     def test_login_profile_imports_host_claude_md(self, global_env):
         (global_env / ".claude").mkdir()

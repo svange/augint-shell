@@ -959,11 +959,11 @@ def build_dev_environment(
     and ``ANTHROPIC_API_KEY`` / ``ANTHROPIC_AUTH_TOKEN`` are left out. The
     suffixed per-account tokens are never passed through to the container.
 
-    When *claude_login* is True, or the account has no token but a login
-    profile directory exists, the account's login profile is used instead:
-    ``CLAUDE_CONFIG_DIR`` points at ``~/.augint/claude-accounts/{name}`` and
-    every credential that would outrank the login is left out. The host
-    directory is created so the account shows up in listings from then on.
+    When *claude_login* is True, or the account has no token in ``.env``,
+    the account's login profile is used instead: ``CLAUDE_CONFIG_DIR`` points
+    at ``~/.augint/claude-accounts/{name}`` and every credential that would
+    outrank the login is left out. The host directory is created on demand so
+    any arbitrary ``--account <name>`` works without pre-configuration.
     """
     dotenv = _load_layered_dotenv(project_dir, env_file=env_file)
 
@@ -1038,25 +1038,15 @@ def build_dev_environment(
             )
         token_var = claude_account_token_var(claude_account)
         token = dotenv.get(token_var)
-        login_dir = claude_account_login_dir(claude_account)
-        if claude_login or (not token and login_dir.is_dir()):
+        if claude_login or not token:
+            login_dir = claude_account_login_dir(claude_account)
             login_dir.mkdir(parents=True, exist_ok=True)
             seed_claude_login_profile(login_dir)
             env[CLAUDE_CONFIG_DIR_VAR] = claude_account_config_dir(claude_account)
             excluded.update(CLAUDE_REMOTE_CONTROL_UNSET_VARS)
-        elif token:
+        else:
             env[CLAUDE_OAUTH_TOKEN_VAR] = token
             excluded.update(CLAUDE_AUTH_OVERRIDE_VARS)
-        else:
-            available = ", ".join(
-                [CLAUDE_DEFAULT_ACCOUNT, *list_all_claude_accounts(project_dir, env_file)]
-            )
-            raise ValueError(
-                f"Claude account '{claude_account}' requires {token_var} in "
-                "~/.augint/.env (or pass --env to load it from ./.env), or a login "
-                f"profile created with 'ai-shell claude --account {claude_account} "
-                f"--login'. Available accounts: {available}"
-            )
 
     for var in _SHARED_ENV_PASSTHROUGH:
         val = _resolve(var)
