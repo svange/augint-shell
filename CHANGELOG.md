@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.119.0 (2026-11-16)
+
+### Features
+
+- Add doctor/list commands, config-change recreation, and remove multi-session/fish (#193)
+  ([#193](https://github.com/svange/augint-shell/pull/193),
+  [`01cae33`](https://github.com/svange/augint-shell/commit/01cae331345456d88ea5f1d1efdf40d03553acbb))
+
+
 ## v0.118.0 (2026-11-16)
 
 ### Features
