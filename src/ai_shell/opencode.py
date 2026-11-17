@@ -12,6 +12,9 @@ Manages dynamic generation and non-destructive deep-merging of
 from __future__ import annotations
 
 import base64
+import datetime
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -26,6 +29,11 @@ logger = logging.getLogger(__name__)
 
 OPENCODE_SCHEMA_URL = "https://opencode.ai/config.json"
 BEDROCK_MANTLE_PROVIDER_ID = "bedrock-mantle"
+BEDROCK_MANTLE_OPENAI_PROVIDER_ID = "bedrock-mantle-openai"
+MANTLE_PROVIDER_IDS: tuple[str, ...] = (
+    BEDROCK_MANTLE_PROVIDER_ID,
+    BEDROCK_MANTLE_OPENAI_PROVIDER_ID,
+)
 OPENAI_COMPATIBLE_NPM = "@ai-sdk/openai-compatible"
 
 DEFAULT_COMMERCIAL_REGION = "us-east-1"
@@ -35,10 +43,16 @@ DEFAULT_BEDROCK_MANTLE_PRIMARY_MODEL = "openai.gpt-5.4"
 DEFAULT_BEDROCK_MANTLE_SUBAGENT_MODEL = "openai.gpt-oss-120b"
 BEDROCK_MANTLE_DEFAULT_PRIMARY_MODEL = DEFAULT_BEDROCK_MANTLE_PRIMARY_MODEL
 BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL = DEFAULT_BEDROCK_MANTLE_SUBAGENT_MODEL
+# Models listed in the OpenCode model picker. Mantle serves gpt-oss on /v1 and
+# GPT-5.x on /openai/v1, so each list becomes its own provider.
 BEDROCK_MANTLE_DEFAULT_MODELS: tuple[str, ...] = (
-    DEFAULT_BEDROCK_MANTLE_PRIMARY_MODEL,
-    DEFAULT_BEDROCK_MANTLE_SUBAGENT_MODEL,
+    "openai.gpt-oss-120b",
     "openai.gpt-oss-20b",
+)
+BEDROCK_MANTLE_OPENAI_DEFAULT_MODELS: tuple[str, ...] = (
+    "openai.gpt-5.4",
+    "openai.gpt-5.6-terra",
+    "openai.gpt-5.6-luna",
 )
 
 PRIMARY_AGENTS: tuple[str, ...] = ("plan", "build")
@@ -46,10 +60,14 @@ SUBAGENTS: tuple[str, ...] = ("explore", "general")
 
 BEDROCK_BEARER_TOKEN_VAR = "AWS_BEARER_TOKEN_BEDROCK"
 BEDROCK_API_KEY_VAR = "BEDROCK_API_KEY"
+BEDROCK_TOKEN_HOST = "bedrock.amazonaws.com"
+BEDROCK_TOKEN_PREFIX = "bedrock-api-key-"
+BEDROCK_TOKEN_MAX_SECONDS = 43200  # 12 hours, the most AWS allows
 
 _BUILTIN_PROVIDERS = frozenset(
     {
         BEDROCK_MANTLE_PROVIDER_ID,
+        BEDROCK_MANTLE_OPENAI_PROVIDER_ID,
         "ollama",
         "openai",
         "anthropic",
@@ -207,71 +225,108 @@ def resolve_bedrock_mantle_region(region: str = "", partition: str = "") -> str:
 
 
 def bedrock_mantle_base_url(region: str = "", partition: str = "") -> str:
-    """Construct the Bedrock Project Mantle OpenAI-compatible base URL.
+    """Construct the Bedrock Mantle base URL for most models (``/v1`` route).
 
-    Returns ``https://bedrock-mantle.<region>.api.aws/openai/v1``.
+    Returns ``https://bedrock-mantle.<region>.api.aws/v1``. gpt-oss and most
+    other models are served here.
+    """
+    resolved_region = resolve_bedrock_mantle_region(region=region, partition=partition)
+    return f"https://bedrock-mantle.{resolved_region}.api.aws/v1"
+
+
+def bedrock_mantle_openai_base_url(region: str = "", partition: str = "") -> str:
+    """Construct the Bedrock Mantle base URL for OpenAI GPT models (``/openai/v1`` route).
+
+    Returns ``https://bedrock-mantle.<region>.api.aws/openai/v1``. AWS serves
+    GPT-5.x on this route only; a request on the wrong route is rejected with
+    "model isn't supported on this route".
     """
     resolved_region = resolve_bedrock_mantle_region(region=region, partition=partition)
     return f"https://bedrock-mantle.{resolved_region}.api.aws/openai/v1"
 
 
-def _presign_bedrock_bearer_token_via_botocore(
-    profile: str = "",
-    region: str = "us-east-1",
-    expires_in: int = 3600,
-) -> str | None:
-    """Generate a short-term Bedrock bearer token on the host if botocore/aws_bedrock_token_generator is available."""
-    try:
-        import boto3  # type: ignore[import-not-found,import-untyped]
-        from aws_bedrock_token_generator import (  # type: ignore[import-not-found,import-untyped]
-            provide_token,
-        )
+def is_mantle_openai_route_model(model_id: str) -> bool:
+    """Return True when Bedrock Mantle serves *model_id* on the ``/openai/v1`` route.
 
-        session = (
-            boto3.Session(profile_name=profile, region_name=region)
-            if profile
-            else boto3.Session(region_name=region)
-        )
+    OpenAI GPT models (``openai.gpt-5.4``, ``openai.gpt-5.6-*``) use
+    ``/openai/v1``. The open-weight ``openai.gpt-oss-*`` models and the other
+    providers' models use ``/v1``.
+    """
+    bare = model_id.strip().lower()
+    return bare.startswith("openai.") and not bare.startswith("openai.gpt-oss")
+
+
+def mantle_provider_for_model(model_id: str) -> str:
+    """Return the OpenCode provider ID that serves *model_id* on Bedrock Mantle."""
+    if is_mantle_openai_route_model(model_id):
+        return BEDROCK_MANTLE_OPENAI_PROVIDER_ID
+    return BEDROCK_MANTLE_PROVIDER_ID
+
+
+def _bedrock_credentials_via_botocore(profile: str = "") -> tuple[str, str, str] | None:
+    """Return ``(access_key, secret_key, session_token)`` from botocore, if it is installed."""
+    try:
+        import botocore.session  # type: ignore[import-not-found,import-untyped]
+    except ImportError:
+        return None
+    try:
+        session = botocore.session.Session(profile=profile or None)
         creds = session.get_credentials()
         if creds is None:
             return None
-        token = provide_token(region=region, aws_credentials_provider=creds)
-        return str(token).strip() if token else None
-    except Exception:
-        pass
-
-    # Fallback: try botocore SigV4 presigning directly if botocore is installed
-    try:
-        import botocore.auth  # type: ignore[import-not-found,import-untyped]
-        import botocore.awsrequest  # type: ignore[import-not-found,import-untyped]
-        import botocore.session  # type: ignore[import-not-found,import-untyped]
-
-        bc_session = botocore.session.Session(profile=profile or None)
-        creds = bc_session.get_credentials()
-        if creds is None:
-            return None
         frozen = creds.get_frozen_credentials()
-        if not frozen.access_key or not frozen.secret_key:
-            return None
-        url = f"https://bedrock.amazonaws.com/?Action=CallWithBearerToken&Version=2023-09-30&X-Amz-Expires={expires_in}"
-        req = botocore.awsrequest.AWSRequest(
-            method="POST",
-            url=url,
-            headers={"Host": "bedrock.amazonaws.com"},
-        )
-        signer = botocore.auth.SigV4QueryAuth(
-            credentials=frozen,
-            service_name="bedrock",
-            region_name=region,
-            expires=expires_in,
-        )
-        signer.add_auth(req)
-        presigned = req.url
-        stripped = re.sub(r"^https?://", "", presigned)
-        encoded = base64.b64encode((stripped + "&Version=1").encode("utf-8")).decode("ascii")
-        return f"bedrock-api-key-{encoded}"
-    except Exception:
+    except Exception:  # noqa: BLE001 - any botocore failure means "no host credentials"
+        logger.debug("botocore could not load credentials for profile %r", profile)
         return None
+    if not frozen.access_key or not frozen.secret_key:
+        return None
+    return frozen.access_key, frozen.secret_key, frozen.token or ""
+
+
+def _bedrock_credentials_via_aws_cli(profile: str = "") -> tuple[str, str, str] | None:
+    """Return credentials from ``aws configure export-credentials`` on the host."""
+    aws_cmd = ["aws", "configure", "export-credentials", "--format", "process"]
+    if profile:
+        aws_cmd.extend(["--profile", profile])
+    try:
+        res = subprocess.run(aws_cmd, capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        logger.debug("Host AWS CLI unavailable")
+        return None
+    if res.returncode != 0 or not res.stdout.strip():
+        return None
+    try:
+        data = json.loads(res.stdout)
+    except ValueError:
+        return None
+    access_key = str(data.get("AccessKeyId") or "")
+    secret_key = str(data.get("SecretAccessKey") or "")
+    if not access_key or not secret_key:
+        return None
+    return access_key, secret_key, str(data.get("SessionToken") or "")
+
+
+def _bedrock_token_in_container(container_name: str, profile: str, region: str) -> str | None:
+    """Generate the token inside the dev container with ``aws-bedrock-token-generator``."""
+    script = (
+        "import os; "
+        "from aws_bedrock_token_generator import provide_token; "
+        "print(provide_token(region=os.environ['AWS_REGION']))"
+    )
+    cmd = ["docker", "exec"]
+    if profile:
+        cmd.extend(["-e", f"AWS_PROFILE={profile}"])
+    cmd.extend(["-e", f"AWS_REGION={region}", "-e", f"AWS_DEFAULT_REGION={region}"])
+    cmd.extend([container_name, "python3", "-c", script])
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        logger.debug("In-container Bedrock token generator unavailable")
+        return None
+    if res.returncode != 0 or not res.stdout.strip():
+        return None
+    token = res.stdout.strip().splitlines()[-1].strip()
+    return token if token.startswith(BEDROCK_TOKEN_PREFIX) else None
 
 
 def generate_bedrock_bearer_token(
@@ -280,62 +335,34 @@ def generate_bedrock_bearer_token(
     region: str = "us-east-1",
     container_name: str | None = None,
 ) -> str | None:
-    """Generate a short-term Bedrock bearer token using the active AWS profile.
+    """Generate a short-term Bedrock API key (bearer token) from the active AWS profile.
 
-    Attempts in order:
-    1. Host Python ``aws_bedrock_token_generator`` / ``botocore`` if installed.
-    2. In-container ``python3`` using ``aws_bedrock_token_generator`` (where
-       ``~/.aws`` is bind-mounted and the package is installed).
-    3. Host AWS CLI ``aws configure export-credentials`` + pure-stdlib SigV4
-       presigning (works on any host with AWS CLI v2, zero extra Python deps).
+    The token is the one ``aws_bedrock_token_generator.provide_token`` makes: a
+    SigV4 presigned ``CallWithBearerToken`` request for *region*. It lasts
+    12 hours, or less when the AWS session ends sooner.
+
+    Credential sources, in order:
+    1. botocore on the host, when it is installed.
+    2. ``aws-bedrock-token-generator`` inside the dev container (``~/.aws`` is
+       bind-mounted there, so an SSO login on the host works).
+    3. ``aws configure export-credentials`` from the host AWS CLI v2.
     """
-    host_token = _presign_bedrock_bearer_token_via_botocore(profile=profile, region=region)
-    if host_token:
-        return host_token
+    creds = _bedrock_credentials_via_botocore(profile)
+    if creds:
+        return _stdlib_sigv4_bedrock_token(
+            access_key=creds[0], secret_key=creds[1], session_token=creds[2], region=region
+        )
 
     if container_name:
-        script = (
-            "import os, boto3; "
-            "from aws_bedrock_token_generator import provide_token; "
-            "prof = os.environ.get('AWS_PROFILE') or None; "
-            "reg = os.environ.get('AWS_REGION', 'us-east-1'); "
-            "s = boto3.Session(profile_name=prof, region_name=reg); "
-            "print(provide_token(region=reg, aws_credentials_provider=s.get_credentials()))"
+        token = _bedrock_token_in_container(container_name, profile, region)
+        if token:
+            return token
+
+    creds = _bedrock_credentials_via_aws_cli(profile)
+    if creds:
+        return _stdlib_sigv4_bedrock_token(
+            access_key=creds[0], secret_key=creds[1], session_token=creds[2], region=region
         )
-        cmd = ["docker", "exec"]
-        if profile:
-            cmd.extend(["-e", f"AWS_PROFILE={profile}"])
-        if region:
-            cmd.extend(["-e", f"AWS_REGION={region}", "-e", f"AWS_DEFAULT_REGION={region}"])
-        cmd.extend([container_name, "python3", "-c", script])
-        try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-            if res.returncode == 0 and res.stdout.strip():
-                return res.stdout.strip().splitlines()[-1].strip()
-        except (OSError, subprocess.SubprocessError):
-            logger.debug("In-container Bedrock helper unavailable")
-
-    # Host AWS CLI export-credentials fallback
-    aws_cmd = ["aws", "configure", "export-credentials", "--format", "process"]
-    if profile:
-        aws_cmd.extend(["--profile", profile])
-    try:
-        res = subprocess.run(aws_cmd, capture_output=True, text=True, timeout=15)
-        if res.returncode == 0 and res.stdout.strip():
-            creds_data = json.loads(res.stdout)
-            access_key = creds_data.get("AccessKeyId", "")
-            secret_key = creds_data.get("SecretAccessKey", "")
-            session_token = creds_data.get("SessionToken", "")
-            if access_key and secret_key:
-                return _stdlib_sigv4_bedrock_token(
-                    access_key=access_key,
-                    secret_key=secret_key,
-                    session_token=session_token,
-                    region=region,
-                )
-    except (OSError, subprocess.SubprocessError, ValueError):
-        logger.debug("Host AWS CLI fallback unavailable")
-
     return None
 
 
@@ -345,47 +372,57 @@ def _stdlib_sigv4_bedrock_token(
     secret_key: str,
     session_token: str = "",
     region: str = "us-east-1",
-    expires_in: int = 3600,
+    expires_in: int = BEDROCK_TOKEN_MAX_SECONDS,
+    now: datetime.datetime | None = None,
 ) -> str:
-    """Create a SigV4-presigned Bedrock bearer token using only the Python standard library."""
-    import datetime
-    import hashlib
-    import hmac
+    """Create a short-term Bedrock API key with the Python standard library only.
 
-    now = datetime.datetime.now(datetime.UTC)
-    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
-    datestamp = now.strftime("%Y%m%d")
-    host = "bedrock.amazonaws.com"
+    The output is the same as ``aws_bedrock_token_generator.provide_token``
+    (version 1.1.0): a SigV4 query-signed ``POST https://bedrock.amazonaws.com/
+    ?Action=CallWithBearerToken`` for *region* with an empty body, prefixed ``bedrock-api-key-`` and suffixed ``&Version=1`` before base64.
+    """
+    if expires_in <= 0 or expires_in > BEDROCK_TOKEN_MAX_SECONDS:
+        raise ValueError("Bedrock token expiry must be between 1 second and 12 hours")
+
+    stamp = now or datetime.datetime.now(datetime.UTC)
+    amz_date = stamp.strftime("%Y%m%dT%H%M%SZ")
+    datestamp = stamp.strftime("%Y%m%d")
+    host = BEDROCK_TOKEN_HOST
     service = "bedrock"
     credential_scope = f"{datestamp}/{region}/{service}/aws4_request"
 
-    query_params: list[tuple[str, str]] = [
-        ("Action", "CallWithBearerToken"),
-        ("Version", "2023-09-30"),
+    operation_params: list[tuple[str, str]] = [("Action", "CallWithBearerToken")]
+    auth_params: list[tuple[str, str]] = [
         ("X-Amz-Algorithm", "AWS4-HMAC-SHA256"),
         ("X-Amz-Credential", f"{access_key}/{credential_scope}"),
         ("X-Amz-Date", amz_date),
         ("X-Amz-Expires", str(expires_in)),
+        ("X-Amz-SignedHeaders", "host"),
     ]
     if session_token:
-        query_params.append(("X-Amz-Security-Token", session_token))
-    query_params.append(("X-Amz-SignedHeaders", "host"))
-    query_params.sort(key=lambda item: item[0])
+        auth_params.append(("X-Amz-Security-Token", session_token))
 
-    canonical_querystring = "&".join(
-        f"{quote(k, safe='-_.~')}={quote(v, safe='-_.~')}" for k, v in query_params
-    )
-    canonical_headers = f"host:{host}\n"
-    payload_hash = hashlib.sha256(b"").hexdigest()
-    canonical_request = (
-        f"POST\n/\n{canonical_querystring}\n{canonical_headers}\nhost\n{payload_hash}"
-    )
+    def _encode(pairs: list[tuple[str, str]]) -> str:
+        return "&".join(f"{quote(k, safe='-_.~')}={quote(v, safe='-_.~')}" for k, v in pairs)
 
-    string_to_sign = (
-        "AWS4-HMAC-SHA256\n"
-        f"{amz_date}\n"
-        f"{credential_scope}\n"
-        f"{hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()}"
+    canonical_querystring = _encode(sorted(operation_params + auth_params))
+    canonical_request = "\n".join(
+        [
+            "POST",
+            "/",
+            canonical_querystring,
+            f"host:{host}\n",
+            "host",
+            hashlib.sha256(b"").hexdigest(),
+        ]
+    )
+    string_to_sign = "\n".join(
+        [
+            "AWS4-HMAC-SHA256",
+            amz_date,
+            credential_scope,
+            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
+        ]
     )
 
     def _sign(key: bytes, msg: str) -> bytes:
@@ -397,11 +434,12 @@ def _stdlib_sigv4_bedrock_token(
     k_signing = _sign(k_service, "aws4_request")
     signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
 
-    presigned_without_scheme = (
-        f"{host}/?{canonical_querystring}&X-Amz-Signature={signature}&Version=1"
+    presigned = (
+        f"{host}/?{_encode(operation_params)}&{_encode(auth_params)}"
+        f"&X-Amz-Signature={signature}&Version=1"
     )
-    encoded = base64.b64encode(presigned_without_scheme.encode("utf-8")).decode("ascii")
-    return f"bedrock-api-key-{encoded}"
+    encoded = base64.b64encode(presigned.encode("utf-8")).decode("ascii")
+    return f"{BEDROCK_TOKEN_PREFIX}{encoded}"
 
 
 _generate_token_from_credentials = _stdlib_sigv4_bedrock_token
@@ -479,6 +517,35 @@ def qualify_model_id(
     return qualified
 
 
+def _route_mantle_model(qualified: str, provider: str, bare: str) -> tuple[str, str, str]:
+    """Move a Bedrock Mantle model to the Mantle provider whose route serves it."""
+    if provider in MANTLE_PROVIDER_IDS and bare:
+        routed = mantle_provider_for_model(bare)
+        if routed != provider:
+            return f"{routed}/{bare}", routed, bare
+    return qualified, provider, bare
+
+
+def _drop_misrouted_mantle_models(config: dict[str, Any]) -> None:
+    """Remove Mantle model entries listed under the provider whose route rejects them.
+
+    Older ai-shell versions put every Mantle model under one ``bedrock-mantle``
+    provider on ``/openai/v1``. A deep merge cannot delete those entries, so
+    they are removed here.
+    """
+    providers = config.get("provider")
+    if not isinstance(providers, dict):
+        return
+    for provider_id in MANTLE_PROVIDER_IDS:
+        entry = providers.get(provider_id)
+        models = entry.get("models") if isinstance(entry, dict) else None
+        if not isinstance(models, dict):
+            continue
+        for model_id in list(models):
+            if mantle_provider_for_model(model_id) != provider_id:
+                del models[model_id]
+
+
 def deep_merge_dict(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge *patch* into a copy of *base* without clobbering sibling keys."""
     merged: dict[str, Any] = dict(base)
@@ -503,9 +570,11 @@ def build_opencode_config_patch(
 ) -> dict[str, Any]:
     """Build the ``opencode.json`` configuration dictionary to merge.
 
-    - Configures ``provider["bedrock-mantle"]`` using ``@ai-sdk/openai-compatible``
-      pointing at ``https://bedrock-mantle.<region>.api.aws/openai/v1`` with
-      ``{env:AWS_BEARER_TOKEN_BEDROCK}`` when Bedrock Mantle is active.
+    - When Bedrock Mantle is active, configures two ``@ai-sdk/openai-compatible``
+      providers with ``{env:AWS_BEARER_TOKEN_BEDROCK}``: ``bedrock-mantle`` on
+      ``https://bedrock-mantle.<region>.api.aws/v1`` (gpt-oss and most models)
+      and ``bedrock-mantle-openai`` on ``.../openai/v1`` (GPT-5.x). A Mantle
+      model is always routed to the provider whose route serves it.
     - Configures each entry in *custom_endpoints* under ``provider[<name>]`` using
       ``@ai-sdk/openai-compatible``.
     - Routes primary agents (``plan``, ``build``) to *primary_model* and
@@ -517,7 +586,7 @@ def build_opencode_config_patch(
     endpoints = list(custom_endpoints or [])
     known_providers = {ep.name for ep in endpoints}
     if mantle_active:
-        known_providers.add(BEDROCK_MANTLE_PROVIDER_ID)
+        known_providers.update(MANTLE_PROVIDER_IDS)
 
     resolved_default_provider = default_provider.strip()
     if not resolved_default_provider:
@@ -546,18 +615,26 @@ def build_opencode_config_patch(
         resolved_region = resolve_bedrock_mantle_region(
             region=effective_region_arg, partition=aws_partition
         )
-        base_url = bedrock_mantle_base_url(region=resolved_region, partition=aws_partition)
-        mantle_models: dict[str, dict[str, str]] = {
-            m: {"name": m} for m in BEDROCK_MANTLE_DEFAULT_MODELS
-        }
+        api_key = f"{{env:{BEDROCK_BEARER_TOKEN_VAR}}}"
         providers_patch[BEDROCK_MANTLE_PROVIDER_ID] = {
             "npm": OPENAI_COMPATIBLE_NPM,
             "name": f"Amazon Bedrock Mantle ({resolved_region})",
             "options": {
-                "baseURL": base_url,
-                "apiKey": f"{{env:{BEDROCK_BEARER_TOKEN_VAR}}}",
+                "baseURL": bedrock_mantle_base_url(region=resolved_region, partition=aws_partition),
+                "apiKey": api_key,
             },
-            "models": mantle_models,
+            "models": {m: {"name": m} for m in BEDROCK_MANTLE_DEFAULT_MODELS},
+        }
+        providers_patch[BEDROCK_MANTLE_OPENAI_PROVIDER_ID] = {
+            "npm": OPENAI_COMPATIBLE_NPM,
+            "name": f"Amazon Bedrock Mantle OpenAI GPT ({resolved_region})",
+            "options": {
+                "baseURL": bedrock_mantle_openai_base_url(
+                    region=resolved_region, partition=aws_partition
+                ),
+                "apiKey": api_key,
+            },
+            "models": {m: {"name": m} for m in BEDROCK_MANTLE_OPENAI_DEFAULT_MODELS},
         }
 
     for ep in endpoints:
@@ -576,8 +653,8 @@ def build_opencode_config_patch(
     agent_patch: dict[str, Any] = {}
 
     if effective_primary:
-        qual_primary, prim_prov, prim_bare = _split_qualified_model(
-            effective_primary, resolved_default_provider, known_providers
+        qual_primary, prim_prov, prim_bare = _route_mantle_model(
+            *_split_qualified_model(effective_primary, resolved_default_provider, known_providers)
         )
         patch["model"] = qual_primary
         for agent_name in PRIMARY_AGENTS:
@@ -586,8 +663,8 @@ def build_opencode_config_patch(
             providers_patch[prim_prov].setdefault("models", {})[prim_bare] = {"name": prim_bare}
 
     if effective_subagent:
-        qual_sub, sub_prov, sub_bare = _split_qualified_model(
-            effective_subagent, resolved_default_provider, known_providers
+        qual_sub, sub_prov, sub_bare = _route_mantle_model(
+            *_split_qualified_model(effective_subagent, resolved_default_provider, known_providers)
         )
         patch["small_model"] = qual_sub
         for agent_name in SUBAGENTS:
@@ -646,6 +723,7 @@ def sync_opencode_config(
     )
 
     merged = deep_merge_dict(existing, patch)
+    _drop_misrouted_mantle_models(merged)
     merged.setdefault("$schema", OPENCODE_SCHEMA_URL)
     target.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
     return merged

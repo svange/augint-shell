@@ -135,7 +135,7 @@ llm:
 # opencode:
 #   provider: bedrock-mantle                  # "ollama" (default), "bedrock-mantle" ("aws"), or custom endpoint name
 #   aws_partition: govcloud                   # "commercial" (us-east-1 default) or "govcloud" (us-gov-west-1 default)
-#   aws_region: us-gov-west-1                 # constructs https://bedrock-mantle.<region>.api.aws/openai/v1
+#   aws_region: us-gov-west-1                 # Mantle routes: <region>.api.aws/v1 (gpt-oss) and /openai/v1 (GPT-5.x)
 #   aws_profile: gov-bedrock                  # generates short-term AWS_BEARER_TOKEN_BEDROCK when token env unset
 #   model: openai.gpt-5.4                     # primary model for plan & build agents
 #   subagent_model: openai.gpt-oss-120b       # fast model for explore & general subagents

@@ -11,14 +11,17 @@ import pytest
 from ai_shell.opencode import (
     BEDROCK_MANTLE_DEFAULT_PRIMARY_MODEL,
     BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL,
+    BEDROCK_MANTLE_OPENAI_PROVIDER_ID,
     BEDROCK_MANTLE_PROVIDER_ID,
     CustomEndpoint,
     _generate_token_from_credentials,
     bedrock_mantle_base_url,
+    bedrock_mantle_openai_base_url,
     bridge_opencode_skills,
     build_opencode_config_patch,
     deep_merge_dict,
     generate_bedrock_bearer_token,
+    mantle_provider_for_model,
     parse_endpoint_spec,
     qualify_model_id,
     resolve_aws_partition,
@@ -104,16 +107,30 @@ class TestBedrockMantleUrlsAndRegions:
     def test_bedrock_mantle_base_url_commercial_and_govcloud(self):
         assert (
             bedrock_mantle_base_url(partition="commercial")
-            == "https://bedrock-mantle.us-east-1.api.aws/openai/v1"
+            == "https://bedrock-mantle.us-east-1.api.aws/v1"
         )
         assert (
             bedrock_mantle_base_url(partition="govcloud")
+            == "https://bedrock-mantle.us-gov-west-1.api.aws/v1"
+        )
+        assert (
+            bedrock_mantle_openai_base_url(partition="govcloud")
             == "https://bedrock-mantle.us-gov-west-1.api.aws/openai/v1"
         )
         assert (
-            bedrock_mantle_base_url(region="us-gov-east-1")
+            bedrock_mantle_openai_base_url(region="us-gov-east-1")
             == "https://bedrock-mantle.us-gov-east-1.api.aws/openai/v1"
         )
+
+    def test_mantle_provider_for_model_splits_gpt_and_gpt_oss(self):
+        # Regression: GPT-5.x is served only on /openai/v1 and gpt-oss only on /v1.
+        assert mantle_provider_for_model("openai.gpt-5.4") == BEDROCK_MANTLE_OPENAI_PROVIDER_ID
+        assert (
+            mantle_provider_for_model("openai.gpt-5.6-terra") == BEDROCK_MANTLE_OPENAI_PROVIDER_ID
+        )
+        assert mantle_provider_for_model("openai.gpt-oss-120b") == BEDROCK_MANTLE_PROVIDER_ID
+        assert mantle_provider_for_model("openai.gpt-oss-20b") == BEDROCK_MANTLE_PROVIDER_ID
+        assert mantle_provider_for_model("mistral.devstral-2-123b") == BEDROCK_MANTLE_PROVIDER_ID
 
 
 class TestBearerTokenGeneration:
@@ -125,6 +142,69 @@ class TestBearerTokenGeneration:
             region="us-gov-west-1",
         )
         assert token.startswith("bedrock-api-key-")
+
+    def test_stdlib_token_matches_aws_bedrock_token_generator(self):
+        """Regression: the token must be what aws-bedrock-token-generator 1.1.0 makes.
+
+        The old signer signed an extra ``Version=2023-09-30`` parameter, so the
+        token did not match the AWS format. This test builds the reference token
+        the way the AWS library does.
+        """
+        import base64
+        import datetime
+
+        botocore_auth = pytest.importorskip("botocore.auth")
+        from botocore.awsrequest import AWSRequest
+        from botocore.credentials import Credentials
+
+        fixed = datetime.datetime(2026, 11, 17, 12, 0, 0, tzinfo=datetime.UTC)
+        creds = Credentials("ASIAEXAMPLEKEY", "secretEXAMPLE", "session/token+EXAMPLE=")
+
+        request = AWSRequest(
+            method="POST",
+            url="https://bedrock.amazonaws.com/",
+            headers={"host": "bedrock.amazonaws.com"},
+            params={"Action": "CallWithBearerToken"},
+        )
+        with patch.object(botocore_auth, "get_current_datetime", return_value=fixed):
+            botocore_auth.SigV4QueryAuth(creds, "bedrock", "us-gov-west-1", expires=43200).add_auth(
+                request
+            )
+        presigned = request.url.replace("https://", "") + "&Version=1"
+        expected = "bedrock-api-key-" + base64.b64encode(presigned.encode()).decode()
+
+        ours = _generate_token_from_credentials(
+            access_key="ASIAEXAMPLEKEY",
+            secret_key="secretEXAMPLE",
+            session_token="session/token+EXAMPLE=",
+            region="us-gov-west-1",
+            now=fixed,
+        )
+        assert ours == expected
+
+    def test_stdlib_token_rejects_expiry_over_12_hours(self):
+        with pytest.raises(ValueError):
+            _generate_token_from_credentials(
+                access_key="AKIA", secret_key="s", region="us-gov-west-1", expires_in=43201
+            )
+
+    @patch("ai_shell.opencode._bedrock_credentials_via_botocore", return_value=None)
+    @patch("ai_shell.opencode.subprocess.run")
+    def test_in_container_generator_uses_profile_and_region(self, mock_run, _mock_botocore):
+        # Regression: the old script passed Credentials where provide_token expects a
+        # provider, so it always failed. It must call provide_token(region=...) only.
+        mock_run.return_value = MagicMock(returncode=0, stdout="bedrock-api-key-abc\n", stderr="")
+        token = generate_bedrock_bearer_token(
+            profile="ai-gov", region="us-gov-west-1", container_name="augint-shell-x-dev"
+        )
+        assert token == "bedrock-api-key-abc"
+        cmd = mock_run.call_args.args[0]
+        assert cmd[:2] == ["docker", "exec"]
+        assert "AWS_PROFILE=ai-gov" in cmd
+        assert "AWS_REGION=us-gov-west-1" in cmd
+        script = cmd[-1]
+        assert "provide_token(region=" in script
+        assert "aws_credentials_provider" not in script
 
     def test_resolve_bedrock_bearer_token_from_existing_env(self):
         env = {"AWS_BEARER_TOKEN_BEDROCK": "existing-token"}
@@ -161,7 +241,7 @@ class TestBearerTokenGeneration:
             container_name="augint-shell-demo-dev",
         )
 
-    @patch("ai_shell.opencode._presign_bedrock_bearer_token_via_botocore", return_value=None)
+    @patch("ai_shell.opencode._bedrock_credentials_via_botocore", return_value=None)
     @patch("ai_shell.opencode.subprocess.run")
     def test_generate_bedrock_bearer_token_falls_back_to_aws_cli(self, mock_run, _mock_botocore):
         creds_json = json.dumps(
@@ -210,7 +290,15 @@ class TestQualifyModelAndConfigMerging:
         )
         assert (
             patch_dict["provider"][BEDROCK_MANTLE_PROVIDER_ID]["options"]["baseURL"]
+            == "https://bedrock-mantle.us-gov-west-1.api.aws/v1"
+        )
+        assert (
+            patch_dict["provider"][BEDROCK_MANTLE_OPENAI_PROVIDER_ID]["options"]["baseURL"]
             == "https://bedrock-mantle.us-gov-west-1.api.aws/openai/v1"
+        )
+        assert (
+            patch_dict["provider"][BEDROCK_MANTLE_OPENAI_PROVIDER_ID]["options"]["apiKey"]
+            == "{env:AWS_BEARER_TOKEN_BEDROCK}"
         )
         assert (
             patch_dict["provider"][BEDROCK_MANTLE_PROVIDER_ID]["options"]["apiKey"]
@@ -220,13 +308,15 @@ class TestQualifyModelAndConfigMerging:
         assert patch_dict["provider"]["vllm"]["options"]["apiKey"] == "{env:VLLM_API_KEY}"
         assert "Qwen/Qwen3-Coder-30B-A3B-Instruct" in patch_dict["provider"]["vllm"]["models"]
         # Primary vs subagent routing
-        assert patch_dict["model"] == f"{BEDROCK_MANTLE_PROVIDER_ID}/openai.gpt-5.4"
+        assert patch_dict["model"] == f"{BEDROCK_MANTLE_OPENAI_PROVIDER_ID}/openai.gpt-5.4"
         assert patch_dict["small_model"] == "vllm/Qwen/Qwen3-Coder-30B-A3B-Instruct"
         assert (
-            patch_dict["agent"]["plan"]["model"] == f"{BEDROCK_MANTLE_PROVIDER_ID}/openai.gpt-5.4"
+            patch_dict["agent"]["plan"]["model"]
+            == f"{BEDROCK_MANTLE_OPENAI_PROVIDER_ID}/openai.gpt-5.4"
         )
         assert (
-            patch_dict["agent"]["build"]["model"] == f"{BEDROCK_MANTLE_PROVIDER_ID}/openai.gpt-5.4"
+            patch_dict["agent"]["build"]["model"]
+            == f"{BEDROCK_MANTLE_OPENAI_PROVIDER_ID}/openai.gpt-5.4"
         )
         assert patch_dict["agent"]["explore"]["model"] == "vllm/Qwen/Qwen3-Coder-30B-A3B-Instruct"
         assert patch_dict["agent"]["general"]["model"] == "vllm/Qwen/Qwen3-Coder-30B-A3B-Instruct"
@@ -267,11 +357,11 @@ class TestQualifyModelAndConfigMerging:
         # Default Bedrock Mantle models applied
         assert (
             merged["agent"]["plan"]["model"]
-            == f"{BEDROCK_MANTLE_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_PRIMARY_MODEL}"
+            == f"{BEDROCK_MANTLE_OPENAI_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_PRIMARY_MODEL}"
         )
         assert (
             merged["agent"]["build"]["model"]
-            == f"{BEDROCK_MANTLE_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_PRIMARY_MODEL}"
+            == f"{BEDROCK_MANTLE_OPENAI_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_PRIMARY_MODEL}"
         )
         assert (
             merged["agent"]["explore"]["model"]
@@ -285,6 +375,45 @@ class TestQualifyModelAndConfigMerging:
         # File on disk matches merged dict
         on_disk = json.loads(config_path.read_text(encoding="utf-8"))
         assert on_disk == merged
+
+    def test_explicit_bedrock_mantle_gpt_model_is_rerouted(self):
+        # Regression: "bedrock-mantle/openai.gpt-5.4" (the old documented form) must
+        # land on the /openai/v1 provider, or Mantle rejects it.
+        patch_dict = build_opencode_config_patch(
+            bedrock_region="us-gov-west-1",
+            primary_model="bedrock-mantle/openai.gpt-5.4",
+            subagent_model="bedrock-mantle/openai.gpt-oss-120b",
+        )
+        assert patch_dict["model"] == "bedrock-mantle-openai/openai.gpt-5.4"
+        assert patch_dict["small_model"] == "bedrock-mantle/openai.gpt-oss-120b"
+        assert "openai.gpt-5.4" not in patch_dict["provider"]["bedrock-mantle"]["models"]
+        assert "openai.gpt-oss-120b" in patch_dict["provider"]["bedrock-mantle"]["models"]
+        assert "openai.gpt-5.4" in patch_dict["provider"]["bedrock-mantle-openai"]["models"]
+
+    def test_sync_removes_gpt_models_left_on_v1_route_by_older_versions(self, tmp_path: Path):
+        config_path = tmp_path / "opencode.json"
+        old = {
+            "provider": {
+                "bedrock-mantle": {
+                    "npm": "@ai-sdk/openai-compatible",
+                    "options": {
+                        "baseURL": "https://bedrock-mantle.us-gov-west-1.api.aws/openai/v1"
+                    },
+                    "models": {
+                        "openai.gpt-5.4": {"name": "openai.gpt-5.4"},
+                        "openai.gpt-oss-120b": {"name": "openai.gpt-oss-120b"},
+                        "my-extra-model": {"name": "kept"},
+                    },
+                }
+            }
+        }
+        config_path.write_text(json.dumps(old), encoding="utf-8")
+        merged = sync_opencode_config(config_path=config_path, bedrock_region="us-gov-west-1")
+        mantle = merged["provider"]["bedrock-mantle"]
+        assert mantle["options"]["baseURL"] == "https://bedrock-mantle.us-gov-west-1.api.aws/v1"
+        assert "openai.gpt-5.4" not in mantle["models"]
+        assert "my-extra-model" in mantle["models"]
+        assert "openai.gpt-5.4" in merged["provider"]["bedrock-mantle-openai"]["models"]
 
     def test_deep_merge_dict_does_not_mutate_base(self):
         base = {"a": {"x": 1}, "b": 2}

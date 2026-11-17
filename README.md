@@ -568,28 +568,62 @@ Dependencies are checked *inside* the container, because `node_modules` is a con
 
 ### 1. AWS Bedrock Mantle (Commercial & GovCloud)
 
-OpenCode connects to AWS Bedrock's OpenAI-compatible Project Mantle endpoints (`https://bedrock-mantle.<region>.api.aws/openai/v1`) using `@ai-sdk/openai-compatible`:
+OpenCode connects to AWS Bedrock's OpenAI-compatible Mantle endpoints with `@ai-sdk/openai-compatible` (Chat Completions). Mantle serves models on two routes, and a model sent to the wrong route is rejected ("isn't supported on this route"). So ai-shell writes two providers into `opencode.json` and puts each model on the provider that serves it:
 
-- **Commercial AWS** (`--aws-partition commercial`, default region `us-east-1`): supports `us-east-1`, `us-east-2`, `us-west-2`, `ap-northeast-1`, `ap-south-1`, `ap-southeast-1`, `ap-southeast-2`, `eu-central-1`, `eu-north-1`, `eu-west-1`, `eu-west-2`, `sa-east-1`.
-- **AWS GovCloud** (`--aws-partition govcloud`, default region `us-gov-west-1`): supports `us-gov-west-1`, `us-gov-east-1`.
+| Provider | Base URL | Models |
+| --- | --- | --- |
+| `bedrock-mantle` | `https://bedrock-mantle.<region>.api.aws/v1` | `openai.gpt-oss-120b`, `openai.gpt-oss-20b`, and other non-GPT models |
+| `bedrock-mantle-openai` | `https://bedrock-mantle.<region>.api.aws/openai/v1` | `openai.gpt-5.4`, `openai.gpt-5.6-terra`, `openai.gpt-5.6-luna` |
+
+A model given as `bedrock-mantle/openai.gpt-5.4` (or unqualified) is moved to `bedrock-mantle-openai`. Mantle model IDs have no `-1:0` suffix; that suffix is the `bedrock-runtime` form.
+
+- **Commercial AWS** (`--aws-partition commercial`, default region `us-east-1`).
+- **AWS GovCloud** (`--aws-partition govcloud`, default region `us-gov-west-1`).
 - **Authentication**:
   - If `AWS_BEARER_TOKEN_BEDROCK` (or `BEDROCK_API_KEY`) is set on the host or in `~/.augint/.env`, it is forwarded into the container and referenced via `{env:AWS_BEARER_TOKEN_BEDROCK}` in `opencode.json`.
-  - Otherwise, `ai-shell` automatically generates a short-term Bedrock bearer token from your active AWS CLI/SSO profile (`--aws-profile` / `--profile`) before launching OpenCode so no interactive credential prompts are needed inside the container (disable with `--no-generate-token`).
+  - Otherwise, `ai-shell` makes a short-term Bedrock API key from your AWS profile (`--aws-profile` / `--profile`, or `opencode.aws_profile`) before it starts OpenCode. The key is the same one `aws-bedrock-token-generator` makes. It lasts 12 hours, or less when the SSO session ends sooner. Run `aws sso login --profile <profile>` first. Disable with `--no-generate-token`.
+  - The profile needs `bedrock:CallWithBearerToken`, `bedrock-mantle:CallWithBearerToken`, `bedrock-mantle:ListModels` and `bedrock-mantle:CreateInference`.
 - **Default Mantle agent models**:
-  - Primary agents (`plan`, `build`): `bedrock-mantle/openai.gpt-5.4`
-  - Subagents (`explore`, `general`): `bedrock-mantle/openai.gpt-oss-120b`
+  - Primary agents (`plan`, `build`): `bedrock-mantle-openai/openai.gpt-5.4`
+  - Subagents (`explore`, `general`) and `small_model`: `bedrock-mantle/openai.gpt-oss-120b`
 
 ```bash
 # Commercial AWS (defaults to us-east-1) using an AWS SSO profile
 ai-shell opencode --aws --aws-profile my-bedrock-sso
 
 # AWS GovCloud (defaults to us-gov-west-1) using a pre-set bearer token
-export AWS_BEARER_TOKEN_BEDROCK="bedrock-token-..."
+export AWS_BEARER_TOKEN_BEDROCK="bedrock-api-key-..."
 ai-shell opencode --aws --aws-partition govcloud
 
-# AWS GovCloud East with profile token generation
-ai-shell opencode --aws --aws-partition govcloud --aws-region us-gov-east-1 --aws-profile gov-sso
+# AWS GovCloud with a key made from an SSO profile
+aws sso login --profile ai-gov
+ai-shell opencode --aws --aws-partition govcloud --aws-profile ai-gov
 ```
+
+A standalone GovCloud account, with GPT-5.4 for planning and building, gpt-oss for subagents, and an optional own model on a GPU instance that you reach through a Session Manager port forward on host port 8000. Put this in `~/.augint/.ai-shell.yaml`:
+
+```yaml
+opencode:
+  provider: bedrock-mantle
+  aws_partition: govcloud
+  aws_profile: ai-gov
+  model: openai.gpt-5.4
+  subagent_model: openai.gpt-oss-120b
+  endpoints:
+    govcloud-gpu:
+      base_url: http://host.docker.internal:8000/v1
+      models:
+        - MODEL_ID_SERVED_BY_VLLM
+```
+
+To check the key and the model IDs your account can use:
+
+```bash
+curl -H "Authorization: Bearer $AWS_BEARER_TOKEN_BEDROCK" \
+  https://bedrock-mantle.us-gov-west-1.api.aws/v1/models
+```
+
+ai-shell merges into `~/.config/opencode/opencode.json` and keeps keys it does not set. To stop OpenCode from sharing sessions, add `"share": "disabled"` there.
 
 ### 2. Custom OpenAI-Compatible Endpoints (vLLM / SGLang)
 
@@ -619,7 +653,7 @@ Route primary reasoning/coding agents (`plan`, `build`) to a frontier model on B
 ai-shell opencode --aws \
   --aws-partition govcloud \
   --aws-profile gov-sso \
-  --model bedrock-mantle/openai.gpt-5.4 \
+  --model bedrock-mantle-openai/openai.gpt-5.4 \
   --subagent-model bedrock-mantle/openai.gpt-oss-120b
 
 # Bedrock Mantle primary (plan, build) + self-hosted vLLM subagent (explore, general)
@@ -627,7 +661,7 @@ ai-shell opencode --aws \
   --aws-partition govcloud \
   --aws-profile gov-sso \
   --endpoint "vllm=http://gpu-box:8000/v1,model=Qwen/Qwen3-Coder-30B-A3B-Instruct,api_key_env=VLLM_API_KEY" \
-  --model bedrock-mantle/openai.gpt-5.4 \
+  --model bedrock-mantle-openai/openai.gpt-5.4 \
   --subagent-model vllm/Qwen/Qwen3-Coder-30B-A3B-Instruct
 ```
 
@@ -639,7 +673,7 @@ opencode:
   aws_partition: govcloud
   aws_region: us-gov-west-1
   aws_profile: gov-sso
-  model: bedrock-mantle/openai.gpt-5.4
+  model: bedrock-mantle-openai/openai.gpt-5.4
   subagent_model: vllm/Qwen/Qwen3-Coder-30B-A3B-Instruct
   endpoints:
     vllm:
