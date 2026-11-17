@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-11-16T20:39:30Z",
+  "generated_at": "2026-11-17T17:15:30Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 82,
+      "CONFIDENCE.HIGH": 81,
       "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 3,
+      "CONFIDENCE.MEDIUM": 5,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 85,
+      "SEVERITY.LOW": 86,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 10475,
+      "loc": 10538,
       "nosec": 0,
       "skipped_tests": 14
     },
@@ -315,15 +315,15 @@
       "skipped_tests": 0
     },
     "src/ai_shell/opencode.py": {
-      "CONFIDENCE.HIGH": 4,
+      "CONFIDENCE.HIGH": 3,
       "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.MEDIUM": 3,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 5,
+      "SEVERITY.LOW": 6,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 601,
+      "loc": 664,
       "nosec": 0,
       "skipped_tests": 0
     },
