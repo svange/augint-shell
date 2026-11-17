@@ -631,6 +631,19 @@ profile = "bedrock-acct"
         assert not hasattr(config, "codex_openai_api_key")
         assert not hasattr(config, "codex_profile")
 
+    def test_opencode_region_kept_apart_from_bedrock_region(self, tmp_path):
+        (tmp_path / ".ai-shell.yaml").write_text(
+            "aws:\n  bedrock_region: us-east-1\nopencode:\n  aws_region: us-gov-west-1\n"
+        )
+        config = load_config(project_dir=tmp_path)
+        assert config.bedrock_region == "us-east-1"
+        assert config.opencode_region == "us-gov-west-1"
+
+    def test_opencode_region_env_var(self, tmp_path):
+        with patch.dict("os.environ", {"AI_SHELL_OPENCODE_AWS_REGION": "us-gov-east-1"}):
+            config = load_config(project_dir=tmp_path)
+        assert config.opencode_region == "us-gov-east-1"
+
     def test_opencode_section_from_yaml(self, tmp_path):
         (tmp_path / ".ai-shell.yaml").write_text(
             "opencode:\n"
@@ -650,7 +663,8 @@ profile = "bedrock-acct"
         config = load_config(project_dir=tmp_path)
         assert config.opencode_provider == "bedrock-mantle"
         assert config.aws_partition == "govcloud"
-        assert config.bedrock_region == "us-gov-west-1"
+        assert config.opencode_region == "us-gov-west-1"
+        assert config.bedrock_region == ""  # Claude's Bedrock region is not changed
         assert config.bedrock_profile == "gov-sso"
         assert config.opencode_model == "openai.gpt-5.4"
         assert config.opencode_subagent_model == "vllm/Qwen/Qwen3-Coder-30B"

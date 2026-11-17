@@ -1474,6 +1474,23 @@ def _cfg_str(config: object, attr: str, default: str = "") -> str:
     return val if isinstance(val, str) else default
 
 
+def _region_in_partition(region: str, partition: str) -> str:
+    """Return *region*, or ``""`` when it belongs to another partition than *partition*.
+
+    With no *partition*, the region is kept (it then decides the partition).
+    """
+    from ai_shell.opencode import resolve_aws_partition
+
+    clean = region.strip()
+    if not clean or not partition.strip():
+        return clean
+    try:
+        wanted = resolve_aws_partition(partition)
+    except ValueError:
+        return clean
+    return clean if resolve_aws_partition("", clean) == wanted else ""
+
+
 def _opencode_setup(
     ctx: click.Context,
     use_aws: bool = False,
@@ -1519,11 +1536,19 @@ def _opencode_setup(
     cfg_bedrock_profile = _cfg_str(config, "bedrock_profile").strip()
     cfg_bedrock_region = _cfg_str(config, "bedrock_region").strip()
     cfg_aws_region = _cfg_str(config, "aws_region").strip()
+    cfg_opencode_region = _cfg_str(config, "opencode_region").strip()
     provider_is_aws = cfg_provider in ("aws", "bedrock", "bedrock-mantle")
 
     resolved_partition = (aws_partition or cfg_partition).strip()
     resolved_profile = (cli_profile or cfg_bedrock_profile).strip()
-    explicit_region = (aws_region or cfg_bedrock_region).strip()
+    # --aws-region and opencode.aws_region are OpenCode's own and must match
+    # the partition. The shared aws.bedrock_region / aws.region are defaults
+    # for every tool, so one from the other partition is ignored, not an error.
+    explicit_region = (aws_region or cfg_opencode_region).strip()
+    inherited_region = _region_in_partition(
+        cfg_bedrock_region or (cfg_aws_region if not resolved_partition else ""),
+        resolved_partition,
+    )
 
     use_bedrock = bool(
         use_aws
@@ -1539,7 +1564,7 @@ def _opencode_setup(
     if use_bedrock:
         try:
             mantle_region = resolve_bedrock_mantle_region(
-                region=explicit_region or (cfg_aws_region if not resolved_partition else ""),
+                region=explicit_region or inherited_region,
                 partition=resolved_partition,
             )
         except ValueError as exc:
@@ -1561,7 +1586,8 @@ def _opencode_setup(
         use_bedrock = True
         try:
             mantle_region = resolve_bedrock_mantle_region(
-                region=explicit_region or exec_env.get("AWS_REGION", ""),
+                region=explicit_region
+                or _region_in_partition(exec_env.get("AWS_REGION", ""), resolved_partition),
                 partition=resolved_partition,
             )
         except ValueError as exc:
