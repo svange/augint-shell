@@ -13,18 +13,23 @@ from ai_shell.opencode import (
     BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL,
     BEDROCK_MANTLE_OPENAI_PROVIDER_ID,
     BEDROCK_MANTLE_PROVIDER_ID,
+    DEFAULT_OPENCODE_INSTRUCTIONS,
+    DEFAULT_OPENCODE_PLUGINS,
+    OPENCODE_NO_CLAUDE_ENV,
     CustomEndpoint,
     _generate_token_from_credentials,
     bedrock_mantle_base_url,
     bedrock_mantle_openai_base_url,
     bedrock_runtime_openai_base_url,
-    bridge_opencode_skills,
     build_opencode_config_patch,
     deep_merge_dict,
     generate_bedrock_bearer_token,
     mantle_provider_for_model,
+    opencode_launch_env,
+    opencode_local_mcp,
     parse_endpoint_spec,
     qualify_model_id,
+    remove_skills_bridges,
     resolve_aws_partition,
     resolve_bedrock_bearer_token,
     resolve_bedrock_mantle_region,
@@ -462,29 +467,95 @@ class TestQualifyModelAndConfigMerging:
         assert base == {"a": {"x": 1}, "b": 2}
 
 
-class TestBridgeOpencodeSkills:
-    def test_bridges_global_agents_skills_to_opencode(self, tmp_path: Path):
+class TestRemoveSkillsBridges:
+    """Regression: the old bridge loaded Claude Code skills even with compat off."""
+
+    def test_removes_global_link_to_claude_skills(self, tmp_path: Path):
         home = tmp_path / "home"
-        skill_dir = home / ".agents" / "skills" / "code-review"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text("# Code Review\n", encoding="utf-8")
+        (home / ".claude" / "skills" / "org-rule").mkdir(parents=True)
+        (home / ".config" / "opencode").mkdir(parents=True)
+        link = home / ".config" / "opencode" / "skills"
+        link.symlink_to(home / ".claude" / "skills", target_is_directory=True)
 
-        bridged = bridge_opencode_skills(home_dir=home)
-        target = home / ".config" / "opencode" / "skills"
-        assert target in bridged
-        assert (target / "code-review" / "SKILL.md").is_file()
+        assert remove_skills_bridges(home_dir=home) == [link]
+        assert not link.is_symlink()
+        assert (home / ".claude" / "skills" / "org-rule").is_dir()
 
-    def test_bridges_project_agents_skills_when_dot_opencode_exists(self, tmp_path: Path):
+    def test_removes_global_link_to_agents_skills_made_in_container(self, tmp_path: Path):
+        home = tmp_path / "home"
+        (home / ".config" / "opencode").mkdir(parents=True)
+        link = home / ".config" / "opencode" / "skills"
+        link.symlink_to("/root/.agents/skills", target_is_directory=True)
+
+        assert remove_skills_bridges(home_dir=home) == [link]
+        assert not link.is_symlink()
+
+    def test_removes_project_link(self, tmp_path: Path):
         home = tmp_path / "home"
         home.mkdir()
         project = tmp_path / "repo"
-        (project / ".agents" / "skills" / "gov-compliance").mkdir(parents=True)
-        (project / ".agents" / "skills" / "gov-compliance" / "SKILL.md").write_text(
-            "# Gov Compliance\n", encoding="utf-8"
-        )
-        (project / ".opencode").mkdir(parents=True)
+        (project / ".agents" / "skills").mkdir(parents=True)
+        (project / ".opencode").mkdir()
+        link = project / ".opencode" / "skills"
+        link.symlink_to(Path("..") / ".agents" / "skills", target_is_directory=True)
 
-        bridged = bridge_opencode_skills(project_dir=project, home_dir=home)
-        target = project / ".opencode" / "skills"
-        assert target in bridged
-        assert (target / "gov-compliance" / "SKILL.md").is_file()
+        assert remove_skills_bridges(project_dir=project, home_dir=home) == [link]
+        assert not link.is_symlink()
+        assert (project / ".agents" / "skills").is_dir()
+
+    def test_keeps_real_skills_dir_and_other_links(self, tmp_path: Path):
+        home = tmp_path / "home"
+        own = home / ".config" / "opencode" / "skills"
+        own.mkdir(parents=True)
+        project = tmp_path / "repo"
+        (project / "my-skills").mkdir(parents=True)
+        (project / ".opencode").mkdir()
+        other = project / ".opencode" / "skills"
+        other.symlink_to(Path("..") / "my-skills", target_is_directory=True)
+
+        assert remove_skills_bridges(project_dir=project, home_dir=home) == []
+        assert own.is_dir()
+        assert other.is_symlink()
+
+    def test_creates_nothing(self, tmp_path: Path):
+        home = tmp_path / "home"
+        project = tmp_path / "repo"
+        project.mkdir()
+
+        assert remove_skills_bridges(project_dir=project, home_dir=home) == []
+        assert not home.exists()
+        assert list(project.iterdir()) == []
+
+
+class TestOpencodeLaunchEnv:
+    def test_claude_compat_off_by_default(self):
+        env = opencode_launch_env()
+        assert env == OPENCODE_NO_CLAUDE_ENV
+        assert env["OPENCODE_DISABLE_CLAUDE_CODE"] == "1"
+        assert env["OPENCODE_DISABLE_EXTERNAL_SKILLS"] == "1"
+
+    def test_claude_compat_sets_no_flags(self):
+        assert opencode_launch_env(claude_compat=True) == {}
+
+    def test_plugins_instructions_and_mcp_go_in_config_content(self):
+        mcp = {"chrome-devtools": opencode_local_mcp("chrome-devtools-mcp", ["--browserUrl", "u"])}
+        env = opencode_launch_env(
+            plugins=DEFAULT_OPENCODE_PLUGINS,
+            instructions=DEFAULT_OPENCODE_INSTRUCTIONS,
+            mcp=mcp,
+        )
+        content = json.loads(env["OPENCODE_CONFIG_CONTENT"])
+        assert content["plugin"] == list(DEFAULT_OPENCODE_PLUGINS)
+        assert content["instructions"] == list(DEFAULT_OPENCODE_INSTRUCTIONS)
+        assert content["mcp"]["chrome-devtools"] == {
+            "type": "local",
+            "command": ["chrome-devtools-mcp", "--browserUrl", "u"],
+            "enabled": True,
+        }
+
+    def test_empty_lists_write_no_config_content(self):
+        assert "OPENCODE_CONFIG_CONTENT" not in opencode_launch_env(plugins=[], instructions=[])
+
+    def test_defaults_are_pinned(self):
+        assert all("@" in p.lstrip("@") for p in DEFAULT_OPENCODE_PLUGINS)
+        assert all("/trunk/" not in u and "/main/" not in u for u in DEFAULT_OPENCODE_INSTRUCTIONS)
