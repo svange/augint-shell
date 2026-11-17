@@ -737,7 +737,7 @@ To read Claude Code files again: `claude_compat: true` (or `AI_SHELL_OPENCODE_CL
 
 Versions are pinned. Set your own lists to change them; `[]` turns them off.
 
-**Chrome.** `ai-shell opencode --local-chrome` (or `local_chrome: true`) attaches `chrome-devtools-mcp` to a project-scoped Chrome on your desktop, the same bridge as [`ai-shell claude --local-chrome`](#attaching-to-host-chrome---local-chrome). OpenCode gets the `chrome-devtools` MCP server: it can open pages, click, read the console and network requests, and take screenshots.
+**Chrome.** `ai-shell opencode --local-chrome` (or `local_chrome: true`) attaches `chrome-devtools-mcp` to a project-scoped Chrome on your desktop, the same bridge as [`ai-shell claude --local-chrome`](#attaching-to-host-chrome---local-chrome). OpenCode gets the `chrome-devtools` MCP server: it can open pages, click, read the console and network requests, and take screenshots. `claude.chrome_proxy` (`AI_SHELL_CHROME_PROXY`) applies to this Chrome too: with `vpn`, only the browser goes through ai-shell's VPN container, and OpenCode and its model calls keep the host's address.
 
 ```yaml
 opencode:

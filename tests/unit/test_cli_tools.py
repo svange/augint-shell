@@ -2551,6 +2551,28 @@ class TestOpencodeProvidersAndHarness:
         assert "OPENCODE_CONFIG_CONTENT" not in env
         assert "Plannotator" not in result.output
 
+    @patch("ai_shell.vpn.ensure_vpn_for_config", return_value="http://127.0.0.1:8888")
+    @patch(
+        "ai_shell.cli.commands.tools._configure_local_chrome",
+        return_value=(["--mcp-config", "/etc/ai-shell/chrome-mcp.json"], "/x", 9333),
+    )
+    def test_opencode_local_chrome_uses_vpn_proxy(
+        self,
+        mock_chrome,
+        mock_vpn,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        """Regression: chrome_proxy: vpn reached Claude's Chrome but not OpenCode's."""
+        self._launch_opencode(
+            mock_config, mock_manager_cls, mock_build_env, ["--local-chrome"], chrome_proxy="vpn"
+        )
+
+        mock_vpn.assert_called_once()
+        assert mock_chrome.call_args.kwargs["chrome_proxy"] == "http://127.0.0.1:8888"
+
     @patch(
         "ai_shell.cli.commands.tools._configure_local_chrome",
         return_value=(["--mcp-config", "/etc/ai-shell/chrome-mcp.json"], "/x", 9333),
@@ -2564,6 +2586,7 @@ class TestOpencodeProvidersAndHarness:
 
         mock_chrome.assert_called_once()
         assert mock_chrome.call_args[0][0] == "augint-shell-gov-app-dev"
+        assert mock_chrome.call_args.kwargs["chrome_proxy"] is None
         mcp = json.loads(env["OPENCODE_CONFIG_CONTENT"])["mcp"]
         assert mcp["chrome-devtools"] == {
             "type": "local",
