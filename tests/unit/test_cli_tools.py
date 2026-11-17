@@ -1,5 +1,6 @@
 """Tests for CLI tool subcommands."""
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -2417,3 +2418,72 @@ class TestOpencodeProvidersAndHarness:
             mock_manager.exec_interactive.assert_called_once()
             cmd = mock_manager.exec_interactive.call_args[0][1]
             assert cmd[0] == "opencode"
+
+    def _launch_opencode(self, mock_config, mock_manager_cls, mock_build_env, args, **cfg):
+        from ai_shell.config import AiShellConfig
+
+        mock_config.return_value = AiShellConfig(
+            project_name="gov-app", project_dir=Path("/tmp/gov-app"), **cfg
+        )
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-gov-app-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+        with patch("ai_shell.cli.commands.tools._live_host_port", return_value=24321):
+            result = self.runner.invoke(cli, ["opencode", *args])
+        assert result.exit_code == 0, result.output
+        return result, mock_manager.exec_interactive.call_args[1]["extra_env"]
+
+    def test_opencode_turns_off_claude_code_files_by_default(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        from ai_shell.opencode import DEFAULT_OPENCODE_INSTRUCTIONS, DEFAULT_OPENCODE_PLUGINS
+
+        result, env = self._launch_opencode(mock_config, mock_manager_cls, mock_build_env, [])
+
+        assert env["OPENCODE_DISABLE_CLAUDE_CODE"] == "1"
+        assert env["OPENCODE_DISABLE_EXTERNAL_SKILLS"] == "1"
+        content = json.loads(env["OPENCODE_CONFIG_CONTENT"])
+        assert content["plugin"] == list(DEFAULT_OPENCODE_PLUGINS)
+        assert content["instructions"] == list(DEFAULT_OPENCODE_INSTRUCTIONS)
+        assert "mcp" not in content
+        assert "Plannotator plan review: http://localhost:24321" in result.output
+
+    def test_opencode_claude_compat_and_no_plugins(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        result, env = self._launch_opencode(
+            mock_config,
+            mock_manager_cls,
+            mock_build_env,
+            [],
+            opencode_claude_compat=True,
+            opencode_plugins=[],
+            opencode_instructions=[],
+        )
+
+        assert "OPENCODE_DISABLE_CLAUDE_CODE" not in env
+        assert "OPENCODE_DISABLE_EXTERNAL_SKILLS" not in env
+        assert "OPENCODE_CONFIG_CONTENT" not in env
+        assert "Plannotator" not in result.output
+
+    @patch(
+        "ai_shell.cli.commands.tools._configure_local_chrome",
+        return_value=(["--mcp-config", "/etc/ai-shell/chrome-mcp.json"], "/x", 9333),
+    )
+    def test_opencode_local_chrome_adds_devtools_mcp(
+        self, mock_chrome, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        _, env = self._launch_opencode(
+            mock_config, mock_manager_cls, mock_build_env, ["--local-chrome"]
+        )
+
+        mock_chrome.assert_called_once()
+        assert mock_chrome.call_args[0][0] == "augint-shell-gov-app-dev"
+        mcp = json.loads(env["OPENCODE_CONFIG_CONTENT"])["mcp"]
+        assert mcp["chrome-devtools"] == {
+            "type": "local",
+            "command": ["chrome-devtools-mcp", "--browserUrl", "http://localhost:9333"],
+            "enabled": True,
+        }

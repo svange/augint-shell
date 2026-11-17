@@ -94,6 +94,10 @@
 #       api_key_env: VLLM_API_KEY
 #       models:
 #         - Qwen/Qwen3-Coder-30B-A3B-Instruct
+#   claude_compat: false         # true = also read CLAUDE.md and .claude/.agents skills
+#   local_chrome: false          # Chrome DevTools MCP (same as --local-chrome)
+#   plugins: []                  # replaces the default Plannotator + opencode-pty
+#   instructions: []             # replaces the default opencode-shell-strategy
 
 # --- Voice Agent -------------------------------------------------------------
 # voice_agent:

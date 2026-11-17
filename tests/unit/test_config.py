@@ -716,3 +716,31 @@ class TestChromeProxyAndVpnConfig:
             True,
             8890,
         )
+
+
+def test_opencode_claude_compat_plugins_and_chrome(tmp_path, monkeypatch):
+    """opencode.claude_compat, plugins, instructions and local_chrome are read."""
+    from ai_shell.config import load_config
+
+    (tmp_path / ".ai-shell.yaml").write_text(
+        "opencode:\n"
+        "  claude_compat: true\n"
+        "  plugins: [opencode-pty@0.4.0]\n"
+        "  instructions: []\n"
+        "  local_chrome: true\n",
+        encoding="utf-8",
+    )
+    config = load_config(project_dir=tmp_path)
+    assert config.opencode_claude_compat is True
+    assert config.opencode_plugins == ["opencode-pty@0.4.0"]
+    assert config.opencode_instructions == []
+    assert config.opencode_local_chrome is True
+
+
+def test_opencode_defaults_leave_plugins_unset(tmp_path):
+    from ai_shell.config import load_config
+
+    config = load_config(project_dir=tmp_path)
+    assert config.opencode_claude_compat is False
+    assert config.opencode_plugins is None
+    assert config.opencode_instructions is None

@@ -1491,6 +1491,7 @@ def _opencode_setup(
     custom_name: str = "custom",
     custom_key_env: str | None = None,
     custom_models: tuple[str, ...] = (),
+    local_chrome: bool = False,
 ) -> tuple[ContainerManager, str, dict[str, str], AiShellConfig, list[str], str, str, str]:
     """Common setup for opencode commands.
 
@@ -1502,8 +1503,8 @@ def _opencode_setup(
     from ai_shell.config import _upsert_custom_endpoint
     from ai_shell.opencode import (
         CustomEndpoint,
-        bridge_opencode_skills,
         parse_endpoint_spec,
+        remove_skills_bridges,
         resolve_bedrock_bearer_token,
         resolve_bedrock_mantle_region,
         sanitize_provider_id,
@@ -1634,7 +1635,12 @@ def _opencode_setup(
         if isinstance(raw_project_dir, str) and raw_project_dir
         else Path.cwd()
     )
-    bridge_opencode_skills(project_dir=project_dir)
+    for link in remove_skills_bridges(project_dir=project_dir):
+        console.print(f"[dim]Removed the old skills link {link}.[/dim]")
+
+    exec_env.update(
+        _opencode_launch_env(manager, name, config, project_dir, local_chrome=local_chrome)
+    )
 
     primary_model = (cli_model or _cfg_str(config, "opencode_model")).strip()
     subagent_model = (cli_subagent_model or _cfg_str(config, "opencode_subagent_model")).strip()
@@ -1662,6 +1668,67 @@ def _opencode_setup(
     project_slug = sanitize_project_name(project_dir)
 
     return manager, name, exec_env, config, cmd_base, bedrock_label, openai_label, project_slug
+
+
+def _opencode_launch_env(
+    manager: ContainerManager,
+    name: str,
+    config: AiShellConfig,
+    project_dir: Path,
+    *,
+    local_chrome: bool = False,
+) -> dict[str, str]:
+    """Claude Code compatibility flags, plugins, instructions and Chrome MCP for OpenCode."""
+    from ai_shell.opencode import (
+        DEFAULT_OPENCODE_INSTRUCTIONS,
+        DEFAULT_OPENCODE_PLUGINS,
+        PLANNOTATOR_CONTAINER_PORT,
+        opencode_launch_env,
+        opencode_local_mcp,
+    )
+
+    raw_plugins = getattr(config, "opencode_plugins", None)
+    plugins = raw_plugins if isinstance(raw_plugins, list) else list(DEFAULT_OPENCODE_PLUGINS)
+    raw_instructions = getattr(config, "opencode_instructions", None)
+    instructions = (
+        raw_instructions
+        if isinstance(raw_instructions, list)
+        else list(DEFAULT_OPENCODE_INSTRUCTIONS)
+    )
+
+    mcp: dict[str, object] | None = None
+    if local_chrome or getattr(config, "opencode_local_chrome", False) is True:
+        from ai_shell.local_chrome import CHROME_MCP_SERVER_NAME, chrome_mcp_server_spec
+
+        _, _, chrome_port = _configure_local_chrome(
+            name, project_name=config.project_name, project_dir=project_dir
+        )
+        spec = chrome_mcp_server_spec(chrome_port)
+        raw_args = spec.get("args")
+        mcp = {
+            CHROME_MCP_SERVER_NAME: opencode_local_mcp(
+                str(spec["command"]),
+                [str(a) for a in raw_args] if isinstance(raw_args, list) else [],
+            )
+        }
+
+    if any(p.startswith("@plannotator/opencode") for p in plugins):
+        plannotator_port = _live_host_port(
+            manager, name, PLANNOTATOR_CONTAINER_PORT
+        ) or project_dev_port(
+            project_dir,
+            PLANNOTATOR_CONTAINER_PORT,
+            config.project_name,
+            dev_ports=config.dev_ports,
+        )
+        console.print(f"[dim]Plannotator plan review: http://localhost:{plannotator_port}[/dim]")
+
+    return opencode_launch_env(
+        claude_compat=getattr(config, "opencode_claude_compat", False) is True,
+        plugins=plugins,
+        instructions=instructions,
+        mcp=mcp,
+    )
 
 
 @click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)
@@ -1785,6 +1852,16 @@ def _opencode_setup(
     default=None,
     help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
+@click.option(
+    "--local-chrome",
+    "local_chrome",
+    is_flag=True,
+    default=False,
+    help=(
+        "Attach Chrome DevTools MCP to a project-scoped host Chrome session, "
+        "so OpenCode can open and inspect pages in it (also opencode.local_chrome)."
+    ),
+)
 @click.pass_context
 def opencode(
     ctx,
@@ -1808,6 +1885,7 @@ def opencode(
     web,
     web_port,
     env_file,
+    local_chrome,
 ):
     """Launch opencode in the dev container."""
     resolved_env = Path(env_file) if env_file else None
@@ -1830,6 +1908,7 @@ def opencode(
     ctx.obj["env_file"] = resolved_env
     ctx.obj["use_t3"] = use_t3
     ctx.obj["use_expo"] = use_expo
+    ctx.obj["local_chrome"] = local_chrome
 
     if ctx.invoked_subcommand is not None:
         return
@@ -1852,6 +1931,7 @@ def opencode(
                 custom_name=custom_name,
                 custom_key_env=custom_key_env,
                 custom_models=custom_models,
+                local_chrome=local_chrome,
             )
         )
 
@@ -1926,6 +2006,7 @@ def serve(ctx, port: int, open_browser: bool) -> None:
             custom_name=ctx.obj.get("custom_name", "custom"),
             custom_key_env=ctx.obj.get("custom_key_env"),
             custom_models=ctx.obj.get("custom_models", ()),
+            local_chrome=ctx.obj.get("local_chrome", False),
         )
     )
 

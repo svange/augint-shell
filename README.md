@@ -564,7 +564,7 @@ Dependencies are checked *inside* the container, because `node_modules` is a con
 
 ## OpenCode (Bedrock Mantle, Custom Endpoints & Subagent Routing)
 
-`ai-shell opencode` (or `ai-shell --agent opencode` / `ai-shell --harness opencode`) launches OpenCode in the dev container with persistent configuration (`~/.config/opencode`) and state (`~/.local/share/opencode`), automatic `.agents/skills` discovery, and non-destructive `opencode.json` merging.
+`ai-shell opencode` (or `ai-shell --agent opencode` / `ai-shell --harness opencode`) launches OpenCode in the dev container with persistent configuration (`~/.config/opencode`) and state (`~/.local/share/opencode`), non-destructive `opencode.json` merging, and no Claude Code files (see [section 5](#5-no-claude-code-files-plugins-and-chrome)).
 
 ### 1. AWS Bedrock Mantle (Commercial & GovCloud)
 
@@ -709,6 +709,44 @@ Set `OPENCODE_SERVER_PASSWORD` (and optionally `OPENCODE_SERVER_USERNAME`) in `~
 # .env
 OPENCODE_SERVER_PASSWORD=mysecret
 OPENCODE_SERVER_USERNAME=admin
+```
+
+### 5. No Claude Code files, plugins and Chrome
+
+**Claude Code files are off.** OpenCode reads Claude Code files by default. ai-shell turns that off for every launch (`OPENCODE_DISABLE_CLAUDE_CODE=1`, `OPENCODE_DISABLE_EXTERNAL_SKILLS=1`). OpenCode then does not read:
+
+- `~/.claude/CLAUDE.md`, or `CLAUDE.md` in the project or a parent folder
+- skills in `~/.claude/skills`, `~/.agents/skills`, or a project's `.claude/` and `.agents/` folders
+
+It still reads `AGENTS.md` (project and parents), `CONTEXT.md`, `~/.config/opencode/AGENTS.md`, and skills in `~/.config/opencode/skills` and `.opencode/skills`. Put your own rules in `~/.config/opencode/AGENTS.md`. Run `/init` in OpenCode to write a project `AGENTS.md`.
+
+Older ai-shell versions linked `~/.config/opencode/skills` to `~/.agents/skills` or `~/.claude/skills`, and `.opencode/skills` to `../.agents/skills`. ai-shell removes those links at launch. It removes only a link with one of those targets.
+
+ai-shell writes nothing into the project for OpenCode. The container's own `/root/projects/AGENTS.md` (environment facts) is outside the bind mount. `ai-shell init` writes `.ai-shell.yaml` into the current folder; keep OpenCode settings in `~/.augint/.ai-shell.yaml` instead if a repository must not hold it.
+
+To read Claude Code files again: `claude_compat: true` (or `AI_SHELL_OPENCODE_CLAUDE_COMPAT=1`).
+
+**Plugins and instructions.** Every launch adds these, in `OPENCODE_CONFIG_CONTENT` (no file is written; your own `plugin` and `instructions` entries stay):
+
+| Entry | What it does |
+| --- | --- |
+| `@plannotator/opencode@0.28.67` | Plan review in a browser. The `plan` agent calls `submit_plan`. ai-shell prints the review URL at launch (container port 19432). |
+| `opencode-pty@0.4.0` | Background and interactive terminals for the agent: dev servers, watch modes, REPLs. |
+| [`opencode-shell-strategy`](https://github.com/JRedeker/opencode-shell-strategy) | Instructions for non-interactive shell commands (`-y` flags, no pagers or editors). Pinned to a commit. |
+
+Versions are pinned. Set your own lists to change them; `[]` turns them off.
+
+**Chrome.** `ai-shell opencode --local-chrome` (or `local_chrome: true`) attaches `chrome-devtools-mcp` to a project-scoped Chrome on your desktop, the same bridge as [`ai-shell claude --local-chrome`](#attaching-to-host-chrome---local-chrome). OpenCode gets the `chrome-devtools` MCP server: it can open pages, click, read the console and network requests, and take screenshots.
+
+```yaml
+opencode:
+  claude_compat: false        # default
+  local_chrome: true
+  plugins:
+    - "@plannotator/opencode@0.28.67"
+    - "opencode-pty@0.4.0"
+  instructions:
+    - "https://raw.githubusercontent.com/JRedeker/opencode-shell-strategy/1303f24df1649202834e052f1d66560ed186e413/shell_strategy.md"
 ```
 
 ---

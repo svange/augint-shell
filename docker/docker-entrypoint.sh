@@ -168,19 +168,15 @@ if [ -f ".pi/settings.json" ] && command -v pi >/dev/null 2>&1; then
     unset _PI_PACKAGES
 fi
 # =========================================================================
-# OpenCode state/config directories and .agents/skills compatibility bridge
+# OpenCode state/config directories
 # =========================================================================
 mkdir -p /root/.config/opencode /root/.local/share/opencode
-if [ ! -e /root/.config/opencode/skills ]; then
-    if [ -d /root/.agents/skills ]; then
-        ln -s /root/.agents/skills /root/.config/opencode/skills 2>/dev/null || true
-    elif [ -d /root/.claude/skills ]; then
-        ln -s /root/.claude/skills /root/.config/opencode/skills 2>/dev/null || true
-    fi
-fi
-if [ -d ".agents/skills" ] && [ -d ".opencode" ] && [ ! -e ".opencode/skills" ]; then
-    ln -s ../.agents/skills .opencode/skills 2>/dev/null || true
-fi
+# Older images linked OpenCode's skills directory to the Claude Code or
+# .agents skills. OpenCode always reads that directory, so the link loaded
+# those skills even with OPENCODE_DISABLE_CLAUDE_CODE. Remove only that link.
+case "$(readlink /root/.config/opencode/skills 2>/dev/null)" in
+    /root/.agents/skills | /root/.claude/skills) rm -f /root/.config/opencode/skills ;;
+esac
 # =========================================================================
 
 # Display MOTD only when not booting the background tail daemon (where output

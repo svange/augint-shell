@@ -161,6 +161,13 @@ class AiShellConfig:
     opencode_model: str = ""  # Primary model override for plan + build agents
     opencode_subagent_model: str = ""  # Subagent model override for explore + general agents
     opencode_endpoints: list[CustomEndpoint] = field(default_factory=list)
+    # Off by default: OpenCode then reads AGENTS.md only, never CLAUDE.md,
+    # ~/.claude or .claude/.agents skills.
+    opencode_claude_compat: bool = False
+    # None = the defaults in ai_shell.opencode; [] = none.
+    opencode_plugins: list[str] | None = None
+    opencode_instructions: list[str] | None = None
+    opencode_local_chrome: bool = False  # Chrome DevTools MCP for ai-shell opencode
 
     @property
     def full_image(self) -> str:
@@ -532,6 +539,22 @@ def _apply_opencode_config(config: AiShellConfig, data: dict) -> None:
     if "endpoints" in data:
         for ep in _parse_opencode_endpoints(data["endpoints"]):
             _upsert_custom_endpoint(config.opencode_endpoints, ep)
+    if "claude_compat" in data:
+        config.opencode_claude_compat = bool(data["claude_compat"])
+    if "plugins" in data:
+        config.opencode_plugins = _string_list(data["plugins"])
+    if "instructions" in data:
+        config.opencode_instructions = _string_list(data["instructions"])
+    if "local_chrome" in data:
+        config.opencode_local_chrome = bool(data["local_chrome"])
+
+
+def _string_list(raw: object) -> list[str]:
+    """A config list of strings; ``None`` or an empty value is ``[]``."""
+    if raw is None or raw == "":
+        return []
+    items = raw if isinstance(raw, list) else [raw]
+    return [str(item).strip() for item in items if str(item).strip()]
 
 
 _LEGACY_ENV_VARS = {
@@ -579,6 +602,8 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_OPENCODE_MODEL": ("opencode_model", str),
         "AI_SHELL_OPENCODE_SUBAGENT_MODEL": ("opencode_subagent_model", str),
         "AI_SHELL_OPENCODE_AWS_PARTITION": ("aws_partition", str),
+        "AI_SHELL_OPENCODE_CLAUDE_COMPAT": ("opencode_claude_compat", bool),
+        "AI_SHELL_OPENCODE_LOCAL_CHROME": ("opencode_local_chrome", bool),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),
         "AI_SHELL_CHROME_PROXY": ("chrome_proxy", str),
         "AI_SHELL_VPN_COUNTRY": ("vpn_country", str),

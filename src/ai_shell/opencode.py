@@ -6,7 +6,8 @@ Manages dynamic generation and non-destructive deep-merging of
 2. Custom OpenAI-compatible endpoints (self-hosted vLLM, SGLang, etc.).
 3. Primary agent (``plan``, ``build``) and subagent (``explore``, ``general``)
    model routing.
-4. Bridging ``.agents/skills`` and ``.claude/skills`` for OpenCode discovery.
+4. The launch environment: Claude Code compatibility off, plugins, instructions
+   and MCP servers passed in ``OPENCODE_CONFIG_CONTENT`` (no file is written).
 """
 
 from __future__ import annotations
@@ -74,6 +75,31 @@ BEDROCK_API_KEY_VAR = "BEDROCK_API_KEY"
 BEDROCK_TOKEN_HOST = "bedrock.amazonaws.com"
 BEDROCK_TOKEN_PREFIX = "bedrock-api-key-"
 BEDROCK_TOKEN_MAX_SECONDS = 43200  # 12 hours, the most AWS allows
+
+# OpenCode reads Claude Code files unless told not to: ~/.claude/CLAUDE.md,
+# a project CLAUDE.md, and skills in ~/.claude/skills, ~/.agents/skills and the
+# project's .claude/ and .agents/ directories. These flags turn all of that
+# off, so only AGENTS.md and OpenCode's own config directories are read.
+# ``opencode.claude_compat: true`` leaves them unset.
+OPENCODE_NO_CLAUDE_ENV: dict[str, str] = {
+    "OPENCODE_DISABLE_CLAUDE_CODE": "1",
+    "OPENCODE_DISABLE_EXTERNAL_SKILLS": "1",
+}
+
+# Plugins and instruction files every launch gets unless ``opencode.plugins``
+# or ``opencode.instructions`` is set (``[]`` turns them off). Pinned, so a new
+# upstream release changes nothing until it is bumped here.
+PLANNOTATOR_PLUGIN = "@plannotator/opencode@0.28.67"
+OPENCODE_PTY_PLUGIN = "opencode-pty@0.4.0"
+DEFAULT_OPENCODE_PLUGINS: tuple[str, ...] = (PLANNOTATOR_PLUGIN, OPENCODE_PTY_PLUGIN)
+# opencode-shell-strategy is an instruction file, not a plugin. The URL names a
+# commit, so the text cannot change under us.
+SHELL_STRATEGY_INSTRUCTIONS_URL = (
+    "https://raw.githubusercontent.com/JRedeker/opencode-shell-strategy/"
+    "1303f24df1649202834e052f1d66560ed186e413/shell_strategy.md"
+)
+DEFAULT_OPENCODE_INSTRUCTIONS: tuple[str, ...] = (SHELL_STRATEGY_INSTRUCTIONS_URL,)
+PLANNOTATOR_CONTAINER_PORT = 19432  # PLANNOTATOR_PORT in build_dev_environment
 
 _BUILTIN_PROVIDERS = frozenset(
     {
@@ -803,55 +829,81 @@ def sync_opencode_config(
     return merged
 
 
-def bridge_opencode_skills(
+def opencode_launch_env(
+    *,
+    claude_compat: bool = False,
+    plugins: list[str] | tuple[str, ...] = (),
+    instructions: list[str] | tuple[str, ...] = (),
+    mcp: dict[str, Any] | None = None,
+) -> dict[str, str]:
+    """Environment for an OpenCode launch.
+
+    Without *claude_compat* the Claude Code compatibility flags are set (see
+    :data:`OPENCODE_NO_CLAUDE_ENV`). *plugins*, *instructions* and *mcp* go in
+    ``OPENCODE_CONFIG_CONTENT``, which OpenCode merges over its config files:
+    plugin and instruction lists are joined, so the user's own entries stay.
+    Nothing is written to ``opencode.json`` or to the project.
+    """
+    env: dict[str, str] = {} if claude_compat else dict(OPENCODE_NO_CLAUDE_ENV)
+    content: dict[str, Any] = {}
+    if plugins:
+        content["plugin"] = list(plugins)
+    if instructions:
+        content["instructions"] = list(instructions)
+    if mcp:
+        content["mcp"] = mcp
+    if content:
+        env["OPENCODE_CONFIG_CONTENT"] = json.dumps(content, separators=(",", ":"))
+    return env
+
+
+def opencode_local_mcp(command: str, args: list[str] | tuple[str, ...] = ()) -> dict[str, Any]:
+    """An OpenCode ``mcp`` entry for a local (stdio) server."""
+    return {"type": "local", "command": [command, *args], "enabled": True}
+
+
+def _is_skills_link(path: Path, targets: tuple[tuple[str, ...], ...]) -> bool:
+    """True when *path* is a symlink whose target ends with one of *targets*."""
+    if not path.is_symlink():
+        return False
+    try:
+        parts = Path(os.readlink(path)).parts
+    except OSError:
+        return False
+    return any(parts[-len(t) :] == t for t in targets)
+
+
+def remove_skills_bridges(
     project_dir: Path | None = None,
     home_dir: Path | None = None,
 ) -> list[Path]:
-    """Bridge ``.agents/skills`` and ``.claude/skills`` into OpenCode skill directories.
+    """Remove the skills symlinks that older ai-shell versions created.
 
-    Creates non-destructive symlinks (when supported by the OS and when the
-    destination does not already exist) so OpenCode discovers both global
-    (``~/.agents/skills``) and project-level (``.agents/skills``) skills
-    alongside Claude Code.
+    Older versions linked ``~/.config/opencode/skills`` to ``~/.agents/skills``
+    or ``~/.claude/skills``, and ``<project>/.opencode/skills`` to
+    ``../.agents/skills``. OpenCode always reads its config directories, so
+    those links loaded Claude Code skills even with compatibility off. Only
+    a symlink with one of those targets is removed; a real directory, or a
+    link the user pointed elsewhere, is left alone.
 
-    Returns the list of created or verified bridge paths.
+    Returns the removed paths.
     """
     home = home_dir or Path.home()
-    bridged: list[Path] = []
+    candidates: list[tuple[Path, tuple[tuple[str, ...], ...]]] = [
+        (
+            home / ".config" / "opencode" / "skills",
+            ((".agents", "skills"), (".claude", "skills")),
+        )
+    ]
+    if project_dir is not None:
+        candidates.append((project_dir / ".opencode" / "skills", (("..", ".agents", "skills"),)))
 
-    opencode_config_dir = home / ".config" / "opencode"
-    opencode_config_dir.mkdir(parents=True, exist_ok=True)
-
-    # Global skills bridge: ~/.agents/skills -> ~/.config/opencode/skills
-    global_agents_skills = home / ".agents" / "skills"
-    global_claude_skills = home / ".claude" / "skills"
-    global_opencode_skills = opencode_config_dir / "skills"
-
-    for src in (global_agents_skills, global_claude_skills):
-        if src.is_dir():
-            if not global_opencode_skills.exists() and not global_opencode_skills.is_symlink():
-                try:
-                    global_opencode_skills.symlink_to(src, target_is_directory=True)
-                    bridged.append(global_opencode_skills)
-                except OSError as exc:
-                    logger.debug("Could not symlink %s -> %s: %s", global_opencode_skills, src, exc)
-            elif global_opencode_skills.exists():
-                bridged.append(global_opencode_skills)
-            break
-
-    # Project skills bridge: <project>/.agents/skills -> <project>/.opencode/skills (if .opencode exists)
-    if project_dir is not None and project_dir.is_dir():
-        proj_agents_skills = project_dir / ".agents" / "skills"
-        proj_opencode_dir = project_dir / ".opencode"
-        proj_opencode_skills = proj_opencode_dir / "skills"
-        if proj_agents_skills.is_dir() and proj_opencode_dir.is_dir():
-            if not proj_opencode_skills.exists() and not proj_opencode_skills.is_symlink():
-                try:
-                    proj_opencode_skills.symlink_to(
-                        Path("..") / ".agents" / "skills", target_is_directory=True
-                    )
-                    bridged.append(proj_opencode_skills)
-                except OSError as exc:
-                    logger.debug("Could not symlink %s: %s", proj_opencode_skills, exc)
-
-    return bridged
+    removed: list[Path] = []
+    for link, targets in candidates:
+        if _is_skills_link(link, targets):
+            try:
+                link.unlink()
+                removed.append(link)
+            except OSError as exc:
+                logger.debug("Could not remove %s: %s", link, exc)
+    return removed
