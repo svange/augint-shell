@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.123.3 (2026-11-17)
+
+### Bug Fixes
+
+- **opencode**: Always password-protect opencode web and serve
+  ([`f44a11c`](https://github.com/svange/augint-shell/commit/f44a11c8437384ee86ee173a5c6e528315a6a682))
+
+- **opencode**: Always password-protect opencode web and serve (#202)
+  ([#202](https://github.com/svange/augint-shell/pull/202),
+  [`3f0413d`](https://github.com/svange/augint-shell/commit/3f0413dffc0db1a401f576deead7f543fc2e0a1e))
+
+
 ## v0.123.2 (2026-11-17)
 
 ### Bug Fixes
