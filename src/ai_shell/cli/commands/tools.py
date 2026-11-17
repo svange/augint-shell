@@ -1665,7 +1665,9 @@ def _opencode_setup(
         console.print(f"[dim]Removed the old skills link {link}.[/dim]")
 
     exec_env.update(
-        _opencode_launch_env(manager, name, config, project_dir, local_chrome=local_chrome)
+        _opencode_launch_env(
+            manager, name, config, project_dir, local_chrome=local_chrome, env_file=env_file
+        )
     )
 
     primary_model = (cli_model or _cfg_str(config, "opencode_model")).strip()
@@ -1703,8 +1705,13 @@ def _opencode_launch_env(
     project_dir: Path,
     *,
     local_chrome: bool = False,
+    env_file: Path | None = None,
 ) -> dict[str, str]:
-    """Claude Code compatibility flags, plugins, instructions and Chrome MCP for OpenCode."""
+    """Claude Code compatibility flags, plugins, instructions and Chrome MCP for OpenCode.
+
+    The host Chrome uses ``claude.chrome_proxy`` (``AI_SHELL_CHROME_PROXY``) as
+    ``ai-shell claude`` does, so ``vpn`` sends only the browser through ai-shell's VPN.
+    """
     from ai_shell.opencode import (
         DEFAULT_OPENCODE_INSTRUCTIONS,
         DEFAULT_OPENCODE_PLUGINS,
@@ -1726,8 +1733,12 @@ def _opencode_launch_env(
     if local_chrome or getattr(config, "opencode_local_chrome", False) is True:
         from ai_shell.local_chrome import CHROME_MCP_SERVER_NAME, chrome_mcp_server_spec
 
+        chrome_proxy = _resolve_chrome_proxy(manager, config, env_file=env_file)
         _, _, chrome_port = _configure_local_chrome(
-            name, project_name=config.project_name, project_dir=project_dir
+            name,
+            project_name=config.project_name,
+            project_dir=project_dir,
+            chrome_proxy=chrome_proxy,
         )
         spec = chrome_mcp_server_spec(chrome_port)
         raw_args = spec.get("args")
