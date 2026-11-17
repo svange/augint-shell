@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -559,3 +560,23 @@ class TestOpencodeLaunchEnv:
     def test_defaults_are_pinned(self):
         assert all("@" in p.lstrip("@") for p in DEFAULT_OPENCODE_PLUGINS)
         assert all("/trunk/" not in u and "/main/" not in u for u in DEFAULT_OPENCODE_INSTRUCTIONS)
+
+
+class TestOpencodeServerPassword:
+    def test_made_once_and_kept(self, tmp_path):
+        from ai_shell.opencode import opencode_server_password, opencode_server_password_path
+
+        first = opencode_server_password(tmp_path)
+        assert opencode_server_password(tmp_path) == first
+        path = opencode_server_password_path(tmp_path)
+        assert path.read_text().strip() == first
+        if os.name == "posix":
+            assert path.stat().st_mode & 0o777 == 0o600
+
+    def test_saved_value_wins(self, tmp_path):
+        from ai_shell.opencode import opencode_server_password, opencode_server_password_path
+
+        path = opencode_server_password_path(tmp_path)
+        path.parent.mkdir(parents=True)
+        path.write_text("my-own-password\n")
+        assert opencode_server_password(tmp_path) == "my-own-password"
