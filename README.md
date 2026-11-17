@@ -186,7 +186,7 @@ If you need to work manually, [AGENTS.md](AGENTS.md) has the build, test and com
 
 ## Configuration
 
-Optional `.ai-shell.yaml` in your project root (YAML default, TOML also accepted). Run `ai-shell init` for the full template.
+Optional `.ai-shell.yaml` in your project root (YAML default, TOML also accepted). Run `ai-shell init` for the full reference: every key with an example, all commented out, so the new file changes nothing until you uncomment a line. The same reference is at `~/.augint/.ai-shell.example.yaml`. A project file needs only the keys it changes; every other key comes from `~/.augint/.ai-shell.yaml`. To keep a project file out of git without editing `.gitignore`, add `.ai-shell.yaml` to `.git/info/exclude`.
 
 ```yaml
 container:
@@ -722,7 +722,7 @@ It still reads `AGENTS.md` (project and parents), `CONTEXT.md`, `~/.config/openc
 
 Older ai-shell versions linked `~/.config/opencode/skills` to `~/.agents/skills` or `~/.claude/skills`, and `.opencode/skills` to `../.agents/skills`. ai-shell removes those links at launch. It removes only a link with one of those targets.
 
-ai-shell writes nothing into the project for OpenCode. The container's own `/root/projects/AGENTS.md` (environment facts) is outside the bind mount. `ai-shell init` writes `.ai-shell.yaml` into the current folder; keep OpenCode settings in `~/.augint/.ai-shell.yaml` instead if a repository must not hold it.
+ai-shell writes nothing into the project for OpenCode. The container's own `/root/projects/AGENTS.md` (environment facts) is outside the bind mount. `ai-shell init` writes `.ai-shell.yaml` into the current folder. That reference names every section, `claude:` too, so in a repository that must not mention Claude, write only the keys you change (for example `opencode: {model: openai.gpt-5.4}`) and add the file to `.git/info/exclude`. To try a model for one session, use `--model` or `AI_SHELL_OPENCODE_MODEL`.
 
 To read Claude Code files again: `claude_compat: true` (or `AI_SHELL_OPENCODE_CLAUDE_COMPAT=1`).
 
