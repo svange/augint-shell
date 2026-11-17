@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.121.1 (2026-11-17)
+
+### Bug Fixes
+
+- **opencode**: Route Bedrock Mantle models to the right endpoint and fix the API key
+  ([`d787c89`](https://github.com/svange/augint-shell/commit/d787c8973507fedf317ba44814ada2d00e127992))
+
+- **opencode**: Route Bedrock Mantle models to the right endpoint and fix the API key (#196)
+  ([#196](https://github.com/svange/augint-shell/pull/196),
+  [`bd9bae6`](https://github.com/svange/augint-shell/commit/bd9bae64464f48a008e414b9fd3f9a971b7e773a))
+
+
 ## v0.121.0 (2026-11-16)
 
 ### Features
