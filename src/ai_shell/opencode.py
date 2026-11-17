@@ -30,29 +30,40 @@ logger = logging.getLogger(__name__)
 OPENCODE_SCHEMA_URL = "https://opencode.ai/config.json"
 BEDROCK_MANTLE_PROVIDER_ID = "bedrock-mantle"
 BEDROCK_MANTLE_OPENAI_PROVIDER_ID = "bedrock-mantle-openai"
+BEDROCK_RUNTIME_PROVIDER_ID = "bedrock-runtime"
 MANTLE_PROVIDER_IDS: tuple[str, ...] = (
     BEDROCK_MANTLE_PROVIDER_ID,
     BEDROCK_MANTLE_OPENAI_PROVIDER_ID,
+    BEDROCK_RUNTIME_PROVIDER_ID,
 )
+# Cross-Region inference profile prefixes (``us.``, ``us-gov.``, ``global.``).
+# A model ID with one of these is served by bedrock-runtime, not bedrock-mantle.
+_INFERENCE_PROFILE_PREFIX = re.compile(r"^(us-gov|us|global|eu|apac|jp|au|ca)\.", re.IGNORECASE)
 OPENAI_COMPATIBLE_NPM = "@ai-sdk/openai-compatible"
 
 DEFAULT_COMMERCIAL_REGION = "us-east-1"
 DEFAULT_GOVCLOUD_REGION = "us-gov-west-1"
 
-DEFAULT_BEDROCK_MANTLE_PRIMARY_MODEL = "openai.gpt-5.4"
-DEFAULT_BEDROCK_MANTLE_SUBAGENT_MODEL = "openai.gpt-oss-120b"
+DEFAULT_BEDROCK_MANTLE_PRIMARY_MODEL = "openai.gpt-5.6-terra"
+DEFAULT_BEDROCK_MANTLE_SUBAGENT_MODEL = "openai.gpt-5.6-luna"
 BEDROCK_MANTLE_DEFAULT_PRIMARY_MODEL = DEFAULT_BEDROCK_MANTLE_PRIMARY_MODEL
 BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL = DEFAULT_BEDROCK_MANTLE_SUBAGENT_MODEL
 # Models listed in the OpenCode model picker. Mantle serves gpt-oss on /v1 and
-# GPT-5.x on /openai/v1, so each list becomes its own provider.
+# GPT-5.x on /openai/v1, and Grok is served by bedrock-runtime, so each list
+# becomes its own provider.
 BEDROCK_MANTLE_DEFAULT_MODELS: tuple[str, ...] = (
     "openai.gpt-oss-120b",
     "openai.gpt-oss-20b",
 )
 BEDROCK_MANTLE_OPENAI_DEFAULT_MODELS: tuple[str, ...] = (
-    "openai.gpt-5.4",
     "openai.gpt-5.6-terra",
     "openai.gpt-5.6-luna",
+    "openai.gpt-5.4",
+)
+# Base IDs; the Region's inference profile prefix (us. or us-gov.) is added.
+BEDROCK_RUNTIME_DEFAULT_BASE_MODELS: tuple[str, ...] = (
+    "xai.grok-4.7",
+    "xai.grok-4.6",
 )
 
 PRIMARY_AGENTS: tuple[str, ...] = ("plan", "build")
@@ -245,6 +256,21 @@ def bedrock_mantle_openai_base_url(region: str = "", partition: str = "") -> str
     return f"https://bedrock-mantle.{resolved_region}.api.aws/openai/v1"
 
 
+def bedrock_runtime_openai_base_url(region: str = "", partition: str = "") -> str:
+    """Construct the bedrock-runtime OpenAI-compatible base URL.
+
+    Returns ``https://bedrock-runtime.<region>.amazonaws.com/openai/v1``.
+    Grok 4.7 is served only here, through a cross-Region inference profile.
+    """
+    resolved_region = resolve_bedrock_mantle_region(region=region, partition=partition)
+    return f"https://bedrock-runtime.{resolved_region}.amazonaws.com/openai/v1"
+
+
+def inference_profile_prefix(region: str) -> str:
+    """Return the geo inference profile prefix for *region*: ``us-gov`` or ``us``."""
+    return "us-gov" if region.strip().lower().startswith("us-gov-") else "us"
+
+
 def is_mantle_openai_route_model(model_id: str) -> bool:
     """Return True when Bedrock Mantle serves *model_id* on the ``/openai/v1`` route.
 
@@ -256,11 +282,32 @@ def is_mantle_openai_route_model(model_id: str) -> bool:
     return bare.startswith("openai.") and not bare.startswith("openai.gpt-oss")
 
 
+def is_bedrock_runtime_model(model_id: str) -> bool:
+    """Return True when ai-shell sends *model_id* to bedrock-runtime.
+
+    That is any inference profile ID (``us.``, ``us-gov.``, ``global.`` ...)
+    and any xAI Grok model. Grok 4.7 is not on bedrock-mantle at all, and
+    Grok 4.6 is on bedrock-mantle in us-gov-east-1 but not us-gov-west-1.
+    """
+    bare = model_id.strip().lower()
+    return bool(_INFERENCE_PROFILE_PREFIX.match(bare)) or bare.startswith("xai.")
+
+
 def mantle_provider_for_model(model_id: str) -> str:
-    """Return the OpenCode provider ID that serves *model_id* on Bedrock Mantle."""
+    """Return the OpenCode provider ID that serves the Bedrock model *model_id*."""
+    if is_bedrock_runtime_model(model_id):
+        return BEDROCK_RUNTIME_PROVIDER_ID
     if is_mantle_openai_route_model(model_id):
         return BEDROCK_MANTLE_OPENAI_PROVIDER_ID
     return BEDROCK_MANTLE_PROVIDER_ID
+
+
+def with_inference_profile(model_id: str, region: str) -> str:
+    """Add the Region's geo prefix to a bare bedrock-runtime model ID."""
+    clean = model_id.strip()
+    if _INFERENCE_PROFILE_PREFIX.match(clean):
+        return clean
+    return f"{inference_profile_prefix(region)}.{clean}"
 
 
 def _bedrock_credentials_via_botocore(profile: str = "") -> tuple[str, str, str] | None:
@@ -517,11 +564,19 @@ def qualify_model_id(
     return qualified
 
 
-def _route_mantle_model(qualified: str, provider: str, bare: str) -> tuple[str, str, str]:
-    """Move a Bedrock Mantle model to the Mantle provider whose route serves it."""
+def _route_mantle_model(
+    qualified: str, provider: str, bare: str, region: str = ""
+) -> tuple[str, str, str]:
+    """Move a Bedrock model to the provider that serves it.
+
+    A bedrock-runtime model also gets the Region's inference profile prefix,
+    so ``xai.grok-4.7`` becomes ``us-gov.xai.grok-4.7`` in GovCloud.
+    """
     if provider in MANTLE_PROVIDER_IDS and bare:
         routed = mantle_provider_for_model(bare)
-        if routed != provider:
+        if routed == BEDROCK_RUNTIME_PROVIDER_ID and region:
+            bare = with_inference_profile(bare, region)
+        if routed != provider or f"{routed}/{bare}" != qualified:
             return f"{routed}/{bare}", routed, bare
     return qualified, provider, bare
 
@@ -570,11 +625,13 @@ def build_opencode_config_patch(
 ) -> dict[str, Any]:
     """Build the ``opencode.json`` configuration dictionary to merge.
 
-    - When Bedrock Mantle is active, configures two ``@ai-sdk/openai-compatible``
+    - When Bedrock is active, configures three ``@ai-sdk/openai-compatible``
       providers with ``{env:AWS_BEARER_TOKEN_BEDROCK}``: ``bedrock-mantle`` on
-      ``https://bedrock-mantle.<region>.api.aws/v1`` (gpt-oss and most models)
-      and ``bedrock-mantle-openai`` on ``.../openai/v1`` (GPT-5.x). A Mantle
-      model is always routed to the provider whose route serves it.
+      ``https://bedrock-mantle.<region>.api.aws/v1`` (gpt-oss and most models),
+      ``bedrock-mantle-openai`` on ``.../openai/v1`` (GPT-5.x), and
+      ``bedrock-runtime`` on ``https://bedrock-runtime.<region>.amazonaws.com/openai/v1``
+      (Grok and any inference profile ID). A model is always routed to the
+      provider that serves it.
     - Configures each entry in *custom_endpoints* under ``provider[<name>]`` using
       ``@ai-sdk/openai-compatible``.
     - Routes primary agents (``plan``, ``build``) to *primary_model* and
@@ -610,6 +667,7 @@ def build_opencode_config_patch(
             effective_subagent = effective_primary
 
     providers_patch: dict[str, Any] = {}
+    resolved_region = ""
 
     if mantle_active:
         resolved_region = resolve_bedrock_mantle_region(
@@ -636,6 +694,20 @@ def build_opencode_config_patch(
             },
             "models": {m: {"name": m} for m in BEDROCK_MANTLE_OPENAI_DEFAULT_MODELS},
         }
+        runtime_models = [
+            with_inference_profile(m, resolved_region) for m in BEDROCK_RUNTIME_DEFAULT_BASE_MODELS
+        ]
+        providers_patch[BEDROCK_RUNTIME_PROVIDER_ID] = {
+            "npm": OPENAI_COMPATIBLE_NPM,
+            "name": f"Amazon Bedrock Runtime, Grok ({resolved_region})",
+            "options": {
+                "baseURL": bedrock_runtime_openai_base_url(
+                    region=resolved_region, partition=aws_partition
+                ),
+                "apiKey": api_key,
+            },
+            "models": {m: {"name": m} for m in runtime_models},
+        }
 
     for ep in endpoints:
         options: dict[str, Any] = {"baseURL": ep.base_url}
@@ -654,7 +726,8 @@ def build_opencode_config_patch(
 
     if effective_primary:
         qual_primary, prim_prov, prim_bare = _route_mantle_model(
-            *_split_qualified_model(effective_primary, resolved_default_provider, known_providers)
+            *_split_qualified_model(effective_primary, resolved_default_provider, known_providers),
+            region=resolved_region,
         )
         patch["model"] = qual_primary
         for agent_name in PRIMARY_AGENTS:
@@ -664,7 +737,8 @@ def build_opencode_config_patch(
 
     if effective_subagent:
         qual_sub, sub_prov, sub_bare = _route_mantle_model(
-            *_split_qualified_model(effective_subagent, resolved_default_provider, known_providers)
+            *_split_qualified_model(effective_subagent, resolved_default_provider, known_providers),
+            region=resolved_region,
         )
         patch["small_model"] = qual_sub
         for agent_name in SUBAGENTS:
