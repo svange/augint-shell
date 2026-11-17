@@ -61,7 +61,7 @@ def scaffold_global() -> None:
     )
     _write_file(
         augint_dir / ".ai-shell.example.yaml",
-        _read_template("augint-ai-shell.example.yaml"),
+        _read_template("ai-shell.yaml"),
         overwrite=True,
     )
 
@@ -74,3 +74,6 @@ def scaffold_project(target_dir: Path) -> None:
         overwrite=False,
     )
     console.print("[bold green]Project configuration ready.[/bold green]")
+    console.print(
+        "[dim]Every key is in it, commented out. Reference: ~/.augint/.ai-shell.example.yaml[/dim]"
+    )

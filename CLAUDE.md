@@ -148,7 +148,7 @@ Pi (`@mariozechner/pi-coding-agent`) is a provider-agnostic terminal coding agen
 
 ### Scaffold system
 
-`ai-shell init` (`scaffold.py`) writes three files and nothing else: `~/.augint/.env.example` and `~/.augint/.ai-shell.example.yaml` (always refreshed from `templates/augint-env.example` and `templates/augint-ai-shell.example.yaml`) and `.ai-shell.yaml` in the current directory (from `templates/ai-shell.yaml`, never overwritten). Edit the templates in `src/ai_shell/templates/`, not the generated files. ai-shell scaffolds no agent skills or tool settings.
+`ai-shell init` (`scaffold.py`) writes three files and nothing else: `~/.augint/.env.example` and `~/.augint/.ai-shell.example.yaml` (always refreshed from `templates/augint-env.example` and `templates/ai-shell.yaml`) and `.ai-shell.yaml` in the current directory (from `templates/ai-shell.yaml`, never overwritten). `templates/ai-shell.yaml` is the one config reference: every key, all commented out, so a new project file changes nothing until a line is uncommented. `tests/unit/test_scaffold.py` uncomments it and loads it, so a key the parser does not read fails the test. Edit the templates in `src/ai_shell/templates/`, not the generated files. ai-shell scaffolds no agent skills or tool settings.
 
 ### Standalone executable (`standalone.py`)
 

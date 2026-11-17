@@ -43,23 +43,61 @@ class TestProjectYamlOutput:
         assert "project:" not in content
         assert "repo_type" not in content
 
-    def test_generated_yaml_is_valid(self, tmp_path):
+    def test_generated_yaml_sets_nothing(self, tmp_path):
+        """A new project file must not override the global file until a line is uncommented."""
         scaffold_project(tmp_path)
         content = (tmp_path / ".ai-shell.yaml").read_text()
-        parsed = yaml.safe_load(content)
-        # llm section is live (4 slots + extras); other sections stay commented.
-        assert parsed is not None
-        assert "llm" in parsed
-        for key in (
-            "primary_chat_model",
-            "secondary_chat_model",
-            "primary_coding_model",
-            "secondary_coding_model",
-        ):
-            assert key in parsed["llm"]
-        assert "container" not in parsed
-        assert "aws" not in parsed
-        assert "claude" not in parsed
+        assert yaml.safe_load(content) is None
+
+    def test_every_example_key_is_read(self, tmp_path):
+        """Regression: the old global example documented ``extra_ports``, which nothing read."""
+        from ai_shell.config import load_config
+
+        scaffold_project(tmp_path)
+        lines = (tmp_path / ".ai-shell.yaml").read_text().splitlines()
+        uncommented = "\n".join(
+            line[2:] if line.startswith("# ") else line
+            for line in lines
+            if not line.startswith("##")
+        )
+        (tmp_path / ".ai-shell.yaml").write_text(uncommented)
+        parsed = yaml.safe_load(uncommented)
+        assert set(parsed) == {
+            "opencode",
+            "claude",
+            "aws",
+            "openai",
+            "container",
+            "llm",
+            "expo",
+            "vpn",
+            "voice_agent",
+        }
+
+        config = load_config(project_dir=tmp_path)
+        assert config.opencode_model == "openai.gpt-5.6-terra"
+        assert config.opencode_subagent_model == "openai.gpt-5.6-luna"
+        assert config.opencode_plugins == parsed["opencode"]["plugins"]
+        assert config.opencode_instructions == parsed["opencode"]["instructions"]
+        assert config.opencode_endpoints[0].name == "vllm"
+        assert config.claude_account == "work"
+        assert config.bedrock_model == parsed["aws"]["bedrock_model"]
+        assert config.openai_profile == "work"
+        assert {9000, 9229} <= set(config.extra_ports)
+        assert config.node_modules_paths == ["apps/*"]
+        assert config.image_pull_cache_ttl == 900
+        assert config.comfyui_port == 8188
+        assert config.vpn_country == "United States"
+        assert config.voice_agent.port == 8010
+
+    def test_reference_matches_defaults(self):
+        """The example plugins and instructions are the real defaults."""
+        from ai_shell.opencode import DEFAULT_OPENCODE_INSTRUCTIONS, DEFAULT_OPENCODE_PLUGINS
+        from ai_shell.scaffold import _read_template
+
+        content = _read_template("ai-shell.yaml")
+        for item in (*DEFAULT_OPENCODE_PLUGINS, *DEFAULT_OPENCODE_INSTRUCTIONS):
+            assert item in content
 
 
 class TestScaffoldGlobal:
@@ -71,7 +109,10 @@ class TestScaffoldGlobal:
     def test_creates_ai_shell_example_yaml(self, tmp_path):
         with patch("ai_shell.scaffold.Path.home", return_value=tmp_path):
             scaffold_global()
-        assert (tmp_path / ".augint" / ".ai-shell.example.yaml").is_file()
+        example = tmp_path / ".augint" / ".ai-shell.example.yaml"
+        assert example.is_file()
+        assert "opencode:" in example.read_text()
+        assert not (tmp_path / ".augint" / ".ai-shell.yaml").exists()
 
     def test_env_example_documents_shared_vars(self, tmp_path):
         with patch("ai_shell.scaffold.Path.home", return_value=tmp_path):
