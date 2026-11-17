@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.123.0 (2026-11-17)
+
+### Features
+
+- **opencode**: No Claude Code files, default plugins, --local-chrome
+  ([`3ec5272`](https://github.com/svange/augint-shell/commit/3ec5272068bd01c12a06a1dd0c260056d90e6ff1))
+
+- **opencode**: No Claude Code files, default plugins, --local-chrome (#198)
+  ([#198](https://github.com/svange/augint-shell/pull/198),
+  [`10d7ffc`](https://github.com/svange/augint-shell/commit/10d7ffc3f6fe16c150fce0192fd0ada91d90f109))
+
+
 ## v0.122.0 (2026-11-17)
 
 ### Features
