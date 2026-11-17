@@ -1702,13 +1702,13 @@ def _opencode_setup(
     "--model",
     "cli_model",
     default=None,
-    help="Primary model for plan and build agents (e.g. openai.gpt-5.4 or vllm/Qwen/Qwen3-Coder-30B).",
+    help="Primary model for plan and build agents (e.g. openai.gpt-5.6-terra, xai.grok-4.7 or vllm/Qwen/Qwen3-Coder-30B).",
 )
 @click.option(
     "--subagent-model",
     "cli_subagent_model",
     default=None,
-    help="Model for explore and general subagents (e.g. openai.gpt-oss-120b or vllm/fast-model).",
+    help="Model for explore and general subagents (e.g. openai.gpt-5.6-luna or vllm/fast-model).",
 )
 @click.option(
     "--endpoint",

@@ -573,19 +573,20 @@ OpenCode connects to AWS Bedrock's OpenAI-compatible Mantle endpoints with `@ai-
 | Provider | Base URL | Models |
 | --- | --- | --- |
 | `bedrock-mantle` | `https://bedrock-mantle.<region>.api.aws/v1` | `openai.gpt-oss-120b`, `openai.gpt-oss-20b`, and other non-GPT models |
-| `bedrock-mantle-openai` | `https://bedrock-mantle.<region>.api.aws/openai/v1` | `openai.gpt-5.4`, `openai.gpt-5.6-terra`, `openai.gpt-5.6-luna` |
+| `bedrock-mantle-openai` | `https://bedrock-mantle.<region>.api.aws/openai/v1` | `openai.gpt-5.6-terra`, `openai.gpt-5.6-luna`, `openai.gpt-5.4` |
+| `bedrock-runtime` | `https://bedrock-runtime.<region>.amazonaws.com/openai/v1` | `xai.grok-4.7`, `xai.grok-4.6`, and any inference profile ID (`us.`, `us-gov.`, `global.`) |
 
-A model given as `bedrock-mantle/openai.gpt-5.4` (or unqualified) is moved to `bedrock-mantle-openai`. Mantle model IDs have no `-1:0` suffix; that suffix is the `bedrock-runtime` form.
+A model given as `bedrock-mantle/openai.gpt-5.4` (or unqualified) is moved to the provider that serves it. Grok goes to `bedrock-runtime` with the Region's inference profile prefix added: `xai.grok-4.7` becomes `us-gov.xai.grok-4.7` in GovCloud and `us.xai.grok-4.7` elsewhere. Grok 4.7 is not on Mantle, and Grok 4.6 is on Mantle in us-gov-east-1 only. Mantle model IDs have no `-1:0` suffix; that suffix is the `bedrock-runtime` form. To list the inference profile IDs your account can use: `aws bedrock list-inference-profiles --query "inferenceProfileSummaries[].inferenceProfileId"`.
 
 - **Commercial AWS** (`--aws-partition commercial`, default region `us-east-1`).
 - **AWS GovCloud** (`--aws-partition govcloud`, default region `us-gov-west-1`).
 - **Authentication**:
   - If `AWS_BEARER_TOKEN_BEDROCK` (or `BEDROCK_API_KEY`) is set on the host or in `~/.augint/.env`, it is forwarded into the container and referenced via `{env:AWS_BEARER_TOKEN_BEDROCK}` in `opencode.json`.
   - Otherwise, `ai-shell` makes a short-term Bedrock API key from your AWS profile (`--aws-profile` / `--profile`, or `opencode.aws_profile`) before it starts OpenCode. The key is the same one `aws-bedrock-token-generator` makes. It lasts 12 hours, or less when the SSO session ends sooner. Run `aws sso login --profile <profile>` first. Disable with `--no-generate-token`.
-  - The profile needs `bedrock:CallWithBearerToken`, `bedrock-mantle:CallWithBearerToken`, `bedrock-mantle:ListModels` and `bedrock-mantle:CreateInference`.
+  - The profile needs `bedrock:CallWithBearerToken`, `bedrock-mantle:CallWithBearerToken`, `bedrock-mantle:ListModels` and `bedrock-mantle:CreateInference` for Mantle, and `bedrock:InvokeModel` on the inference profile and its models for Grok.
 - **Default Mantle agent models**:
-  - Primary agents (`plan`, `build`): `bedrock-mantle-openai/openai.gpt-5.4`
-  - Subagents (`explore`, `general`) and `small_model`: `bedrock-mantle/openai.gpt-oss-120b`
+  - Primary agents (`plan`, `build`): `bedrock-mantle-openai/openai.gpt-5.6-terra`
+  - Subagents (`explore`, `general`) and `small_model`: `bedrock-mantle-openai/openai.gpt-5.6-luna`
 
 ```bash
 # Commercial AWS (defaults to us-east-1) using an AWS SSO profile
@@ -600,15 +601,15 @@ aws sso login --profile ai-gov
 ai-shell opencode --aws --aws-partition govcloud --aws-profile ai-gov
 ```
 
-A standalone GovCloud account, with GPT-5.4 for planning and building, gpt-oss for subagents, and an optional own model on a GPU instance that you reach through a Session Manager port forward on host port 8000. Put this in `~/.augint/.ai-shell.yaml`:
+A standalone GovCloud account, with GPT-5.6 Terra for planning and building, GPT-5.6 Luna for subagents, and an optional own model on a GPU instance that you reach through a Session Manager port forward on host port 8000. Put this in `~/.augint/.ai-shell.yaml`:
 
 ```yaml
 opencode:
   provider: bedrock-mantle
   aws_partition: govcloud
   aws_profile: ai-gov
-  model: openai.gpt-5.4
-  subagent_model: openai.gpt-oss-120b
+  model: openai.gpt-5.6-terra     # or xai.grok-4.7
+  subagent_model: openai.gpt-5.6-luna
   endpoints:
     govcloud-gpu:
       base_url: http://host.docker.internal:8000/v1
@@ -653,8 +654,14 @@ Route primary reasoning/coding agents (`plan`, `build`) to a frontier model on B
 ai-shell opencode --aws \
   --aws-partition govcloud \
   --aws-profile gov-sso \
-  --model bedrock-mantle-openai/openai.gpt-5.4 \
-  --subagent-model bedrock-mantle/openai.gpt-oss-120b
+  --model bedrock-mantle-openai/openai.gpt-5.6-terra \
+  --subagent-model bedrock-mantle-openai/openai.gpt-5.6-luna
+
+# Grok 4.7 primary (bedrock-runtime, inference profile added for the Region)
+ai-shell opencode --aws \
+  --aws-partition govcloud \
+  --aws-profile gov-sso \
+  --model xai.grok-4.7
 
 # Bedrock Mantle primary (plan, build) + self-hosted vLLM subagent (explore, general)
 ai-shell opencode --aws \

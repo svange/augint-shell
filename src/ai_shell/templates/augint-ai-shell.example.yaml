@@ -86,8 +86,8 @@
 #   aws_partition: commercial    # "commercial" or "govcloud"
 #   aws_region: us-east-1        # Mantle routes: <region>.api.aws/v1 (gpt-oss) and /openai/v1 (GPT-5.x)
 #   aws_profile: my-ai-account   # generates short-term AWS_BEARER_TOKEN_BEDROCK if not set in .env
-#   model: openai.gpt-5.4
-#   subagent_model: openai.gpt-oss-120b
+#   model: openai.gpt-5.6-terra   # or xai.grok-4.7
+#   subagent_model: openai.gpt-5.6-luna
 #   endpoints:
 #     vllm:
 #       base_url: http://host.docker.internal:8000/v1

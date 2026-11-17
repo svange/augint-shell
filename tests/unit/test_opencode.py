@@ -17,6 +17,7 @@ from ai_shell.opencode import (
     _generate_token_from_credentials,
     bedrock_mantle_base_url,
     bedrock_mantle_openai_base_url,
+    bedrock_runtime_openai_base_url,
     bridge_opencode_skills,
     build_opencode_config_patch,
     deep_merge_dict,
@@ -131,6 +132,16 @@ class TestBedrockMantleUrlsAndRegions:
         assert mantle_provider_for_model("openai.gpt-oss-120b") == BEDROCK_MANTLE_PROVIDER_ID
         assert mantle_provider_for_model("openai.gpt-oss-20b") == BEDROCK_MANTLE_PROVIDER_ID
         assert mantle_provider_for_model("mistral.devstral-2-123b") == BEDROCK_MANTLE_PROVIDER_ID
+
+    def test_grok_and_inference_profiles_go_to_bedrock_runtime(self):
+        assert mantle_provider_for_model("xai.grok-4.7") == "bedrock-runtime"
+        assert mantle_provider_for_model("us-gov.xai.grok-4.7") == "bedrock-runtime"
+        assert mantle_provider_for_model("us.xai.grok-4.6") == "bedrock-runtime"
+        assert mantle_provider_for_model("us-gov.openai.gpt-5.6-terra") == "bedrock-runtime"
+        assert (
+            bedrock_runtime_openai_base_url(region="us-gov-west-1")
+            == "https://bedrock-runtime.us-gov-west-1.amazonaws.com/openai/v1"
+        )
 
 
 class TestBearerTokenGeneration:
@@ -365,11 +376,11 @@ class TestQualifyModelAndConfigMerging:
         )
         assert (
             merged["agent"]["explore"]["model"]
-            == f"{BEDROCK_MANTLE_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL}"
+            == f"{BEDROCK_MANTLE_OPENAI_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL}"
         )
         assert (
             merged["agent"]["general"]["model"]
-            == f"{BEDROCK_MANTLE_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL}"
+            == f"{BEDROCK_MANTLE_OPENAI_PROVIDER_ID}/{BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL}"
         )
 
         # File on disk matches merged dict
@@ -389,6 +400,34 @@ class TestQualifyModelAndConfigMerging:
         assert "openai.gpt-5.4" not in patch_dict["provider"]["bedrock-mantle"]["models"]
         assert "openai.gpt-oss-120b" in patch_dict["provider"]["bedrock-mantle"]["models"]
         assert "openai.gpt-5.4" in patch_dict["provider"]["bedrock-mantle-openai"]["models"]
+
+    def test_defaults_are_terra_and_luna(self):
+        patch_dict = build_opencode_config_patch(bedrock_region="us-gov-west-1")
+        assert patch_dict["model"] == "bedrock-mantle-openai/openai.gpt-5.6-terra"
+        assert patch_dict["small_model"] == "bedrock-mantle-openai/openai.gpt-5.6-luna"
+        assert (
+            patch_dict["agent"]["explore"]["model"] == "bedrock-mantle-openai/openai.gpt-5.6-luna"
+        )
+
+    def test_grok_gets_govcloud_inference_profile_on_bedrock_runtime(self):
+        patch_dict = build_opencode_config_patch(
+            bedrock_region="us-gov-west-1", primary_model="xai.grok-4.7"
+        )
+        assert patch_dict["model"] == "bedrock-runtime/us-gov.xai.grok-4.7"
+        runtime = patch_dict["provider"]["bedrock-runtime"]
+        assert (
+            runtime["options"]["baseURL"]
+            == "https://bedrock-runtime.us-gov-west-1.amazonaws.com/openai/v1"
+        )
+        assert runtime["options"]["apiKey"] == "{env:AWS_BEARER_TOKEN_BEDROCK}"
+        assert set(runtime["models"]) == {"us-gov.xai.grok-4.7", "us-gov.xai.grok-4.6"}
+
+    def test_grok_uses_us_profile_in_commercial_regions(self):
+        patch_dict = build_opencode_config_patch(
+            bedrock_region="us-east-1", subagent_model="bedrock-mantle/xai.grok-4.6"
+        )
+        assert patch_dict["small_model"] == "bedrock-runtime/us.xai.grok-4.6"
+        assert "us.xai.grok-4.7" in patch_dict["provider"]["bedrock-runtime"]["models"]
 
     def test_sync_removes_gpt_models_left_on_v1_route_by_older_versions(self, tmp_path: Path):
         config_path = tmp_path / "opencode.json"
