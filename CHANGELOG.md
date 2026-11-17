@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.123.2 (2026-11-17)
+
+### Bug Fixes
+
+- **opencode**: Send OpenCode's Chrome through chrome_proxy like Claude's
+  ([`f57c54a`](https://github.com/svange/augint-shell/commit/f57c54a34774d3b98902696adec1e6ec310ba958))
+
+- **opencode**: Send OpenCode's Chrome through chrome_proxy like Claude's (#201)
+  ([#201](https://github.com/svange/augint-shell/pull/201),
+  [`6bdf679`](https://github.com/svange/augint-shell/commit/6bdf6797f4f385be7148e37d90fc86b460b66ba3))
+
+
 ## v0.123.1 (2026-11-17)
 
 ### Bug Fixes
