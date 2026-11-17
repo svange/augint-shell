@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -100,6 +101,37 @@ SHELL_STRATEGY_INSTRUCTIONS_URL = (
 )
 DEFAULT_OPENCODE_INSTRUCTIONS: tuple[str, ...] = (SHELL_STRATEGY_INSTRUCTIONS_URL,)
 PLANNOTATOR_CONTAINER_PORT = 19432  # PLANNOTATOR_PORT in build_dev_environment
+
+OPENCODE_SERVER_PASSWORD_ENV = "OPENCODE_SERVER_PASSWORD"
+OPENCODE_SERVER_USERNAME_ENV = "OPENCODE_SERVER_USERNAME"
+OPENCODE_DEFAULT_USERNAME = "opencode"
+
+
+def opencode_server_password_path(home: Path | None = None) -> Path:
+    """Host file that holds the generated password for ``opencode web`` / ``serve``."""
+    return (home or Path.home()) / ".augint" / "opencode" / "server-password"
+
+
+def opencode_server_password(home: Path | None = None) -> str:
+    """The saved server password, made and saved (mode 600) on first use.
+
+    ``opencode web`` and ``serve`` listen on every host interface, so without a
+    password anyone who can reach the port can run the agent and its tools.
+    """
+    path = opencode_server_password_path(home)
+    if path.is_file():
+        value = path.read_text(encoding="utf-8").strip()
+        if value:
+            return value
+    value = secrets.token_urlsafe(24)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value + "\n", encoding="utf-8")
+    try:
+        path.chmod(0o600)
+    except OSError:  # pragma: no cover - Windows ignores POSIX modes
+        pass
+    return value
+
 
 _BUILTIN_PROVIDERS = frozenset(
     {

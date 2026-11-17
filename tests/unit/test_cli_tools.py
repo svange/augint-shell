@@ -1172,6 +1172,67 @@ class TestToolCommands:
 
         assert "Password protection enabled" in result.output
 
+    def test_opencode_web_without_password_uses_saved_one(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        """Regression: --web listened on every host interface with no auth."""
+        from ai_shell.opencode import opencode_server_password_path
+
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        mock_config.return_value = config
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+
+        passwords = []
+        for _ in range(2):
+            mock_build_env.return_value = dict(TEST_EXEC_ENV)
+            result = self.runner.invoke(cli, ["opencode", "--web"])
+            env = mock_manager.exec_interactive.call_args[1]["extra_env"]
+            passwords.append(env["OPENCODE_SERVER_PASSWORD"])
+
+        saved = opencode_server_password_path().read_text().strip()
+        assert passwords[0] == passwords[1] == saved
+        assert len(saved) >= 24
+        assert "user opencode" in result.output
+        assert saved not in result.output
+
+    def test_opencode_serve_without_password_uses_saved_one(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        from ai_shell.opencode import opencode_server_password
+
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        config.dev_ports = []
+        mock_config.return_value = config
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager_cls.return_value = mock_manager
+
+        with patch("ai_shell.cli.commands.tools._live_host_port", return_value=24000):
+            self.runner.invoke(cli, ["opencode", "serve"])
+
+        env = mock_manager.exec_detached.call_args[1]["extra_env"]
+        assert env["OPENCODE_SERVER_PASSWORD"] == opencode_server_password()
+
     def test_opencode_tui_default(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
     ):

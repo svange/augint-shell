@@ -1698,6 +1698,31 @@ def _opencode_setup(
     return manager, name, exec_env, config, cmd_base, bedrock_label, openai_label, project_slug
 
 
+def _ensure_opencode_password(exec_env: dict[str, str]) -> None:
+    """Put a server password in *exec_env* and say how to sign in.
+
+    A password from ``.env`` or the host environment wins. Otherwise ai-shell
+    uses the one saved in ``~/.augint/opencode/server-password``.
+    """
+    from ai_shell.opencode import (
+        OPENCODE_DEFAULT_USERNAME,
+        OPENCODE_SERVER_PASSWORD_ENV,
+        OPENCODE_SERVER_USERNAME_ENV,
+        opencode_server_password,
+        opencode_server_password_path,
+    )
+
+    user = exec_env.get(OPENCODE_SERVER_USERNAME_ENV) or OPENCODE_DEFAULT_USERNAME
+    if exec_env.get(OPENCODE_SERVER_PASSWORD_ENV):
+        console.print(f"[dim]Password protection enabled (user {user}).[/dim]")
+        return
+    exec_env[OPENCODE_SERVER_PASSWORD_ENV] = opencode_server_password()
+    console.print(
+        f"[dim]Password protection enabled: user {user}, password in "
+        f"{opencode_server_password_path()}.[/dim]"
+    )
+
+
 def _opencode_launch_env(
     manager: ContainerManager,
     name: str,
@@ -1995,12 +2020,7 @@ def opencode(
             console.print(f"[green bold]Open in browser: http://localhost:{host_port}[/green bold]")
             mdns_name = f"{project_slug}.local"
             console.print(f"[green]mDNS: http://{mdns_name}:{web_port}[/green]")
-            if exec_env.get("OPENCODE_SERVER_PASSWORD"):
-                console.print("[dim]Password protection enabled.[/dim]")
-            else:
-                console.print(
-                    "[dim]No auth by default. Set OPENCODE_SERVER_PASSWORD to protect it.[/dim]"
-                )
+            _ensure_opencode_password(exec_env)
         else:
             console.print(
                 f"[bold]Launching opencode{bedrock_label}{openai_label} in {name}...[/bold]"
@@ -2047,6 +2067,7 @@ def serve(ctx, port: int, open_browser: bool) -> None:
         )
     )
 
+    _ensure_opencode_password(exec_env)
     cmd.append("serve")
     cmd.extend(["--hostname", "0.0.0.0", "--port", str(port)])  # nosec B104
     cmd.extend(["--mdns", "--mdns-domain", f"{project_slug}.local"])
@@ -2064,8 +2085,6 @@ def serve(ctx, port: int, open_browser: bool) -> None:
     mdns_name = f"{project_slug}.local"
     console.print(f"[green bold]Server: http://localhost:{host_port}[/green bold]")
     console.print(f"[green]mDNS:   http://{mdns_name}:{port}[/green]")
-    if exec_env.get("OPENCODE_SERVER_PASSWORD"):
-        console.print("[dim]Password protection enabled.[/dim]")
 
     if open_browser:
         webbrowser.open(f"http://localhost:{host_port}")
@@ -2084,6 +2103,7 @@ def attach(ctx, port: int) -> None:
     """Attach a TUI to a running opencode server."""
     with capture_typeahead() as typeahead:
         manager, name, exec_env, _config = _get_manager(ctx, env_file=ctx.obj.get("env_file"))
+        _ensure_opencode_password(exec_env)
         cmd = ["opencode", "attach", f"http://localhost:{port}"]
         console.print(f"[bold]Attaching to opencode server on port {port}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
