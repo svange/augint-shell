@@ -168,6 +168,9 @@ class AiShellConfig:
     opencode_plugins: list[str] | None = None
     opencode_instructions: list[str] | None = None
     opencode_local_chrome: bool = False  # Chrome DevTools MCP for ai-shell opencode
+    # Bedrock region for ai-shell opencode only. Kept apart from bedrock_region
+    # (Claude's) so a commercial default never reaches a GovCloud OpenCode.
+    opencode_region: str = ""
 
     @property
     def full_image(self) -> str:
@@ -523,9 +526,9 @@ def _apply_opencode_config(config: AiShellConfig, data: dict) -> None:
     elif "partition" in data:
         config.aws_partition = str(data["partition"] or "")
     if "aws_region" in data:
-        config.bedrock_region = str(data["aws_region"] or "")
+        config.opencode_region = str(data["aws_region"] or "")
     elif "region" in data:
-        config.bedrock_region = str(data["region"] or "")
+        config.opencode_region = str(data["region"] or "")
     if "aws_profile" in data:
         config.bedrock_profile = str(data["aws_profile"] or "")
     elif "profile" in data:
@@ -602,6 +605,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_OPENCODE_MODEL": ("opencode_model", str),
         "AI_SHELL_OPENCODE_SUBAGENT_MODEL": ("opencode_subagent_model", str),
         "AI_SHELL_OPENCODE_AWS_PARTITION": ("aws_partition", str),
+        "AI_SHELL_OPENCODE_AWS_REGION": ("opencode_region", str),
         "AI_SHELL_OPENCODE_CLAUDE_COMPAT": ("opencode_claude_compat", bool),
         "AI_SHELL_OPENCODE_LOCAL_CHROME": ("opencode_local_chrome", bool),
         "AI_SHELL_LOCAL_CHROME": ("local_chrome", bool),

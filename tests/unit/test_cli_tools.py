@@ -2347,6 +2347,89 @@ class TestOpencodeProvidersAndHarness:
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert cmd == ["opencode", "--model", "bedrock-mantle/openai.gpt-5.4"]
 
+    def _run_govcloud_config(self, config, mock_config, mock_manager_cls, mock_build_env):
+        mock_config.return_value = config
+        mock_build_env.return_value = dict(TEST_EXEC_ENV, AWS_PROFILE="ai-gov")
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-gov-app-dev"
+        mock_manager.exec_interactive.side_effect = SystemExit(0)
+        mock_manager_cls.return_value = mock_manager
+        return self.runner.invoke(cli, ["opencode"])
+
+    @patch("ai_shell.opencode.sync_opencode_config", return_value={})
+    @patch("ai_shell.opencode.resolve_bedrock_bearer_token", return_value="bedrock-api-key-tok")
+    def test_opencode_govcloud_ignores_commercial_bedrock_region(
+        self,
+        mock_resolve_token,
+        mock_sync_cfg,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        """Regression: a global aws.bedrock_region of us-east-1 (Claude's) must not
+        stop a GovCloud OpenCode with "not a GovCloud region"."""
+        from ai_shell.config import AiShellConfig
+
+        config = AiShellConfig(project_name="gov-app", project_dir=Path("/tmp/gov-app"))
+        config.bedrock_region = "us-east-1"
+        config.aws_region = "us-east-1"
+        config.aws_partition = "govcloud"
+        config.opencode_provider = "bedrock-mantle"
+
+        result = self._run_govcloud_config(config, mock_config, mock_manager_cls, mock_build_env)
+
+        assert result.exit_code == 0, result.output
+        assert mock_resolve_token.call_args.kwargs["region"] == "us-gov-west-1"
+        assert mock_sync_cfg.call_args.kwargs["bedrock_region"] == "us-gov-west-1"
+
+    @patch("ai_shell.opencode.sync_opencode_config", return_value={})
+    @patch("ai_shell.opencode.resolve_bedrock_bearer_token", return_value="bedrock-api-key-tok")
+    def test_opencode_region_wins_over_bedrock_region(
+        self,
+        mock_resolve_token,
+        mock_sync_cfg,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        from ai_shell.config import AiShellConfig
+
+        config = AiShellConfig(project_name="gov-app", project_dir=Path("/tmp/gov-app"))
+        config.bedrock_region = "us-gov-west-1"
+        config.opencode_region = "us-gov-east-1"
+        config.aws_partition = "govcloud"
+        config.opencode_provider = "bedrock-mantle"
+
+        result = self._run_govcloud_config(config, mock_config, mock_manager_cls, mock_build_env)
+
+        assert result.exit_code == 0, result.output
+        assert mock_sync_cfg.call_args.kwargs["bedrock_region"] == "us-gov-east-1"
+
+    @patch("ai_shell.opencode.sync_opencode_config", return_value={})
+    @patch("ai_shell.opencode.resolve_bedrock_bearer_token", return_value="bedrock-api-key-tok")
+    def test_opencode_region_from_other_partition_is_an_error(
+        self,
+        mock_resolve_token,
+        mock_sync_cfg,
+        mock_config,
+        mock_manager_cls,
+        mock_build_env,
+        mock_check_bedrock,
+    ):
+        from ai_shell.config import AiShellConfig
+
+        config = AiShellConfig(project_name="gov-app", project_dir=Path("/tmp/gov-app"))
+        config.opencode_region = "us-east-1"
+        config.aws_partition = "govcloud"
+        config.opencode_provider = "bedrock-mantle"
+
+        result = self._run_govcloud_config(config, mock_config, mock_manager_cls, mock_build_env)
+
+        assert result.exit_code != 0
+        assert "not a GovCloud region" in result.output
+
     @patch("ai_shell.opencode.sync_opencode_config")
     def test_opencode_custom_url_flags(
         self,

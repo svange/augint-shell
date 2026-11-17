@@ -580,6 +580,7 @@ A model given as `bedrock-mantle/openai.gpt-5.4` (or unqualified) is moved to th
 
 - **Commercial AWS** (`--aws-partition commercial`, default region `us-east-1`).
 - **AWS GovCloud** (`--aws-partition govcloud`, default region `us-gov-west-1`).
+- **Region**: `--aws-region`, then `opencode.aws_region` (`AI_SHELL_OPENCODE_AWS_REGION`). These must match the partition. Without them, OpenCode uses `aws.bedrock_region` (or `aws.region` when no partition is set) only when that region is in the partition, so a global `us-east-1` default for Claude does not break a GovCloud OpenCode. `opencode.aws_region` does not change Claude's Bedrock region.
 - **Authentication**:
   - If `AWS_BEARER_TOKEN_BEDROCK` (or `BEDROCK_API_KEY`) is set on the host or in `~/.augint/.env`, it is forwarded into the container and referenced via `{env:AWS_BEARER_TOKEN_BEDROCK}` in `opencode.json`.
   - Otherwise, `ai-shell` makes a short-term Bedrock API key from your AWS profile (`--aws-profile` / `--profile`, or `opencode.aws_profile`) before it starts OpenCode. The key is the same one `aws-bedrock-token-generator` makes. It lasts 12 hours, or less when the SSO session ends sooner. Run `aws sso login --profile <profile>` first. Disable with `--no-generate-token`.

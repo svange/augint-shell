@@ -25,7 +25,7 @@
 # opencode:
 #   provider: bedrock-mantle       # "ollama" (default), "bedrock-mantle" ("aws"), or an endpoint name
 #   aws_partition: govcloud        # "commercial" (us-east-1) or "govcloud" (us-gov-west-1)
-#   aws_region: us-gov-west-1
+#   aws_region: us-gov-west-1      # OpenCode only; aws.bedrock_region is used only in the same partition
 #   aws_profile: my-gov-profile    # makes the short-term AWS_BEARER_TOKEN_BEDROCK
 #   model: openai.gpt-5.6-terra    # plan + build agents; or openai.gpt-5.4, xai.grok-4.7
 #   subagent_model: openai.gpt-5.6-luna   # explore + general subagents
