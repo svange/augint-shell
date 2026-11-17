@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.123.1 (2026-11-17)
+
+### Bug Fixes
+
+- **opencode**: Keep OpenCode's Bedrock region apart from Claude's
+  ([`aabb387`](https://github.com/svange/augint-shell/commit/aabb38786ac81420593a7465f3524bd23c55fac1))
+
+- **opencode**: Keep OpenCode's Bedrock region apart from Claude's (#200)
+  ([#200](https://github.com/svange/augint-shell/pull/200),
+  [`519b5a3`](https://github.com/svange/augint-shell/commit/519b5a37698fc7a1bf3c45074ef501aa36032e05))
+
+### Documentation
+
+- **init**: One complete config reference, all commented out
+  ([`9990fa3`](https://github.com/svange/augint-shell/commit/9990fa30268e0b678d7fd015dc462eb6af9b5bdd))
+
+- **init**: One complete config reference, all commented out (#199)
+  ([#199](https://github.com/svange/augint-shell/pull/199),
+  [`6f2bfb0`](https://github.com/svange/augint-shell/commit/6f2bfb0b61d98ff3dead790a7259a3aa15268051))
+
+
 ## v0.123.0 (2026-11-17)
 
 ### Features
