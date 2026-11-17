@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.122.0 (2026-11-17)
+
+### Features
+
+- **opencode**: Default to GPT-5.6 Terra and Luna, add Grok on bedrock-runtime
+  ([`189f170`](https://github.com/svange/augint-shell/commit/189f1702df6a013741293244c7d5e52242b4e0cc))
+
+- **opencode**: Default to GPT-5.6 Terra and Luna, add Grok on bedrock-runtime (#197)
+  ([#197](https://github.com/svange/augint-shell/pull/197),
+  [`2a9160c`](https://github.com/svange/augint-shell/commit/2a9160c37be0eda868361506bacfa2322cd1fbaa))
+
+
 ## v0.121.1 (2026-11-17)
 
 ### Bug Fixes
