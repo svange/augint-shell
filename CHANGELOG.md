@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.124.1 (2026-11-19)
+
+### Bug Fixes
+
+- **opencode**: GovCloud defaults to gpt-oss-120b, model limits, no built-in Bedrock provider
+  ([`223e8fb`](https://github.com/svange/augint-shell/commit/223e8fb04a2bfd6e3a87906ffbcf3aaa10ba2d44))
+
+- **opencode**: GovCloud defaults to gpt-oss-120b, model limits, no built-in Bedrock provider (#206)
+  ([#206](https://github.com/svange/augint-shell/pull/206),
+  [`cce0d45`](https://github.com/svange/augint-shell/commit/cce0d45f84987ff211295972285f8812e1e83468))
+
+
 ## v0.124.0 (2026-11-19)
 
 ### Bug Fixes
