@@ -9,6 +9,7 @@ import click
 from ai_shell import __version__
 from ai_shell.cli import CONTEXT_SETTINGS
 from ai_shell.cli.commands.acp import acp_group
+from ai_shell.cli.commands.ec2 import ec2_group
 from ai_shell.cli.commands.llm import llm_group
 from ai_shell.cli.commands.manage import doctor, manage_group
 from ai_shell.cli.commands.tools import chrome, claude, codex, init, opencode, pi, shell
@@ -76,6 +77,7 @@ cli.add_command(llm_group, "llm")
 cli.add_command(manage_group, "manage")
 cli.add_command(vpn_group, "vpn")
 cli.add_command(acp_group, "acp")
+cli.add_command(ec2_group, "ec2")
 
 
 def main():

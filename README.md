@@ -147,6 +147,7 @@ If you need to work manually, [AGENTS.md](AGENTS.md) has the build, test and com
 | `ai-shell opencode serve` | Headless server + attach all git repos as terminals |
 | `ai-shell opencode status` | Show server URL, mDNS name, attached terminals |
 | `ai-shell opencode remote [PROJECT]` | [OpenCode on a remote box](#6-opencode-on-a-remote-box-ssm) over AWS Systems Manager |
+| `ai-shell ec2 ls\|connect\|stop` | [EC2 instances across your AWS profiles](#ec2-instances-ai-shell-ec2): list, start and connect (tunnel, `--ssh`, `--rdp`, `--shell`), stop |
 | `ai-shell shell [bash\|zsh]` | Interactive shell in dev container (default: `bash`) |
 | `ai-shell claude --rc [NAME]` | [Remote Control](#remote-control-rc) server: drive the project from claude.ai/code or the Claude app |
 | `ai-shell claude --account NAME --rc` | Remote Control signed in as another Claude account (login profile) |
@@ -790,6 +791,31 @@ The command:
 5. forwards the server port to `localhost` and opens the browser (`--no-browser`, `--local-port`).
 
 Ctrl+C ends the tunnel. `--instance` overrides `opencode.remote.instance` for one run.
+
+## EC2 instances (`ai-shell ec2`)
+
+`ai-shell ec2` finds an instance in any of your AWS profiles, starts it, connects to it and stops it. It uses the AWS CLI v2 and the profiles you already have; it has no config of its own.
+
+```bash
+ai-shell ec2 ls                          # every profile in ~/.aws/config
+ai-shell ec2 ls --profile client-a       # one profile (repeatable); signs in when needed
+ai-shell ec2 connect                     # pick from a numbered list; a tunnel to 22 (3389 on Windows)
+ai-shell ec2 connect web --ssh           # by Name tag or instance id
+ai-shell ec2 connect i-0abc... --rdp     # opens mstsc, the macOS RDP app, xfreerdp or Remmina
+ai-shell ec2 connect web --shell         # an SSM shell, no key needed; else --ssh
+ai-shell ec2 connect web --port 8080     # a tunnel to any port
+ai-shell ec2 stop web
+```
+
+- **Listing.** All profiles are read at the same time. A profile whose SSO session has ended shows as `signed out` with the `aws sso login` command to run; no browser opens. `--region` sets the region for every profile, `--all-regions` reads every enabled region. A profile that asks for input (an MFA code) fails at once instead of waiting.
+- **Starting.** `connect` starts a stopped instance and waits until it runs. When it started the instance, it asks at the end whether to stop it again (`--stop` and `--no-stop` answer before).
+- **Getting in.** `connect` tries these one at a time, each only when it can work, and names the reason for each one that failed:
+  1. SSM port forwarding: the instance is registered with SSM and this computer has the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+  2. An EC2 Instance Connect Endpoint in the instance's VPC (ports 22 and 3389 only; AWS CLI 2.12 or later).
+  3. The instance's public IP, then its private IP (for a VPN or a computer in the VPC).
+- **Signing in with SSH.** The user comes from the image name (`ubuntu`, `admin` on Debian, else `ec2-user`; `--user`). The key is `--key`, else the instance's key pair file in `~/.ssh` (`<name>` or `<name>.pem`), else a temporary key sent with EC2 Instance Connect (valid for 60 seconds), else your SSH agent.
+- **RDP.** With the key pair file, `--rdp` also prints the Windows Administrator password.
+- **No changes to the account.** `ai-shell ec2` never adds a security group rule, changes IAM or installs an agent to get in. It writes only start, stop and the temporary EC2 Instance Connect key.
 
 ## Requirements
 
