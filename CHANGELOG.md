@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.123.4 (2026-11-19)
+
+### Bug Fixes
+
+- **opencode**: Keep the serve output and fail when the server exits at start
+  ([`9eb3aa8`](https://github.com/svange/augint-shell/commit/9eb3aa88562839d69376f011f4767484f693572a))
+
+- **opencode**: Keep the serve output and fail when the server exits at start (#203)
+  ([#203](https://github.com/svange/augint-shell/pull/203),
+  [`4b128f9`](https://github.com/svange/augint-shell/commit/4b128f9e750cbe421a1e0b5896a017a862ee633a))
+
+
 ## v0.123.3 (2026-11-17)
 
 ### Bug Fixes
