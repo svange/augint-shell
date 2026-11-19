@@ -1,19 +1,19 @@
 {
   "errors": [],
-  "generated_at": "2026-11-19T16:24:03Z",
+  "generated_at": "2026-11-19T16:35:53Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 81,
+      "CONFIDENCE.HIGH": 84,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 6,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 87,
+      "SEVERITY.LOW": 90,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 10846,
+      "loc": 11206,
       "nosec": 0,
-      "skipped_tests": 15
+      "skipped_tests": 16
     },
     "src/ai_shell/__init__.py": {
       "CONFIDENCE.HIGH": 0,
@@ -193,9 +193,9 @@
       "SEVERITY.LOW": 18,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 2147,
+      "loc": 2222,
       "nosec": 0,
-      "skipped_tests": 2
+      "skipped_tests": 3
     },
     "src/ai_shell/cli/commands/vpn.py": {
       "CONFIDENCE.HIGH": 0,
@@ -219,7 +219,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 550,
+      "loc": 554,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -337,6 +337,19 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 25,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "src/ai_shell/remote.py": {
+      "CONFIDENCE.HIGH": 3,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 3,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 281,
       "nosec": 0,
       "skipped_tests": 0
     },
