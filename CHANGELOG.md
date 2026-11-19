@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.124.0 (2026-11-19)
+
+### Bug Fixes
+
+- **opencode**: No --model on opencode serve and opencode web
+  ([`bcc208a`](https://github.com/svange/augint-shell/commit/bcc208a7cce65edf0a71e17321926b539183ed88))
+
+- **opencode**: No --model on opencode serve and opencode web (#204)
+  ([#204](https://github.com/svange/augint-shell/pull/204),
+  [`54078cb`](https://github.com/svange/augint-shell/commit/54078cb3ebe0b412a78e8589cd2d388a68ff5ea0))
+
+### Features
+
+- **opencode**: Ai-shell opencode remote opens OpenCode on a box over SSM
+  ([`fca86c7`](https://github.com/svange/augint-shell/commit/fca86c7c8893fedf95e8adc3522a1280af124455))
+
+- **opencode**: Ai-shell opencode remote opens OpenCode on a box over SSM (#205)
+  ([#205](https://github.com/svange/augint-shell/pull/205),
+  [`4883f66`](https://github.com/svange/augint-shell/commit/4883f66f28e33d0403ccd5e797ad8f7484cf7d1f))
+
+
 ## v0.123.4 (2026-11-19)
 
 ### Bug Fixes
