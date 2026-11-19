@@ -65,10 +65,12 @@ BEDROCK_MODEL_LIMITS: dict[str, dict[str, int]] = {
     "xai.grok-4.7": {"context": 500000, "output": 32768},
 }
 BEDROCK_FALLBACK_LIMIT: dict[str, int] = {"context": 128000, "output": 16384}
-# OpenCode's built-in Bedrock provider lists Anthropic models from the same AWS
-# credentials. Anthropic models are not allowed for GovCloud work, so a GovCloud
-# config turns that provider off.
-GOVCLOUD_DISABLED_PROVIDERS: tuple[str, ...] = ("amazon-bedrock",)
+# GovCloud work must stay in GovCloud. OpenCode has built-in providers outside it:
+# ``amazon-bedrock`` lists Anthropic models from the same AWS credentials, and
+# ``opencode`` (OpenCode's hosted models, e.g. big-pickle) sends prompts to the
+# internet. A GovCloud config therefore allows only the providers ai-shell writes
+# (``enabled_providers``) and also names the known ones in ``disabled_providers``.
+GOVCLOUD_DISABLED_PROVIDERS: tuple[str, ...] = ("amazon-bedrock", "opencode")
 # Models listed in the OpenCode model picker. Mantle serves gpt-oss on /v1 and
 # GPT-5.x on /openai/v1, and Grok is served by bedrock-runtime, so each list
 # becomes its own provider.
@@ -861,6 +863,7 @@ def build_opencode_config_patch(
         patch["agent"] = agent_patch
     if govcloud:
         patch["disabled_providers"] = list(GOVCLOUD_DISABLED_PROVIDERS)
+        patch["enabled_providers"] = list(providers_patch)
 
     return patch
 
