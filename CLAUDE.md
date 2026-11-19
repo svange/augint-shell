@@ -40,6 +40,7 @@ CLI commands (cli/commands/: tools.py, llm.py, manage.py, vpn.py)
      local_chrome.py (host Chrome + DevTools bridge), cdp_relay.py (Linux relay),
      claude_login.py (piped `claude auth login`), vpn.py (gluetun container),
      t3.py, expo.py
+  -> remote.py (`ai-shell opencode remote`: the AWS CLI only, no Docker on the host)
 ```
 
 ### Three container categories
@@ -101,6 +102,7 @@ The "prefer SSO over PAT" logic in `docker/docker-entrypoint.sh` runs only in PI
 - **`opencode --web`** — runs `opencode web` inside the container with `--mdns`, `--cors '*'`, `--hostname 0.0.0.0`. Interactive (foreground).
 - **`opencode serve`** — runs `opencode serve` detached (`exec_detached()`), then discovers git repos under CWD and registers each as a project via the opencode HTTP API (`POST /project/:base64path/session`). Prints server URL, mDNS name, and registered project list.
 - **`opencode status`** — parses `pgrep -af opencode` output inside the container to show server state and attached terminal count.
+- **`opencode remote [PROJECT]`** — OpenCode on an EC2 box, over AWS Systems Manager (`remote.py`; config `opencode.remote`, `RemoteBox`). It calls only the `aws` command: SSM Run Command (a base64 script as root, `sudo -iu <user> bash -lc` for user work) starts the box's server with `start_command` when `curl` on the box gets no HTTP answer, reads `~/.augint/opencode/server-password` there, and runs `aws ssm start-session --document-name AWS-StartPortForwardingSession`. The server port is read from `docker ps` on the box (`augint-shell-<slug>-` publishing 4096). Every AWS CLI call asks for `--output json` and UTF-8 (`aws_env`), because a profile's `output = yaml` and the Windows code page broke both. A box that runs its server as its own service sets `start_command` to start that service.
 
 mDNS domain defaults to `sanitize_project_name().local`. PATH includes `/root/.opencode/bin` so `opencode` is available in interactive shells.
 

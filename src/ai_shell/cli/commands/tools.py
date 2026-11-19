@@ -2152,6 +2152,69 @@ def attach(ctx, port: int) -> None:
 
 
 @opencode.command()
+@click.argument("project", required=False, default="")
+@click.option("--instance", default="", help="Instance id or Name tag (opencode.remote.instance).")
+@click.option(
+    "--local-port", type=int, default=0, help="Local port (default: the box's server port)."
+)
+@click.option("--no-browser", is_flag=True, default=False, help="Do not open the browser.")
+@click.pass_context
+def remote(ctx, project: str, instance: str, local_port: int, no_browser: bool) -> None:
+    """Open OpenCode on a remote box over AWS Systems Manager.
+
+    Starts the box and the project's server when needed, prints the user and password,
+    forwards the server port to localhost and opens the browser. PROJECT is the folder
+    under opencode.remote.projects_dir on the box (default: this folder's name).
+    Ctrl+C ends the tunnel.
+    """
+    import dataclasses
+    import time
+
+    from ai_shell import remote as rbox
+    from ai_shell.opencode import OPENCODE_DEFAULT_USERNAME
+
+    config = load_config(project_override=ctx.obj.get("project"), project_dir=Path.cwd())
+    box = dataclasses.replace(config.opencode_remote)
+    if instance:
+        box.instance = instance
+    name = project or Path.cwd().name
+    try:
+        rbox.project_folder(name)
+        if not rbox.session_manager_plugin_found():
+            raise rbox.RemoteError(
+                "The AWS Session Manager plugin is not installed on this computer "
+                "(https://docs.aws.amazon.com/systems-manager/latest/userguide/"
+                "session-manager-working-with-install-plugin.html)."
+            )
+        rbox.ensure_login(box)
+        instance_id = rbox.resolve_instance(box)
+        rbox.ensure_running(box, instance_id, say=console.print)
+        port = rbox.ensure_server(box, instance_id, name, say=console.print)
+        password = rbox.server_password(box, instance_id)
+    except rbox.RemoteError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    local = local_port or port
+    url = f"http://localhost:{local}"
+    console.print(f"\n[green bold]OpenCode for {name}: {url}[/green bold]")
+    console.print(f"User:     {OPENCODE_DEFAULT_USERNAME}")
+    console.print(f"Password: {password or '(not made yet)'}")
+    console.print("Ctrl+C ends the tunnel.\n")
+    tunnel = subprocess.Popen(  # nosec B603 (fixed argv, no shell)
+        rbox.port_forward_args(box, instance_id, port, local), env=rbox.aws_env()
+    )
+    try:
+        if not no_browser:
+            time.sleep(3)
+            if tunnel.poll() is None:
+                webbrowser.open(url)
+        sys.exit(tunnel.wait())
+    except KeyboardInterrupt:
+        tunnel.terminate()
+        sys.exit(0)
+
+
+@opencode.command()
 @click.pass_context
 def status(ctx) -> None:
     """Show the status of a running opencode server."""
