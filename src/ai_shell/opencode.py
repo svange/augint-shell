@@ -50,6 +50,25 @@ DEFAULT_BEDROCK_MANTLE_PRIMARY_MODEL = "openai.gpt-5.6-terra"
 DEFAULT_BEDROCK_MANTLE_SUBAGENT_MODEL = "openai.gpt-5.6-luna"
 BEDROCK_MANTLE_DEFAULT_PRIMARY_MODEL = DEFAULT_BEDROCK_MANTLE_PRIMARY_MODEL
 BEDROCK_MANTLE_DEFAULT_SUBAGENT_MODEL = DEFAULT_BEDROCK_MANTLE_SUBAGENT_MODEL
+# GovCloud defaults: the models a standalone GovCloud account can call. On
+# 2026-11-19 Bedrock in us-gov-west-1 answered "not available for this account"
+# for GPT-5.6 Terra, Luna and GPT-5.4, and Grok had a small daily token quota.
+DEFAULT_GOVCLOUD_PRIMARY_MODEL = "openai.gpt-oss-120b"
+DEFAULT_GOVCLOUD_SUBAGENT_MODEL = "openai.gpt-oss-120b"
+# OpenCode gives a model without a limit {context: 0, output: 0}. It then reads
+# any failed request as a context overflow and starts a compaction that fails
+# too, which hides the real error. Figures from the Bedrock model cards; a model
+# without a published figure gets the conservative fallback.
+BEDROCK_MODEL_LIMITS: dict[str, dict[str, int]] = {
+    "openai.gpt-oss-120b": {"context": 128000, "output": 16384},
+    "openai.gpt-oss-20b": {"context": 128000, "output": 16384},
+    "xai.grok-4.7": {"context": 500000, "output": 32768},
+}
+BEDROCK_FALLBACK_LIMIT: dict[str, int] = {"context": 128000, "output": 16384}
+# OpenCode's built-in Bedrock provider lists Anthropic models from the same AWS
+# credentials. Anthropic models are not allowed for GovCloud work, so a GovCloud
+# config turns that provider off.
+GOVCLOUD_DISABLED_PROVIDERS: tuple[str, ...] = ("amazon-bedrock",)
 # Models listed in the OpenCode model picker. Mantle serves gpt-oss on /v1 and
 # GPT-5.x on /openai/v1, and Grok is served by bedrock-runtime, so each list
 # becomes its own provider.
@@ -662,6 +681,23 @@ def _drop_misrouted_mantle_models(config: dict[str, Any]) -> None:
                 del models[model_id]
 
 
+def bedrock_model_limit(model_id: str) -> dict[str, int]:
+    """OpenCode's ``limit`` for a Bedrock model ID (inference profile prefix ignored)."""
+    bare = _INFERENCE_PROFILE_PREFIX.sub("", model_id)
+    bare = re.sub(r"-\d+:\d+$", "", bare)
+    return dict(BEDROCK_MODEL_LIMITS.get(bare, BEDROCK_FALLBACK_LIMIT))
+
+
+def _bedrock_model_entry(model_id: str) -> dict[str, Any]:
+    return {"name": model_id, "limit": bedrock_model_limit(model_id)}
+
+
+def _model_entry(provider: str, model_id: str) -> dict[str, Any]:
+    if provider in MANTLE_PROVIDER_IDS:
+        return _bedrock_model_entry(model_id)
+    return {"name": model_id}
+
+
 def deep_merge_dict(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge *patch* into a copy of *base* without clobbering sibling keys."""
     merged: dict[str, Any] = dict(base)
@@ -713,27 +749,35 @@ def build_opencode_config_patch(
         elif endpoints:
             resolved_default_provider = endpoints[0].name
 
+    providers_patch: dict[str, Any] = {}
+    resolved_region = ""
+    if mantle_active:
+        resolved_region = resolve_bedrock_mantle_region(
+            region=effective_region_arg, partition=aws_partition
+        )
+    govcloud = resolved_region.startswith("us-gov-")
+
     effective_primary = primary_model.strip()
     if not effective_primary:
         if mantle_active:
-            effective_primary = DEFAULT_BEDROCK_MANTLE_PRIMARY_MODEL
+            effective_primary = (
+                DEFAULT_GOVCLOUD_PRIMARY_MODEL if govcloud else DEFAULT_BEDROCK_MANTLE_PRIMARY_MODEL
+            )
         elif endpoints and endpoints[0].models:
             effective_primary = endpoints[0].models[0]
 
     effective_subagent = subagent_model.strip()
     if not effective_subagent:
         if mantle_active:
-            effective_subagent = DEFAULT_BEDROCK_MANTLE_SUBAGENT_MODEL
+            effective_subagent = (
+                DEFAULT_GOVCLOUD_SUBAGENT_MODEL
+                if govcloud
+                else DEFAULT_BEDROCK_MANTLE_SUBAGENT_MODEL
+            )
         elif effective_primary:
             effective_subagent = effective_primary
 
-    providers_patch: dict[str, Any] = {}
-    resolved_region = ""
-
     if mantle_active:
-        resolved_region = resolve_bedrock_mantle_region(
-            region=effective_region_arg, partition=aws_partition
-        )
         api_key = f"{{env:{BEDROCK_BEARER_TOKEN_VAR}}}"
         providers_patch[BEDROCK_MANTLE_PROVIDER_ID] = {
             "npm": OPENAI_COMPATIBLE_NPM,
@@ -742,7 +786,7 @@ def build_opencode_config_patch(
                 "baseURL": bedrock_mantle_base_url(region=resolved_region, partition=aws_partition),
                 "apiKey": api_key,
             },
-            "models": {m: {"name": m} for m in BEDROCK_MANTLE_DEFAULT_MODELS},
+            "models": {m: _bedrock_model_entry(m) for m in BEDROCK_MANTLE_DEFAULT_MODELS},
         }
         providers_patch[BEDROCK_MANTLE_OPENAI_PROVIDER_ID] = {
             "npm": OPENAI_COMPATIBLE_NPM,
@@ -753,7 +797,7 @@ def build_opencode_config_patch(
                 ),
                 "apiKey": api_key,
             },
-            "models": {m: {"name": m} for m in BEDROCK_MANTLE_OPENAI_DEFAULT_MODELS},
+            "models": {m: _bedrock_model_entry(m) for m in BEDROCK_MANTLE_OPENAI_DEFAULT_MODELS},
         }
         runtime_models = [
             with_inference_profile(m, resolved_region) for m in BEDROCK_RUNTIME_DEFAULT_BASE_MODELS
@@ -767,7 +811,7 @@ def build_opencode_config_patch(
                 ),
                 "apiKey": api_key,
             },
-            "models": {m: {"name": m} for m in runtime_models},
+            "models": {m: _bedrock_model_entry(m) for m in runtime_models},
         }
 
     for ep in endpoints:
@@ -794,7 +838,9 @@ def build_opencode_config_patch(
         for agent_name in PRIMARY_AGENTS:
             agent_patch[agent_name] = {"model": qual_primary}
         if prim_prov and prim_prov in providers_patch and prim_bare:
-            providers_patch[prim_prov].setdefault("models", {})[prim_bare] = {"name": prim_bare}
+            providers_patch[prim_prov].setdefault("models", {})[prim_bare] = _model_entry(
+                prim_prov, prim_bare
+            )
 
     if effective_subagent:
         qual_sub, sub_prov, sub_bare = _route_mantle_model(
@@ -805,12 +851,16 @@ def build_opencode_config_patch(
         for agent_name in SUBAGENTS:
             agent_patch[agent_name] = {"model": qual_sub}
         if sub_prov and sub_prov in providers_patch and sub_bare:
-            providers_patch[sub_prov].setdefault("models", {})[sub_bare] = {"name": sub_bare}
+            providers_patch[sub_prov].setdefault("models", {})[sub_bare] = _model_entry(
+                sub_prov, sub_bare
+            )
 
     if providers_patch:
         patch["provider"] = providers_patch
     if agent_patch:
         patch["agent"] = agent_patch
+    if govcloud:
+        patch["disabled_providers"] = list(GOVCLOUD_DISABLED_PROVIDERS)
 
     return patch
 
@@ -858,6 +908,10 @@ def sync_opencode_config(
     )
 
     merged = deep_merge_dict(existing, patch)
+    disabled = patch.get("disabled_providers")
+    if disabled and isinstance(existing.get("disabled_providers"), list):
+        kept = [p for p in existing["disabled_providers"] if p not in disabled]
+        merged["disabled_providers"] = kept + list(disabled)
     _drop_misrouted_mantle_models(merged)
     merged.setdefault("$schema", OPENCODE_SCHEMA_URL)
     target.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")

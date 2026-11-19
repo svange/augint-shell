@@ -28,6 +28,7 @@
 #   aws_region: us-gov-west-1      # OpenCode only; aws.bedrock_region is used only in the same partition
 #   aws_profile: my-gov-profile    # makes the short-term AWS_BEARER_TOKEN_BEDROCK
 #   model: openai.gpt-5.6-terra    # plan + build agents; or openai.gpt-5.4, xai.grok-4.7
+#                                  # default: Terra/Luna commercial, openai.gpt-oss-120b GovCloud
 #   subagent_model: openai.gpt-5.6-luna   # explore + general subagents
 #   claude_compat: false           # true = also read CLAUDE.md and .claude/.agents skills
 #   local_chrome: false            # Chrome DevTools MCP (same as --local-chrome)

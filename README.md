@@ -69,15 +69,17 @@ One command replaces the old Makefile + docker-compose.yml workflow.
 ### Prerequisites
 
 - Docker, or Podman with the `docker` CLI shim (`podman-docker`) and `DOCKER_HOST` pointing at its socket
-- Python >= 3.12 (only when installing from PyPI; **not required** when using the standalone binary)
+- [uv](https://docs.astral.sh/uv/) (it installs its own Python; **not required** when using the standalone binary)
 - (Optional) NVIDIA GPU + drivers for local LLM acceleration
 
 ### First-time setup
 
 ```bash
-pip install augint-shell
-# or:  uv add --dev augint-shell
+uv tool install augint-shell
+# update later:  uv tool upgrade augint-shell
 ```
+
+Do not install it with `pip` into a system Python. When that Python is removed, its `Scripts\ai-shell.exe` (or `bin/ai-shell`) stays behind, can stay first on `PATH`, and exits with no output.
 
 #### Without Python or PyPI (standalone binary)
 
@@ -587,8 +589,10 @@ A model given as `bedrock-mantle/openai.gpt-5.4` (or unqualified) is moved to th
   - Otherwise, `ai-shell` makes a short-term Bedrock API key from your AWS profile (`--aws-profile` / `--profile`, or `opencode.aws_profile`) before it starts OpenCode. The key is the same one `aws-bedrock-token-generator` makes. It lasts 12 hours, or less when the SSO session ends sooner. Run `aws sso login --profile <profile>` first. Disable with `--no-generate-token`.
   - The profile needs `bedrock:CallWithBearerToken`, `bedrock-mantle:CallWithBearerToken`, `bedrock-mantle:ListModels` and `bedrock-mantle:CreateInference` for Mantle, and `bedrock:InvokeModel` on the inference profile and its models for Grok.
 - **Default Mantle agent models**:
-  - Primary agents (`plan`, `build`): `bedrock-mantle-openai/openai.gpt-5.6-terra`
-  - Subagents (`explore`, `general`) and `small_model`: `bedrock-mantle-openai/openai.gpt-5.6-luna`
+  - Commercial AWS: primary agents (`plan`, `build`) `bedrock-mantle-openai/openai.gpt-5.6-terra`; subagents (`explore`, `general`) and `small_model` `bedrock-mantle-openai/openai.gpt-5.6-luna`.
+  - AWS GovCloud: `bedrock-mantle/openai.gpt-oss-120b` for all of them. On 2026-11-19 a standalone GovCloud account got "not available for this account" for GPT-5.6 Terra, Luna and GPT-5.4, and Grok on that account had a small daily token quota ("Too many tokens per day"). Set `model` and `subagent_model` when your account has access to more.
+- **Model limits**: every Bedrock model in `opencode.json` gets a `limit` (context and output tokens, from the Bedrock model cards; 128000/16384 when no figure is published). Without one, OpenCode reads any failed request as a context overflow and the real error is hidden.
+- **No Anthropic models in GovCloud**: a GovCloud config adds `amazon-bedrock` (OpenCode's built-in Bedrock provider, which lists Anthropic models) to `disabled_providers`. Your own entries in that list are kept.
 
 ```bash
 # Commercial AWS (defaults to us-east-1) using an AWS SSO profile
@@ -603,14 +607,14 @@ aws sso login --profile ai-gov
 ai-shell opencode --aws --aws-partition govcloud --aws-profile ai-gov
 ```
 
-A standalone GovCloud account, with GPT-5.6 Terra for planning and building, GPT-5.6 Luna for subagents, and an optional own model on a GPU instance that you reach through a Session Manager port forward on host port 8000. Put this in `~/.augint/.ai-shell.yaml`:
+A standalone GovCloud account with access to GPT-5.6 Terra (for planning and building) and GPT-5.6 Luna (for subagents), and an optional own model on a GPU instance that you reach through a Session Manager port forward on host port 8000. Put this in `~/.augint/.ai-shell.yaml`:
 
 ```yaml
 opencode:
   provider: bedrock-mantle
   aws_partition: govcloud
   aws_profile: ai-gov
-  model: openai.gpt-5.6-terra     # or xai.grok-4.7
+  model: openai.gpt-5.6-terra     # or xai.grok-4.7; without these two lines: openai.gpt-oss-120b
   subagent_model: openai.gpt-5.6-luna
   endpoints:
     govcloud-gpu:
