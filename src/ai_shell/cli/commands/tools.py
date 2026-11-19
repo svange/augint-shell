@@ -1698,6 +1698,25 @@ def _opencode_setup(
     return manager, name, exec_env, config, cmd_base, bedrock_label, openai_label, project_slug
 
 
+def _server_command(cmd: list[str]) -> list[str]:
+    """*cmd* without ``--model``: ``opencode serve`` and ``opencode web`` reject it.
+
+    OpenCode 1.19 prints the usage and exits 1 on ``opencode --model M serve``.
+    The servers take the model from opencode.json, which ai-shell writes.
+    """
+    out: list[str] = []
+    skip = False
+    for arg in cmd:
+        if skip:
+            skip = False
+            continue
+        if arg == "--model":
+            skip = True
+            continue
+        out.append(arg)
+    return out
+
+
 def _ensure_opencode_password(exec_env: dict[str, str]) -> None:
     """Put a server password in *exec_env* and say how to sign in.
 
@@ -2003,6 +2022,7 @@ def opencode(
         _attach_expo(manager, name, config, exec_env, use_expo=use_expo)
 
         if web:
+            cmd = _server_command(cmd)
             cmd.append("web")
             cmd.extend(["--hostname", "0.0.0.0", "--port", str(web_port)])  # nosec B104
             cmd.extend(["--mdns", "--mdns-domain", f"{project_slug}.local"])
@@ -2107,6 +2127,7 @@ def serve(ctx, port: int, open_browser: bool) -> None:
     )
 
     _ensure_opencode_password(exec_env)
+    cmd = _server_command(cmd)
     cmd.append("serve")
     cmd.extend(["--hostname", "0.0.0.0", "--port", str(port)])  # nosec B104
     cmd.extend(["--mdns", "--mdns-domain", f"{project_slug}.local"])
