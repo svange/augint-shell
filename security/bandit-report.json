@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-11-19T19:23:09Z",
+  "generated_at": "2026-11-19T22:09:15Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 84,
@@ -11,9 +11,9 @@
       "SEVERITY.LOW": 90,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 11245,
+      "loc": 12257,
       "nosec": 0,
-      "skipped_tests": 16
+      "skipped_tests": 25
     },
     "src/ai_shell/__init__.py": {
       "CONFIDENCE.HIGH": 0,
@@ -128,7 +128,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 77,
+      "loc": 79,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -157,6 +157,19 @@
       "loc": 415,
       "nosec": 0,
       "skipped_tests": 0
+    },
+    "src/ai_shell/cli/commands/ec2.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 356,
+      "nosec": 0,
+      "skipped_tests": 4
     },
     "src/ai_shell/cli/commands/llm.py": {
       "CONFIDENCE.HIGH": 1,
@@ -248,6 +261,19 @@
       "loc": 884,
       "nosec": 0,
       "skipped_tests": 1
+    },
+    "src/ai_shell/ec2.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 632,
+      "nosec": 0,
+      "skipped_tests": 5
     },
     "src/ai_shell/exceptions.py": {
       "CONFIDENCE.HIGH": 0,
@@ -349,7 +375,7 @@
       "SEVERITY.LOW": 3,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 281,
+      "loc": 303,
       "nosec": 0,
       "skipped_tests": 0
     },
