@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.125.0 (2026-11-19)
+
+### Features
+
+- **ec2**: Ai-shell ec2 lists, connects to and stops instances across AWS profiles
+  ([`81b9ad4`](https://github.com/svange/augint-shell/commit/81b9ad42deda27e4bcc86e91aa533857174ad422))
+
+- **ec2**: Ai-shell ec2 lists, connects to and stops instances across AWS profiles (#209)
+  ([#209](https://github.com/svange/augint-shell/pull/209),
+  [`f847df3`](https://github.com/svange/augint-shell/commit/f847df3d0a5e8122ae9437afedcd20fdb02ce76f))
+
+
 ## v0.124.2 (2026-11-19)
 
 ### Bug Fixes
