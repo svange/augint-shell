@@ -428,10 +428,30 @@ class TestQualifyModelAndConfigMerging:
         patch_dict = build_opencode_config_patch(use_bedrock_mantle=True, aws_partition="govcloud")
         assert patch_dict["model"] == "bedrock-mantle/openai.gpt-oss-120b"
 
-    def test_govcloud_turns_off_the_builtin_bedrock_provider(self):
-        # Regression: OpenCode's amazon-bedrock provider offered Anthropic models on the box.
+    def test_govcloud_turns_off_the_builtin_providers(self):
+        # Regression: on the box OpenCode offered amazon-bedrock (Anthropic models) and
+        # its own hosted "opencode" provider, which is outside GovCloud.
         patch_dict = build_opencode_config_patch(bedrock_region="us-gov-west-1")
-        assert patch_dict["disabled_providers"] == ["amazon-bedrock"]
+        assert patch_dict["disabled_providers"] == ["amazon-bedrock", "opencode"]
+        assert patch_dict["enabled_providers"] == [
+            "bedrock-mantle",
+            "bedrock-mantle-openai",
+            "bedrock-runtime",
+        ]
+
+    def test_govcloud_allows_configured_endpoints(self):
+        patch_dict = build_opencode_config_patch(
+            bedrock_region="us-gov-west-1",
+            custom_endpoints=[
+                CustomEndpoint(name="govcloud-gpu", base_url="http://x:8000/v1", models=["m"])
+            ],
+        )
+        assert "govcloud-gpu" in patch_dict["enabled_providers"]
+        assert "opencode" not in patch_dict["enabled_providers"]
+
+    def test_commercial_sets_no_provider_lists(self):
+        patch_dict = build_opencode_config_patch(bedrock_region="us-east-1")
+        assert "enabled_providers" not in patch_dict
 
     def test_every_bedrock_model_has_a_limit(self):
         # Regression: limit {context: 0, output: 0} made OpenCode read a quota error
@@ -452,7 +472,7 @@ class TestQualifyModelAndConfigMerging:
         config_path = tmp_path / "opencode.json"
         config_path.write_text(json.dumps({"disabled_providers": ["openrouter"]}))
         merged = sync_opencode_config(config_path=config_path, bedrock_region="us-gov-west-1")
-        assert merged["disabled_providers"] == ["openrouter", "amazon-bedrock"]
+        assert merged["disabled_providers"] == ["openrouter", "amazon-bedrock", "opencode"]
 
     def test_grok_gets_govcloud_inference_profile_on_bedrock_runtime(self):
         patch_dict = build_opencode_config_patch(

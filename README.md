@@ -592,7 +592,7 @@ A model given as `bedrock-mantle/openai.gpt-5.4` (or unqualified) is moved to th
   - Commercial AWS: primary agents (`plan`, `build`) `bedrock-mantle-openai/openai.gpt-5.6-terra`; subagents (`explore`, `general`) and `small_model` `bedrock-mantle-openai/openai.gpt-5.6-luna`.
   - AWS GovCloud: `bedrock-mantle/openai.gpt-oss-120b` for all of them. On 2026-11-19 a standalone GovCloud account got "not available for this account" for GPT-5.6 Terra, Luna and GPT-5.4, and Grok on that account had a small daily token quota ("Too many tokens per day"). Set `model` and `subagent_model` when your account has access to more.
 - **Model limits**: every Bedrock model in `opencode.json` gets a `limit` (context and output tokens, from the Bedrock model cards; 128000/16384 when no figure is published). Without one, OpenCode reads any failed request as a context overflow and the real error is hidden.
-- **No Anthropic models in GovCloud**: a GovCloud config adds `amazon-bedrock` (OpenCode's built-in Bedrock provider, which lists Anthropic models) to `disabled_providers`. Your own entries in that list are kept.
+- **Only GovCloud providers in GovCloud**: a GovCloud config sets `enabled_providers` to the providers ai-shell writes (the three Bedrock providers and your `endpoints`). It also adds `amazon-bedrock` (OpenCode's built-in Bedrock provider, which lists Anthropic models) and `opencode` (OpenCode's hosted models, outside AWS) to `disabled_providers`; your own entries in that list are kept.
 
 ```bash
 # Commercial AWS (defaults to us-east-1) using an AWS SSO profile
