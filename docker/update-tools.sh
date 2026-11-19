@@ -15,6 +15,14 @@
 # =========================================================================
 set -uo pipefail
 
+# Ensure cron (which runs with a minimal PATH=/usr/bin:/bin) can find
+# pnpm-managed node/npm as well as claude, opencode, and global npm tools.
+# Appended rather than prepended so caller-supplied PATH entries (including
+# test stubs) keep priority.
+export PNPM_HOME="${PNPM_HOME:-/root/.local/share/pnpm}"
+export NPM_CONFIG_PREFIX="${NPM_CONFIG_PREFIX:-/usr/local}"
+export PATH="${PATH}:/root/.local/bin:${PNPM_HOME}/bin:${PNPM_HOME}:/root/.opencode/bin:/usr/local/bin"
+
 # The state and log directories can be moved for a test run
 # (tests/unit/test_update_tools.py); the container uses the defaults.
 STATE_DIR="${AI_SHELL_UPDATE_STATE_DIR:-/var/run/ai-shell}"
