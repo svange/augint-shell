@@ -105,6 +105,9 @@ PLANNOTATOR_CONTAINER_PORT = 19432  # PLANNOTATOR_PORT in build_dev_environment
 OPENCODE_SERVER_PASSWORD_ENV = "OPENCODE_SERVER_PASSWORD"
 OPENCODE_SERVER_USERNAME_ENV = "OPENCODE_SERVER_USERNAME"
 OPENCODE_DEFAULT_USERNAME = "opencode"
+# Output of the detached `opencode serve` inside the dev container.
+OPENCODE_SERVE_LOG = "/tmp/opencode-serve.log"  # nosec B108 (in the container)
+OPENCODE_SERVE_START_SECONDS = 30
 
 
 def opencode_server_password_path(home: Path | None = None) -> Path:

@@ -2028,6 +2028,45 @@ def opencode(
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
+def _opencode_server_answers(manager: ContainerManager, name: str, port: int) -> bool:
+    """True when something answers HTTP on *port* in the container (401 counts)."""
+    probe = (
+        f"curl -s -o /dev/null -w '%{{http_code}}' --max-time 3 http://127.0.0.1:{port}/ || true"
+    )
+    result = manager.exec_capture(name, ["sh", "-c", probe])
+    code = str(getattr(result, "stdout", "")).strip()
+    return code.isdigit() and code != "000"
+
+
+def _opencode_server_running(manager: ContainerManager, name: str) -> bool:
+    result = manager.exec_capture(name, ["pgrep", "-f", "opencode serve"])
+    return getattr(result, "returncode", 1) == 0
+
+
+def _wait_for_opencode_server(manager: ContainerManager, name: str, port: int) -> None:
+    """Wait until the detached server answers; fail with its own output when it exits."""
+    import time
+
+    from ai_shell.opencode import OPENCODE_SERVE_LOG, OPENCODE_SERVE_START_SECONDS
+
+    deadline = time.monotonic() + OPENCODE_SERVE_START_SECONDS
+    while time.monotonic() < deadline:
+        if _opencode_server_answers(manager, name, port):
+            return
+        if not _opencode_server_running(manager, name):
+            log = manager.exec_capture(name, ["tail", "-n", "40", OPENCODE_SERVE_LOG])
+            output = str(getattr(log, "stdout", "")).strip() or "(no output)"
+            raise click.ClickException(
+                f"opencode serve exited at start. Its output ({OPENCODE_SERVE_LOG} "
+                f"in {name}):\n{output}"
+            )
+        time.sleep(1)
+    console.print(
+        f"[yellow]The server is running but did not answer on port {port} within "
+        f"{OPENCODE_SERVE_START_SECONDS} s. Its output: {OPENCODE_SERVE_LOG} in {name}.[/yellow]"
+    )
+
+
 @opencode.command()
 @click.option(
     "--port",
@@ -2073,10 +2112,13 @@ def serve(ctx, port: int, open_browser: bool) -> None:
     cmd.extend(["--mdns", "--mdns-domain", f"{project_slug}.local"])
     cmd.extend(["--cors", "*"])
 
+    from ai_shell.opencode import OPENCODE_SERVE_LOG
+
     console.print(
         f"[bold]Starting opencode server{bedrock_label}{openai_label} in {name}...[/bold]"
     )
-    manager.exec_detached(name, cmd, extra_env=exec_env)
+    manager.exec_detached(name, cmd, extra_env=exec_env, log_path=OPENCODE_SERVE_LOG)
+    _wait_for_opencode_server(manager, name, port)
 
     cwd = Path.cwd()
     host_port = _live_host_port(manager, name, port) or project_dev_port(

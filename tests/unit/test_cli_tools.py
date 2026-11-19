@@ -1,6 +1,7 @@
 """Tests for CLI tool subcommands."""
 
 import json
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -19,6 +20,9 @@ TEST_EXEC_ENV = {
     "GITHUB_TOKEN": "test-token",
     "IS_SANDBOX": "1",
 }
+
+# What the serve readiness probe sees from a server that answers (401: password asked).
+SERVER_UP = subprocess.CompletedProcess(["sh"], 0, "401", "")
 
 
 @patch("ai_shell.cli.commands.tools._check_bedrock_access")
@@ -1225,6 +1229,7 @@ class TestToolCommands:
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_capture.return_value = SERVER_UP
         mock_manager_cls.return_value = mock_manager
 
         with patch("ai_shell.cli.commands.tools._live_host_port", return_value=24000):
@@ -1277,6 +1282,7 @@ class TestToolCommands:
         mock_build_env.return_value = dict(TEST_EXEC_ENV)
         mock_manager = MagicMock()
         mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+        mock_manager.exec_capture.return_value = SERVER_UP
         mock_manager_cls.return_value = mock_manager
 
         with patch("ai_shell.cli.commands.tools.Path.cwd", return_value=Path("/tmp/test")):
@@ -1288,7 +1294,44 @@ class TestToolCommands:
         assert "--hostname" in serve_cmd
         assert "--mdns" in serve_cmd
         assert "--cors" in serve_cmd
+        assert mock_manager.exec_detached.call_args[1]["log_path"] == "/tmp/opencode-serve.log"
         assert "http://localhost:" in result.output
+
+    def test_opencode_serve_shows_the_error_when_the_server_exits(
+        self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock
+    ):
+        """Regression: a server that exited at start was reported as running, error lost."""
+        config = MagicMock()
+        config.bedrock_profile = ""
+        config.openai_profile = ""
+        config.ai_profile = ""
+        config.aws_region = ""
+        config.extra_env = {}
+        config.project_dir = Path("/tmp/test")
+        config.project_name = "test"
+        config.primary_coding_model = "qwen3-coder:30b-a3b-q4_K_M"
+        mock_config.return_value = config
+        mock_build_env.return_value = dict(TEST_EXEC_ENV)
+        mock_manager = MagicMock()
+        mock_manager.ensure_dev_container.return_value = "augint-shell-test-dev"
+
+        def capture(name, command, *args, **kwargs):
+            if command[0] == "tail":
+                return subprocess.CompletedProcess(command, 0, "Error: bad provider config\n", "")
+            if command[0] == "pgrep":
+                return subprocess.CompletedProcess(command, 1, "", "")
+            return subprocess.CompletedProcess(command, 0, "000", "")
+
+        mock_manager.exec_capture.side_effect = capture
+        mock_manager_cls.return_value = mock_manager
+
+        with patch("ai_shell.cli.commands.tools.Path.cwd", return_value=Path("/tmp/test")):
+            result = self.runner.invoke(cli, ["opencode", "serve"])
+
+        assert result.exit_code == 1
+        assert "opencode serve exited at start" in result.output
+        assert "Error: bad provider config" in result.output
+        assert "Server: http://localhost:" not in result.output
 
     def test_opencode_attach_default_port(
         self, mock_config, mock_manager_cls, mock_build_env, mock_check_bedrock

@@ -704,6 +704,8 @@ ai-shell opencode status               # Show server URL, mDNS name, terminal co
 
 mDNS is enabled by default — the server is discoverable on your LAN as `<project>.local`. CORS is set to `*` for cross-device access (phone, tablet).
 
+`serve` waits up to 30 seconds for the server to answer. The server's output goes to `/tmp/opencode-serve.log` in the dev container. When the server exits at start, `serve` prints the end of that log and exits with an error.
+
 The web UI and the server always ask for a password, because they listen on every host interface. The browser asks for user `opencode` and a password. By default, ai-shell makes the password on first use and keeps it in `~/.augint/opencode/server-password` (mode 600). `ai-shell opencode attach` sends it too. To use your own, set `OPENCODE_SERVER_PASSWORD` (and optionally `OPENCODE_SERVER_USERNAME`) in `~/.augint/.env` or the project `.env`:
 
 ```bash
