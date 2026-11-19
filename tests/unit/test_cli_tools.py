@@ -1088,6 +1088,8 @@ class TestToolCommands:
 
         cmd = mock_manager.exec_interactive.call_args[0][1]
         assert "web" in cmd
+        # Regression: opencode 1.19 rejects --model on its servers (usage, exit 1).
+        assert "--model" not in cmd
         assert "--hostname" in cmd
         assert "0.0.0.0" in cmd
         assert "--port" in cmd
@@ -1291,6 +1293,8 @@ class TestToolCommands:
         mock_manager.exec_detached.assert_called_once()
         serve_cmd = mock_manager.exec_detached.call_args[0][1]
         assert "serve" in serve_cmd
+        # Regression: `opencode --model M serve` prints the usage and exits 1 (1.19.6).
+        assert "--model" not in serve_cmd
         assert "--hostname" in serve_cmd
         assert "--mdns" in serve_cmd
         assert "--cors" in serve_cmd
@@ -2697,3 +2701,11 @@ class TestOpencodeProvidersAndHarness:
             "command": ["chrome-devtools-mcp", "--browserUrl", "http://localhost:9333"],
             "enabled": True,
         }
+
+
+def test_server_command_drops_the_model_flag():
+    from ai_shell.cli.commands.tools import _server_command
+
+    cmd = ["opencode", "--model", "bedrock-mantle-openai/openai.gpt-5.6-terra", "--pure"]
+    assert _server_command(cmd) == ["opencode", "--pure"]
+    assert _server_command(["opencode"]) == ["opencode"]
