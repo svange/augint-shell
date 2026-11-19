@@ -407,13 +407,52 @@ class TestQualifyModelAndConfigMerging:
         assert "openai.gpt-oss-120b" in patch_dict["provider"]["bedrock-mantle"]["models"]
         assert "openai.gpt-5.4" in patch_dict["provider"]["bedrock-mantle-openai"]["models"]
 
-    def test_defaults_are_terra_and_luna(self):
-        patch_dict = build_opencode_config_patch(bedrock_region="us-gov-west-1")
+    def test_commercial_defaults_are_terra_and_luna(self):
+        patch_dict = build_opencode_config_patch(bedrock_region="us-east-1")
         assert patch_dict["model"] == "bedrock-mantle-openai/openai.gpt-5.6-terra"
         assert patch_dict["small_model"] == "bedrock-mantle-openai/openai.gpt-5.6-luna"
         assert (
             patch_dict["agent"]["explore"]["model"] == "bedrock-mantle-openai/openai.gpt-5.6-luna"
         )
+        assert "disabled_providers" not in patch_dict
+
+    def test_govcloud_defaults_are_gpt_oss_120b(self):
+        # Regression: GovCloud refused Terra and Luna ("not available for this account").
+        patch_dict = build_opencode_config_patch(bedrock_region="us-gov-west-1")
+        assert patch_dict["model"] == "bedrock-mantle/openai.gpt-oss-120b"
+        assert patch_dict["small_model"] == "bedrock-mantle/openai.gpt-oss-120b"
+        assert patch_dict["agent"]["build"]["model"] == "bedrock-mantle/openai.gpt-oss-120b"
+        assert patch_dict["agent"]["general"]["model"] == "bedrock-mantle/openai.gpt-oss-120b"
+
+    def test_govcloud_partition_alone_picks_govcloud_defaults(self):
+        patch_dict = build_opencode_config_patch(use_bedrock_mantle=True, aws_partition="govcloud")
+        assert patch_dict["model"] == "bedrock-mantle/openai.gpt-oss-120b"
+
+    def test_govcloud_turns_off_the_builtin_bedrock_provider(self):
+        # Regression: OpenCode's amazon-bedrock provider offered Anthropic models on the box.
+        patch_dict = build_opencode_config_patch(bedrock_region="us-gov-west-1")
+        assert patch_dict["disabled_providers"] == ["amazon-bedrock"]
+
+    def test_every_bedrock_model_has_a_limit(self):
+        # Regression: limit {context: 0, output: 0} made OpenCode read a quota error
+        # as a context overflow.
+        patch_dict = build_opencode_config_patch(
+            bedrock_region="us-gov-west-1", primary_model="xai.grok-4.7"
+        )
+        for provider in ("bedrock-mantle", "bedrock-mantle-openai", "bedrock-runtime"):
+            for model_id, entry in patch_dict["provider"][provider]["models"].items():
+                assert entry["limit"]["context"] > 0, model_id
+                assert entry["limit"]["output"] > 0, model_id
+        mantle = patch_dict["provider"]["bedrock-mantle"]["models"]
+        assert mantle["openai.gpt-oss-120b"]["limit"] == {"context": 128000, "output": 16384}
+        runtime = patch_dict["provider"]["bedrock-runtime"]["models"]
+        assert runtime["us-gov.xai.grok-4.7"]["limit"]["context"] == 500000
+
+    def test_sync_keeps_the_users_disabled_providers(self, tmp_path: Path):
+        config_path = tmp_path / "opencode.json"
+        config_path.write_text(json.dumps({"disabled_providers": ["openrouter"]}))
+        merged = sync_opencode_config(config_path=config_path, bedrock_region="us-gov-west-1")
+        assert merged["disabled_providers"] == ["openrouter", "amazon-bedrock"]
 
     def test_grok_gets_govcloud_inference_profile_on_bedrock_runtime(self):
         patch_dict = build_opencode_config_patch(
