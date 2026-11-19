@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.124.2 (2026-11-19)
+
+### Bug Fixes
+
+- **opencode**: GovCloud allows only its own providers
+  ([`28a32f2`](https://github.com/svange/augint-shell/commit/28a32f28610a5d76632ccf29a9ebfee977a8ae43))
+
+- **opencode**: GovCloud allows only its own providers (#207)
+  ([#207](https://github.com/svange/augint-shell/pull/207),
+  [`858dbcd`](https://github.com/svange/augint-shell/commit/858dbcd49622e0bd82f8dbac5957f708a038b89e))
+
+
 ## v0.124.1 (2026-11-19)
 
 ### Bug Fixes
