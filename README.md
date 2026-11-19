@@ -144,6 +144,7 @@ If you need to work manually, [AGENTS.md](AGENTS.md) has the build, test and com
 | `ai-shell opencode --web` | Launch opencode web UI with mDNS + CORS |
 | `ai-shell opencode serve` | Headless server + attach all git repos as terminals |
 | `ai-shell opencode status` | Show server URL, mDNS name, attached terminals |
+| `ai-shell opencode remote [PROJECT]` | [OpenCode on a remote box](#6-opencode-on-a-remote-box-ssm) over AWS Systems Manager |
 | `ai-shell shell [bash\|zsh]` | Interactive shell in dev container (default: `bash`) |
 | `ai-shell claude --rc [NAME]` | [Remote Control](#remote-control-rc) server: drive the project from claude.ai/code or the Claude app |
 | `ai-shell claude --account NAME --rc` | Remote Control signed in as another Claude account (login profile) |
@@ -753,6 +754,38 @@ opencode:
 ```
 
 ---
+
+
+### 6. OpenCode on a remote box (SSM)
+
+`ai-shell opencode remote` opens OpenCode that runs on an EC2 box, from this computer. The box needs ai-shell, Docker and the SSM agent, and the project in `<projects_dir>/<project>`. Nothing on the box listens to the network: the command uses SSM Run Command and an SSM port-forwarding session. This computer needs the AWS CLI v2 and the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+
+```yaml
+# ~/.augint/.ai-shell.yaml
+opencode:
+  remote:
+    instance: my-opencode-box      # instance id (i-...) or its Name tag
+    aws_profile: my-gov-profile
+    aws_region: us-gov-west-1
+    user: dev                      # default dev
+    projects_dir: ~/projects       # default ~/projects
+    start_command: ai-shell opencode serve   # default; runs as user in the project, {project} = folder
+```
+
+```bash
+cd ~/projects/navy
+ai-shell opencode remote           # project = this folder's name; or: ai-shell opencode remote navy
+```
+
+The command:
+
+1. signs in with `aws sso login` when the profile's session has ended,
+2. starts the box when it is stopped and waits until SSM reaches it,
+3. runs `start_command` when the project's server does not answer, and waits until it does,
+4. prints the user (`opencode`) and the password from the box,
+5. forwards the server port to `localhost` and opens the browser (`--no-browser`, `--local-port`).
+
+Ctrl+C ends the tunnel. `--instance` overrides `opencode.remote.instance` for one run.
 
 ## Requirements
 

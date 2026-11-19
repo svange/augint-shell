@@ -36,6 +36,13 @@
 #     - "opencode-pty@0.4.0"
 #   instructions:                  # replaces the default opencode-shell-strategy; [] = none
 #     - "https://raw.githubusercontent.com/JRedeker/opencode-shell-strategy/1303f24df1649202834e052f1d66560ed186e413/shell_strategy.md"
+#   remote:                        # `ai-shell opencode remote`: a server on an EC2 box over SSM
+#     instance: my-opencode-box    # instance id (i-...) or its Name tag
+#     aws_profile: my-gov-profile  # the profile that may use SSM on the box
+#     aws_region: us-gov-west-1
+#     user: dev                    # the box user that owns the projects
+#     projects_dir: ~/projects     # the project is <projects_dir>/<this folder's name>
+#     start_command: ai-shell opencode serve   # runs as user in the project; {project} = folder
 #   endpoints:                     # self-hosted OpenAI-compatible servers (vLLM, SGLang)
 #     vllm:
 #       base_url: http://host.docker.internal:8000/v1

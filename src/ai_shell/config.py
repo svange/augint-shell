@@ -40,6 +40,7 @@ from ai_shell.defaults import (
     DEFAULT_WHISPER_PORT,
 )
 from ai_shell.opencode import CustomEndpoint, parse_endpoint_spec, sanitize_provider_id
+from ai_shell.remote import RemoteBox
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +172,8 @@ class AiShellConfig:
     # Bedrock region for ai-shell opencode only. Kept apart from bedrock_region
     # (Claude's) so a commercial default never reaches a GovCloud OpenCode.
     opencode_region: str = ""
+    # `ai-shell opencode remote`: an OpenCode server on an EC2 box over SSM.
+    opencode_remote: RemoteBox = field(default_factory=RemoteBox)
 
     @property
     def full_image(self) -> str:
@@ -550,6 +553,8 @@ def _apply_opencode_config(config: AiShellConfig, data: dict) -> None:
         config.opencode_instructions = _string_list(data["instructions"])
     if "local_chrome" in data:
         config.opencode_local_chrome = bool(data["local_chrome"])
+    if isinstance(data.get("remote"), dict):
+        config.opencode_remote = RemoteBox.from_dict(data["remote"])
 
 
 def _string_list(raw: object) -> list[str]:
