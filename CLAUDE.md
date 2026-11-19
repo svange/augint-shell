@@ -31,7 +31,7 @@ uv run pre-commit run --all-files            # All pre-commit hooks
 ### Dependency flow
 
 ```
-CLI commands (cli/commands/: tools.py, llm.py, manage.py, vpn.py)
+CLI commands (cli/commands/: tools.py, llm.py, manage.py, vpn.py, acp.py, ec2.py)
   -> ContainerManager (container.py)
     -> AiShellConfig (config.py)
     -> defaults.py (constants, mount/env builders)
@@ -41,6 +41,7 @@ CLI commands (cli/commands/: tools.py, llm.py, manage.py, vpn.py)
      claude_login.py (piped `claude auth login`), vpn.py (gluetun container),
      t3.py, expo.py
   -> remote.py (`ai-shell opencode remote`: the AWS CLI only, no Docker on the host)
+  -> ec2.py (`ai-shell ec2`: instances across AWS profiles; shares remote.py's AWS CLI core)
 ```
 
 ### Three container categories
@@ -105,6 +106,10 @@ The "prefer SSO over PAT" logic in `docker/docker-entrypoint.sh` runs only in PI
 - **`opencode remote [PROJECT]`** — OpenCode on an EC2 box, over AWS Systems Manager (`remote.py`; config `opencode.remote`, `RemoteBox`). It calls only the `aws` command: SSM Run Command (a base64 script as root, `sudo -iu <user> bash -lc` for user work) starts the box's server with `start_command` when `curl` on the box gets no HTTP answer, reads `~/.augint/opencode/server-password` there, and runs `aws ssm start-session --document-name AWS-StartPortForwardingSession`. The server port is read from `docker ps` on the box (`augint-shell-<slug>-` publishing 4096). Every AWS CLI call asks for `--output json` and UTF-8 (`aws_env`), because a profile's `output = yaml` and the Windows code page broke both. A box that runs its server as its own service sets `start_command` to start that service.
 
 mDNS domain defaults to `sanitize_project_name().local`. PATH includes `/root/.opencode/bin` so `opencode` is available in interactive shells.
+
+### EC2 instances (`ai-shell ec2`)
+
+`ec2.py` lists, starts, connects to and stops instances across every AWS profile (`aws configure list-profiles`, read in parallel, one instance kept once per account). It calls only `aws`, through `remote.py`'s `aws()` (stdin closed so an MFA prompt fails at once, `timeout` for a hanging `credential_process`), `start_instance` and `port_forward_args`, plus `ssh`, `ssh-keygen` and the RDP client. `cli/commands/ec2.py` is the Click layer. A connection is a transport from `open_endpoint` (SSM port forwarding, then an EC2 Instance Connect Endpoint tunnel, then the public and private IP; each tried only when its preconditions hold, every failure reason kept) plus a client (`ssh`, the RDP client, or none for `--tunnel`). An SSM tunnel counts as ready on the plugin's "Waiting for connections" line and is never probed, because a probe connection can end a session on an old agent; an EICE tunnel and a direct address are probed (an SSH banner on 22; a connection that stays open elsewhere). It never changes the target account to get in (no security group, IAM or agent change); its only writes are start, stop and the 60-second EC2 Instance Connect key, which is sent only when no key file is found.
 
 ### Claude retry logic
 

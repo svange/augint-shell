@@ -6,6 +6,8 @@ server start through SSM Run Command and forwards the server port with an SSM po
 session. The host needs the AWS CLI v2 and the Session Manager plugin.
 
 This module only calls the ``aws`` command; it knows nothing about Click or Docker on the host.
+Its AWS CLI core (``aws``, ``ensure_login``, ``start_instance``, ``port_forward_args``) also
+serves ``ai-shell ec2`` (``ec2.py``).
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 OPENCODE_SERVER_PORT = 4096
 SERVER_WAIT_SECONDS = 600  # the first start on a box pulls the dev image
@@ -41,6 +44,13 @@ SAFE_NAME = re.compile(r"[A-Za-z0-9._-]+")
 
 class RemoteError(Exception):
     """A step against the remote box failed; the message says what to do."""
+
+
+class AwsScope(Protocol):
+    """Where an AWS CLI call goes: a profile and a region (empty = the CLI's default)."""
+
+    aws_profile: str
+    aws_region: str
 
 
 @dataclass
@@ -96,7 +106,7 @@ def aws_env() -> dict[str, str]:
     return {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
 
 
-def _profile_args(box: RemoteBox) -> list[str]:
+def profile_args(box: AwsScope) -> list[str]:
     args = []
     if box.aws_profile:
         args += ["--profile", box.aws_profile]
@@ -105,26 +115,36 @@ def _profile_args(box: RemoteBox) -> list[str]:
     return args
 
 
-def aws(box: RemoteBox, *cmd: str) -> str:
-    """Run one AWS CLI command and return its stdout (always JSON output)."""
+def aws(box: AwsScope, *cmd: str, timeout: float | None = None) -> str:
+    """Run one AWS CLI command and return its stdout (always JSON output).
+
+    stdin is closed: a profile that would prompt (an MFA code, for example) fails at once
+    instead of waiting for an answer nobody sees. *timeout* bounds a credential_process
+    that hangs.
+    """
     if shutil.which("aws") is None:
         raise RemoteError("The AWS CLI v2 is not installed on this computer.")
-    full = ["aws", *cmd, *_profile_args(box), "--output", "json"]
-    proc = subprocess.run(
-        full,
-        env=aws_env(),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    full = ["aws", *cmd, *profile_args(box), "--output", "json"]
+    try:
+        proc = subprocess.run(
+            full,
+            env=aws_env(),
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RemoteError(f"aws {' '.join(cmd[:2])} gave no answer in {timeout:.0f} s") from exc
     if proc.returncode != 0:
         raise RemoteError(proc.stderr.strip() or proc.stdout.strip() or f"{cmd[:2]} failed")
     return proc.stdout
 
 
-def ensure_login(box: RemoteBox) -> None:
+def ensure_login(box: AwsScope) -> None:
     """Sign in with ``aws sso login`` when the profile's session has ended."""
     try:
         aws(box, "sts", "get-caller-identity")
@@ -162,12 +182,12 @@ def resolve_instance(box: RemoteBox) -> str:
     return str(ids[0])
 
 
-def instance_state(box: RemoteBox, instance_id: str) -> str:
+def instance_state(box: AwsScope, instance_id: str) -> str:
     out = json.loads(aws(box, "ec2", "describe-instances", "--instance-ids", instance_id))
     return str(out["Reservations"][0]["Instances"][0]["State"]["Name"])
 
 
-def ssm_online(box: RemoteBox, instance_id: str) -> bool:
+def ssm_online(box: AwsScope, instance_id: str) -> bool:
     out = json.loads(
         aws(
             box,
@@ -181,21 +201,29 @@ def ssm_online(box: RemoteBox, instance_id: str) -> bool:
     return bool(info) and info[0].get("PingStatus") == "Online"
 
 
-def ensure_running(box: RemoteBox, instance_id: str, say: Callable[[str], object] = print) -> None:
-    """Start the box when it is stopped, and wait until SSM reaches it."""
+def start_instance(box: AwsScope, instance_id: str, say: Callable[[str], object] = print) -> bool:
+    """Start the instance when it is stopped and wait until it runs; True when it was started."""
     state = instance_state(box, instance_id)
+    started = False
     if state == "stopping":
-        say("The box is stopping; waiting before it starts again...")
+        say(f"{instance_id} is stopping; waiting before it starts again...")
         aws(box, "ec2", "wait", "instance-stopped", "--instance-ids", instance_id)
         state = "stopped"
     if state == "stopped":
-        say("Starting the box...")
+        say(f"Starting {instance_id}...")
         aws(box, "ec2", "start-instances", "--instance-ids", instance_id)
         state = "pending"
+        started = True
     if state == "pending":
         aws(box, "ec2", "wait", "instance-running", "--instance-ids", instance_id)
     elif state != "running":
-        raise RemoteError(f"The box is {state}.")
+        raise RemoteError(f"{instance_id} is {state}.")
+    return started
+
+
+def ensure_running(box: AwsScope, instance_id: str, say: Callable[[str], object] = print) -> None:
+    """Start the box when it is stopped, and wait until SSM reaches it."""
+    start_instance(box, instance_id, say=say)
     deadline = time.monotonic() + 300
     while not ssm_online(box, instance_id):
         if time.monotonic() > deadline:
@@ -319,7 +347,7 @@ def server_password(box: RemoteBox, instance_id: str) -> str:
     return run_on_box(box, instance_id, script, timeout=60).strip()
 
 
-def port_forward_args(box: RemoteBox, instance_id: str, remote: int, local: int) -> list[str]:
+def port_forward_args(box: AwsScope, instance_id: str, remote: int, local: int) -> list[str]:
     params = json.dumps({"portNumber": [str(remote)], "localPortNumber": [str(local)]})
     return [
         "aws",
@@ -331,5 +359,5 @@ def port_forward_args(box: RemoteBox, instance_id: str, remote: int, local: int)
         "AWS-StartPortForwardingSession",
         "--parameters",
         params,
-        *_profile_args(box),
+        *profile_args(box),
     ]
