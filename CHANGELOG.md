@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.126.0 (2026-11-19)
+
+### Features
+
+- **docker**: Align dev container with dots-bootstrap tools, uv, pnpm, and env-doctor (#210)
+  ([#210](https://github.com/svange/augint-shell/pull/210),
+  [`ea18f8e`](https://github.com/svange/augint-shell/commit/ea18f8e703c782950f3ed2bf02852db192ca7023))
+
+
 ## v0.125.0 (2026-11-19)
 
 ### Features
