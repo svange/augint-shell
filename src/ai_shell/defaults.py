@@ -593,11 +593,12 @@ def build_dev_mounts(
     )
 
     # Named volume: pnpm content-addressable store (shared across all
-    # projects). Corepack's pnpm is container-local otherwise, so every
-    # container rebuild is a cold install; the npm cache doesn't help pnpm.
+    # projects). Mounted at /root/.local/share/pnpm/store rather than
+    # /root/.local/share/pnpm (PNPM_HOME) so the persistent volume never
+    # shadows the image's standalone pnpm binary or pnpm-managed Node.js LTS.
     mounts.append(
         Mount(
-            target="/root/.local/share/pnpm",
+            target="/root/.local/share/pnpm/store",
             source=PNPM_STORE_VOLUME,
             type="volume",
         )
@@ -991,12 +992,14 @@ def build_dev_environment(
         return os.environ.get(key, default)
 
     _CONTAINER_BASE_PATH = (
-        "/root/.local/bin:/root/.opencode/bin:"
+        "/root/.local/bin:/root/.local/share/pnpm/bin:/root/.local/share/pnpm:"
+        "/root/.opencode/bin:"
         "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     )
 
     env: dict[str, str] = {
         "PATH": _CONTAINER_BASE_PATH,
+        "PNPM_HOME": "/root/.local/share/pnpm",
         "AWS_PROFILE": aws_profile or _resolve("AWS_PROFILE"),
         "AWS_REGION": aws_region or _resolve("AWS_REGION", "us-east-1"),
         "AWS_PAGER": "",

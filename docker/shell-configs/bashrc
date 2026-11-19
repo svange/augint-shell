@@ -92,16 +92,51 @@ if [ -f /usr/share/doc/fzf/examples/completion.bash ]; then
     . /usr/share/doc/fzf/examples/completion.bash
 fi
 
-# ---------- Prompt ----------
-if command -v starship >/dev/null 2>&1; then
-    eval "$(starship init bash)"
-else
-    # Fallback with git branch
+# ---------- Prompt fallback (Starship is initialized in dots-shell-init below) ----------
+if ! command -v starship >/dev/null 2>&1; then
     __git_branch() {
         git branch 2>/dev/null | sed -n 's/^\* \(.*\)/ (\1)/p'
     }
     PS1='\[\e[1;31m\]\u@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0;33m\]$(__git_branch)\[\e[0m\]\$ '
 fi
+
+# >>> dots-shell-init >>>
+export PNPM_HOME="$HOME/.local/share/pnpm"
+export PATH="$HOME/.local/bin:$PNPM_HOME/bin:$PNPM_HOME:$PATH"
+command -v starship >/dev/null 2>&1 && eval "$(starship init bash)"
+command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init bash)"
+command -v fzf >/dev/null 2>&1 && eval "$(fzf --bash 2>/dev/null)"
+if command -v lsd >/dev/null 2>&1; then
+  alias ls='lsd'
+  alias ll='lsd -la'
+  alias la='lsd -a'
+  alias lt='lsd --tree'
+fi
+if command -v bat >/dev/null 2>&1; then
+  alias cat='bat --paging=never'
+elif command -v batcat >/dev/null 2>&1; then
+  alias bat='batcat'
+  alias cat='batcat --paging=never'
+fi
+command -v fdfind >/dev/null 2>&1 && ! command -v fd >/dev/null 2>&1 && alias fd='fdfind'
+command -v lazygit >/dev/null 2>&1 && alias lg='lazygit'
+command -v nvim >/dev/null 2>&1 && alias nv='nvim'
+command -v yazi >/dev/null 2>&1 && alias y='yazi'
+! command -v nc >/dev/null 2>&1 && command -v ncat >/dev/null 2>&1 && alias nc='ncat'
+! command -v tcpdump >/dev/null 2>&1 && command -v tshark >/dev/null 2>&1 && alias tcpdump='tshark'
+! command -v htop >/dev/null 2>&1 && command -v btop >/dev/null 2>&1 && alias htop='btop'
+! command -v dig >/dev/null 2>&1 && command -v doggo >/dev/null 2>&1 && alias dig='doggo'
+ports() {
+  if [ -n "${1:-}" ]; then
+    ss -tulpn | grep -E "Netid|:${1#:}[[:space:]]"
+  else
+    ss -tulpn
+  fi
+}
+alias cz='chezmoi'
+alias dots='dots-help'
+alias dots-status='dots-prompt'
+# <<< dots-shell-init <<<
 
 # ---------- Local overrides ----------
 [ -f ~/.bashrc.local ] && . ~/.bashrc.local

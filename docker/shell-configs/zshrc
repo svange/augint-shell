@@ -17,7 +17,6 @@ plugins=(
     git
     docker
     docker-compose
-    pip
     python
     npm
     sudo
@@ -63,6 +62,8 @@ export EDITOR=vim
 export PAGER=less
 export LESS='-R -i -M -w -z-4'
 export CLICOLOR=1
+export PNPM_HOME="$HOME/.local/share/pnpm"
+export PATH="$HOME/.local/bin:$PNPM_HOME/bin:$PNPM_HOME:$PATH"
 
 # ---------- Aliases ----------
 alias ll='ls -alhF --color=auto'
@@ -84,9 +85,41 @@ alias gb='git branch'
 alias ga='git add'
 alias dc='docker compose'
 
-# ---------- fzf ----------
+if command -v lsd >/dev/null 2>&1; then
+    alias ls='lsd'
+    alias ll='lsd -la'
+    alias la='lsd -a'
+    alias lt='lsd --tree'
+fi
+if command -v bat >/dev/null 2>&1; then
+    alias cat='bat --paging=never'
+elif command -v batcat >/dev/null 2>&1; then
+    alias bat='batcat'
+    alias cat='batcat --paging=never'
+fi
+command -v fdfind >/dev/null 2>&1 && ! command -v fd >/dev/null 2>&1 && alias fd='fdfind'
+command -v lazygit >/dev/null 2>&1 && alias lg='lazygit'
+command -v nvim >/dev/null 2>&1 && alias nv='nvim'
+command -v yazi >/dev/null 2>&1 && alias y='yazi'
+! command -v nc >/dev/null 2>&1 && command -v ncat >/dev/null 2>&1 && alias nc='ncat'
+! command -v tcpdump >/dev/null 2>&1 && command -v tshark >/dev/null 2>&1 && alias tcpdump='tshark'
+! command -v htop >/dev/null 2>&1 && command -v btop >/dev/null 2>&1 && alias htop='btop'
+! command -v dig >/dev/null 2>&1 && command -v doggo >/dev/null 2>&1 && alias dig='doggo'
+ports() {
+    if [ -n "${1:-}" ]; then
+        ss -tulpn | grep -E "Netid|:${1#:}[[:space:]]"
+    else
+        ss -tulpn
+    fi
+}
+alias cz='chezmoi'
+alias dots='dots-help'
+alias dots-status='dots-prompt'
+
+# ---------- fzf & zoxide ----------
 [ -f /usr/share/doc/fzf/examples/key-bindings.zsh ] && source /usr/share/doc/fzf/examples/key-bindings.zsh
 [ -f /usr/share/doc/fzf/examples/completion.zsh ] && source /usr/share/doc/fzf/examples/completion.zsh
+command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"
 
 # ---------- History substring search (up/down arrow) ----------
 bindkey '^[[A' history-substring-search-up

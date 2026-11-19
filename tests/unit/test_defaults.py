@@ -377,7 +377,9 @@ class TestBuildDevMounts:
 
         mounts = build_dev_mounts(project_dir, "test-project")
 
-        pnpm_mount = next((m for m in mounts if m.get("Target") == "/root/.local/share/pnpm"), None)
+        pnpm_mount = next(
+            (m for m in mounts if m.get("Target") == "/root/.local/share/pnpm/store"), None
+        )
         assert pnpm_mount is not None
         assert pnpm_mount.get("Type") == "volume"
         assert pnpm_mount.get("Source") == PNPM_STORE_VOLUME
@@ -953,6 +955,14 @@ class TestBuildDevEnvironmentPath:
     def test_path_includes_local_bin(self):
         env = build_dev_environment()
         assert "/root/.local/bin" in env["PATH"]
+
+    def test_path_includes_pnpm_home_and_priority(self):
+        env = build_dev_environment()
+        assert env["PNPM_HOME"] == "/root/.local/share/pnpm"
+        parts = env["PATH"].split(":")
+        assert parts[0] == "/root/.local/bin"
+        assert parts[1] == "/root/.local/share/pnpm/bin"
+        assert parts[2] == "/root/.local/share/pnpm"
 
     def test_path_includes_standard_dirs(self):
         env = build_dev_environment()
