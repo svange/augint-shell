@@ -642,8 +642,16 @@ class ContainerManager:
         command: list[str],
         extra_env: dict[str, str] | None = None,
         workdir: str | None = None,
+        log_path: str | None = None,
     ) -> subprocess.CompletedProcess[bytes]:
-        """Run a command in a container without waiting (docker exec -d)."""
+        """Run a command in a container without waiting (docker exec -d).
+
+        ``docker exec -d`` drops the command's output. With *log_path* the output
+        goes to that file in the container (truncated at each start), so a server
+        that exits at start leaves its error behind.
+        """
+        if log_path:
+            command = ["sh", "-c", 'exec "$@" >"$0" 2>&1', log_path, *command]
         args = ["docker", "exec", "-d"]
         if workdir:
             args.extend(["-w", workdir])

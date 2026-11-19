@@ -1436,3 +1436,25 @@ class TestDevConfigDigestAndRecreation:
                 "project_dir": "/home/u/myproj",
             }
         ]
+
+
+def test_exec_detached_writes_output_to_the_log_path():
+    """Regression: docker exec -d dropped the output of a server that exited at start."""
+    from unittest.mock import patch
+
+    from ai_shell.container import ContainerManager
+
+    with patch("ai_shell.container.subprocess.run") as run:
+        ContainerManager.exec_detached(
+            MagicMock(), "c", ["opencode", "serve"], log_path="/tmp/opencode-serve.log"
+        )
+    args = run.call_args[0][0]
+    assert args[:4] == ["docker", "exec", "-d", "c"]
+    assert args[4:] == [
+        "sh",
+        "-c",
+        'exec "$@" >"$0" 2>&1',
+        "/tmp/opencode-serve.log",
+        "opencode",
+        "serve",
+    ]
