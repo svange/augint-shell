@@ -212,7 +212,10 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     uv python install 3.13 --default && \
     uv tool install --python 3.13 aws-sam-cli && \
     uv tool install --python 3.13 pre-commit && \
-    uv tool install --python 3.13 aws-bedrock-token-generator && \
+    # aws-bedrock-token-generator is a library with no command, so `uv tool install`
+    # refuses it. ai-shell imports it with `python3 -c`, so it goes into the managed 3.13.
+    uv pip install --python "$(uv python find --managed-python 3.13)" --system \
+        --break-system-packages aws-bedrock-token-generator && \
     uv tool install --python 3.13 git-remote-codecommit
 
 # Install pnpm, standardize Node.js LTS via pnpm (replaces standalone NodeSource + corepack), and Bun

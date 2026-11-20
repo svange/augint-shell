@@ -34,13 +34,27 @@ def test_dockerfile_uses_uv_and_pnpm_without_conflicting_global_managers() -> No
     assert "uv python install 3.13 --default" in content
     assert "uv tool install" in content
     assert "git-remote-codecommit" in content
-    assert "pip install " not in content
+    # No global pip: only uv's own `uv pip install` may install a package.
+    assert "pip install " not in content.replace("uv pip install ", "")
 
     # Node.js should be standardized via standalone pnpm, not NodeSource or corepack
     assert "https://get.pnpm.io/install.sh" in content
     assert "pnpm runtime set node lts -g" in content
     assert "deb.nodesource.com" not in content
     assert "corepack" not in content
+
+
+def test_bedrock_token_library_is_importable_not_a_uv_tool() -> None:
+    """Regression: uv refuses `uv tool install` for a package with no command.
+
+    aws-bedrock-token-generator is a library; the image build failed on
+    2026-11-20 with "No executables are provided". ai-shell imports it with
+    `python3 -c` in the container, so it must be in the managed Python.
+    """
+    content = DOCKERFILE.read_text(encoding="utf-8")
+    assert "uv tool install --python 3.13 aws-bedrock-token-generator" not in content
+    assert '--python "$(uv python find --managed-python 3.13)" --system' in content
+    assert "--break-system-packages aws-bedrock-token-generator" in content
 
 
 def test_dockerfile_installs_dots_doctor_and_bootstrap_tools() -> None:
