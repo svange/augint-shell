@@ -220,3 +220,11 @@ def test_env_doctor_installed_and_passes_on_healthy_env(tmp_path: Path) -> None:
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     assert "[env-doctor] Everything looks healthy!" in result.stdout
     assert "Global augint .env present" in result.stdout
+
+
+def test_nvim_init_configures_claudecode_and_opencode_plugins() -> None:
+    nvim_init = NVIM_INIT.read_text(encoding="utf-8")
+    assert "folke/snacks.nvim" in nvim_init
+    assert "coder/claudecode.nvim" in nvim_init
+    assert "nickjvandyke/opencode.nvim" in nvim_init
+    assert 'nvim --headless "+Lazy! sync" +qa' in DOCKERFILE.read_text(encoding="utf-8")
