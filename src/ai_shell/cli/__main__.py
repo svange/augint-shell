@@ -12,7 +12,7 @@ from ai_shell.cli.commands.acp import acp_group
 from ai_shell.cli.commands.ec2 import ec2_group
 from ai_shell.cli.commands.llm import llm_group
 from ai_shell.cli.commands.manage import doctor, manage_group
-from ai_shell.cli.commands.tools import chrome, claude, codex, init, opencode, pi, shell
+from ai_shell.cli.commands.tools import chrome, claude, codex, init, opencode, pi, shell, tmux
 from ai_shell.cli.commands.vpn import vpn_group
 from ai_shell.defaults import podman_cli_host
 
@@ -69,6 +69,7 @@ cli.add_command(codex)
 cli.add_command(opencode)
 cli.add_command(pi)
 cli.add_command(shell)
+cli.add_command(tmux)
 cli.add_command(init)
 cli.add_command(doctor)
 

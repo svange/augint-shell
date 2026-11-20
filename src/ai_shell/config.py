@@ -129,6 +129,8 @@ class AiShellConfig:
     gui: bool = False
     gui_display: str = ""
     gpu: bool = False
+    # Open tool sessions in a split tmux workspace (Neovim left, agent right).
+    tmux: bool = False
 
     # AWS
     ai_profile: str = ""  # AWS profile for infra (sets AWS_PROFILE in container)
@@ -373,6 +375,8 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.gui_display = str(container["gui_display"])
     if "gpu" in container:
         config.gpu = bool(container["gpu"])
+    if "tmux" in container:
+        config.tmux = bool(container["tmux"])
 
     # [expo] section
     expo = data.get("expo", {})
@@ -643,6 +647,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_GUI": ("gui", bool),
         "AI_SHELL_GUI_DISPLAY": ("gui_display", str),
         "AI_SHELL_GPU": ("gpu", bool),
+        "AI_SHELL_TMUX": ("tmux", bool),
         "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),
         "AI_SHELL_IMAGE_PULL_CACHE_TTL": ("image_pull_cache_ttl", int),
         "AI_SHELL_BEDROCK_CHECK_CACHE_TTL": ("bedrock_check_cache_ttl", int),

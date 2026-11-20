@@ -246,6 +246,11 @@ GPU_OPTION_HELP = (
     "Pass the host NVIDIA GPU into the dev container (CUDA / local model hosting). "
     "Warns and falls back to CPU if unavailable. Also container.gpu / AI_SHELL_GPU."
 )
+TMUX_OPTION_HELP = (
+    "Open in a split tmux workspace with Neovim on the left and the tool on the right "
+    "(re-attaches if detached). Run 'ai-shell tmux' for the cheat sheet. "
+    "Also container.tmux / AI_SHELL_TMUX."
+)
 
 
 def _apply_gui_gpu_overrides(
@@ -254,8 +259,9 @@ def _apply_gui_gpu_overrides(
     use_gui: bool | None = None,
     gui_display: str | None = None,
     use_gpu: bool | None = None,
+    use_tmux: bool | None = None,
 ) -> None:
-    """Apply CLI ``--gui``/``--gui-display``/``--gpu`` overrides onto *config*."""
+    """Apply CLI ``--gui``/``--gui-display``/``--gpu``/``--tmux`` overrides onto *config*."""
     if gui_display is not None:
         config.gui_display = gui_display
         if gui_display and use_gui is None:
@@ -264,6 +270,8 @@ def _apply_gui_gpu_overrides(
         config.gui = use_gui
     if use_gpu is not None:
         config.gpu = use_gpu
+    if use_tmux is not None:
+        config.tmux = use_tmux
 
 
 def _get_manager(
@@ -295,6 +303,7 @@ def _get_manager(
             use_gui=ctx.obj.get("use_gui"),
             gui_display=ctx.obj.get("gui_display"),
             use_gpu=ctx.obj.get("use_gpu"),
+            use_tmux=ctx.obj.get("use_tmux"),
         )
 
     manager = ContainerManager(config)
@@ -1146,6 +1155,12 @@ def _launch_loaded_config_claude(
                 workdir=session_workdir,
                 chrome_port=chrome_port,
             )
+        if config.tmux:
+            from ai_shell.tmux import build_tmux_workspace_cmd
+
+            remote_cmd = build_tmux_workspace_cmd(
+                remote_cmd, session_name="ai-shell-claude", agent_label="claude"
+            )
         manager.exec_interactive(
             container_name,
             remote_cmd,
@@ -1156,6 +1171,12 @@ def _launch_loaded_config_claude(
         return
 
     if safe_cmd is not None:
+        if config.tmux:
+            from ai_shell.tmux import build_tmux_workspace_cmd
+
+            safe_cmd = build_tmux_workspace_cmd(
+                safe_cmd, session_name="ai-shell-claude", agent_label="claude"
+            )
         manager.exec_interactive(
             container_name,
             safe_cmd,
@@ -1173,6 +1194,33 @@ def _launch_loaded_config_claude(
         *mcp_args,
         *extra_args,
     ]
+    cmd_fresh = [
+        *account_prefix,
+        "claude",
+        "--dangerously-skip-permissions",
+        *mcp_args,
+        *extra_args,
+    ]
+
+    if config.tmux:
+        import shlex
+
+        from ai_shell.tmux import build_tmux_workspace_cmd
+
+        tmux_cmd = build_tmux_workspace_cmd(
+            ["bash", "-lc", f"{shlex.join(cmd_continue)} || {shlex.join(cmd_fresh)}"],
+            session_name="ai-shell-claude",
+            agent_label="claude",
+        )
+        manager.exec_interactive(
+            container_name,
+            tmux_cmd,
+            extra_env=exec_env,
+            workdir=workdir,
+            typeahead=typeahead_bytes,
+        )
+        return
+
     exit_code, elapsed = manager.run_interactive(
         container_name,
         cmd_continue,
@@ -1183,13 +1231,6 @@ def _launch_loaded_config_claude(
 
     if exit_code != 0 and elapsed < FAST_FAILURE_THRESHOLD:
         console.print("[yellow]No prior conversation found, starting fresh...[/yellow]")
-        cmd_fresh = [
-            *account_prefix,
-            "claude",
-            "--dangerously-skip-permissions",
-            *mcp_args,
-            *extra_args,
-        ]
         # Don't replay typeahead here; the previous attempt already consumed it.
         manager.exec_interactive(container_name, cmd_fresh, extra_env=exec_env, workdir=workdir)
         return
@@ -1294,6 +1335,7 @@ def _launch_loaded_config_claude(
 @click.option("--gui/--no-gui", "use_gui", default=None, help=GUI_OPTION_HELP)
 @click.option("--gui-display", "gui_display", default=None, help=GUI_DISPLAY_OPTION_HELP)
 @click.option("--gpu/--no-gpu", "use_gpu", default=None, help=GPU_OPTION_HELP)
+@click.option("--tmux/--no-tmux", "use_tmux", default=None, help=TMUX_OPTION_HELP)
 @click.option(
     "--env",
     "env_file",
@@ -1320,6 +1362,7 @@ def claude(
     use_gui,
     gui_display,
     use_gpu,
+    use_tmux,
     env_file,
     extra_args,
 ):
@@ -1336,7 +1379,13 @@ def claude(
     # Load config for the current project and launch a normal Claude session.
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
-    _apply_gui_gpu_overrides(config, use_gui=use_gui, gui_display=gui_display, use_gpu=use_gpu)
+    _apply_gui_gpu_overrides(
+        config,
+        use_gui=use_gui,
+        gui_display=gui_display,
+        use_gpu=use_gpu,
+        use_tmux=use_tmux,
+    )
     local_chrome = _resolve_local_chrome(config, local_chrome)
     _launch_loaded_config_claude(
         config,
@@ -1455,6 +1504,7 @@ def chrome(ctx, cli_account, chrome_proxy, url):
 @click.option("--gui/--no-gui", "use_gui", default=None, help=GUI_OPTION_HELP)
 @click.option("--gui-display", "gui_display", default=None, help=GUI_DISPLAY_OPTION_HELP)
 @click.option("--gpu/--no-gpu", "use_gpu", default=None, help=GPU_OPTION_HELP)
+@click.option("--tmux/--no-tmux", "use_tmux", default=None, help=TMUX_OPTION_HELP)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def codex(
@@ -1469,6 +1519,7 @@ def codex(
     use_gui,
     gui_display,
     use_gpu,
+    use_tmux,
     extra_args,
 ):
     """Launch Codex in the dev container."""
@@ -1477,6 +1528,7 @@ def codex(
     ctx.obj["use_gui"] = use_gui
     ctx.obj["gui_display"] = gui_display
     ctx.obj["use_gpu"] = use_gpu
+    ctx.obj["use_tmux"] = use_tmux
     with capture_typeahead() as typeahead:
         project = ctx.obj.get("project") if ctx.obj else None
         config = load_config(project_override=project, project_dir=Path.cwd())
@@ -1520,6 +1572,10 @@ def codex(
         if not safe:
             cmd.extend(["--dangerously-bypass-approvals-and-sandbox"])
         cmd.extend(extra_args)
+        if config.tmux:
+            from ai_shell.tmux import build_tmux_workspace_cmd
+
+            cmd = build_tmux_workspace_cmd(cmd, session_name="ai-shell-codex", agent_label="codex")
         mode_label = " (safe mode)" if safe else ""
         console.print(
             f"[bold]Launching Codex{mode_label}{bedrock_label}{openai_label} in {name}...[/bold]"
@@ -1979,6 +2035,7 @@ def _opencode_launch_env(
 @click.option("--gui/--no-gui", "use_gui", default=None, help=GUI_OPTION_HELP)
 @click.option("--gui-display", "gui_display", default=None, help=GUI_DISPLAY_OPTION_HELP)
 @click.option("--gpu/--no-gpu", "use_gpu", default=None, help=GPU_OPTION_HELP)
+@click.option("--tmux/--no-tmux", "use_tmux", default=None, help=TMUX_OPTION_HELP)
 @click.option("--web", is_flag=True, default=False, help="Launch web UI instead of terminal TUI.")
 @click.option(
     "--port",
@@ -2029,6 +2086,7 @@ def opencode(
     use_gui,
     gui_display,
     use_gpu,
+    use_tmux,
     web,
     web_port,
     env_file,
@@ -2042,6 +2100,7 @@ def opencode(
     ctx.obj["use_gui"] = use_gui
     ctx.obj["gui_display"] = gui_display
     ctx.obj["use_gpu"] = use_gpu
+    ctx.obj["use_tmux"] = use_tmux
     ctx.obj["cli_profile"] = effective_profile
     ctx.obj["aws_partition"] = aws_partition
     ctx.obj["aws_region"] = aws_region
@@ -2116,6 +2175,12 @@ def opencode(
         else:
             console.print(
                 f"[bold]Launching opencode{bedrock_label}{openai_label} in {name}...[/bold]"
+            )
+        if config.tmux:
+            from ai_shell.tmux import build_tmux_workspace_cmd
+
+            cmd = build_tmux_workspace_cmd(
+                cmd, session_name="ai-shell-opencode", agent_label="opencode"
             )
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
@@ -2483,6 +2548,7 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
 @click.option("--gui/--no-gui", "use_gui", default=None, help=GUI_OPTION_HELP)
 @click.option("--gui-display", "gui_display", default=None, help=GUI_DISPLAY_OPTION_HELP)
 @click.option("--gpu/--no-gpu", "use_gpu", default=None, help=GPU_OPTION_HELP)
+@click.option("--tmux/--no-tmux", "use_tmux", default=None, help=TMUX_OPTION_HELP)
 @click.option("--login", "do_login", is_flag=True, default=False, help="Run pi login for OAuth.")
 @click.option(
     "--env",
@@ -2503,6 +2569,7 @@ def pi(
     use_gui,
     gui_display,
     use_gpu,
+    use_tmux,
     do_login,
     env_file,
 ):
@@ -2512,6 +2579,7 @@ def pi(
     ctx.obj["use_gui"] = use_gui
     ctx.obj["gui_display"] = gui_display
     ctx.obj["use_gpu"] = use_gpu
+    ctx.obj["use_tmux"] = use_tmux
     with capture_typeahead() as typeahead:
         project = ctx.obj.get("project") if ctx.obj else None
         config = load_config(project_override=project, project_dir=Path.cwd())
@@ -2565,6 +2633,10 @@ def pi(
         cmd = ["pi"]
         if use_bedrock:
             cmd.extend(["--provider", "amazon-bedrock", "--model", bedrock_model])
+        if config.tmux:
+            from ai_shell.tmux import build_tmux_workspace_cmd
+
+            cmd = build_tmux_workspace_cmd(cmd, session_name="ai-shell-pi", agent_label="pi")
         console.print(f"[bold]Launching pi{bedrock_label}{openai_label} in {name}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
@@ -2600,13 +2672,14 @@ SUPPORTED_SHELLS: dict[str, str] = {
 @click.option("--gui/--no-gui", "use_gui", default=None, help=GUI_OPTION_HELP)
 @click.option("--gui-display", "gui_display", default=None, help=GUI_DISPLAY_OPTION_HELP)
 @click.option("--gpu/--no-gpu", "use_gpu", default=None, help=GPU_OPTION_HELP)
+@click.option("--tmux/--no-tmux", "use_tmux", default=None, help=TMUX_OPTION_HELP)
 @click.argument(
     "shell_name",
     required=False,
     type=click.Choice(list(SUPPORTED_SHELLS.keys()), case_sensitive=False),
 )
 @click.pass_context
-def shell(ctx, env_file, use_t3, use_expo, use_gui, gui_display, use_gpu, shell_name):
+def shell(ctx, env_file, use_t3, use_expo, use_gui, gui_display, use_gpu, use_tmux, shell_name):
     """Open an interactive shell in the dev container.
 
     SHELL_NAME is one of bash or zsh.  Defaults to bash if omitted.
@@ -2618,6 +2691,7 @@ def shell(ctx, env_file, use_t3, use_expo, use_gui, gui_display, use_gpu, shell_
     ctx.obj["use_gui"] = use_gui
     ctx.obj["gui_display"] = gui_display
     ctx.obj["use_gpu"] = use_gpu
+    ctx.obj["use_tmux"] = use_tmux
     with capture_typeahead() as typeahead:
         manager, name, exec_env, config = _get_manager(ctx, env_file=resolved_env)
         if use_t3:
@@ -2630,10 +2704,23 @@ def shell(ctx, env_file, use_t3, use_expo, use_gui, gui_display, use_gpu, shell_
             shell_name = "bash"
         shell_name = shell_name.lower()
         shell_path = SUPPORTED_SHELLS[shell_name]
+        cmd = [shell_path, "-l"]
+        if config.tmux:
+            from ai_shell.tmux import build_tmux_workspace_cmd
+
+            cmd = build_tmux_workspace_cmd(
+                cmd, session_name="ai-shell-shell", agent_label=shell_name
+            )
         console.print(f"[bold]Opening {shell_name} in {name}...[/bold]")
-    manager.exec_interactive(
-        name, [shell_path, "-l"], extra_env=exec_env, typeahead=typeahead.bytes()
-    )
+    manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
+
+
+@click.command(context_settings=CONTEXT_SETTINGS)
+def tmux():
+    """Print the tmux & ai-shell --tmux workspace quick cheat sheet."""
+    from ai_shell.tmux import TMUX_CHEATSHEET
+
+    click.echo(TMUX_CHEATSHEET)
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)

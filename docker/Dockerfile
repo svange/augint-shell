@@ -367,12 +367,13 @@ RUN git config --global --add safe.directory '*' && \
         > /usr/local/bin/git && \
     chmod +x /usr/local/bin/git
 
-# Copy entrypoint, update-tools, env-doctor, and MOTD scripts
+# Copy entrypoint, update-tools, env-doctor, tmux-help, and MOTD scripts
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY update-tools.sh /usr/local/bin/update-tools.sh
 COPY env-doctor.sh /usr/local/bin/env-doctor
+COPY tmux-help.sh /usr/local/bin/tmux-help
 COPY motd.sh /usr/local/bin/motd.sh
-RUN chmod +x /docker-entrypoint.sh /usr/local/bin/update-tools.sh /usr/local/bin/env-doctor /usr/local/bin/motd.sh && \
+RUN chmod +x /docker-entrypoint.sh /usr/local/bin/update-tools.sh /usr/local/bin/env-doctor /usr/local/bin/tmux-help /usr/local/bin/motd.sh && \
     mkdir -p /var/run/ai-shell/update-markers /var/log/ai-shell
 
 # Standalone host CLI binary (built in CI via `python -m ai_shell.standalone --output docker/ai-shell`).
