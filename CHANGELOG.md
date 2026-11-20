@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.131.0 (2026-11-20)
+
+### Features
+
+- **container**: Run image pulls and tool updates in the background by default (#220)
+  ([#220](https://github.com/svange/augint-shell/pull/220),
+  [`9add760`](https://github.com/svange/augint-shell/commit/9add7603934c2c7ac02e6e293e54c56e035fa8e5))
+
+- **ec2**: Add ec2 start command and confirm before starting in connect (#219)
+  ([#219](https://github.com/svange/augint-shell/pull/219),
+  [`3478cc6`](https://github.com/svange/augint-shell/commit/3478cc620a89ef1eccb861d6ef48a675f5347e5a))
+
+
 ## v0.130.0 (2026-11-20)
 
 ### Features
