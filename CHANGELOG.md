@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.130.0 (2026-11-20)
+
+### Features
+
+- **tmux**: Add --tmux split workspace (nvim left, agent right) and cheat sheet (#218)
+  ([#218](https://github.com/svange/augint-shell/pull/218),
+  [`b022a6f`](https://github.com/svange/augint-shell/commit/b022a6f852ffefe9af9a533cd3dfa8d31492167c))
+
+
 ## v0.129.0 (2026-11-20)
 
 ### Features
