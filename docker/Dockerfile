@@ -332,8 +332,9 @@ COPY shell-configs/vimrc /root/.vimrc
 COPY shell-configs/nvim-init.vim /root/.config/nvim/init.vim
 COPY shell-configs/tmux.conf.local /root/.tmux.conf.local
 
-# Pre-install vim plugins and zsh completions headlessly so first launch is instant
+# Pre-install vim/neovim plugins and zsh completions headlessly so first launch is instant
 RUN (vim -es -u /root/.vimrc -i NONE -c "PlugInstall --sync" -c "qa" || true) && \
+    (nvim --headless "+Lazy! sync" +qa || true) && \
     (zsh -c "autoload -Uz compinit && compinit" || true)
 
 # Configure git globally as root and install git wrapper
