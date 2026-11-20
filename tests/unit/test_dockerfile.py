@@ -237,3 +237,11 @@ def test_nvim_init_configures_claudecode_and_opencode_plugins() -> None:
     assert "coder/claudecode.nvim" in nvim_init
     assert "nickjvandyke/opencode.nvim" in nvim_init
     assert 'nvim --headless "+Lazy! sync" +qa' in DOCKERFILE.read_text(encoding="utf-8")
+
+
+def test_git_lf_line_endings_enforced() -> None:
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+    entrypoint = (DOCKER_DIR / "docker-entrypoint.sh").read_text(encoding="utf-8")
+    for text in (dockerfile, entrypoint):
+        assert "git config --global core.autocrlf input" in text
+        assert "git config --global core.eol lf" in text
