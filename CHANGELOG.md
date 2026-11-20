@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.131.1 (2026-11-20)
+
+### Bug Fixes
+
+- **docker**: Enforce LF git line endings (core.autocrlf=input, core.eol=lf) (#221)
+  ([#221](https://github.com/svange/augint-shell/pull/221),
+  [`57c2bb5`](https://github.com/svange/augint-shell/commit/57c2bb549d8cfec8a5bef2b0cf44a10ce46ed65d))
+
+
 ## v0.131.0 (2026-11-20)
 
 ### Features
