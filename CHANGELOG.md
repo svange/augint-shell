@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.129.0 (2026-11-20)
+
+### Features
+
+- **gui**: Add --gui display forwarding, --gpu dev container passthrough, and GUI tools (#211)
+  ([#211](https://github.com/svange/augint-shell/pull/211),
+  [`8809782`](https://github.com/svange/augint-shell/commit/880978254a1081d1b1f0a8263758bf3a1595cd51))
+
+
 ## v0.128.0 (2026-11-20)
 
 ### Features
