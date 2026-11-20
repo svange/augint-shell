@@ -712,7 +712,7 @@ mDNS is enabled by default — the server is discoverable on your LAN as `<proje
 
 `serve` waits up to 30 seconds for the server to answer. The server's output goes to `/tmp/opencode-serve.log` in the dev container. When the server exits at start, `serve` prints the end of that log and exits with an error.
 
-The web UI and the server always ask for a password, because they listen on every host interface. The browser asks for user `opencode` and a password. By default, ai-shell makes the password on first use and keeps it in `~/.augint/opencode/server-password` (mode 600). `ai-shell opencode attach` sends it too. To use your own, set `OPENCODE_SERVER_PASSWORD` (and optionally `OPENCODE_SERVER_USERNAME`) in `~/.augint/.env` or the project `.env`:
+The web UI and the server always ask for a password, because they listen on every host interface. The browser opens already signed in: the link that `opencode web` prints, `serve --open` and `opencode remote` carry the user and password in OpenCode's `auth_token` query parameter, and the web app removes it from the address bar. A browser opened on the plain address asks for user `opencode` and the password. By default, ai-shell makes the password on first use and keeps it in `~/.augint/opencode/server-password` (mode 600). `ai-shell opencode attach` sends it too. To use your own, set `OPENCODE_SERVER_PASSWORD` (and optionally `OPENCODE_SERVER_USERNAME`) in `~/.augint/.env` or the project `.env`:
 
 ```bash
 # .env
@@ -789,7 +789,7 @@ The command:
 2. starts the box when it is stopped and waits until SSM reaches it,
 3. runs `start_command` when the project's server does not answer, and waits until it does,
 4. prints the user (`opencode`) and the password from the box,
-5. forwards the server port to `localhost` and opens the browser (`--no-browser`, `--local-port`).
+5. forwards the server port to `localhost` and opens the browser, signed in with the password (`--no-browser`, `--local-port`).
 
 Ctrl+C ends the tunnel. `--instance` overrides `opencode.remote.instance` for one run.
 

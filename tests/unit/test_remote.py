@@ -7,6 +7,7 @@ import json
 import shlex
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from urllib.parse import quote
 
 import pytest
 from click.testing import CliRunner
@@ -275,7 +276,8 @@ def test_cli_remote_opens_the_tunnel(monkeypatch, tmp_path):
     assert "Password: s3cret" in result.output
     assert started["cmd"][:4] == ["aws", "ssm", "start-session", "--target"]
     # Regression: the plain URL made the browser show a Basic auth prompt.
-    browser.assert_called_once_with("http://opencode:s3cret@localhost:24123")
+    token = base64.b64encode(b"opencode:s3cret").decode()
+    browser.assert_called_once_with(f"http://localhost:24123/?auth_token={quote(token, safe='')}")
 
 
 def test_cli_remote_without_a_box_says_how_to_set_one(monkeypatch, tmp_path):
@@ -330,12 +332,3 @@ def test_configured_project_wins_over_the_folder_name(monkeypatch, tmp_path):
     result = CliRunner().invoke(cli, ["opencode", "remote"])
     assert result.exit_code == 1
     assert seen == {"project": "projects", "dir": "/home/dev/projects"}
-
-
-def test_signed_in_url_quotes_the_credentials():
-    from ai_shell.cli.commands.tools import signed_in_url
-
-    assert signed_in_url("http://localhost:1", "opencode", "a/b:c@d") == (
-        "http://opencode:a%2Fb%3Ac%40d@localhost:1"
-    )
-    assert signed_in_url("http://localhost:1", "opencode", "") == "http://localhost:1"

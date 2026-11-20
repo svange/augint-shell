@@ -1719,8 +1719,8 @@ def _server_command(cmd: list[str]) -> list[str]:
     return out
 
 
-def _ensure_opencode_password(exec_env: dict[str, str]) -> None:
-    """Put a server password in *exec_env* and say how to sign in.
+def _ensure_opencode_password(exec_env: dict[str, str]) -> tuple[str, str]:
+    """Put a server password in *exec_env*, say how to sign in, and return (user, password).
 
     A password from ``.env`` or the host environment wins. Otherwise ai-shell
     uses the one saved in ``~/.augint/opencode/server-password``.
@@ -1736,12 +1736,13 @@ def _ensure_opencode_password(exec_env: dict[str, str]) -> None:
     user = exec_env.get(OPENCODE_SERVER_USERNAME_ENV) or OPENCODE_DEFAULT_USERNAME
     if exec_env.get(OPENCODE_SERVER_PASSWORD_ENV):
         console.print(f"[dim]Password protection enabled (user {user}).[/dim]")
-        return
+        return user, exec_env[OPENCODE_SERVER_PASSWORD_ENV]
     exec_env[OPENCODE_SERVER_PASSWORD_ENV] = opencode_server_password()
     console.print(
         f"[dim]Password protection enabled: user {user}, password in "
         f"{opencode_server_password_path()}.[/dim]"
     )
+    return user, exec_env[OPENCODE_SERVER_PASSWORD_ENV]
 
 
 def _opencode_launch_env(
@@ -2036,13 +2037,16 @@ def opencode(
                 config.project_name,
                 dev_ports=config.dev_ports,
             )
+            from ai_shell.opencode import opencode_sign_in_url
+
             console.print(
                 f"[bold]Launching opencode web{bedrock_label}{openai_label} in {name}...[/bold]"
             )
-            console.print(f"[green bold]Open in browser: http://localhost:{host_port}[/green bold]")
+            user, password = _ensure_opencode_password(exec_env)
+            sign_in = opencode_sign_in_url(f"http://localhost:{host_port}", password, user)
+            console.print(f"[green bold]Open in browser: {sign_in}[/green bold]")
             mdns_name = f"{project_slug}.local"
             console.print(f"[green]mDNS: http://{mdns_name}:{web_port}[/green]")
-            _ensure_opencode_password(exec_env)
         else:
             console.print(
                 f"[bold]Launching opencode{bedrock_label}{openai_label} in {name}...[/bold]"
@@ -2128,7 +2132,7 @@ def serve(ctx, port: int, open_browser: bool) -> None:
         )
     )
 
-    _ensure_opencode_password(exec_env)
+    user, password = _ensure_opencode_password(exec_env)
     cmd = _server_command(cmd)
     cmd.append("serve")
     cmd.extend(["--hostname", "0.0.0.0", "--port", str(port)])  # nosec B104
@@ -2152,15 +2156,9 @@ def serve(ctx, port: int, open_browser: bool) -> None:
     console.print(f"[green]mDNS:   http://{mdns_name}:{port}[/green]")
 
     if open_browser:
-        from ai_shell.opencode import (
-            OPENCODE_DEFAULT_USERNAME,
-            OPENCODE_SERVER_PASSWORD_ENV,
-            OPENCODE_SERVER_USERNAME_ENV,
-        )
+        from ai_shell.opencode import opencode_sign_in_url
 
-        user = exec_env.get(OPENCODE_SERVER_USERNAME_ENV) or OPENCODE_DEFAULT_USERNAME
-        password = exec_env.get(OPENCODE_SERVER_PASSWORD_ENV, "")
-        webbrowser.open(signed_in_url(f"http://localhost:{host_port}", user, password))
+        webbrowser.open(opencode_sign_in_url(f"http://localhost:{host_port}", password, user))
 
 
 @opencode.command()
@@ -2182,21 +2180,6 @@ def attach(ctx, port: int) -> None:
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
 
 
-def signed_in_url(url: str, user: str, password: str) -> str:
-    """*url* with the server's Basic auth in it, so the browser opens signed in.
-
-    Without it the browser shows its own sign-in prompt. The browser keeps the
-    credentials for the origin, so the web UI's own requests are signed in too.
-    """
-    if not password:
-        return url
-    from urllib.parse import quote, urlsplit, urlunsplit
-
-    parts = urlsplit(url)
-    netloc = f"{quote(user, safe='')}:{quote(password, safe='')}@{parts.netloc}"
-    return urlunsplit(parts._replace(netloc=netloc))
-
-
 @opencode.command()
 @click.argument("project", required=False, default="")
 @click.option("--instance", default="", help="Instance id or Name tag (opencode.remote.instance).")
@@ -2209,7 +2192,8 @@ def remote(ctx, project: str, instance: str, local_port: int, no_browser: bool) 
     """Open OpenCode on a remote box over AWS Systems Manager.
 
     Starts the box and the project's server when needed, prints the user and password,
-    forwards the server port to localhost and opens the browser. PROJECT is the folder
+    forwards the server port to localhost and opens the browser already signed in.
+    PROJECT is the folder
     under opencode.remote.projects_dir on the box (default: opencode.remote.folder,
     else this folder's name).
     Ctrl+C ends the tunnel.
@@ -2218,7 +2202,7 @@ def remote(ctx, project: str, instance: str, local_port: int, no_browser: bool) 
     import time
 
     from ai_shell import remote as rbox
-    from ai_shell.opencode import OPENCODE_DEFAULT_USERNAME
+    from ai_shell.opencode import OPENCODE_DEFAULT_USERNAME, opencode_sign_in_url
 
     config = load_config(project_override=ctx.obj.get("project"), project_dir=Path.cwd())
     box = dataclasses.replace(config.opencode_remote)
@@ -2254,7 +2238,8 @@ def remote(ctx, project: str, instance: str, local_port: int, no_browser: bool) 
         if not no_browser:
             time.sleep(3)
             if tunnel.poll() is None:
-                webbrowser.open(signed_in_url(url, OPENCODE_DEFAULT_USERNAME, password))
+                # The token signs the browser in; without it the browser shows a password prompt.
+                webbrowser.open(opencode_sign_in_url(url, password, OPENCODE_DEFAULT_USERNAME))
         sys.exit(tunnel.wait())
     except KeyboardInterrupt:
         tunnel.terminate()
