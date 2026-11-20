@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.128.0 (2026-11-20)
+
+### Features
+
+- **docker**: Add claudecode.nvim and opencode.nvim to container Neovim config (#217)
+  ([#217](https://github.com/svange/augint-shell/pull/217),
+  [`ae21fc7`](https://github.com/svange/augint-shell/commit/ae21fc7564179bd15e079f43281f7829fceb5544))
+
+
 ## v0.127.3 (2026-11-20)
 
 ### Bug Fixes
