@@ -1,4 +1,4 @@
-"""``ai-shell ec2``: list, connect to and stop EC2 instances across AWS profiles."""
+"""``ai-shell ec2``: list, start, connect to and stop EC2 instances across AWS profiles."""
 
 from __future__ import annotations
 
@@ -146,7 +146,7 @@ def _choose(
 
 @click.group("ec2", context_settings=CONTEXT_SETTINGS)
 def ec2_group() -> None:
-    """EC2 instances across your AWS profiles: list, connect, stop.
+    """EC2 instances across your AWS profiles: list, start, connect, stop.
 
     Uses the AWS CLI v2 and your profiles. Connecting tries SSM, then an EC2 Instance
     Connect Endpoint, then the instance's IP, and never changes the account to get in.
@@ -294,6 +294,12 @@ def _tunnel(instance: Instance, endpoint: ec2.Endpoint, remote_port: int, hold: 
     help="SSH private key or key pair file (default: ~/.ssh/<key pair name>).",
 )
 @click.option(
+    "--start/--no-start",
+    "start_first",
+    default=None,
+    help="Start a stopped instance before connecting (default: ask).",
+)
+@click.option(
     "--stop/--no-stop",
     "stop_after",
     default=None,
@@ -309,14 +315,25 @@ def connect(
     local_port: int,
     user: str,
     key: Path | None,
+    start_first: bool | None,
     stop_after: bool | None,
 ) -> None:
-    """Start an instance when needed and connect to it.
+    """Connect to an instance, asking to start it when it is not running.
 
     TARGET is an instance id or Name tag; without it, pick from a list.
     """
     results = _gather(profiles, region, all_regions)
     instance = _choose(results, target)
+    if instance.state not in ("running", "pending"):
+        if start_first is False:
+            raise click.ClickException(f"{instance.label} is {instance.state}.")
+        if start_first is None:
+            click.confirm(
+                f"{instance.label} is {instance.state}. Start it?",
+                default=True,
+                abort=True,
+                err=True,
+            )
     if mode == "rdp":
         remote_port = port or 3389
     elif mode in ("ssh", "shell"):
@@ -327,8 +344,8 @@ def connect(
     code = 0
     try:
         try:
-            started = core.start_instance(instance.scope, instance.instance_id, say=_say)
-            if started:
+            if instance.state != "running":
+                started = core.start_instance(instance.scope, instance.instance_id, say=_say)
                 instance = ec2.describe(instance)
             hold = stop_after is True or (stop_after is None and started)
             code = _connect(instance, mode, remote_port, local_port, user, key, started, hold)
@@ -373,6 +390,38 @@ def _connect(
         return _tunnel(instance, endpoint, remote_port, hold)
     finally:
         endpoint.close()
+
+
+@ec2_group.command("start")
+@click.argument("target", required=False, default="")
+@_profile_options
+@click.option(
+    "--wait/--no-wait",
+    default=True,
+    help="Wait until the instance is running (default: wait).",
+)
+def start_command(
+    target: str,
+    profiles: tuple[str, ...],
+    region: str,
+    all_regions: bool,
+    wait: bool,
+) -> None:
+    """Start an instance. TARGET is an instance id or Name tag; without it, pick one."""
+    results = _gather(profiles, region, all_regions)
+    instance = _choose(results, target, states=("stopped", "stopping"))
+    try:
+        if wait:
+            core.start_instance(instance.scope, instance.instance_id, say=_say)
+            instance = ec2.describe(instance)
+            ip = instance.public_ip or instance.private_ip
+            where = f" ({ip})" if ip else ""
+            console.print(f"[green]{instance.label} is running{where}.[/green]")
+        else:
+            ec2.start(instance)
+            console.print(f"Starting {instance.label}.")
+    except RemoteError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 @ec2_group.command("stop")

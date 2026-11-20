@@ -689,15 +689,50 @@ def test_cli_connect_starts_and_stops(cli_env, monkeypatch):
     monkeypatch.setattr(
         ec2, "open_endpoint", lambda *a, **k: Endpoint("direct (public IP)", "3.3.3.3", 22)
     )
-    result = CliRunner().invoke(cli, ["ec2", "connect", "db", "--stop"])
+    result = CliRunner().invoke(cli, ["ec2", "connect", "db", "--start", "--stop"])
     assert result.exit_code == 0, result.output
     assert "answers on 3.3.3.3:22" in result.output
     assert ("ec2", "stop-instances") in cli_env.commands()
     # without a terminal, a started instance is not stopped unless asked
     cli_env.calls.clear()
+    result = CliRunner().invoke(cli, ["ec2", "connect", "db"], input="y\n")
+    assert result.exit_code == 0, result.output
+    assert "db (i-0ccccccccccccccc0) is stopped. Start it?" in result.output
+    assert ("ec2", "stop-instances") not in cli_env.commands()
+
+
+def test_cli_connect_declining_start_aborts(cli_env, monkeypatch):
+    started = []
+    monkeypatch.setattr(remote, "start_instance", lambda *a, **k: started.append(a) or True)
+    result = CliRunner().invoke(cli, ["ec2", "connect", "db", "--stop"], input="n\n")
+    assert result.exit_code == 1
+    assert "Start it?" in result.output
+    assert started == []
+    assert ("ec2", "stop-instances") not in cli_env.commands()
+
+
+def test_cli_connect_no_start_refuses_stopped_instance(cli_env, monkeypatch):
+    started = []
+    monkeypatch.setattr(remote, "start_instance", lambda *a, **k: started.append(a) or True)
+    result = CliRunner().invoke(cli, ["ec2", "connect", "db", "--no-start"])
+    assert result.exit_code == 1
+    assert "is stopped." in result.output
+    assert started == []
+
+
+def test_cli_connect_waits_for_pending_without_asking(cli_env, monkeypatch):
+    cli_env.accounts["prod"][1][0]["State"]["Name"] = "pending"
+    waited = []
+    monkeypatch.setattr(
+        remote, "start_instance", lambda scope, iid, say: waited.append(iid) or False
+    )
+    monkeypatch.setattr(
+        ec2, "open_endpoint", lambda *a, **k: Endpoint("direct (public IP)", "3.3.3.3", 22)
+    )
     result = CliRunner().invoke(cli, ["ec2", "connect", "db"])
     assert result.exit_code == 0, result.output
-    assert ("ec2", "stop-instances") not in cli_env.commands()
+    assert "Start it?" not in result.output
+    assert waited == ["i-0ccccccccccccccc0"]
 
 
 def test_cli_connect_picks_from_a_list(cli_env, monkeypatch):
@@ -708,7 +743,7 @@ def test_cli_connect_picks_from_a_list(cli_env, monkeypatch):
         raise RemoteError("No way to reach port 22 on db")
 
     monkeypatch.setattr(ec2, "open_endpoint", open_endpoint)
-    result = CliRunner().invoke(cli, ["ec2", "connect"], input="2\n")
+    result = CliRunner().invoke(cli, ["ec2", "connect"], input="2\ny\n")
     assert result.exit_code == 1
     assert chosen["id"] == "i-0ccccccccccccccc0"  # sorted by profile: dev/web, then prod/db
     assert "No way to reach port 22" in result.output
@@ -782,6 +817,28 @@ def test_cli_connect_shell_falls_back_to_ssh(cli_env, monkeypatch):
     assert result.exit_code == 1
     assert seen["skip"] == ("SSM",)
     assert "No SSM shell" in result.output
+
+
+def test_cli_start(cli_env):
+    result = CliRunner().invoke(cli, ["ec2", "start", "db"])
+    assert result.exit_code == 0, result.output
+    assert "db (i-0ccccccccccccccc0) is running (10.0.0.5)." in result.output
+    assert ("ec2", "start-instances") in cli_env.commands()
+    assert ("ec2", "wait") in cli_env.commands()
+
+
+def test_cli_start_no_wait(cli_env):
+    result = CliRunner().invoke(cli, ["ec2", "start", "db", "--no-wait"])
+    assert result.exit_code == 0, result.output
+    assert "Starting db" in result.output
+    assert ("ec2", "start-instances") in cli_env.commands()
+    assert ("ec2", "wait") not in cli_env.commands()
+
+
+def test_cli_start_offers_only_stopped_instances(cli_env):
+    result = CliRunner().invoke(cli, ["ec2", "start", "web"])
+    assert result.exit_code == 1
+    assert "No instance named 'web'" in result.output
 
 
 def test_cli_stop(cli_env):
