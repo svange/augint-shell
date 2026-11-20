@@ -51,6 +51,15 @@ class TestManageResolvesLegacyNames:
         assert result.exit_code == 0
         manager.container_logs.assert_called_once_with(LEGACY_NAME, follow=False)
 
+    def test_pull_forces_synchronous_pull(self, _mock_config, mock_cm_class):
+        manager = self._setup_manager(mock_cm_class)
+        manager.config.full_image = "svange/augint-shell:latest"
+        result = self.runner.invoke(cli, ["manage", "pull"])
+        assert result.exit_code == 0
+        manager._pull_image_if_needed.assert_called_once_with(
+            "svange/augint-shell:latest", force=True
+        )
+
 
 @patch("ai_shell.cli.commands.manage.load_config")
 class TestManageEnv:

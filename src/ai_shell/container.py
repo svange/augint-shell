@@ -133,6 +133,64 @@ def _run_docker(args: list[str]) -> tuple[int, float]:
     return result.returncode, elapsed
 
 
+def _spawn_detached_pull(image_ref: str) -> bool:
+    """Start ``docker pull <image_ref>`` in a detached background process.
+
+    Returns True when the background pull process was spawned, False on error.
+    Output goes to ``~/.cache/ai-shell/image-pull.log`` (or DEVNULL) so it
+    never interferes with an interactive terminal session.
+    """
+    from ai_shell.standalone import detached_subprocess_env
+
+    cmd = ["docker", "pull", image_ref]
+    env = detached_subprocess_env()
+    env_kwargs: dict[str, Any] = {"env": env} if env is not None else {}
+
+    log_file: Any = None
+    out: Any = subprocess.DEVNULL
+    try:
+        log_path = Path.home() / ".cache" / "ai-shell" / "image-pull.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_file = open(log_path, "wb")
+        out = log_file
+    except OSError:
+        out = subprocess.DEVNULL
+
+    try:
+        if sys.platform == "win32":
+            creation_flags = (
+                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                | getattr(subprocess, "DETACHED_PROCESS", 0)
+                | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            )
+            subprocess.Popen(  # nosec B603
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=out,
+                stderr=out,
+                creationflags=creation_flags,
+                **env_kwargs,
+            )
+        else:
+            subprocess.Popen(  # nosec B603
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=out,
+                stderr=out,
+                start_new_session=True,
+                close_fds=True,
+                **env_kwargs,
+            )
+        logger.debug("Spawned detached background pull for %s", image_ref)
+        return True
+    except OSError as e:
+        logger.debug("Could not spawn background pull for %s: %s", image_ref, e)
+        return False
+    finally:
+        if log_file is not None:
+            log_file.close()
+
+
 def _run_docker_with_typeahead(args: list[str], typeahead: bytes) -> tuple[int, float]:
     """Run docker exec under a PTY, pre-injecting typeahead bytes.
 
@@ -766,15 +824,32 @@ class ContainerManager:
         container.remove(force=True)
         return True
 
+    def _maybe_spawn_background_pull(self, image_ref: str) -> None:
+        """Spawn a detached ``docker pull`` when the pull cache has expired."""
+        from ai_shell.cache import is_fresh, mark_fresh
+
+        if is_fresh("image-pull", image_ref, self.config.image_pull_cache_ttl):
+            logger.debug("Image-pull cache fresh for %s — skipping background pull", image_ref)
+            return
+        if _spawn_detached_pull(image_ref):
+            mark_fresh("image-pull", image_ref)
+
     def _recreate_if_image_stale(self, container: Container, name: str) -> bool:
-        """Pull the latest image and recreate the container if it is outdated.
+        """Recreate the container if a newer ``latest`` image is available.
 
         Only acts when the configured tag is ``latest``.  For pinned
         version tags the image is immutable so staleness doesn't apply.
 
-        The pull is skipped when ``config.image_pull_cache_ttl`` seconds have
-        not yet elapsed since the last successful pull (default 15 min) so
-        normal launches don't pay the network round-trip.
+        Behavior depends on ``config.image_pull_mode``:
+        - ``"background"`` (default): never block launch on the network.
+          Compares the container's image against the locally cached image (so
+          a prior background pull or scheduled task takes effect immediately)
+          and kicks off a detached ``docker pull`` when the pull cache TTL has
+          expired.
+        - ``"manual"``: never auto-pull; still recreates if a newer ``latest``
+          image was pulled locally (e.g., via ``ai-shell manage pull``).
+        - ``"sync"``: pull synchronously when ``config.image_pull_cache_ttl``
+          seconds have elapsed since the last check.
 
         Returns True if the container was removed (caller must recreate).
         """
@@ -785,23 +860,34 @@ class ContainerManager:
             return False
 
         image_ref = self.config.full_image
-        if is_fresh("image-pull", image_ref, self.config.image_pull_cache_ttl):
-            logger.debug("Image-pull cache fresh for %s — skipping pull", image_ref)
-            return False
+        mode = self.config.image_pull_mode
 
-        try:
-            pulled = self.client.images.pull(*image_ref.rsplit(":", 1))
-        except APIError:
-            logger.debug("Could not pull %s — skipping staleness check", image_ref)
-            return False
+        if mode == "sync":
+            if is_fresh("image-pull", image_ref, self.config.image_pull_cache_ttl):
+                logger.debug("Image-pull cache fresh for %s — skipping pull", image_ref)
+                return False
 
-        mark_fresh("image-pull", image_ref)
-        self._warn_if_image_below_minimum(pulled)
+            try:
+                target_image = self.client.images.pull(*image_ref.rsplit(":", 1))
+            except APIError:
+                logger.debug("Could not pull %s — skipping staleness check", image_ref)
+                return False
+
+            mark_fresh("image-pull", image_ref)
+        else:
+            if mode == "background":
+                self._maybe_spawn_background_pull(image_ref)
+            try:
+                target_image = self.client.images.get(image_ref)
+            except (ImageNotFound, APIError):
+                return False
+
+        self._warn_if_image_below_minimum(target_image)
 
         container_image_id = container.image.id
-        pulled_image_id = pulled.id
+        target_image_id = target_image.id
 
-        if container_image_id == pulled_image_id:
+        if container_image_id == target_image_id:
             return False
 
         logger.warning(
@@ -1576,9 +1662,15 @@ class ContainerManager:
     def ensure_tool_fresh(self, container_name: str, tool_name: str) -> None:
         """Check if a tool is stale and update it before launch.
 
-        Runs ``update-tools.sh --check <tool>`` inside the container.
-        If stale (exit code 1), runs ``--tool <tool>`` in the foreground
-        (blocking) which also kicks off background updates for other tools.
+        When ``config.background_updates`` is True (default), schedules a
+        detached check-and-update inside the container so launch never blocks
+        waiting on ``claude update`` or ``npm install -g``.  The detached
+        process waits ``AI_SHELL_UPDATE_BG_DELAY`` (default 90 s) before
+        updating so it never races with MCP server startup.
+
+        When ``config.background_updates`` is False, runs
+        ``update-tools.sh --check <tool>`` and, if stale, runs
+        ``--tool <tool>`` in the foreground (blocking) with a spinner.
 
         Silently does nothing if ``update-tools.sh`` is not present in the
         container (backward compatibility with older images), or if
@@ -1589,6 +1681,22 @@ class ContainerManager:
             return
 
         update_script = "/usr/local/bin/update-tools.sh"
+
+        if self.config.background_updates:
+            script = (
+                'if [ -x "$1" ] && ! "$1" --check "$2"; then '
+                'sleep "${AI_SHELL_UPDATE_BG_DELAY:-90}"; '
+                'exec "$1" --all >> /var/log/ai-shell/background-update.log 2>&1; '
+                "fi"
+            )
+            try:
+                self.exec_detached(
+                    container_name,
+                    ["sh", "-c", script, "ai-shell-bg-update", update_script, tool_name],
+                )
+            except (subprocess.CalledProcessError, OSError) as e:
+                logger.debug("Could not start background tool update for %s: %s", tool_name, e)
+            return
 
         # Check if update script exists in the container
         check_exists = subprocess.run(
@@ -1650,32 +1758,59 @@ class ContainerManager:
         except APIError as e:
             raise ImagePullError(image, f"build failed: {e}") from e
 
-    def _pull_image_if_needed(self, image: str) -> None:
+    def _pull_image_if_needed(self, image: str, *, force: bool = False) -> None:
         """Pull a Docker image if not available locally.
 
-        For the ``latest`` tag, always pull to ensure the freshest digest
-        since the local cache may be stale.  If the pull fails but a
-        cached copy exists, falls back to the cached version with a
-        warning.
+        When *force* is True (e.g., ``ai-shell manage pull``), always performs
+        a synchronous pull and updates the ``image-pull`` cache timestamp.
+
+        For the ``latest`` tag:
+        - ``"background"`` (default): reuse any local copy immediately and
+          spawn a detached pull when the cache TTL has expired.
+        - ``"manual"``: reuse any local copy without auto-pulling.
+        - ``"sync"``: pull synchronously unless the cache TTL is fresh and a
+          local copy exists.
+
+        If no local copy exists, always pulls synchronously.  If a synchronous
+        ``latest`` pull fails but a cached copy exists (and *force* is False),
+        falls back to the cached version with a warning.
         """
+        from ai_shell.cache import is_fresh, mark_fresh
+
         tag = image.rsplit(":", 1)[-1] if ":" in image else "latest"
 
-        # AUTO-UPDATE: Always pull 'latest' to get fresh images
-        if tag != "latest":
-            try:
-                self.client.images.get(image)
-                logger.debug("Image already available: %s", image)
-                return
-            except ImageNotFound:
-                pass
+        if not force:
+            if tag != "latest":
+                try:
+                    self.client.images.get(image)
+                    logger.debug("Image already available: %s", image)
+                    return
+                except ImageNotFound:
+                    pass
+            else:
+                mode = self.config.image_pull_mode
+                cache_fresh = is_fresh("image-pull", image, self.config.image_pull_cache_ttl)
+                if mode != "sync" or cache_fresh:
+                    try:
+                        local_img = self.client.images.get(image)
+                    except ImageNotFound:
+                        local_img = None
+                    if local_img is not None:
+                        if mode == "background" and not cache_fresh:
+                            self._maybe_spawn_background_pull(image)
+                        self._warn_if_image_below_minimum(local_img)
+                        logger.debug("Using locally cached image: %s", image)
+                        return
 
         logger.info("Pulling image: %s (this may take a while)...", image)
         try:
             pulled = self.client.images.pull(*image.rsplit(":", 1))
+            if tag == "latest":
+                mark_fresh("image-pull", image)
             self._warn_if_image_below_minimum(pulled)
             logger.info("Image pulled: %s", image)
         except APIError as e:
-            if tag == "latest":
+            if tag == "latest" and not force:
                 try:
                     self.client.images.get(image)
                     logger.warning("Failed to pull latest image, using cached version: %s", e)

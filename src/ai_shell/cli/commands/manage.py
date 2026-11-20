@@ -130,7 +130,7 @@ def manage_pull(ctx):
     manager = _get_manager(ctx)
     image = manager.config.full_image
     console.print(f"[bold]Pulling {image}...[/bold]")
-    manager._pull_image_if_needed(image)
+    manager._pull_image_if_needed(image, force=True)
     console.print(f"[green]Image ready: {image}[/green]")
 
 

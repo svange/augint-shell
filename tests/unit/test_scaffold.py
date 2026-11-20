@@ -86,6 +86,8 @@ class TestProjectYamlOutput:
         assert {9000, 9229} <= set(config.extra_ports)
         assert config.node_modules_paths == ["apps/*"]
         assert config.image_pull_cache_ttl == 900
+        assert config.image_pull_mode == "background"
+        assert config.background_updates is True
         assert config.comfyui_port == 8188
         assert config.vpn_country == "United States"
         assert config.voice_agent.port == 8010

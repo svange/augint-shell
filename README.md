@@ -234,25 +234,30 @@ Global config at `~/.augint/.ai-shell.yaml` (canonical), `~/.ai-shell.yaml` or `
 
 The container overlays named volumes on the project's `node_modules`, `vendor/` and the uv venv, so a Linux install never lands in the bind-mounted Windows checkout. Workspace packages declared in `pnpm-workspace.yaml` or `package.json` `workspaces` (any directory with a `package.json` that matches) are overlaid the same way automatically; without that, pnpm on Windows and pnpm in the container keep reinstalling over each other's workspace links. Add `container.node_modules_paths: [glob, ...]` for layouts those files do not describe.
 
-### Launch-time caches
+### Launch-time caches & background updates
 
-To keep tool launches fast, two preflight checks are cached on the host under `~/.cache/ai-shell/`:
+To keep tool launches fast, image pulls and tool updates run in the background by default and two preflight checks are cached on the host under `~/.cache/ai-shell/`:
 
-| Cache | Default TTL | What it skips |
+| Setting / Cache | Default | Behavior |
 | --- | --- | --- |
-| `image-pull` | 15 min | `docker pull` of the `latest` image to compare digests (network round-trip) |
-| `bedrock-check` | 24 h | Bedrock `converse` preflight that verifies AWS auth + model access |
+| `container.image_pull_mode` | `background` | Launches immediately with the locally cached image and spawns a detached `docker pull` when the `image-pull` cache expires (`sync` = blocking pull, `manual` = only pull via `ai-shell manage pull`) |
+| `container.background_updates` | `true` | Schedules stale CLI tool updates (`claude`, `codex`, `opencode`, `pi`) via detached `docker exec -d` instead of blocking launch (`false` = blocking spinner) |
+| `image-pull` cache | 15 min | Avoids repeating `docker pull` checks for `latest` within the TTL window |
+| `bedrock-check` cache | 24 h | Skips Bedrock `converse` preflight that verifies AWS auth + model access |
 
 Tune via YAML or env vars:
 
 ```yaml
 container:
-  image_pull_cache_ttl: 900       # seconds (0 = always pull)
+  image_pull_mode: background     # "background" (default), "sync", or "manual"
+  image_pull_cache_ttl: 900       # seconds (0 = check every launch)
+  background_updates: true        # false = block launch while updating stale tools
+  skip_updates: false             # true = skip pre-launch tool updates completely
 aws:
   bedrock_check_cache_ttl: 86400  # seconds (0 = always verify)
 ```
 
-Equivalent env vars: `AI_SHELL_IMAGE_PULL_CACHE_TTL`, `AI_SHELL_BEDROCK_CHECK_CACHE_TTL`. Delete the corresponding file under `~/.cache/ai-shell/` to force a recheck on the next launch.
+Equivalent env vars: `AI_SHELL_IMAGE_PULL_MODE`, `AI_SHELL_IMAGE_PULL_CACHE_TTL`, `AI_SHELL_BACKGROUND_UPDATES`, `AI_SHELL_SKIP_UPDATES`, `AI_SHELL_BEDROCK_CHECK_CACHE_TTL`. Delete the corresponding file under `~/.cache/ai-shell/` (or run `ai-shell manage pull`) to force an immediate check.
 
 ---
 

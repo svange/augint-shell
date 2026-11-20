@@ -150,6 +150,7 @@ class AiShellConfig:
         ""  # --proxy-server for every host Chrome ai-shell launches ("vpn" = own VPN)
     )
     skip_updates: bool = False
+    background_updates: bool = True  # Run stale tool updates detached instead of blocking launch
 
     # VPN container (chrome_proxy: vpn). NordVPN over WireGuard through gluetun;
     # the credential is NORDVPN_TOKEN in ~/.augint/.env, never config.
@@ -161,7 +162,11 @@ class AiShellConfig:
     # an explicit --expo still works. --expo/--no-expo override this.
     expo_auto: bool = True
 
-    # Pre-launch cache TTLs (seconds). Set to 0 to disable.
+    # Pre-launch image pull behavior and cache TTLs (seconds). Set TTL to 0 to disable.
+    # "background" (default): launch immediately with local image, pull latest in a detached process.
+    # "sync": block launch to pull latest when cache expires.
+    # "manual": never auto-pull when a local image exists (use `ai-shell manage pull`).
+    image_pull_mode: str = "background"
     image_pull_cache_ttl: int = 900  # 15 min: skip docker pull if checked recently
     bedrock_check_cache_ttl: int = 86400  # 24 h: skip Bedrock preflight if checked recently
 
@@ -464,10 +469,26 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
             config.vpn_proxy_port = int(vpn["proxy_port"])
     if "skip_updates" in container:
         config.skip_updates = bool(container["skip_updates"])
+    if "background_updates" in container:
+        config.background_updates = bool(container["background_updates"])
+    if "image_pull_mode" in container:
+        config.image_pull_mode = _validate_image_pull_mode(str(container["image_pull_mode"]))
     if "image_pull_cache_ttl" in container:
         config.image_pull_cache_ttl = int(container["image_pull_cache_ttl"])
     if "bedrock_check_cache_ttl" in aws:
         config.bedrock_check_cache_ttl = int(aws["bedrock_check_cache_ttl"])
+
+
+IMAGE_PULL_MODES: tuple[str, ...] = ("background", "sync", "manual")
+
+
+def _validate_image_pull_mode(raw: str) -> str:
+    """Normalize and validate ``container.image_pull_mode``."""
+    mode = raw.strip().lower()
+    if mode not in IMAGE_PULL_MODES:
+        allowed = ", ".join(IMAGE_PULL_MODES)
+        raise ValueError(f"Invalid image_pull_mode {raw!r}; expected one of: {allowed}")
+    return mode
 
 
 def _upsert_custom_endpoint(
@@ -644,6 +665,7 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_GUI_DISPLAY": ("gui_display", str),
         "AI_SHELL_GPU": ("gpu", bool),
         "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),
+        "AI_SHELL_BACKGROUND_UPDATES": ("background_updates", bool),
         "AI_SHELL_IMAGE_PULL_CACHE_TTL": ("image_pull_cache_ttl", int),
         "AI_SHELL_BEDROCK_CHECK_CACHE_TTL": ("bedrock_check_cache_ttl", int),
     }
@@ -657,6 +679,11 @@ def _apply_env_vars(config: AiShellConfig) -> None:
                 coerced = type_fn(value)
             setattr(config, attr, coerced)
             logger.debug("Config override from env: %s=%s", env_key, value)
+
+    image_pull_mode_val = os.environ.get("AI_SHELL_IMAGE_PULL_MODE")
+    if image_pull_mode_val is not None:
+        config.image_pull_mode = _validate_image_pull_mode(image_pull_mode_val)
+        logger.debug("Config override from env: AI_SHELL_IMAGE_PULL_MODE=%s", image_pull_mode_val)
 
     # AI_SHELL_PORTS is comma-separated, extends extra_ports
     ports_value = os.environ.get("AI_SHELL_PORTS")

@@ -771,3 +771,39 @@ def test_container_github_auth_and_docker_socket(tmp_path):
     config = load_config(project_dir=tmp_path)
     assert config.github_auth is False
     assert config.docker_socket is False
+
+
+def test_container_background_pull_and_update_config(tmp_path, monkeypatch):
+    from ai_shell.config import load_config
+
+    default_cfg = load_config(project_dir=tmp_path)
+    assert default_cfg.image_pull_mode == "background"
+    assert default_cfg.background_updates is True
+
+    (tmp_path / ".ai-shell.yaml").write_text(
+        "container:\n  image_pull_mode: manual\n  background_updates: false\n"
+    )
+    yaml_cfg = load_config(project_dir=tmp_path)
+    assert yaml_cfg.image_pull_mode == "manual"
+    assert yaml_cfg.background_updates is False
+
+    monkeypatch.setenv("AI_SHELL_IMAGE_PULL_MODE", "SYNC")
+    monkeypatch.setenv("AI_SHELL_BACKGROUND_UPDATES", "1")
+    env_cfg = load_config(project_dir=tmp_path)
+    assert env_cfg.image_pull_mode == "sync"
+    assert env_cfg.background_updates is True
+
+
+def test_container_invalid_image_pull_mode_raises(tmp_path, monkeypatch):
+    import pytest
+
+    from ai_shell.config import load_config
+
+    (tmp_path / ".ai-shell.yaml").write_text("container:\n  image_pull_mode: bogus\n")
+    with pytest.raises(ValueError, match="Invalid image_pull_mode"):
+        load_config(project_dir=tmp_path)
+
+    (tmp_path / ".ai-shell.yaml").unlink()
+    monkeypatch.setenv("AI_SHELL_IMAGE_PULL_MODE", "nope")
+    with pytest.raises(ValueError, match="Invalid image_pull_mode"):
+        load_config(project_dir=tmp_path)

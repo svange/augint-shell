@@ -35,3 +35,10 @@ def no_host_port_probe():
     """
     with patch("ai_shell.container._host_port_available", return_value=True):
         yield
+
+
+@pytest.fixture(autouse=True)
+def no_background_pull():
+    """Prevent unit tests from spawning real detached ``docker pull`` subprocesses."""
+    with patch("ai_shell.container._spawn_detached_pull", return_value=True):
+        yield
