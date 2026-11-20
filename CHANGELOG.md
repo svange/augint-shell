@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.127.2 (2026-11-20)
+
+### Bug Fixes
+
+- **docker**: Install aws-bedrock-token-generator into the managed Python (#215)
+  ([#215](https://github.com/svange/augint-shell/pull/215),
+  [`468920d`](https://github.com/svange/augint-shell/commit/468920de439946f70142516b790116ecaccb13ad))
+
+
 ## v0.127.1 (2026-11-20)
 
 ### Bug Fixes
