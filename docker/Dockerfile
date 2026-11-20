@@ -227,6 +227,9 @@ RUN mkdir -p "${PNPM_HOME}/bin" "${PNPM_HOME}/store" && \
     else \
         pnpm env use --global lts; \
     fi && \
+    # pnpm's node runtime ships node only, without npm and npx; the npm layer below needs them.
+    { command -v npm >/dev/null 2>&1 || pnpm add -g npm; } && \
+    npm --version && \
     pnpm config set store-dir "${PNPM_HOME}/store" --global && \
     printf 'prefix=/usr/local\n' > /etc/npmrc && \
     curl -fsSL https://bun.sh/install | bash && \

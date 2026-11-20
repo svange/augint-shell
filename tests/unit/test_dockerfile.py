@@ -40,6 +40,10 @@ def test_dockerfile_uses_uv_and_pnpm_without_conflicting_global_managers() -> No
     # Node.js should be standardized via standalone pnpm, not NodeSource or corepack
     assert "https://get.pnpm.io/install.sh" in content
     assert "pnpm runtime set node lts -g" in content
+    # Regression: pnpm's node runtime has no npm, and `npm install -g` failed with
+    # "npm: not found" (image build of 2026-11-19, after #210).
+    assert "pnpm add -g npm" in content
+    assert content.index("pnpm add -g npm") < content.index("RUN npm install -g")
     assert "deb.nodesource.com" not in content
     assert "corepack" not in content
 
