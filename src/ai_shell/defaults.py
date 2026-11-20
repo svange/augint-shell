@@ -396,6 +396,9 @@ def build_dev_mounts(
     project_name: str,
     extra_node_modules_paths: list[str] | None = None,
     isolate_home_paths: set[str] | None = None,
+    *,
+    github_auth: bool = True,
+    docker_socket: bool = True,
 ) -> list[Mount]:
     """Build the full mount list matching docker-compose.yml dev service.
 
@@ -533,8 +536,10 @@ def build_dev_mounts(
     # gh CLI config: bind-mount the host path when found (Linux/Mac/WSL2),
     # otherwise use a named volume so auth persists across container recreations
     # (needed on Windows where gh stores tokens in keyring, not a file).
-    gh_config = _find_gh_config_dir()
-    if gh_config is not None:
+    gh_config = _find_gh_config_dir() if github_auth else None
+    if not github_auth:
+        logger.debug("GitHub sign-in kept out of the container (container.github_auth: false)")
+    elif gh_config is not None:
         mounts.append(
             Mount(
                 target="/root/.config/gh",
@@ -554,7 +559,7 @@ def build_dev_mounts(
 
     # Optional: Docker socket
     docker_sock = Path("/var/run/docker.sock")
-    if docker_sock.exists():
+    if docker_socket and docker_sock.exists():
         mounts.append(
             Mount(
                 target="/var/run/docker.sock",
@@ -935,6 +940,16 @@ def list_all_claude_accounts(
     return sorted(names.values())
 
 
+# Variables that sign a process in to GitHub; dropped when container.github_auth is false.
+GITHUB_TOKEN_VARS = (
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "GH_ENTERPRISE_TOKEN",
+    "GITHUB_ENTERPRISE_TOKEN",
+    "GITHUB_MODELS_BASE_URL",
+)
+
+
 def build_dev_environment(
     extra_env: dict[str, str] | None = None,
     project_dir: Path | None = None,
@@ -950,6 +965,7 @@ def build_dev_environment(
     claude_account: str = "",
     claude_login: bool = False,
     env_file: Path | None = None,
+    github_auth: bool = True,
 ) -> dict[str, str]:
     """Build environment variables matching docker-compose.yml dev service.
 
@@ -1094,6 +1110,10 @@ def build_dev_environment(
         env["BEDROCK_API_KEY"] = env["AWS_BEARER_TOKEN_BEDROCK"]
     elif env.get("BEDROCK_API_KEY") and not env.get("AWS_BEARER_TOKEN_BEDROCK"):
         env["AWS_BEARER_TOKEN_BEDROCK"] = env["BEDROCK_API_KEY"]
+
+    if not github_auth:
+        for key in GITHUB_TOKEN_VARS:
+            env.pop(key, None)
 
     return env
 

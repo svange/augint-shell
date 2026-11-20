@@ -294,15 +294,18 @@ class ContainerManager:
         """Return a stable SHA-256 hex digest of the dev container's mount/port config."""
         from hashlib import sha256
 
-        payload = json.dumps(
-            {
-                "dev_ports": list(self.config.dev_ports),
-                "extra_volumes": sorted(self.config.extra_volumes),
-                "node_modules_paths": sorted(self.config.node_modules_paths),
-                "isolate_home_paths": sorted(self.config.isolate_home_paths),
-            },
-            sort_keys=True,
-        )
+        settings: dict[str, object] = {
+            "dev_ports": list(self.config.dev_ports),
+            "extra_volumes": sorted(self.config.extra_volumes),
+            "node_modules_paths": sorted(self.config.node_modules_paths),
+            "isolate_home_paths": sorted(self.config.isolate_home_paths),
+        }
+        # Only when changed from the default, so existing containers keep their digest.
+        if not self.config.github_auth:
+            settings["github_auth"] = False
+        if not self.config.docker_socket:
+            settings["docker_socket"] = False
+        payload = json.dumps(settings, sort_keys=True)
         return sha256(payload.encode("utf-8")).hexdigest()[:16]
 
     def _recreate_if_config_changed(self, container: Container, name: str) -> bool:
@@ -380,6 +383,8 @@ class ContainerManager:
             self.config.project_name,
             extra_node_modules_paths=self.config.node_modules_paths,
             isolate_home_paths=set(self.config.isolate_home_paths),
+            github_auth=self.config.github_auth,
+            docker_socket=self.config.docker_socket,
         )
         environment = build_dev_environment(
             self.config.extra_env,
@@ -387,6 +392,7 @@ class ContainerManager:
             project_name=self.config.project_name,
             aws_profile=self.config.ai_profile,
             aws_region=self.config.aws_region,
+            github_auth=self.config.github_auth,
         )
 
         port_map = project_dev_port_map(

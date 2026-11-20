@@ -1434,3 +1434,49 @@ class TestOpenCodeMountsAndEnv:
             env = build_dev_environment()
         assert env["BEDROCK_API_KEY"] == "bedrock-key-456"
         assert env["AWS_BEARER_TOKEN_BEDROCK"] == "bedrock-key-456"
+
+
+class TestNoGitHubInContainer:
+    """container.github_auth / docker_socket: a box whose code must never reach GitHub."""
+
+    def _mounts(self, tmp_path, **kwargs):
+        project_dir = tmp_path / "navy"
+        project_dir.mkdir(exist_ok=True)
+        fake_home = tmp_path / "home"
+        (fake_home / ".config" / "gh").mkdir(parents=True, exist_ok=True)
+        (fake_home / ".config" / "gh" / "hosts.yml").write_text("github.com: {}\n")
+        with (
+            patch("ai_shell.defaults.Path.home", return_value=fake_home),
+            patch("ai_shell.defaults._find_gh_config_dir", return_value=fake_home / ".config/gh"),
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            return build_dev_mounts(project_dir, "navy", **kwargs)
+
+    def test_default_mounts_the_gh_sign_in(self, tmp_path):
+        targets = [m.get("Target") for m in self._mounts(tmp_path)]
+        assert "/root/.config/gh" in targets
+
+    def test_github_auth_false_mounts_no_gh_config(self, tmp_path):
+        targets = [m.get("Target") for m in self._mounts(tmp_path, github_auth=False)]
+        assert "/root/.config/gh" not in targets
+
+    def test_docker_socket_false_mounts_no_socket(self, tmp_path):
+        with patch("ai_shell.defaults.Path.exists", return_value=True):
+            on = [m.get("Target") for m in self._mounts(tmp_path)]
+            off = [m.get("Target") for m in self._mounts(tmp_path, docker_socket=False)]
+        assert "/var/run/docker.sock" in on
+        assert "/var/run/docker.sock" not in off
+
+    def test_github_auth_false_drops_every_github_token(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_text("GH_TOKEN=ghp_x\nGITHUB_TOKEN=ghp_y\nOTHER=1\n")
+        with patch.dict("os.environ", {}, clear=True):
+            env = build_dev_environment(
+                {"GH_ENTERPRISE_TOKEN": "z"},
+                project_dir=tmp_path,
+                env_file=env_file,
+                github_auth=False,
+            )
+        for key in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_MODELS_BASE_URL"):
+            assert key not in env
+        assert env["OTHER"] == "1"

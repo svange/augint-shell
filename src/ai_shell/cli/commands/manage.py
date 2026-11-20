@@ -160,6 +160,7 @@ def manage_env(ctx, use_aws, env_file):
         aws_region=config.aws_region,
         bedrock_profile=config.bedrock_profile if use_bedrock else "",
         env_file=resolved_env,
+        github_auth=config.github_auth,
     )
 
     console.print("[bold]Resolved exec environment:[/bold]")
