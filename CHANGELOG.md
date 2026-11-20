@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.127.1 (2026-11-20)
+
+### Bug Fixes
+
+- **opencode**: Open the web UI signed in, without the browser password prompt (#213)
+  ([#213](https://github.com/svange/augint-shell/pull/213),
+  [`786ca58`](https://github.com/svange/augint-shell/commit/786ca58b7ec5a01cdb8b429d2e857bdb442102a5))
+
+
 ## v0.127.0 (2026-11-20)
 
 ### Features
