@@ -360,6 +360,7 @@ class TestRecreateIfImageStale:
 
     def test_skips_when_image_matches(self, mock_container_manager):
         mock_container_manager.config.image_tag = "latest"
+        mock_container_manager.config.image_pull_mode = "sync"
         pulled_image = MagicMock()
         pulled_image.id = "sha256:abc123"
         mock_container_manager.client.images.pull.return_value = pulled_image
@@ -371,6 +372,7 @@ class TestRecreateIfImageStale:
 
     def test_recreates_when_image_outdated(self, mock_container_manager):
         mock_container_manager.config.image_tag = "latest"
+        mock_container_manager.config.image_pull_mode = "sync"
         pulled_image = MagicMock()
         pulled_image.id = "sha256:new456"
         mock_container_manager.client.images.pull.return_value = pulled_image
@@ -382,7 +384,68 @@ class TestRecreateIfImageStale:
 
     def test_skips_on_pull_failure(self, mock_container_manager):
         mock_container_manager.config.image_tag = "latest"
+        mock_container_manager.config.image_pull_mode = "sync"
         mock_container_manager.client.images.pull.side_effect = APIError("network error")
+        container = MagicMock()
+
+        assert mock_container_manager._recreate_if_image_stale(container, "test") is False
+        container.remove.assert_not_called()
+
+    def test_background_mode_skips_sync_pull_and_spawns_detached(self, mock_container_manager):
+        mock_container_manager.config.image_tag = "latest"
+        mock_container_manager.config.image_pull_mode = "background"
+        local_image = MagicMock()
+        local_image.id = "sha256:abc123"
+        local_image.labels = {}
+        mock_container_manager.client.images.get.return_value = local_image
+        container = MagicMock()
+        container.image.id = "sha256:abc123"
+
+        with patch("ai_shell.container._spawn_detached_pull", return_value=True) as mock_spawn:
+            assert mock_container_manager._recreate_if_image_stale(container, "test") is False
+            mock_spawn.assert_called_once_with(mock_container_manager.config.full_image)
+            # Second call within TTL must not spawn another background pull.
+            assert mock_container_manager._recreate_if_image_stale(container, "test") is False
+            mock_spawn.assert_called_once()
+        mock_container_manager.client.images.pull.assert_not_called()
+        container.remove.assert_not_called()
+
+    def test_background_mode_recreates_when_local_image_is_newer(self, mock_container_manager):
+        mock_container_manager.config.image_tag = "latest"
+        mock_container_manager.config.image_pull_mode = "background"
+        local_image = MagicMock()
+        local_image.id = "sha256:new456"
+        local_image.labels = {}
+        mock_container_manager.client.images.get.return_value = local_image
+        container = MagicMock()
+        container.image.id = "sha256:old123"
+
+        assert mock_container_manager._recreate_if_image_stale(container, "test") is True
+        mock_container_manager.client.images.pull.assert_not_called()
+        container.remove.assert_called_once_with(force=True)
+
+    def test_manual_mode_never_pulls_but_recreates_if_local_newer(self, mock_container_manager):
+        mock_container_manager.config.image_tag = "latest"
+        mock_container_manager.config.image_pull_mode = "manual"
+        local_image = MagicMock()
+        local_image.id = "sha256:new456"
+        local_image.labels = {}
+        mock_container_manager.client.images.get.return_value = local_image
+        container = MagicMock()
+        container.image.id = "sha256:old123"
+
+        with patch("ai_shell.container._spawn_detached_pull") as mock_spawn:
+            assert mock_container_manager._recreate_if_image_stale(container, "test") is True
+            mock_spawn.assert_not_called()
+        mock_container_manager.client.images.pull.assert_not_called()
+        container.remove.assert_called_once_with(force=True)
+
+    def test_background_mode_handles_missing_local_image(self, mock_container_manager):
+        from docker.errors import ImageNotFound
+
+        mock_container_manager.config.image_tag = "latest"
+        mock_container_manager.config.image_pull_mode = "background"
+        mock_container_manager.client.images.get.side_effect = ImageNotFound("missing")
         container = MagicMock()
 
         assert mock_container_manager._recreate_if_image_stale(container, "test") is False
@@ -1186,18 +1249,75 @@ class TestPullImage:
         mock_container_manager._pull_image_if_needed("test:1.0.0")
         mock_docker_client.images.pull.assert_called_once_with("test", "1.0.0")
 
-    def test_always_pulls_latest_tag(self, mock_container_manager, mock_docker_client):
-        """Latest tag should always pull to ensure freshness."""
-        mock_docker_client.images.get.return_value = MagicMock()
+    def test_sync_mode_pulls_latest_tag_and_caches(
+        self, mock_container_manager, mock_docker_client
+    ):
+        """In sync mode, latest pulls when cache is expired and reuses local copy within TTL."""
+        mock_container_manager.config.image_pull_mode = "sync"
+        mock_docker_client.images.get.return_value = MagicMock(labels={})
+        mock_docker_client.images.pull.return_value = MagicMock(labels={})
+
         mock_container_manager._pull_image_if_needed("test:latest")
         mock_docker_client.images.pull.assert_called_once_with("test", "latest")
+
+        # Second call within TTL reuses local image without double-pulling.
+        mock_container_manager._pull_image_if_needed("test:latest")
+        mock_docker_client.images.pull.assert_called_once_with("test", "latest")
+
+    def test_background_mode_reuses_local_latest_and_spawns_detached(
+        self, mock_container_manager, mock_docker_client
+    ):
+        mock_container_manager.config.image_pull_mode = "background"
+        mock_docker_client.images.get.return_value = MagicMock(labels={})
+
+        with patch("ai_shell.container._spawn_detached_pull", return_value=True) as mock_spawn:
+            mock_container_manager._pull_image_if_needed("test:latest")
+            mock_spawn.assert_called_once_with("test:latest")
+        mock_docker_client.images.pull.assert_not_called()
+
+    def test_background_mode_pulls_sync_when_no_local_image(
+        self, mock_container_manager, mock_docker_client
+    ):
+        from docker.errors import ImageNotFound
+
+        mock_container_manager.config.image_pull_mode = "background"
+        mock_docker_client.images.get.side_effect = ImageNotFound("not found")
+        mock_docker_client.images.pull.return_value = MagicMock(labels={})
+
+        mock_container_manager._pull_image_if_needed("test:latest")
+        mock_docker_client.images.pull.assert_called_once_with("test", "latest")
+
+    def test_manual_mode_never_pulls_when_local_exists(
+        self, mock_container_manager, mock_docker_client
+    ):
+        mock_container_manager.config.image_pull_mode = "manual"
+        mock_docker_client.images.get.return_value = MagicMock(labels={})
+
+        with patch("ai_shell.container._spawn_detached_pull") as mock_spawn:
+            mock_container_manager._pull_image_if_needed("test:latest")
+            mock_spawn.assert_not_called()
+        mock_docker_client.images.pull.assert_not_called()
+
+    def test_force_always_pulls_synchronously_and_marks_fresh(
+        self, mock_container_manager, mock_docker_client
+    ):
+        from ai_shell.cache import is_fresh
+
+        mock_container_manager.config.image_pull_mode = "manual"
+        mock_docker_client.images.get.return_value = MagicMock(labels={})
+        mock_docker_client.images.pull.return_value = MagicMock(labels={})
+
+        mock_container_manager._pull_image_if_needed("test:latest", force=True)
+        mock_docker_client.images.pull.assert_called_once_with("test", "latest")
+        assert is_fresh("image-pull", "test:latest", 900) is True
 
     def test_latest_falls_back_to_cache_on_pull_failure(
         self, mock_container_manager, mock_docker_client
     ):
-        """If pulling latest fails but a cached copy exists, use the cache."""
+        """If pulling latest fails in sync mode but a cached copy exists, use the cache."""
         from docker.errors import APIError
 
+        mock_container_manager.config.image_pull_mode = "sync"
         mock_docker_client.images.pull.side_effect = APIError("network error")
         mock_docker_client.images.get.return_value = MagicMock()  # cached copy exists
         # Should not raise — falls back to cache
@@ -1216,9 +1336,80 @@ class TestPullImage:
             mock_container_manager._pull_image_if_needed("test:latest")
 
 
+class TestSpawnDetachedPull:
+    @pytest.fixture(autouse=True)
+    def no_background_pull(self):
+        """Exercise the real _spawn_detached_pull implementation in this class."""
+        yield
+
+    def test_spawns_detached_on_posix(self):
+        from ai_shell.container import _spawn_detached_pull
+
+        with (
+            patch("ai_shell.container.sys.platform", "linux"),
+            patch("ai_shell.container.subprocess.Popen") as mock_popen,
+        ):
+            assert _spawn_detached_pull("svange/augint-shell:latest") is True
+            mock_popen.assert_called_once()
+            args, kwargs = mock_popen.call_args
+            assert args[0] == ["docker", "pull", "svange/augint-shell:latest"]
+            assert kwargs["start_new_session"] is True
+            assert kwargs["close_fds"] is True
+
+    def test_spawns_detached_on_windows(self):
+        from ai_shell.container import _spawn_detached_pull
+
+        with (
+            patch("ai_shell.container.sys.platform", "win32"),
+            patch("ai_shell.container.subprocess.Popen") as mock_popen,
+        ):
+            assert _spawn_detached_pull("svange/augint-shell:latest") is True
+            mock_popen.assert_called_once()
+            args, kwargs = mock_popen.call_args
+            assert args[0] == ["docker", "pull", "svange/augint-shell:latest"]
+            assert "creationflags" in kwargs
+
+    def test_returns_false_on_oserror(self):
+        from ai_shell.container import _spawn_detached_pull
+
+        with patch("ai_shell.container.subprocess.Popen", side_effect=OSError("docker not found")):
+            assert _spawn_detached_pull("svange/augint-shell:latest") is False
+
+
 class TestEnsureToolFresh:
+    def test_skip_updates_returns_immediately(self, mock_container_manager):
+        mock_container_manager.config.skip_updates = True
+        with patch("ai_shell.container.subprocess.run") as mock_run:
+            mock_container_manager.ensure_tool_fresh("test-container", "codex")
+            mock_run.assert_not_called()
+
+    def test_background_updates_uses_single_detached_exec(self, mock_container_manager):
+        """Default background_updates=True dispatches one detached docker exec -d."""
+        mock_container_manager.config.background_updates = True
+        with patch("ai_shell.container.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            mock_container_manager.ensure_tool_fresh("test-container", "claude")
+
+            mock_run.assert_called_once()
+            argv = mock_run.call_args[0][0]
+            assert argv[:4] == ["docker", "exec", "-d", "test-container"]
+            assert "/usr/local/bin/update-tools.sh" in argv
+            assert "claude" in argv
+
+    def test_background_updates_ignores_exec_error(self, mock_container_manager):
+        import subprocess
+
+        mock_container_manager.config.background_updates = True
+        with patch(
+            "ai_shell.container.subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, ["docker"]),
+        ):
+            # Must never fail a launch.
+            mock_container_manager.ensure_tool_fresh("test-container", "claude")
+
     def test_skips_when_script_missing(self, mock_container_manager):
-        """Should silently skip if update-tools.sh is not in the container."""
+        """Foreground mode silently skips if update-tools.sh is not in the container."""
+        mock_container_manager.config.background_updates = False
         with patch("ai_shell.container.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=1)  # test -x fails
             mock_container_manager.ensure_tool_fresh("test-container", "codex")
@@ -1228,7 +1419,8 @@ class TestEnsureToolFresh:
             assert "test" in mock_run.call_args[0][0]
 
     def test_skips_when_tool_is_fresh(self, mock_container_manager):
-        """Should skip update when tool marker is within TTL."""
+        """Foreground mode skips update when tool marker is within TTL."""
+        mock_container_manager.config.background_updates = False
         with patch("ai_shell.container.subprocess.run") as mock_run:
             # First call: script exists (exit 0), second call: tool fresh (exit 0)
             mock_run.side_effect = [
@@ -1239,7 +1431,8 @@ class TestEnsureToolFresh:
             assert mock_run.call_count == 2
 
     def test_updates_when_tool_is_stale(self, mock_container_manager):
-        """Should run --tool update when tool marker is stale."""
+        """Foreground mode runs --tool update when tool marker is stale."""
+        mock_container_manager.config.background_updates = False
         with patch("ai_shell.container.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 MagicMock(returncode=0),  # test -x (exists)
@@ -1254,7 +1447,8 @@ class TestEnsureToolFresh:
             assert "codex" in update_args
 
     def test_continues_when_update_fails(self, mock_container_manager):
-        """Should not raise when tool update returns non-zero."""
+        """Foreground mode does not raise when tool update returns non-zero."""
+        mock_container_manager.config.background_updates = False
         with patch("ai_shell.container.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 MagicMock(returncode=0),  # test -x

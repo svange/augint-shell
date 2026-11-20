@@ -80,6 +80,8 @@
 #   image: svange/augint-shell
 #   image_tag: latest
 #   skip_updates: false            # skip the pre-launch tool update checks
+#   background_updates: true       # run stale tool updates in the background instead of blocking launch
+#   image_pull_mode: background    # "background" (non-blocking pull), "sync" (blocking), or "manual"
 #   image_pull_cache_ttl: 900      # seconds between `docker pull` checks; 0 = every launch
 #   extra_env:
 #     MY_VAR: value
