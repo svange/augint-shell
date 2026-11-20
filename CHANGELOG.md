@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.127.0 (2026-11-20)
+
+### Features
+
+- **container**: Keep GitHub sign-in and the Docker socket out of a dev container
+  ([`810ef36`](https://github.com/svange/augint-shell/commit/810ef36f0f2172d20ae251e74735c56893a38e10))
+
+- **container**: Keep GitHub sign-in and the Docker socket out of a dev container (#214)
+  ([#214](https://github.com/svange/augint-shell/pull/214),
+  [`ee6a1c1`](https://github.com/svange/augint-shell/commit/ee6a1c1ba816289dba3df9d0742614955cdd0a4b))
+
+
 ## v0.126.1 (2026-11-20)
 
 ### Bug Fixes
