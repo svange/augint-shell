@@ -367,6 +367,10 @@ def describe(instance: Instance) -> Instance:
     return replace(fresh[0], ssm=instance.ssm, account=fresh[0].account or instance.account)
 
 
+def start(instance: Instance) -> None:
+    core.aws(instance.scope, "ec2", "start-instances", "--instance-ids", instance.instance_id)
+
+
 def stop(instance: Instance) -> None:
     core.aws(instance.scope, "ec2", "stop-instances", "--instance-ids", instance.instance_id)
 
