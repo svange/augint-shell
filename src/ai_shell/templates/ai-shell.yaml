@@ -95,6 +95,9 @@
 #     - .claude                    # (~/.codex is always isolated)
 #   github_auth: false             # no GitHub sign-in in the container (no ~/.config/gh, no GH_TOKEN)
 #   docker_socket: false           # do not mount the host Docker socket
+#   gui: false                     # forward GUI windows (WSLg/X11/Wayland, fallback host.docker.internal:0.0)
+#   gui_display: ""                # override DISPLAY for --gui (e.g. host.docker.internal:0.0 for VcXsrv)
+#   gpu: false                     # pass host NVIDIA GPU into the dev container (CUDA / local models)
 
 ## --- llm ---------------------------------------------------------------------
 ## Local Ollama stack. Chat slots go to Open WebUI; coding slots to Pi/OpenCode.

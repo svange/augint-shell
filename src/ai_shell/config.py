@@ -124,6 +124,11 @@ class AiShellConfig:
     # False: the host Docker socket is not mounted. With the socket, a process in
     # the container can start a container that mounts the whole host.
     docker_socket: bool = True
+    # Dev container GUI forwarding (WSLg / X11 / Wayland + X11 TCP fallback)
+    # and NVIDIA GPU passthrough (CUDA / model hosting).
+    gui: bool = False
+    gui_display: str = ""
+    gpu: bool = False
 
     # AWS
     ai_profile: str = ""  # AWS profile for infra (sets AWS_PROFILE in container)
@@ -362,6 +367,12 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.github_auth = bool(container["github_auth"])
     if "docker_socket" in container:
         config.docker_socket = bool(container["docker_socket"])
+    if "gui" in container:
+        config.gui = bool(container["gui"])
+    if "gui_display" in container:
+        config.gui_display = str(container["gui_display"])
+    if "gpu" in container:
+        config.gpu = bool(container["gpu"])
 
     # [expo] section
     expo = data.get("expo", {})
@@ -629,6 +640,9 @@ def _apply_env_vars(config: AiShellConfig) -> None:
         "AI_SHELL_VPN_FIREWALL": ("vpn_firewall", bool),
         "AI_SHELL_VPN_PROXY_PORT": ("vpn_proxy_port", int),
         "AI_SHELL_EXPO_AUTO": ("expo_auto", bool),
+        "AI_SHELL_GUI": ("gui", bool),
+        "AI_SHELL_GUI_DISPLAY": ("gui_display", str),
+        "AI_SHELL_GPU": ("gpu", bool),
         "AI_SHELL_SKIP_UPDATES": ("skip_updates", bool),
         "AI_SHELL_IMAGE_PULL_CACHE_TTL": ("image_pull_cache_ttl", int),
         "AI_SHELL_BEDROCK_CHECK_CACHE_TTL": ("bedrock_check_cache_ttl", int),

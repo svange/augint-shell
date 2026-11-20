@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from docker.errors import APIError, ImageNotFound, NotFound
 from docker.types import DeviceRequest, Mount
@@ -305,6 +305,12 @@ class ContainerManager:
             settings["github_auth"] = False
         if not self.config.docker_socket:
             settings["docker_socket"] = False
+        if self.config.gui:
+            settings["gui"] = True
+        if self.config.gui_display:
+            settings["gui_display"] = self.config.gui_display
+        if self.config.gpu:
+            settings["gpu"] = True
         payload = json.dumps(settings, sort_keys=True)
         return sha256(payload.encode("utf-8")).hexdigest()[:16]
 
@@ -446,20 +452,20 @@ class ContainerManager:
                     )
                 )
 
-        container: Container = self.client.containers.run(
-            image=self.config.full_image,
-            name=name,
-            mounts=mounts,
-            environment=environment,
-            labels={DEV_CONFIG_LABEL: self._dev_config_digest()},
-            working_dir=f"/root/projects/{self.config.project_name}",
-            command="tail -f /dev/null",
-            stdin_open=True,
-            tty=True,
-            shm_size=SHM_SIZE,
-            init=True,
-            extra_hosts={"host.docker.internal": "host-gateway"},
-            ports={
+        run_kwargs: dict[str, Any] = {
+            "image": self.config.full_image,
+            "name": name,
+            "mounts": mounts,
+            "environment": environment,
+            "labels": {DEV_CONFIG_LABEL: self._dev_config_digest()},
+            "working_dir": f"/root/projects/{self.config.project_name}",
+            "command": "tail -f /dev/null",
+            "stdin_open": True,
+            "tty": True,
+            "shm_size": SHM_SIZE,
+            "init": True,
+            "extra_hosts": {"host.docker.internal": "host-gateway"},
+            "ports": {
                 f"{port}/tcp": (
                     ("0.0.0.0", host_port)  # nosec B104
                     if self.config.project_dir
@@ -467,8 +473,31 @@ class ContainerManager:
                 )
                 for port, host_port in port_map.items()
             },
-            detach=True,
-        )
+            "detach": True,
+        }
+
+        if self.config.gui or self.config.gui_display:
+            from ai_shell.gui import resolve_gui_spec
+
+            gui_spec = resolve_gui_spec(self.config.gui_display)
+            mounts.extend(gui_spec.mounts)
+            for key, val in gui_spec.environment.items():
+                environment.setdefault(key, val)
+            if gui_spec.devices:
+                run_kwargs["devices"] = list(gui_spec.devices)
+            if gui_spec.warning:
+                logger.warning("GUI forwarding: %s", gui_spec.warning)
+
+        if self.config.gpu:
+            if detect_gpu():
+                run_kwargs["device_requests"] = [DeviceRequest(count=-1, capabilities=[["gpu"]])]
+            else:
+                logger.warning(
+                    "GPU requested (--gpu / container.gpu) but no NVIDIA GPU or Docker GPU "
+                    "runtime was detected — continuing on CPU."
+                )
+
+        container: Container = self.client.containers.run(**run_kwargs)
         logger.info("Container created: %s", name)
 
         try:

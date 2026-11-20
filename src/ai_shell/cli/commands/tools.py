@@ -233,6 +233,39 @@ def _check_bedrock_access(
     mark_fresh("bedrock-check", cache_key)
 
 
+GUI_OPTION_HELP = (
+    "Forward GUI windows from the dev container to the host desktop "
+    "(WSLg with GPU acceleration on Windows 11/WSL2, native X11/Wayland on Linux, "
+    "or host.docker.internal:0.0 fallback). Also container.gui / AI_SHELL_GUI."
+)
+GUI_DISPLAY_OPTION_HELP = (
+    "Override DISPLAY when forwarding GUI windows (e.g. host.docker.internal:0.0 "
+    "for VcXsrv/X410/XQuartz). Implies --gui. Also container.gui_display."
+)
+GPU_OPTION_HELP = (
+    "Pass the host NVIDIA GPU into the dev container (CUDA / local model hosting). "
+    "Warns and falls back to CPU if unavailable. Also container.gpu / AI_SHELL_GPU."
+)
+
+
+def _apply_gui_gpu_overrides(
+    config: AiShellConfig,
+    *,
+    use_gui: bool | None = None,
+    gui_display: str | None = None,
+    use_gpu: bool | None = None,
+) -> None:
+    """Apply CLI ``--gui``/``--gui-display``/``--gpu`` overrides onto *config*."""
+    if gui_display is not None:
+        config.gui_display = gui_display
+        if gui_display and use_gui is None:
+            config.gui = True
+    if use_gui is not None:
+        config.gui = use_gui
+    if use_gpu is not None:
+        config.gpu = use_gpu
+
+
 def _get_manager(
     ctx,
     *,
@@ -256,6 +289,13 @@ def _get_manager(
 
     if ctx.obj and ctx.obj.get("skip_updates"):
         config.skip_updates = True
+    if ctx.obj:
+        _apply_gui_gpu_overrides(
+            config,
+            use_gui=ctx.obj.get("use_gui"),
+            gui_display=ctx.obj.get("gui_display"),
+            use_gpu=ctx.obj.get("use_gpu"),
+        )
 
     manager = ContainerManager(config)
     container_name = manager.ensure_dev_container()
@@ -1251,6 +1291,9 @@ def _launch_loaded_config_claude(
     default=None,
     help=EXPO_OPTION_HELP,
 )
+@click.option("--gui/--no-gui", "use_gui", default=None, help=GUI_OPTION_HELP)
+@click.option("--gui-display", "gui_display", default=None, help=GUI_DISPLAY_OPTION_HELP)
+@click.option("--gpu/--no-gpu", "use_gpu", default=None, help=GPU_OPTION_HELP)
 @click.option(
     "--env",
     "env_file",
@@ -1274,6 +1317,9 @@ def claude(
     force_login,
     use_t3,
     use_expo,
+    use_gui,
+    gui_display,
+    use_gpu,
     env_file,
     extra_args,
 ):
@@ -1290,6 +1336,7 @@ def claude(
     # Load config for the current project and launch a normal Claude session.
     project = ctx.obj.get("project") if ctx.obj else None
     config = load_config(project_override=project, project_dir=Path.cwd())
+    _apply_gui_gpu_overrides(config, use_gui=use_gui, gui_display=gui_display, use_gpu=use_gpu)
     local_chrome = _resolve_local_chrome(config, local_chrome)
     _launch_loaded_config_claude(
         config,
@@ -1405,6 +1452,9 @@ def chrome(ctx, cli_account, chrome_proxy, url):
     default=None,
     help=EXPO_OPTION_HELP,
 )
+@click.option("--gui/--no-gui", "use_gui", default=None, help=GUI_OPTION_HELP)
+@click.option("--gui-display", "gui_display", default=None, help=GUI_DISPLAY_OPTION_HELP)
+@click.option("--gpu/--no-gpu", "use_gpu", default=None, help=GPU_OPTION_HELP)
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def codex(
@@ -1416,10 +1466,17 @@ def codex(
     env_file,
     use_t3,
     use_expo,
+    use_gui,
+    gui_display,
+    use_gpu,
     extra_args,
 ):
     """Launch Codex in the dev container."""
     resolved_env = Path(env_file) if env_file else None
+    ctx.ensure_object(dict)
+    ctx.obj["use_gui"] = use_gui
+    ctx.obj["gui_display"] = gui_display
+    ctx.obj["use_gpu"] = use_gpu
     with capture_typeahead() as typeahead:
         project = ctx.obj.get("project") if ctx.obj else None
         config = load_config(project_override=project, project_dir=Path.cwd())
@@ -1919,6 +1976,9 @@ def _opencode_launch_env(
     default=None,
     help=EXPO_OPTION_HELP,
 )
+@click.option("--gui/--no-gui", "use_gui", default=None, help=GUI_OPTION_HELP)
+@click.option("--gui-display", "gui_display", default=None, help=GUI_DISPLAY_OPTION_HELP)
+@click.option("--gpu/--no-gpu", "use_gpu", default=None, help=GPU_OPTION_HELP)
 @click.option("--web", is_flag=True, default=False, help="Launch web UI instead of terminal TUI.")
 @click.option(
     "--port",
@@ -1966,6 +2026,9 @@ def opencode(
     openai_profile,
     use_t3,
     use_expo,
+    use_gui,
+    gui_display,
+    use_gpu,
     web,
     web_port,
     env_file,
@@ -1976,6 +2039,9 @@ def opencode(
     effective_profile = cli_aws_profile or cli_profile
     ctx.ensure_object(dict)
     ctx.obj["use_aws"] = use_aws
+    ctx.obj["use_gui"] = use_gui
+    ctx.obj["gui_display"] = gui_display
+    ctx.obj["use_gpu"] = use_gpu
     ctx.obj["cli_profile"] = effective_profile
     ctx.obj["aws_partition"] = aws_partition
     ctx.obj["aws_region"] = aws_region
@@ -2414,6 +2480,9 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
     default=None,
     help=EXPO_OPTION_HELP,
 )
+@click.option("--gui/--no-gui", "use_gui", default=None, help=GUI_OPTION_HELP)
+@click.option("--gui-display", "gui_display", default=None, help=GUI_DISPLAY_OPTION_HELP)
+@click.option("--gpu/--no-gpu", "use_gpu", default=None, help=GPU_OPTION_HELP)
 @click.option("--login", "do_login", is_flag=True, default=False, help="Run pi login for OAuth.")
 @click.option(
     "--env",
@@ -2424,9 +2493,25 @@ def _ensure_pi_ollama_provider(config: AiShellConfig) -> None:
     help="Load .env into the container (all variables). Defaults to ./.env when flag given without value.",
 )
 @click.pass_context
-def pi(ctx, use_aws, cli_profile, openai_profile, use_t3, use_expo, do_login, env_file):
+def pi(
+    ctx,
+    use_aws,
+    cli_profile,
+    openai_profile,
+    use_t3,
+    use_expo,
+    use_gui,
+    gui_display,
+    use_gpu,
+    do_login,
+    env_file,
+):
     """Launch pi coding agent in the dev container."""
     resolved_env = Path(env_file) if env_file else None
+    ctx.ensure_object(dict)
+    ctx.obj["use_gui"] = use_gui
+    ctx.obj["gui_display"] = gui_display
+    ctx.obj["use_gpu"] = use_gpu
     with capture_typeahead() as typeahead:
         project = ctx.obj.get("project") if ctx.obj else None
         config = load_config(project_override=project, project_dir=Path.cwd())
@@ -2512,13 +2597,16 @@ SUPPORTED_SHELLS: dict[str, str] = {
     default=None,
     help=SHELL_EXPO_OPTION_HELP,
 )
+@click.option("--gui/--no-gui", "use_gui", default=None, help=GUI_OPTION_HELP)
+@click.option("--gui-display", "gui_display", default=None, help=GUI_DISPLAY_OPTION_HELP)
+@click.option("--gpu/--no-gpu", "use_gpu", default=None, help=GPU_OPTION_HELP)
 @click.argument(
     "shell_name",
     required=False,
     type=click.Choice(list(SUPPORTED_SHELLS.keys()), case_sensitive=False),
 )
 @click.pass_context
-def shell(ctx, env_file, use_t3, use_expo, shell_name):
+def shell(ctx, env_file, use_t3, use_expo, use_gui, gui_display, use_gpu, shell_name):
     """Open an interactive shell in the dev container.
 
     SHELL_NAME is one of bash or zsh.  Defaults to bash if omitted.
@@ -2526,6 +2614,10 @@ def shell(ctx, env_file, use_t3, use_expo, shell_name):
     prompt, useful aliases, history tuning) plus Oh My Zsh for zsh.
     """
     resolved_env = Path(env_file) if env_file else None
+    ctx.ensure_object(dict)
+    ctx.obj["use_gui"] = use_gui
+    ctx.obj["gui_display"] = gui_display
+    ctx.obj["use_gpu"] = use_gpu
     with capture_typeahead() as typeahead:
         manager, name, exec_env, config = _get_manager(ctx, env_file=resolved_env)
         if use_t3:

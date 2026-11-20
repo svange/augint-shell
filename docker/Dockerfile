@@ -61,12 +61,24 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     dnsutils \
     tcpdump \
     tshark \
+    wireshark \
     traceroute \
     mtr-tiny \
     nmap \
     lsof \
     whois \
     net-tools \
+    # GUI & hardware-accelerated rendering (WSLg / X11 / Wayland --gui)
+    xterm \
+    xclip \
+    wl-clipboard \
+    libgl1-mesa-dri \
+    libgl1 \
+    libegl1 \
+    libgbm1 \
+    libwayland-client0 \
+    libwayland-egl1 \
+    mesa-vulkan-drivers \
     # Shells
     zsh \
     bash-completion \

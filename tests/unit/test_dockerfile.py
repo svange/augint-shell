@@ -79,6 +79,12 @@ def test_dockerfile_installs_dots_doctor_and_bootstrap_tools() -> None:
         "starship",
         # dots-bootstrap network/system/modern CLI tools
         "tshark",
+        "wireshark",
+        "xterm",
+        "xclip",
+        "wl-clipboard",
+        "libgl1-mesa-dri",
+        "mesa-vulkan-drivers",
         "traceroute",
         "mtr-tiny",
         "nmap",
