@@ -137,8 +137,10 @@ def test_shell_configs_pass_dots_doctor_and_wire_pnpm_and_zoxide() -> None:
 def test_env_doctor_installed_and_passes_on_healthy_env(tmp_path: Path) -> None:
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     assert "COPY env-doctor.sh /usr/local/bin/env-doctor" in dockerfile
+    assert "COPY tmux-help.sh /usr/local/bin/tmux-help" in dockerfile
     assert "/usr/local/bin/dots-doctor" not in dockerfile
     assert ENV_DOCTOR.is_file()
+    assert (DOCKER_DIR / "tmux-help.sh").is_file()
 
     home = tmp_path / "home"
     local_bin = home / ".local" / "bin"
@@ -163,6 +165,7 @@ def test_env_doctor_installed_and_passes_on_healthy_env(tmp_path: Path) -> None:
     for name in (
         "vim",
         "nvim",
+        "tmux",
         "starship",
         "zoxide",
         "fzf",

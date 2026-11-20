@@ -93,7 +93,7 @@ case ":$PATH:" in
 esac
 
 missing_tools=""
-for tool in vim nvim starship zoxide fzf rg fd bat lsd delta lazygit yazi jq yq dig doggo nc tcpdump tshark ip ss nmap mtr trip gping xh htop btop btm procs dust duf fastfetch gitleaks tldr glow; do
+for tool in vim nvim tmux starship zoxide fzf rg fd bat lsd delta lazygit yazi jq yq dig doggo nc tcpdump tshark ip ss nmap mtr trip gping xh htop btop btm procs dust duf fastfetch gitleaks tldr glow; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     missing_tools="$missing_tools $tool"
   fi
