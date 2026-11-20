@@ -7,6 +7,7 @@ import json
 import shlex
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from urllib.parse import quote
 
 import pytest
 from click.testing import CliRunner
@@ -272,7 +273,8 @@ def test_cli_remote_opens_the_tunnel(monkeypatch, tmp_path):
     assert "OpenCode for navy: http://localhost:24123" in result.output
     assert "Password: s3cret" in result.output
     assert started["cmd"][:4] == ["aws", "ssm", "start-session", "--target"]
-    browser.assert_called_once_with("http://localhost:24123")
+    token = base64.b64encode(b"opencode:s3cret").decode()
+    browser.assert_called_once_with(f"http://localhost:24123/?auth_token={quote(token, safe='')}")
 
 
 def test_cli_remote_without_a_box_says_how_to_set_one(monkeypatch, tmp_path):

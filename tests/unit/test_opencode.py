@@ -639,3 +639,29 @@ class TestOpencodeServerPassword:
         path.parent.mkdir(parents=True)
         path.write_text("my-own-password\n")
         assert opencode_server_password(tmp_path) == "my-own-password"
+
+
+class TestOpencodeSignInUrl:
+    def test_token_is_base64_user_and_password(self):
+        import base64
+        from urllib.parse import parse_qs, urlparse
+
+        from ai_shell.opencode import opencode_sign_in_url
+
+        url = opencode_sign_in_url("http://localhost:32877", "p+w/d=", "opencode")
+        parsed = urlparse(url)
+        assert f"{parsed.scheme}://{parsed.netloc}{parsed.path}" == "http://localhost:32877/"
+        token = parse_qs(parsed.query)["auth_token"][0]
+        assert base64.b64decode(token) == b"opencode:p+w/d="
+
+    def test_no_password_keeps_the_plain_url(self):
+        from ai_shell.opencode import opencode_sign_in_url
+
+        assert opencode_sign_in_url("http://localhost:4096", "") == "http://localhost:4096"
+
+    def test_trailing_slash_is_not_doubled(self):
+        from ai_shell.opencode import opencode_sign_in_url
+
+        assert opencode_sign_in_url("http://localhost:4096/", "x").startswith(
+            "http://localhost:4096/?auth_token="
+        )

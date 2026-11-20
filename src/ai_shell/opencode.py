@@ -157,6 +157,19 @@ def opencode_server_password(home: Path | None = None) -> str:
     return value
 
 
+def opencode_sign_in_url(url: str, password: str, username: str = OPENCODE_DEFAULT_USERNAME) -> str:
+    """*url* with the ``auth_token`` OpenCode's web app signs in with, so the browser asks nothing.
+
+    The server and the web app (OpenCode 1.19) read ``?auth_token=<base64 user:password>``;
+    the app removes it from the address bar once it has read it. Without it the server's
+    Basic challenge makes the browser show its own user-and-password prompt.
+    """
+    if not password:
+        return url
+    token = base64.b64encode(f"{username}:{password}".encode()).decode("ascii")
+    return f"{url.rstrip('/')}/?auth_token={quote(token, safe='')}"
+
+
 _BUILTIN_PROVIDERS = frozenset(
     {
         BEDROCK_MANTLE_PROVIDER_ID,
