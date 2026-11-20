@@ -272,7 +272,8 @@ def test_cli_remote_opens_the_tunnel(monkeypatch, tmp_path):
     assert "OpenCode for navy: http://localhost:24123" in result.output
     assert "Password: s3cret" in result.output
     assert started["cmd"][:4] == ["aws", "ssm", "start-session", "--target"]
-    browser.assert_called_once_with("http://localhost:24123")
+    # Regression: the plain URL made the browser show a Basic auth prompt.
+    browser.assert_called_once_with("http://opencode:s3cret@localhost:24123")
 
 
 def test_cli_remote_without_a_box_says_how_to_set_one(monkeypatch, tmp_path):
@@ -302,3 +303,12 @@ def test_project_defaults_to_this_folder_name(monkeypatch, tmp_path):
     result = CliRunner().invoke(cli, ["opencode", "remote"])
     assert result.exit_code == 1
     assert seen["project"] == Path.cwd().name == "navy"
+
+
+def test_signed_in_url_quotes_the_credentials():
+    from ai_shell.cli.commands.tools import signed_in_url
+
+    assert signed_in_url("http://localhost:1", "opencode", "a/b:c@d") == (
+        "http://opencode:a%2Fb%3Ac%40d@localhost:1"
+    )
+    assert signed_in_url("http://localhost:1", "opencode", "") == "http://localhost:1"

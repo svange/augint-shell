@@ -2150,7 +2150,15 @@ def serve(ctx, port: int, open_browser: bool) -> None:
     console.print(f"[green]mDNS:   http://{mdns_name}:{port}[/green]")
 
     if open_browser:
-        webbrowser.open(f"http://localhost:{host_port}")
+        from ai_shell.opencode import (
+            OPENCODE_DEFAULT_USERNAME,
+            OPENCODE_SERVER_PASSWORD_ENV,
+            OPENCODE_SERVER_USERNAME_ENV,
+        )
+
+        user = exec_env.get(OPENCODE_SERVER_USERNAME_ENV) or OPENCODE_DEFAULT_USERNAME
+        password = exec_env.get(OPENCODE_SERVER_PASSWORD_ENV, "")
+        webbrowser.open(signed_in_url(f"http://localhost:{host_port}", user, password))
 
 
 @opencode.command()
@@ -2170,6 +2178,21 @@ def attach(ctx, port: int) -> None:
         cmd = ["opencode", "attach", f"http://localhost:{port}"]
         console.print(f"[bold]Attaching to opencode server on port {port}...[/bold]")
     manager.exec_interactive(name, cmd, extra_env=exec_env, typeahead=typeahead.bytes())
+
+
+def signed_in_url(url: str, user: str, password: str) -> str:
+    """*url* with the server's Basic auth in it, so the browser opens signed in.
+
+    Without it the browser shows its own sign-in prompt. The browser keeps the
+    credentials for the origin, so the web UI's own requests are signed in too.
+    """
+    if not password:
+        return url
+    from urllib.parse import quote, urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    netloc = f"{quote(user, safe='')}:{quote(password, safe='')}@{parts.netloc}"
+    return urlunsplit(parts._replace(netloc=netloc))
 
 
 @opencode.command()
@@ -2228,7 +2251,7 @@ def remote(ctx, project: str, instance: str, local_port: int, no_browser: bool) 
         if not no_browser:
             time.sleep(3)
             if tunnel.poll() is None:
-                webbrowser.open(url)
+                webbrowser.open(signed_in_url(url, OPENCODE_DEFAULT_USERNAME, password))
         sys.exit(tunnel.wait())
     except KeyboardInterrupt:
         tunnel.terminate()
