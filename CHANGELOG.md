@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.127.3 (2026-11-20)
+
+### Bug Fixes
+
+- **docker**: Install npm next to pnpm's node runtime (#216)
+  ([#216](https://github.com/svange/augint-shell/pull/216),
+  [`88a7b1b`](https://github.com/svange/augint-shell/commit/88a7b1bceb018d01a43e413eb37fedd881b443cf))
+
+
 ## v0.127.2 (2026-11-20)
 
 ### Bug Fixes
