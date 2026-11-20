@@ -43,6 +43,7 @@
 #     aws_region: us-gov-west-1
 #     user: dev                    # the box user that owns the projects
 #     projects_dir: ~/projects     # the project is <projects_dir>/<this folder's name>
+#     folder: projects             # a fixed folder instead of this folder's name
 #     start_command: ai-shell opencode serve   # runs as user in the project; {project} = folder
 #   endpoints:                     # self-hosted OpenAI-compatible servers (vLLM, SGLang)
 #     vllm:
@@ -92,6 +93,8 @@
 #     - apps/*
 #   isolate_home_paths:            # back these with a shared volume, not a host bind
 #     - .claude                    # (~/.codex is always isolated)
+#   github_auth: false             # no GitHub sign-in in the container (no ~/.config/gh, no GH_TOKEN)
+#   docker_socket: false           # do not mount the host Docker socket
 
 ## --- llm ---------------------------------------------------------------------
 ## Local Ollama stack. Chat slots go to Open WebUI; coding slots to Pi/OpenCode.

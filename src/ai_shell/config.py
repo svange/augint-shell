@@ -118,6 +118,12 @@ class AiShellConfig:
     # named volume instead of a host bind mount, so tool config/state never
     # touches the host home directory. Empty = current bind-mount behavior.
     isolate_home_paths: list[str] = field(default_factory=list)
+    # False: no GitHub sign-in in the dev container (no ~/.config/gh mount, no
+    # GH_TOKEN/GITHUB_TOKEN), for a box whose code must never reach GitHub.com.
+    github_auth: bool = True
+    # False: the host Docker socket is not mounted. With the socket, a process in
+    # the container can start a container that mounts the whole host.
+    docker_socket: bool = True
 
     # AWS
     ai_profile: str = ""  # AWS profile for infra (sets AWS_PROFILE in container)
@@ -352,6 +358,10 @@ def _apply_config(config: AiShellConfig, path: Path) -> None:
         config.node_modules_paths.extend(str(p) for p in container["node_modules_paths"])
     if "isolate_home_paths" in container:
         config.isolate_home_paths.extend(str(p) for p in container["isolate_home_paths"])
+    if "github_auth" in container:
+        config.github_auth = bool(container["github_auth"])
+    if "docker_socket" in container:
+        config.docker_socket = bool(container["docker_socket"])
 
     # [expo] section
     expo = data.get("expo", {})

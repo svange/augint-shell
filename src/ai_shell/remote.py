@@ -62,13 +62,16 @@ class RemoteBox:
     aws_region: str = ""
     user: str = "dev"  # the box user that owns the projects
     projects_dir: str = "~/projects"
+    # A fixed folder under projects_dir, for a box with one server for all projects.
+    # Empty: the folder named like the current folder.
+    folder: str = ""
     # Runs as `user` in the project folder; {project} is the folder name.
     start_command: str = "ai-shell opencode serve"
 
     @classmethod
     def from_dict(cls, data: dict) -> RemoteBox:
         box = cls()
-        for key in ("instance", "aws_profile", "aws_region", "user", "projects_dir"):
+        for key in ("instance", "aws_profile", "aws_region", "user", "projects_dir", "folder"):
             if data.get(key):
                 setattr(box, key, str(data[key]))
         if data.get("start_command"):

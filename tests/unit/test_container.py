@@ -1411,6 +1411,31 @@ class TestDevConfigDigestAndRecreation:
         assert mock_container_manager._recreate_if_config_changed(container, "test") is False
         container.remove.assert_not_called()
 
+    def test_default_github_and_socket_settings_keep_the_old_digest(self, mock_container_manager):
+        import json
+        from hashlib import sha256
+
+        config = mock_container_manager.config
+        old = json.dumps(
+            {
+                "dev_ports": list(config.dev_ports),
+                "extra_volumes": sorted(config.extra_volumes),
+                "node_modules_paths": sorted(config.node_modules_paths),
+                "isolate_home_paths": sorted(config.isolate_home_paths),
+            },
+            sort_keys=True,
+        )
+        expected = sha256(old.encode("utf-8")).hexdigest()[:16]
+        assert mock_container_manager._dev_config_digest() == expected
+
+    def test_github_auth_off_changes_the_digest(self, mock_container_manager):
+        before = mock_container_manager._dev_config_digest()
+        mock_container_manager.config.github_auth = False
+        no_github = mock_container_manager._dev_config_digest()
+        mock_container_manager.config.docker_socket = False
+        neither = mock_container_manager._dev_config_digest()
+        assert len({before, no_github, neither}) == 3
+
     def test_remove_project_volumes_and_list_dev_containers(
         self, mock_container_manager, mock_docker_client
     ):

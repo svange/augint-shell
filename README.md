@@ -774,6 +774,7 @@ opencode:
     aws_region: us-gov-west-1
     user: dev                      # default dev
     projects_dir: ~/projects       # default ~/projects
+    folder: projects               # optional: always this folder, not this folder's name
     start_command: ai-shell opencode serve   # default; runs as user in the project, {project} = folder
 ```
 
