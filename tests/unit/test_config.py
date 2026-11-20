@@ -758,3 +758,16 @@ def test_opencode_defaults_leave_plugins_unset(tmp_path):
     assert config.opencode_claude_compat is False
     assert config.opencode_plugins is None
     assert config.opencode_instructions is None
+
+
+def test_container_github_auth_and_docker_socket(tmp_path):
+    from ai_shell.config import load_config
+
+    assert load_config(project_dir=tmp_path).github_auth is True
+    assert load_config(project_dir=tmp_path).docker_socket is True
+    (tmp_path / ".ai-shell.yaml").write_text(
+        "container:\n  github_auth: false\n  docker_socket: false\n"
+    )
+    config = load_config(project_dir=tmp_path)
+    assert config.github_auth is False
+    assert config.docker_socket is False

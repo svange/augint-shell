@@ -70,9 +70,11 @@ def test_config_reads_the_remote_block(tmp_path):
         "    aws_profile: ai-gov\n"
         "    aws_region: us-gov-west-1\n"
         "    start_command: ai-gov-serve {project}\n"
+        "    folder: projects\n"
     )
     config = load_config(project_dir=tmp_path)
     box = config.opencode_remote
+    assert box.folder == "projects"
     assert box.instance == "ai-gov-opencode-box"
     assert box.aws_profile == "ai-gov"
     assert box.aws_region == "us-gov-west-1"
@@ -303,6 +305,31 @@ def test_project_defaults_to_this_folder_name(monkeypatch, tmp_path):
     result = CliRunner().invoke(cli, ["opencode", "remote"])
     assert result.exit_code == 1
     assert seen["project"] == Path.cwd().name == "navy"
+
+
+def test_configured_project_wins_over_the_folder_name(monkeypatch, tmp_path):
+    folder = tmp_path / "somewhere"
+    folder.mkdir()
+    (folder / ".ai-shell.yaml").write_text(
+        "opencode:\n  remote:\n    instance: box\n    projects_dir: /home/dev\n"
+        "    folder: projects\n"
+    )
+    monkeypatch.chdir(folder)
+    seen = {}
+    monkeypatch.setattr(remote, "session_manager_plugin_found", lambda: True)
+    monkeypatch.setattr(remote, "ensure_login", lambda box: None)
+    monkeypatch.setattr(remote, "resolve_instance", lambda box: "i-1")
+    monkeypatch.setattr(remote, "ensure_running", lambda box, i, say=print: None)
+
+    def ensure_server(box, i, project, say=print):
+        seen["project"] = project
+        seen["dir"] = remote.project_dir(box, project)
+        raise RemoteError("stop here")
+
+    monkeypatch.setattr(remote, "ensure_server", ensure_server)
+    result = CliRunner().invoke(cli, ["opencode", "remote"])
+    assert result.exit_code == 1
+    assert seen == {"project": "projects", "dir": "/home/dev/projects"}
 
 
 def test_signed_in_url_quotes_the_credentials():

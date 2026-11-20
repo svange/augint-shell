@@ -272,6 +272,7 @@ def _get_manager(
         bedrock_model=config.bedrock_model,
         openai_profile=openai_profile or config.openai_profile,
         env_file=env_file,
+        github_auth=config.github_auth,
     )
     return manager, container_name, exec_env, config
 
@@ -489,6 +490,7 @@ def _claude_exec_env(
             claude_account=claude_account,
             claude_login=claude_login,
             env_file=env_file,
+            github_auth=config.github_auth,
         )
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
@@ -2208,7 +2210,8 @@ def remote(ctx, project: str, instance: str, local_port: int, no_browser: bool) 
 
     Starts the box and the project's server when needed, prints the user and password,
     forwards the server port to localhost and opens the browser. PROJECT is the folder
-    under opencode.remote.projects_dir on the box (default: this folder's name).
+    under opencode.remote.projects_dir on the box (default: opencode.remote.folder,
+    else this folder's name).
     Ctrl+C ends the tunnel.
     """
     import dataclasses
@@ -2221,7 +2224,7 @@ def remote(ctx, project: str, instance: str, local_port: int, no_browser: bool) 
     box = dataclasses.replace(config.opencode_remote)
     if instance:
         box.instance = instance
-    name = project or Path.cwd().name
+    name = project or box.folder or Path.cwd().name
     try:
         rbox.project_folder(name)
         if not rbox.session_manager_plugin_found():

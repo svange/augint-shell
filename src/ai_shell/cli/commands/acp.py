@@ -93,6 +93,7 @@ def _tool_env(config: AiShellConfig, opts: AcpOptions) -> tuple[dict[str, str], 
             aws_profile=config.ai_profile,
             aws_region=config.aws_region,
             openai_profile=config.openai_profile,
+            github_auth=config.github_auth,
         )
         return env, [], ""
 
