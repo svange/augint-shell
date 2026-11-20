@@ -355,6 +355,8 @@ RUN git config --global --add safe.directory '*' && \
     git config --global core.editor vim && \
     git config --global init.defaultBranch main && \
     git config --global core.filemode false && \
+    git config --global core.autocrlf input && \
+    git config --global core.eol lf && \
     (git config --global --unset-all http.sslbackend || true) && \
     printf '%s\n' \
         '#!/bin/bash' \
