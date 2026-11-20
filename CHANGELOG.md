@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.126.1 (2026-11-20)
+
+### Bug Fixes
+
+- **opencode**: Open the server's web UI already signed in
+  ([`0d3cb89`](https://github.com/svange/augint-shell/commit/0d3cb898e10c0771140cbc9508c9e11c2d76d45d))
+
+- **opencode**: Open the server's web UI already signed in (#212)
+  ([#212](https://github.com/svange/augint-shell/pull/212),
+  [`c6157f0`](https://github.com/svange/augint-shell/commit/c6157f0e957a9806543ecbbe34d2d2ee34140f3c))
+
+
 ## v0.126.0 (2026-11-19)
 
 ### Features
