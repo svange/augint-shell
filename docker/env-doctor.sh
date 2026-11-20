@@ -141,6 +141,18 @@ else
   warn "chezmoi is not installed." "Rebuild the augint-shell container image."
 fi
 
+if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+  ok "GUI display forwarding active (DISPLAY=${DISPLAY:-unset}, WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset})."
+else
+  info "GUI display forwarding not active (start with '--gui' or set container.gui: true)."
+fi
+
+if [ -e "/dev/dxg" ] || command -v nvidia-smi >/dev/null 2>&1; then
+  ok "GPU device passthrough detected."
+else
+  info "No GPU device passthrough active (start with '--gpu' or set container.gpu: true)."
+fi
+
 echo ""
 if [ "$issues" -eq 0 ]; then
   echo "[env-doctor] Everything looks healthy!"
