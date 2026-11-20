@@ -274,6 +274,11 @@ def _apply_gui_gpu_overrides(
         config.tmux = use_tmux
 
 
+def _cfg_bool(config: object, attr: str) -> bool:
+    """Return True only when *config.<attr>* is an actual ``True`` bool (not a MagicMock)."""
+    return getattr(config, attr, False) is True
+
+
 def _get_manager(
     ctx,
     *,
@@ -1155,7 +1160,7 @@ def _launch_loaded_config_claude(
                 workdir=session_workdir,
                 chrome_port=chrome_port,
             )
-        if config.tmux:
+        if _cfg_bool(config, "tmux"):
             from ai_shell.tmux import build_tmux_workspace_cmd
 
             remote_cmd = build_tmux_workspace_cmd(
@@ -1171,7 +1176,7 @@ def _launch_loaded_config_claude(
         return
 
     if safe_cmd is not None:
-        if config.tmux:
+        if _cfg_bool(config, "tmux"):
             from ai_shell.tmux import build_tmux_workspace_cmd
 
             safe_cmd = build_tmux_workspace_cmd(
@@ -1202,7 +1207,7 @@ def _launch_loaded_config_claude(
         *extra_args,
     ]
 
-    if config.tmux:
+    if _cfg_bool(config, "tmux"):
         import shlex
 
         from ai_shell.tmux import build_tmux_workspace_cmd
@@ -1572,7 +1577,7 @@ def codex(
         if not safe:
             cmd.extend(["--dangerously-bypass-approvals-and-sandbox"])
         cmd.extend(extra_args)
-        if config.tmux:
+        if _cfg_bool(config, "tmux"):
             from ai_shell.tmux import build_tmux_workspace_cmd
 
             cmd = build_tmux_workspace_cmd(cmd, session_name="ai-shell-codex", agent_label="codex")
@@ -2176,7 +2181,7 @@ def opencode(
             console.print(
                 f"[bold]Launching opencode{bedrock_label}{openai_label} in {name}...[/bold]"
             )
-        if config.tmux:
+        if _cfg_bool(config, "tmux"):
             from ai_shell.tmux import build_tmux_workspace_cmd
 
             cmd = build_tmux_workspace_cmd(
@@ -2633,7 +2638,7 @@ def pi(
         cmd = ["pi"]
         if use_bedrock:
             cmd.extend(["--provider", "amazon-bedrock", "--model", bedrock_model])
-        if config.tmux:
+        if _cfg_bool(config, "tmux"):
             from ai_shell.tmux import build_tmux_workspace_cmd
 
             cmd = build_tmux_workspace_cmd(cmd, session_name="ai-shell-pi", agent_label="pi")
@@ -2705,7 +2710,7 @@ def shell(ctx, env_file, use_t3, use_expo, use_gui, gui_display, use_gpu, use_tm
         shell_name = shell_name.lower()
         shell_path = SUPPORTED_SHELLS[shell_name]
         cmd = [shell_path, "-l"]
-        if config.tmux:
+        if _cfg_bool(config, "tmux"):
             from ai_shell.tmux import build_tmux_workspace_cmd
 
             cmd = build_tmux_workspace_cmd(
